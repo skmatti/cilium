@@ -27,6 +27,13 @@ ${CODEGEN_PKG}/generate-groups.sh \
   github.com/cilium/cilium/pkg/gke/client/trafficsteering github.com/cilium/cilium/pkg/gke/apis \
   "trafficsteering:v1alpha1" \
   --go-header-file ${SCRIPT_ROOT}/hack/boilerplate.go.txt
+  
+echo "Performing code generation for NetworkLogging CRD"
+${CODEGEN_PKG}/generate-groups.sh \
+  "deepcopy,client,informer,lister" \
+  github.com/cilium/cilium/pkg/gke/client/networklogging github.com/cilium/cilium/pkg/gke/apis \
+  "networklogging:v1alpha1" \
+  --go-header-file ${SCRIPT_ROOT}/hack/boilerplate.go.txt
 
 echo "Performing code generation for MultiNIC CRD"
 ${CODEGEN_PKG}/generate-groups.sh \

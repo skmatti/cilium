@@ -290,7 +290,9 @@ type K8sWatcher struct {
 	namespaceStore cache.Store
 	datapath       datapath.Datapath
 
-	networkpolicyStore cache.Store
+	networkpolicyStore                  cache.Store
+	ciliumNetworkPolicyStore            cache.Store
+	ciliumClusterwideNetworkPolicyStore cache.Store
 
 	cfg WatcherConfiguration
 }
@@ -1051,8 +1053,12 @@ func (k *K8sWatcher) SetIndexer(name string, indexer cache.Indexer) {
 // are references to internal k8s watcher store state.
 func (k *K8sWatcher) GetStore(name string) cache.Store {
 	switch name {
-	case "networkpolicy":
+	case "networkpolicy", "NetworkPolicy":
 		return k.networkpolicyStore
+	case "CiliumNetworkPolicy":
+		return k.ciliumNetworkPolicyStore
+	case "CiliumClusterwideNetworkPolicy":
+		return k.ciliumClusterwideNetworkPolicyStore
 	case "namespace":
 		return k.namespaceStore
 	case "pod":

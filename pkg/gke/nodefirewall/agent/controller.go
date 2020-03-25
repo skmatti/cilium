@@ -28,10 +28,10 @@ import (
 	"github.com/sirupsen/logrus"
 	"gke-internal/gke-node-firewall/pkg/apis/nodenetworkpolicy/v1alpha1"
 	nnpclient "gke-internal/gke-node-firewall/pkg/client/nodenetworkpolicy/clientset/versioned"
+	nnpscheme "gke-internal/gke-node-firewall/pkg/client/nodenetworkpolicy/clientset/versioned/scheme"
 	nnpinformers "gke-internal/gke-node-firewall/pkg/client/nodenetworkpolicy/informers/externalversions"
 	apiv1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/kubernetes/scheme"
 	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/record"
@@ -89,7 +89,7 @@ func NewNodeFirewallAgent(kubeClient kubernetes.Interface, nodeFWClient nnpclien
 	})
 
 	nc := &NodeFirewallAgent{
-		eventRecorder:       broadcaster.NewRecorder(scheme.Scheme, apiv1.EventSource{Component: "anet-node-firewall-agent", Host: nodeTypes.GetName()}),
+		eventRecorder:       broadcaster.NewRecorder(nnpscheme.Scheme, apiv1.EventSource{Component: "node-network-policy-controller", Host: nodeTypes.GetName()}),
 		policyInformer:      nnpinformers.NewSharedInformerFactory(nodeFWClient, informerResyncPeriod).Networking().V1alpha1().NodeNetworkPolicies().Informer(),
 		ciliumPolicyManager: ciliumPolicyManager,
 		stopCh:              make(chan struct{}),

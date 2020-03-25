@@ -22,6 +22,7 @@ import (
 	cmtypes "github.com/cilium/cilium/pkg/clustermesh/types"
 	"github.com/cilium/cilium/pkg/crypto/certloader"
 	"github.com/cilium/cilium/pkg/datapath/link"
+	gkeflow "github.com/cilium/cilium/pkg/gke/flow"
 	v1 "github.com/cilium/cilium/pkg/hubble/api/v1"
 	"github.com/cilium/cilium/pkg/hubble/container"
 	"github.com/cilium/cilium/pkg/hubble/exporter"
@@ -150,9 +151,13 @@ func (d *Daemon) launchHubble() {
 		logger.WithError(err).Error("Specified capacity for Hubble events buffer is invalid")
 		return
 	}
+
+	gkeFlowPlugin := gkeflow.New()
 	observerOpts = append(observerOpts,
+		observeroption.WithOnServerInit(gkeFlowPlugin),
 		observeroption.WithMaxFlows(maxFlows),
 		observeroption.WithMonitorBuffer(option.Config.HubbleEventQueueSize),
+		observeroption.WithOnDecodedFlow(gkeFlowPlugin),
 		observeroption.WithCiliumDaemon(d),
 	)
 	if option.Config.HubbleExportFilePath != "" {
@@ -232,6 +237,7 @@ func (d *Daemon) launchHubble() {
 		<-d.ctx.Done()
 		localSrv.Stop()
 		peerSvc.Close()
+		gkeFlowPlugin.Stop()
 	}()
 
 	// configure another hubble instance that serve fewer gRPC services

@@ -18,7 +18,7 @@ import (
 
 func (k *K8sWatcher) ciliumClusterwideNetworkPoliciesInit(ciliumNPClient client.Clientset) {
 	apiGroup := k8sAPIGroupCiliumClusterwideNetworkPolicyV2
-	_, ciliumV2ClusterwidePolicyController := informer.NewInformer(
+	ccnpStore, ciliumV2ClusterwidePolicyController := informer.NewInformer(
 		utils.ListerWatcherFromTyped[*cilium_v2.CiliumClusterwideNetworkPolicyList](
 			ciliumNPClient.CiliumV2().CiliumClusterwideNetworkPolicies()),
 		&cilium_v2.CiliumClusterwideNetworkPolicy{},
@@ -87,6 +87,7 @@ func (k *K8sWatcher) ciliumClusterwideNetworkPoliciesInit(ciliumNPClient client.
 		k8s.ConvertToCCNP,
 	)
 
+	k.ciliumClusterwideNetworkPolicyStore = ccnpStore
 	k.blockWaitGroupToSyncResources(
 		k.stop,
 		nil,

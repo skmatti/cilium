@@ -84,7 +84,7 @@ func (r *ruleImportMetadataCache) get(cnp *types.SlimCNP) (policyImportMetadata,
 
 func (k *K8sWatcher) ciliumNetworkPoliciesInit(cs client.Clientset) {
 	apiGroup := k8sAPIGroupCiliumNetworkPolicyV2
-	_, ciliumV2Controller := informer.NewInformer(
+	cnpStore, ciliumV2Controller := informer.NewInformer(
 		utils.ListerWatcherFromTyped[*cilium_v2.CiliumNetworkPolicyList](
 			cs.CiliumV2().CiliumNetworkPolicies("")),
 		&cilium_v2.CiliumNetworkPolicy{},
@@ -151,9 +151,10 @@ func (k *K8sWatcher) ciliumNetworkPoliciesInit(cs client.Clientset) {
 		k8s.ConvertToCNP,
 	)
 
-	k.blockWaitGroupToSyncResources(k.stop, nil, ciliumV2Controller.HasSynced, k8sAPIGroupCiliumNetworkPolicyV2)
+	k.ciliumNetworkPolicyStore = cnpStore
+	k.blockWaitGroupToSyncResources(k.stop, nil, ciliumV2Controller.HasSynced, apiGroup)
 	go ciliumV2Controller.Run(k.stop)
-	k.k8sAPIGroups.AddAPI(k8sAPIGroupCiliumNetworkPolicyV2)
+	k.k8sAPIGroups.AddAPI(apiGroup)
 }
 
 func (k *K8sWatcher) addCiliumNetworkPolicyV2(ciliumNPClient clientset.Interface, cnp *types.SlimCNP, initialRecvTime time.Time) error {
