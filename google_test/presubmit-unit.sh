@@ -12,7 +12,7 @@
 # 6. Exit with exit code from remote execution.
 
 set -x
-date=$(date '+%Y-%m-%d-%H-%M-%S')
+date=$(TZ=":America/Los_Angeles" date '+%Y-%m-%d-%H-%M-%S')
 PROJECT="${GCP_PROJECT:-gke-anthos-datapath-presubmits}"
 VM_NAME="presubmit-unit-$date"
 ZONE="us-west1-b"
@@ -32,7 +32,7 @@ function auth {
 
 function provision_GCE_VM {
   log "Provisioning GCE VM " $VM_NAME
-  gcloud compute instances create ${VM_NAME} --project=${PROJECT} --zone=$ZONE || true
+  gcloud compute instances create ${VM_NAME} --project=${PROJECT} --zone=$ZONE --metadata-from-file=startup-script=./google_test/countdown-and-self-destruct.sh --scopes=compute-rw || exit 1
 }
 
 function allow_SSH {
