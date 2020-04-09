@@ -1,5 +1,19 @@
 #!/bin/bash
 
+# Copyright 2020 Google LLC
+
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 # This is triggered by PROW upon code change.
 # The process is like below:
 #
@@ -18,6 +32,7 @@ VM_NAME="presubmit-unit-$date"
 ZONE="us-west1-b"
 HOST_NAME="$VM_NAME.$ZONE.$PROJECT"
 tarball=gob_cilium.tar.gz
+TESTING_IMAGE=cilium-unit-test-image-2020-04-11
 
 function log {
   echo "`date +'%b %d %T.000'`: INFO: $@"
@@ -32,7 +47,7 @@ function auth {
 
 function provision_GCE_VM {
   log "Provisioning GCE VM " $VM_NAME
-  gcloud compute instances create ${VM_NAME} --project=${PROJECT} --zone=$ZONE --metadata-from-file=startup-script=./google_test/countdown-and-self-destruct.sh --scopes=compute-rw || exit 1
+  gcloud compute instances create ${VM_NAME} --project=${PROJECT} --image $TESTING_IMAGE --zone=$ZONE --metadata-from-file=startup-script=./google_test/countdown-and-self-destruct.sh --scopes=compute-rw || exit 1
 }
 
 function allow_SSH {

@@ -1,14 +1,27 @@
 #!/bin/bash
 
+# Copyright 2020 Google LLC
+
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 # This script is meant to be triggered by presubmit-unit.sh from PROW.
 # This runs the actual unit tests of Cilium.
 #
 # Workflow:
-# 1. Installs prerequisites (this will be baked into the image later).
-# 2. Changes dir structure to what Cilium's Makefile expects.
-# 3. Runs unprivileged tests.
-# 4. Changes into root hat.
-# 5. Runs privileged tests.
+# 1. Changes dir structure to what Cilium's Makefile expects.
+# 2. Runs unprivileged tests.
+# 3. Changes into root hat.
+# 4. Runs privileged tests.
 
 set -xe
 
@@ -23,6 +36,7 @@ function ch_dir {
   sudo mkdir -p $GOPATH/src/github.com/cilium/
   sudo mv cilium/ $GOPATH/src/github.com/cilium/
   cd $GOPATH/src/github.com/cilium/cilium
+  log $(pwd)
 }
 
 function allow_docker_op {
@@ -33,10 +47,6 @@ function allow_docker_op {
 function log {
   echo "`date +'%b %d %T.000'`: INFO: $@"
 }
-
-# Getting prerequisites requires privileged ops. Will be removed once deps are
-# built in the testing image.
-sudo ./cilium/google_test/get-deps.sh || true
 
 # Make make happy.
 ch_dir
