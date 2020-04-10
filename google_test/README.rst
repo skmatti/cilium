@@ -3,8 +3,8 @@ Google Test Orchestration for Cilium on GoB
 This dir contains scripts that Google internally uses to orchestrate
 Cilium's tests.
 
-Golang Unit Tests
-=================
+Unit Tests
+==========
 
 These tests are run as automatic prow job on gke prow cluster, but the
 actual tests run in a separate GCP project owned by anthos-datapath-dev@
@@ -19,3 +19,15 @@ the target testing VM. In the testing VM, `unit-test-local.sh` is
 triggered to launch the actual unit tests.
 
 Detailed doc can be found at go/cilium-ut-on-gob.
+
+E2E Tests
+=========
+
+These tests are run as automatic prow job on gke prow cluster, but the
+actual tests run in a separate GCP project owned by anthos-datapath-dev@
+to provide better control and debuggability.
+
+When a periodic job/comment trigger kicks in, a Prow job is started
+automatically runs `e2e.sh`, which syncs the current HEAD, builds
+cilium/cilium-operator images, pushs images to testing GCP project and
+runs the ginkgo tests there.
