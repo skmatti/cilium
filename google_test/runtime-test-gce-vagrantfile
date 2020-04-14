@@ -21,7 +21,9 @@ $SERVICE_ACCT_KEY = ENV['SERVICE_ACCT_KEY']
 $IMAGE = ENV['IMAGE']
 $INSTANCE_NAME = ENV['INSTANCE_NAME']
 $ZONE = ENV['ZONE']
-$METADATA = ENV['METADATA']
+$METADATA_KEY1 = ENV['METADATA_KEY1']
+$METADATA_VAL1 = ENV['METADATA_VAL1']
+$SCOPES_VAL1 = ENV['SCOPES_VAL1']
 $VAGRANT_SSH_KEY = ENV['VAGRANT_SSH_KEY']
 
 Vagrant.configure("2") do |config|
@@ -37,7 +39,8 @@ Vagrant.configure("2") do |config|
             google.disk_size = 40
             google.name = $INSTANCE_NAME
 	    google.zone = $ZONE
-	    google.metadata = $METADATA
+	    google.metadata = {$METADATA_KEY1 => $METADATA_VAL1}
+	    google.scopes = [$SCOPES_VAL1]
 
             override.ssh.username = "vagrant"
             override.ssh.private_key_path = $VAGRANT_SSH_KEY
