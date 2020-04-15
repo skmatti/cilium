@@ -1,5 +1,5 @@
 /*
-Copyright 2020 The Kubernetes Authors.
+Copyright 2020 Google LLC
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -29,8 +29,8 @@ import (
 type NetworkPolicyLoggingLister interface {
 	// List lists all NetworkPolicyLoggings in the indexer.
 	List(selector labels.Selector) (ret []*v1alpha1.NetworkPolicyLogging, err error)
-	// NetworkPolicyLoggings returns an object that can list and get NetworkPolicyLoggings.
-	NetworkPolicyLoggings(namespace string) NetworkPolicyLoggingNamespaceLister
+	// Get retrieves the NetworkPolicyLogging from the index for a given name.
+	Get(name string) (*v1alpha1.NetworkPolicyLogging, error)
 	NetworkPolicyLoggingListerExpansion
 }
 
@@ -52,38 +52,9 @@ func (s *networkPolicyLoggingLister) List(selector labels.Selector) (ret []*v1al
 	return ret, err
 }
 
-// NetworkPolicyLoggings returns an object that can list and get NetworkPolicyLoggings.
-func (s *networkPolicyLoggingLister) NetworkPolicyLoggings(namespace string) NetworkPolicyLoggingNamespaceLister {
-	return networkPolicyLoggingNamespaceLister{indexer: s.indexer, namespace: namespace}
-}
-
-// NetworkPolicyLoggingNamespaceLister helps list and get NetworkPolicyLoggings.
-type NetworkPolicyLoggingNamespaceLister interface {
-	// List lists all NetworkPolicyLoggings in the indexer for a given namespace.
-	List(selector labels.Selector) (ret []*v1alpha1.NetworkPolicyLogging, err error)
-	// Get retrieves the NetworkPolicyLogging from the indexer for a given namespace and name.
-	Get(name string) (*v1alpha1.NetworkPolicyLogging, error)
-	NetworkPolicyLoggingNamespaceListerExpansion
-}
-
-// networkPolicyLoggingNamespaceLister implements the NetworkPolicyLoggingNamespaceLister
-// interface.
-type networkPolicyLoggingNamespaceLister struct {
-	indexer   cache.Indexer
-	namespace string
-}
-
-// List lists all NetworkPolicyLoggings in the indexer for a given namespace.
-func (s networkPolicyLoggingNamespaceLister) List(selector labels.Selector) (ret []*v1alpha1.NetworkPolicyLogging, err error) {
-	err = cache.ListAllByNamespace(s.indexer, s.namespace, selector, func(m interface{}) {
-		ret = append(ret, m.(*v1alpha1.NetworkPolicyLogging))
-	})
-	return ret, err
-}
-
-// Get retrieves the NetworkPolicyLogging from the indexer for a given namespace and name.
-func (s networkPolicyLoggingNamespaceLister) Get(name string) (*v1alpha1.NetworkPolicyLogging, error) {
-	obj, exists, err := s.indexer.GetByKey(s.namespace + "/" + name)
+// Get retrieves the NetworkPolicyLogging from the index for a given name.
+func (s *networkPolicyLoggingLister) Get(name string) (*v1alpha1.NetworkPolicyLogging, error) {
+	obj, exists, err := s.indexer.GetByKey(name)
 	if err != nil {
 		return nil, err
 	}

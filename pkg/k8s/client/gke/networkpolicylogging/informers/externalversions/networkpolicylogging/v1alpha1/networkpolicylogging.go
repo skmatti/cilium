@@ -1,5 +1,5 @@
 /*
-Copyright 2020 The Kubernetes Authors.
+Copyright 2020 Google LLC
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -42,33 +42,32 @@ type NetworkPolicyLoggingInformer interface {
 type networkPolicyLoggingInformer struct {
 	factory          internalinterfaces.SharedInformerFactory
 	tweakListOptions internalinterfaces.TweakListOptionsFunc
-	namespace        string
 }
 
 // NewNetworkPolicyLoggingInformer constructs a new informer for NetworkPolicyLogging type.
 // Always prefer using an informer factory to get a shared informer instead of getting an independent
 // one. This reduces memory footprint and number of connections to the server.
-func NewNetworkPolicyLoggingInformer(client versioned.Interface, namespace string, resyncPeriod time.Duration, indexers cache.Indexers) cache.SharedIndexInformer {
-	return NewFilteredNetworkPolicyLoggingInformer(client, namespace, resyncPeriod, indexers, nil)
+func NewNetworkPolicyLoggingInformer(client versioned.Interface, resyncPeriod time.Duration, indexers cache.Indexers) cache.SharedIndexInformer {
+	return NewFilteredNetworkPolicyLoggingInformer(client, resyncPeriod, indexers, nil)
 }
 
 // NewFilteredNetworkPolicyLoggingInformer constructs a new informer for NetworkPolicyLogging type.
 // Always prefer using an informer factory to get a shared informer instead of getting an independent
 // one. This reduces memory footprint and number of connections to the server.
-func NewFilteredNetworkPolicyLoggingInformer(client versioned.Interface, namespace string, resyncPeriod time.Duration, indexers cache.Indexers, tweakListOptions internalinterfaces.TweakListOptionsFunc) cache.SharedIndexInformer {
+func NewFilteredNetworkPolicyLoggingInformer(client versioned.Interface, resyncPeriod time.Duration, indexers cache.Indexers, tweakListOptions internalinterfaces.TweakListOptionsFunc) cache.SharedIndexInformer {
 	return cache.NewSharedIndexInformer(
 		&cache.ListWatch{
 			ListFunc: func(options v1.ListOptions) (runtime.Object, error) {
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.NetworkingV1alpha1().NetworkPolicyLoggings(namespace).List(context.TODO(), options)
+				return client.NetworkingV1alpha1().NetworkPolicyLoggings().List(context.TODO(), options)
 			},
 			WatchFunc: func(options v1.ListOptions) (watch.Interface, error) {
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.NetworkingV1alpha1().NetworkPolicyLoggings(namespace).Watch(context.TODO(), options)
+				return client.NetworkingV1alpha1().NetworkPolicyLoggings().Watch(context.TODO(), options)
 			},
 		},
 		&networkpolicyloggingv1alpha1.NetworkPolicyLogging{},
@@ -78,7 +77,7 @@ func NewFilteredNetworkPolicyLoggingInformer(client versioned.Interface, namespa
 }
 
 func (f *networkPolicyLoggingInformer) defaultInformer(client versioned.Interface, resyncPeriod time.Duration) cache.SharedIndexInformer {
-	return NewFilteredNetworkPolicyLoggingInformer(client, f.namespace, resyncPeriod, cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc}, f.tweakListOptions)
+	return NewFilteredNetworkPolicyLoggingInformer(client, resyncPeriod, cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc}, f.tweakListOptions)
 }
 
 func (f *networkPolicyLoggingInformer) Informer() cache.SharedIndexInformer {

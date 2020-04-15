@@ -1,5 +1,5 @@
 /*
-Copyright 2020 The Kubernetes Authors.
+Copyright 2020 Google LLC
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -21,7 +21,3 @@ package v1alpha1
 // NetworkPolicyLoggingListerExpansion allows custom methods to be added to
 // NetworkPolicyLoggingLister.
 type NetworkPolicyLoggingListerExpansion interface{}
-
-// NetworkPolicyLoggingNamespaceListerExpansion allows custom methods to be added to
-// NetworkPolicyLoggingNamespaceLister.
-type NetworkPolicyLoggingNamespaceListerExpansion interface{}

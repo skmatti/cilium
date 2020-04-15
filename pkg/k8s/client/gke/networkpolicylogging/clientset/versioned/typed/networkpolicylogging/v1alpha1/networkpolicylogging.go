@@ -1,5 +1,5 @@
 /*
-Copyright 2020 The Kubernetes Authors.
+Copyright 2020 Google LLC
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -33,7 +33,7 @@ import (
 // NetworkPolicyLoggingsGetter has a method to return a NetworkPolicyLoggingInterface.
 // A group's client should implement this interface.
 type NetworkPolicyLoggingsGetter interface {
-	NetworkPolicyLoggings(namespace string) NetworkPolicyLoggingInterface
+	NetworkPolicyLoggings() NetworkPolicyLoggingInterface
 }
 
 // NetworkPolicyLoggingInterface has methods to work with NetworkPolicyLogging resources.
@@ -53,14 +53,12 @@ type NetworkPolicyLoggingInterface interface {
 // networkPolicyLoggings implements NetworkPolicyLoggingInterface
 type networkPolicyLoggings struct {
 	client rest.Interface
-	ns     string
 }
 
 // newNetworkPolicyLoggings returns a NetworkPolicyLoggings
-func newNetworkPolicyLoggings(c *NetworkingV1alpha1Client, namespace string) *networkPolicyLoggings {
+func newNetworkPolicyLoggings(c *NetworkingV1alpha1Client) *networkPolicyLoggings {
 	return &networkPolicyLoggings{
 		client: c.RESTClient(),
-		ns:     namespace,
 	}
 }
 
@@ -68,7 +66,6 @@ func newNetworkPolicyLoggings(c *NetworkingV1alpha1Client, namespace string) *ne
 func (c *networkPolicyLoggings) Get(ctx context.Context, name string, options v1.GetOptions) (result *v1alpha1.NetworkPolicyLogging, err error) {
 	result = &v1alpha1.NetworkPolicyLogging{}
 	err = c.client.Get().
-		Namespace(c.ns).
 		Resource("networkpolicyloggings").
 		Name(name).
 		VersionedParams(&options, scheme.ParameterCodec).
@@ -85,7 +82,6 @@ func (c *networkPolicyLoggings) List(ctx context.Context, opts v1.ListOptions) (
 	}
 	result = &v1alpha1.NetworkPolicyLoggingList{}
 	err = c.client.Get().
-		Namespace(c.ns).
 		Resource("networkpolicyloggings").
 		VersionedParams(&opts, scheme.ParameterCodec).
 		Timeout(timeout).
@@ -102,7 +98,6 @@ func (c *networkPolicyLoggings) Watch(ctx context.Context, opts v1.ListOptions) 
 	}
 	opts.Watch = true
 	return c.client.Get().
-		Namespace(c.ns).
 		Resource("networkpolicyloggings").
 		VersionedParams(&opts, scheme.ParameterCodec).
 		Timeout(timeout).
@@ -113,7 +108,6 @@ func (c *networkPolicyLoggings) Watch(ctx context.Context, opts v1.ListOptions) 
 func (c *networkPolicyLoggings) Create(ctx context.Context, networkPolicyLogging *v1alpha1.NetworkPolicyLogging, opts v1.CreateOptions) (result *v1alpha1.NetworkPolicyLogging, err error) {
 	result = &v1alpha1.NetworkPolicyLogging{}
 	err = c.client.Post().
-		Namespace(c.ns).
 		Resource("networkpolicyloggings").
 		VersionedParams(&opts, scheme.ParameterCodec).
 		Body(networkPolicyLogging).
@@ -126,7 +120,6 @@ func (c *networkPolicyLoggings) Create(ctx context.Context, networkPolicyLogging
 func (c *networkPolicyLoggings) Update(ctx context.Context, networkPolicyLogging *v1alpha1.NetworkPolicyLogging, opts v1.UpdateOptions) (result *v1alpha1.NetworkPolicyLogging, err error) {
 	result = &v1alpha1.NetworkPolicyLogging{}
 	err = c.client.Put().
-		Namespace(c.ns).
 		Resource("networkpolicyloggings").
 		Name(networkPolicyLogging.Name).
 		VersionedParams(&opts, scheme.ParameterCodec).
@@ -141,7 +134,6 @@ func (c *networkPolicyLoggings) Update(ctx context.Context, networkPolicyLogging
 func (c *networkPolicyLoggings) UpdateStatus(ctx context.Context, networkPolicyLogging *v1alpha1.NetworkPolicyLogging, opts v1.UpdateOptions) (result *v1alpha1.NetworkPolicyLogging, err error) {
 	result = &v1alpha1.NetworkPolicyLogging{}
 	err = c.client.Put().
-		Namespace(c.ns).
 		Resource("networkpolicyloggings").
 		Name(networkPolicyLogging.Name).
 		SubResource("status").
@@ -155,7 +147,6 @@ func (c *networkPolicyLoggings) UpdateStatus(ctx context.Context, networkPolicyL
 // Delete takes name of the networkPolicyLogging and deletes it. Returns an error if one occurs.
 func (c *networkPolicyLoggings) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
 	return c.client.Delete().
-		Namespace(c.ns).
 		Resource("networkpolicyloggings").
 		Name(name).
 		Body(&opts).
@@ -170,7 +161,6 @@ func (c *networkPolicyLoggings) DeleteCollection(ctx context.Context, opts v1.De
 		timeout = time.Duration(*listOpts.TimeoutSeconds) * time.Second
 	}
 	return c.client.Delete().
-		Namespace(c.ns).
 		Resource("networkpolicyloggings").
 		VersionedParams(&listOpts, scheme.ParameterCodec).
 		Timeout(timeout).
@@ -183,7 +173,6 @@ func (c *networkPolicyLoggings) DeleteCollection(ctx context.Context, opts v1.De
 func (c *networkPolicyLoggings) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v1alpha1.NetworkPolicyLogging, err error) {
 	result = &v1alpha1.NetworkPolicyLogging{}
 	err = c.client.Patch(pt).
-		Namespace(c.ns).
 		Resource("networkpolicyloggings").
 		Name(name).
 		SubResource(subresources...).

@@ -1,5 +1,5 @@
 /*
-Copyright 2020 The Kubernetes Authors.
+Copyright 2020 Google LLC
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -28,8 +28,12 @@ type FakeNetworkingV1alpha1 struct {
 	*testing.Fake
 }
 
-func (c *FakeNetworkingV1alpha1) NetworkPolicyLoggings(namespace string) v1alpha1.NetworkPolicyLoggingInterface {
-	return &FakeNetworkPolicyLoggings{c, namespace}
+func (c *FakeNetworkingV1alpha1) NetworkPolicyLoggings() v1alpha1.NetworkPolicyLoggingInterface {
+	return &FakeNetworkPolicyLoggings{c}
+}
+
+func (c *FakeNetworkingV1alpha1) NetworkPolicyLoggingLists() v1alpha1.NetworkPolicyLoggingListInterface {
+	return &FakeNetworkPolicyLoggingLists{c}
 }
 
 // RESTClient returns a RESTClient that is used to communicate

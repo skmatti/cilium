@@ -1,5 +1,5 @@
 /*
-Copyright 2020 The Kubernetes Authors.
+Copyright 2020 Google LLC
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -20,7 +20,13 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+const (
+	StateActive  = "active"
+	StateIgnored = "ignored"
+)
+
 // +genclient
+// +genclient:nonNamespaced
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 // NetworkPolicyLogging describes the specification used by network policy action
@@ -91,9 +97,12 @@ type LogSpec struct {
 // resource.
 type NetworkPolicyLoggingStatus struct {
 	// State specifies the current state of the policy logging resource.
-	State *string `json:"state,omitempty"`
+	State string `json:"state,omitempty"`
 }
 
+// +genclient
+// +genclient:nonNamespaced
+// +genclient:onlyVerbs=get
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 // NetworkPolicyLoggingList contains a list of NetworkPolicyLogging resources.

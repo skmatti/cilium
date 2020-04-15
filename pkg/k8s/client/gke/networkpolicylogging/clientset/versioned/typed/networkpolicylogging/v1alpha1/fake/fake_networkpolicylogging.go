@@ -1,5 +1,5 @@
 /*
-Copyright 2020 The Kubernetes Authors.
+Copyright 2020 Google LLC
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -33,7 +33,6 @@ import (
 // FakeNetworkPolicyLoggings implements NetworkPolicyLoggingInterface
 type FakeNetworkPolicyLoggings struct {
 	Fake *FakeNetworkingV1alpha1
-	ns   string
 }
 
 var networkpolicyloggingsResource = schema.GroupVersionResource{Group: "networking.gke.io", Version: "v1alpha1", Resource: "networkpolicyloggings"}
@@ -43,8 +42,7 @@ var networkpolicyloggingsKind = schema.GroupVersionKind{Group: "networking.gke.i
 // Get takes name of the networkPolicyLogging, and returns the corresponding networkPolicyLogging object, and an error if there is any.
 func (c *FakeNetworkPolicyLoggings) Get(ctx context.Context, name string, options v1.GetOptions) (result *v1alpha1.NetworkPolicyLogging, err error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewGetAction(networkpolicyloggingsResource, c.ns, name), &v1alpha1.NetworkPolicyLogging{})
-
+		Invokes(testing.NewRootGetAction(networkpolicyloggingsResource, name), &v1alpha1.NetworkPolicyLogging{})
 	if obj == nil {
 		return nil, err
 	}
@@ -54,8 +52,7 @@ func (c *FakeNetworkPolicyLoggings) Get(ctx context.Context, name string, option
 // List takes label and field selectors, and returns the list of NetworkPolicyLoggings that match those selectors.
 func (c *FakeNetworkPolicyLoggings) List(ctx context.Context, opts v1.ListOptions) (result *v1alpha1.NetworkPolicyLoggingList, err error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewListAction(networkpolicyloggingsResource, networkpolicyloggingsKind, c.ns, opts), &v1alpha1.NetworkPolicyLoggingList{})
-
+		Invokes(testing.NewRootListAction(networkpolicyloggingsResource, networkpolicyloggingsKind, opts), &v1alpha1.NetworkPolicyLoggingList{})
 	if obj == nil {
 		return nil, err
 	}
@@ -76,15 +73,13 @@ func (c *FakeNetworkPolicyLoggings) List(ctx context.Context, opts v1.ListOption
 // Watch returns a watch.Interface that watches the requested networkPolicyLoggings.
 func (c *FakeNetworkPolicyLoggings) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
 	return c.Fake.
-		InvokesWatch(testing.NewWatchAction(networkpolicyloggingsResource, c.ns, opts))
-
+		InvokesWatch(testing.NewRootWatchAction(networkpolicyloggingsResource, opts))
 }
 
 // Create takes the representation of a networkPolicyLogging and creates it.  Returns the server's representation of the networkPolicyLogging, and an error, if there is any.
 func (c *FakeNetworkPolicyLoggings) Create(ctx context.Context, networkPolicyLogging *v1alpha1.NetworkPolicyLogging, opts v1.CreateOptions) (result *v1alpha1.NetworkPolicyLogging, err error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewCreateAction(networkpolicyloggingsResource, c.ns, networkPolicyLogging), &v1alpha1.NetworkPolicyLogging{})
-
+		Invokes(testing.NewRootCreateAction(networkpolicyloggingsResource, networkPolicyLogging), &v1alpha1.NetworkPolicyLogging{})
 	if obj == nil {
 		return nil, err
 	}
@@ -94,8 +89,7 @@ func (c *FakeNetworkPolicyLoggings) Create(ctx context.Context, networkPolicyLog
 // Update takes the representation of a networkPolicyLogging and updates it. Returns the server's representation of the networkPolicyLogging, and an error, if there is any.
 func (c *FakeNetworkPolicyLoggings) Update(ctx context.Context, networkPolicyLogging *v1alpha1.NetworkPolicyLogging, opts v1.UpdateOptions) (result *v1alpha1.NetworkPolicyLogging, err error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewUpdateAction(networkpolicyloggingsResource, c.ns, networkPolicyLogging), &v1alpha1.NetworkPolicyLogging{})
-
+		Invokes(testing.NewRootUpdateAction(networkpolicyloggingsResource, networkPolicyLogging), &v1alpha1.NetworkPolicyLogging{})
 	if obj == nil {
 		return nil, err
 	}
@@ -106,8 +100,7 @@ func (c *FakeNetworkPolicyLoggings) Update(ctx context.Context, networkPolicyLog
 // Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
 func (c *FakeNetworkPolicyLoggings) UpdateStatus(ctx context.Context, networkPolicyLogging *v1alpha1.NetworkPolicyLogging, opts v1.UpdateOptions) (*v1alpha1.NetworkPolicyLogging, error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewUpdateSubresourceAction(networkpolicyloggingsResource, "status", c.ns, networkPolicyLogging), &v1alpha1.NetworkPolicyLogging{})
-
+		Invokes(testing.NewRootUpdateSubresourceAction(networkpolicyloggingsResource, "status", networkPolicyLogging), &v1alpha1.NetworkPolicyLogging{})
 	if obj == nil {
 		return nil, err
 	}
@@ -117,14 +110,13 @@ func (c *FakeNetworkPolicyLoggings) UpdateStatus(ctx context.Context, networkPol
 // Delete takes name of the networkPolicyLogging and deletes it. Returns an error if one occurs.
 func (c *FakeNetworkPolicyLoggings) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
 	_, err := c.Fake.
-		Invokes(testing.NewDeleteAction(networkpolicyloggingsResource, c.ns, name), &v1alpha1.NetworkPolicyLogging{})
-
+		Invokes(testing.NewRootDeleteAction(networkpolicyloggingsResource, name), &v1alpha1.NetworkPolicyLogging{})
 	return err
 }
 
 // DeleteCollection deletes a collection of objects.
 func (c *FakeNetworkPolicyLoggings) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
-	action := testing.NewDeleteCollectionAction(networkpolicyloggingsResource, c.ns, listOpts)
+	action := testing.NewRootDeleteCollectionAction(networkpolicyloggingsResource, listOpts)
 
 	_, err := c.Fake.Invokes(action, &v1alpha1.NetworkPolicyLoggingList{})
 	return err
@@ -133,8 +125,7 @@ func (c *FakeNetworkPolicyLoggings) DeleteCollection(ctx context.Context, opts v
 // Patch applies the patch and returns the patched networkPolicyLogging.
 func (c *FakeNetworkPolicyLoggings) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v1alpha1.NetworkPolicyLogging, err error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewPatchSubresourceAction(networkpolicyloggingsResource, c.ns, name, pt, data, subresources...), &v1alpha1.NetworkPolicyLogging{})
-
+		Invokes(testing.NewRootPatchSubresourceAction(networkpolicyloggingsResource, name, pt, data, subresources...), &v1alpha1.NetworkPolicyLogging{})
 	if obj == nil {
 		return nil, err
 	}

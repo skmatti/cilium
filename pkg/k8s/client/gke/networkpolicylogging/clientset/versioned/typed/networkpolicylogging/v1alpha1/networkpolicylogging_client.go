@@ -1,5 +1,5 @@
 /*
-Copyright 2020 The Kubernetes Authors.
+Copyright 2020 Google LLC
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -27,6 +27,7 @@ import (
 type NetworkingV1alpha1Interface interface {
 	RESTClient() rest.Interface
 	NetworkPolicyLoggingsGetter
+	NetworkPolicyLoggingListsGetter
 }
 
 // NetworkingV1alpha1Client is used to interact with features provided by the networking.gke.io group.
@@ -34,8 +35,12 @@ type NetworkingV1alpha1Client struct {
 	restClient rest.Interface
 }
 
-func (c *NetworkingV1alpha1Client) NetworkPolicyLoggings(namespace string) NetworkPolicyLoggingInterface {
-	return newNetworkPolicyLoggings(c, namespace)
+func (c *NetworkingV1alpha1Client) NetworkPolicyLoggings() NetworkPolicyLoggingInterface {
+	return newNetworkPolicyLoggings(c)
+}
+
+func (c *NetworkingV1alpha1Client) NetworkPolicyLoggingLists() NetworkPolicyLoggingListInterface {
+	return newNetworkPolicyLoggingLists(c)
 }
 
 // NewForConfig creates a new NetworkingV1alpha1Client for the given config.
