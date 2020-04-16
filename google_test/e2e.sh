@@ -16,7 +16,7 @@
 
 # This script is triggered by Prow.
 #
-# The testing steps are as follows:
+# The general testing flow is like the following:
 # 1. We build cilium/cilium-operator image our of current HEAD.
 # 2. We push the images to our testing project's registry.
 # 3. We create a GKE cluster in our testing project.
@@ -56,12 +56,13 @@ function clean_up {
 
 function make_cilium {
   log "Make Cilium images"
-  sh make-images-push-to-local-registry.sh $GCR_HOST/$GCP_PROJECT latest
+  sh make-images-push-to-local-registry.sh $GCR_HOST/$GCP_PROJECT latest-e2e
 }
 
 function get_deps {
   go get github.com/onsi/ginkgo/ginkgo
   go get github.com/onsi/gomega/...
+  go get github.com/jstemmer/go-junit-report
 
    curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/master/scripts/get-helm-3
    chmod 700 get_helm.sh
@@ -107,5 +108,8 @@ setup_gke_env
 get_deps
 CNI_INTEGRATION=gke K8S_VERSION=$CLUSTER_VERSION CILIUM_IMAGE=$GCR_HOST/$GCP_PROJECT/cilium/cilium:latest CILIUM_OPERATOR_IMAGE=$GCR_HOST/$GCP_PROJECT/cilium/operator:latest ginkgo --focus="K8s*" -noColor -- -cilium.provision=false -cilium.kubeconfig=$(echo ~/.kube/config) -cilium.passCLIEnvironment=true
 
-# Step 5: cleans up.
+# Step 5: rename/move result junit xml for testgrid.
+mv k8s-$CLUSTER_VERSION.xml ${ARTIFACTS}/junit_k8s-$CLUSTER_VERSION.xml
+
+# Step 6: cleans up.
 clean_up
