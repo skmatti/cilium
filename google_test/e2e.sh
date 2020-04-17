@@ -22,12 +22,13 @@
 # 3. We create a GKE cluster in our testing project.
 # 4. We run Cilium's e2e tests by pulling from testing project's bucket.
 
-set -ex
+set -x
 
 date=$(TZ=":America/Los_Angeles" date '+%Y-%m-%d-%H-%M-%S')
 CLUSTER_NAME="e2e-cluster-$date"
 GKE_ZONE="us-central1-c"
 GCR_HOST="gcr.io"
+CILIUM_TAG="latest-e2e"
 
 function log {
   echo "`date +'%b %d %T.000'`: INFO: $@"
@@ -52,17 +53,21 @@ function provision_GKE_cluster {
 function clean_up {
   log "Deleting GKE cluster: " $CLUSTER_NAME
   gcloud alpha container clusters delete $CLUSTER_NAME --project=$GCP_PROJECT --zone $GKE_ZONE || true
+
+  log "Deleting old images"
+  gcloud container images list-tags gcr.io/$GCP_PROJECT/cilium/cilium --filter='-tags:*' --format='get(digest)' --limit=unlimited | awk '{print "gcr.io/${GCP_PROJECT}/cilium/cilium@" $1}' | xargs gcloud container images delete --quiet  || true
+  gcloud container images list-tags gcr.io/$GCP_PROJECT/cilium/cilium-dev --filter='-tags:*' --format='get(digest)' --limit=unlimited | awk '{print "gcr.io/${GCP_PROJECT}/cilium/cilium-dev@" $1}' | xargs gcloud container images delete --quiet || true
+  gcloud container images list-tags gcr.io/$GCP_PROJECT/cilium/operator --filter='-tags:*' --format='get(digest)' --limit=unlimited | awk '{print "gcr.io/${GCP_PROJECT}/cilium/operator@" $1}' | xargs gcloud container images delete --quiet || true
 }
 
 function make_cilium {
   log "Make Cilium images"
-  sh make-images-push-to-local-registry.sh $GCR_HOST/$GCP_PROJECT latest-e2e
+  sh make-images-push-to-local-registry.sh $GCR_HOST/$GCP_PROJECT $CILIUM_TAG
 }
 
 function get_deps {
   go get github.com/onsi/ginkgo/ginkgo
   go get github.com/onsi/gomega/...
-  go get github.com/jstemmer/go-junit-report
 
    curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/master/scripts/get-helm-3
    chmod 700 get_helm.sh
@@ -106,7 +111,7 @@ setup_gke_env
 
 # Step 4: runs tests.
 get_deps
-CNI_INTEGRATION=gke K8S_VERSION=$CLUSTER_VERSION CILIUM_IMAGE=$GCR_HOST/$GCP_PROJECT/cilium/cilium:latest CILIUM_OPERATOR_IMAGE=$GCR_HOST/$GCP_PROJECT/cilium/operator:latest ginkgo --focus="K8s*" -noColor -- -cilium.provision=false -cilium.kubeconfig=$(echo ~/.kube/config) -cilium.passCLIEnvironment=true
+CNI_INTEGRATION=gke K8S_VERSION=$CLUSTER_VERSION CILIUM_IMAGE=$GCR_HOST/$GCP_PROJECT/cilium/cilium:$CILIUM_TAG CILIUM_OPERATOR_IMAGE=$GCR_HOST/$GCP_PROJECT/cilium/operator:$CILIUM_TAG ginkgo --focus="K8s*" -noColor -- -cilium.provision=false -cilium.kubeconfig=$(echo ~/.kube/config) -cilium.passCLIEnvironment=true
 
 # Step 5: rename/move result junit xml for testgrid.
 mv k8s-$CLUSTER_VERSION.xml ${ARTIFACTS}/junit_k8s-$CLUSTER_VERSION.xml
