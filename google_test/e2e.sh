@@ -21,11 +21,17 @@
 # 2. We push the images to our testing project's registry.
 # 3. We create a GKE cluster in our testing project.
 # 4. We run Cilium's e2e tests by pulling from testing project's bucket.
+#
+# Caveats:
+# The testing e2e clusters will be teared down upon successful runs.
+# For jobs that are abnormally terminated (maybe due to a bug), the cluster
+# will remain live for 1d from its creation time and will reclaimed upon
+# next job.
 
 set -x
 
-date=$(TZ=":America/Los_Angeles" date '+%Y-%m-%d-%H-%M-%S')
-CLUSTER_NAME="e2e-cluster-$date"
+timestamp=$(TZ=":America/Los_Angeles" date '+%Y-%m-%d-%H-%M-%S')
+CLUSTER_NAME="prow-e2e-$timestamp-ttl1d"
 GKE_ZONE="us-central1-c"
 GCR_HOST="gcr.io"
 CILIUM_TAG="latest-e2e"
@@ -47,17 +53,37 @@ function auth_docker {
 
 function provision_GKE_cluster {
   log "Provisioning GKE cluster: " $CLUSTER_NAME
-  gcloud alpha container clusters create $CLUSTER_NAME --project=$GCP_PROJECT --machine-type=n1-standard-8 --release-channel=rapid --zone $GKE_ZONE
+  gcloud alpha container clusters create $CLUSTER_NAME --project=$GCP_PROJECT --machine-type=n1-standard-8 --release-channel=rapid --zone $GKE_ZONE --num-nodes=2
+}
+
+function reclaim_hanging_resources {
+  log "Deleting old GKE clusters if there are any"
+  # Get current time in UTC since this is what gcloud describe returns in.
+  cur=$(date -u '+%Y-%m-%d %H:%M:%S')
+  old_clusters=($(gcloud container clusters list --project=$GCP_PROJECT | awk '{if (NR!=1) {print $1}}'))
+  for c in "${old_clusters[@]}"
+  do
+    creation_time=$(gcloud container clusters describe $c | grep createTime | awk -F "'" '{print $2}' | sed 's/T/ /g' | awk -F "+" '{print $1}')
+    t1=$(date --date "$creation_time" +%s)
+    t2=$(date --date "$cur" +%s)
+    diff=$((t2 - t1))
+    # Set a lifespan of 1d, which leaves roughly 18h for debugging before reclaiming the resources.
+    lifespan=$((3600 * 24))
+    if [ "$diff" -gt "$lifespan" ]; then
+      log "Deleting old GKE cluster: " $c
+      gcloud container clusters delete $c --project $GCP_PROJECT --quiet
+    fi
+  done
+
+  log "Deleting old images"
+  gcloud container images list-tags gcr.io/$GCP_PROJECT/cilium/cilium --filter='-tags:*' --format='get(digest)' --limit=unlimited | awk '{print gcr.io/'$GCP_PROJECT'/cilium/cilium@ $1}' | xargs gcloud container images delete --quiet  || true
+  gcloud container images list-tags gcr.io/$GCP_PROJECT/cilium/cilium-dev --filter='-tags:*' --format='get(digest)' --limit=unlimited | awk '{print gcr.io/'$GCP_PROJECT'/cilium/cilium-dev@" $1}' | xargs gcloud container images delete --quiet || true
+  gcloud container images list-tags gcr.io/$GCP_PROJECT/cilium/operator --filter='-tags:*' --format='get(digest)' --limit=unlimited | awk '{print "gcr.io/'$GCP_PROJECT'/cilium/operator@" $1}' | xargs gcloud container images delete --quiet || true
 }
 
 function clean_up {
   log "Deleting GKE cluster: " $CLUSTER_NAME
   gcloud alpha container clusters delete $CLUSTER_NAME --project=$GCP_PROJECT --zone $GKE_ZONE || true
-
-  log "Deleting old images"
-  gcloud container images list-tags gcr.io/$GCP_PROJECT/cilium/cilium --filter='-tags:*' --format='get(digest)' --limit=unlimited | awk '{print "gcr.io/${GCP_PROJECT}/cilium/cilium@" $1}' | xargs gcloud container images delete --quiet  || true
-  gcloud container images list-tags gcr.io/$GCP_PROJECT/cilium/cilium-dev --filter='-tags:*' --format='get(digest)' --limit=unlimited | awk '{print "gcr.io/${GCP_PROJECT}/cilium/cilium-dev@" $1}' | xargs gcloud container images delete --quiet || true
-  gcloud container images list-tags gcr.io/$GCP_PROJECT/cilium/operator --filter='-tags:*' --format='get(digest)' --limit=unlimited | awk '{print "gcr.io/${GCP_PROJECT}/cilium/operator@" $1}' | xargs gcloud container images delete --quiet || true
 }
 
 function make_cilium {
@@ -93,6 +119,8 @@ function setup_gke_env {
 }
 
 trap clean_up EXIT INT TERM
+
+reclaim_hanging_resources
 
 cd test
 

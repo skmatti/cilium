@@ -24,11 +24,16 @@
 # 4. Ships synced gob repo to target VM.
 # 5. Remote executes `unit-test-local.sh` on target VM.
 # 6. Exit with exit code from remote execution.
+#
+# Caveats:
+# Testing VMs will be automatically torn down after succesful runs. If
+# the testing job is terminated early, these VMs will be left alive for 1d
+# from the creation time and then self-destruct.
 
 set -x
 date=$(TZ=":America/Los_Angeles" date '+%Y-%m-%d-%H-%M-%S')
 PROJECT="${GCP_PROJECT:-gke-anthos-datapath-presubmits}"
-VM_NAME="presubmit-unit-$date"
+VM_NAME="prow-unit-$date-ttl1d"
 ZONE="us-west1-b"
 HOST_NAME="$VM_NAME.$ZONE.$PROJECT"
 tarball=gob_cilium.tar.gz
