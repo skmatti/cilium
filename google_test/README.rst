@@ -20,6 +20,14 @@ triggered to launch the actual unit tests.
 
 Detailed doc can be found at go/cilium-ut-on-gob.
 
+Runtime Tests
+=============
+
+Runtime Tests cover tests in `cilium/test/runtime` but instead of
+VirtualBox, they are triggered by a prow job and executed in GCE.
+`runtime-test-gce-vagrantfile` is the GCE equivalent of
+`cilium/test/Vagrantfile`.
+
 E2E Tests
 =========
 

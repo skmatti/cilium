@@ -1,0 +1,60 @@
+# Copyright 2020 Google LLC
+
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# This Vagrantfile launches a GCE instance, provisions it, and prepares
+# it for Runtime Tests. It will be consumed by cilium/test/helpers/vagrant.go
+# when the environment variable VAGRANT_VAGRANTFILE=PATH_TO_THIS_FILE.
+
+$PROJ_ID = ENV['PROJ_ID']
+$SERVICE_ACCT_KEY = ENV['SERVICE_ACCT_KEY']
+$IMAGE = ENV['IMAGE']
+$INSTANCE_NAME = ENV['INSTANCE_NAME']
+$ZONE = ENV['ZONE']
+$METADATA = ENV['METADATA']
+$VAGRANT_SSH_KEY = ENV['VAGRANT_SSH_KEY']
+
+Vagrant.configure("2") do |config|
+
+    config.vm.define "runtime" do |server|
+        server.vm.box = "google/gce"
+
+        server.vm.provider :google do |google, override|
+            google.google_project_id = $PROJ_ID
+            google.google_json_key_location = $SERVICE_ACCT_KEY
+
+            google.image = $IMAGE
+            google.disk_size = 40
+            google.name = $INSTANCE_NAME
+	    google.zone = $ZONE
+	    google.metadata = $METADATA
+
+            override.ssh.username = "vagrant"
+            override.ssh.private_key_path = $VAGRANT_SSH_KEY
+        end
+
+	# assumes pwd = cilium/test
+        server.vm.synced_folder "../", "/home/vagrant/go/src/github.com/cilium/cilium", type: "rsync"
+
+        # Provision section
+        server.vm.provision :shell,
+            :inline => "sed -i 's/^mesg n$/tty -s \\&\\& mesg n/g' /root/.profile"
+	# resolves 'sudo: unable to resolve host xxx' error
+	server.vm.provision "shell",
+	     :inline => "sudo hostnamectl set-hostname runtime && (echo \"127.0.0.1 runtime\" | sudo tee -a /etc/hosts)"
+        server.vm.provision "file", source: "../test/provision/", destination: "/tmp/"
+        server.vm.provision "shell" do |sh|
+            sh.path = "../test/provision/runtime_install.sh"
+        end
+    end
+end
