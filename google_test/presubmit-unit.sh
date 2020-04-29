@@ -14,10 +14,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# This is triggered by PROW upon code change.
+# This is triggered by Prow upon code change.
 # The process is like below:
 #
-# 1. This script starts on PROW.
+# 1. This script starts on Prow.
 # 2. Authenticates PROW SA (which has been granted editor role of target GCP
 #    project).
 # 3. Creates needed resources (VM) in target GCP project.
@@ -26,6 +26,9 @@
 # 6. Exit with exit code from remote execution.
 #
 # Caveats:
+# This script assumes that there's firewall rule in the testing project which
+# allows Prow to ssh into the testing VM.
+#
 # Testing VMs will be automatically torn down after succesful runs. If
 # the testing job is terminated early, these VMs will be left alive for 1d
 # from the creation time and then self-destruct.
@@ -55,14 +58,7 @@ function provision_GCE_VM {
   gcloud compute instances create ${VM_NAME} --project=${PROJECT} --image $TESTING_IMAGE --zone=$ZONE --metadata-from-file=startup-script=./google_test/countdown-and-self-destruct.sh --scopes=compute-rw || exit 1
 }
 
-function allow_SSH {
-  log "Creating FW ssh-all"
-  gcloud compute firewall-rules create ssh-all --project ${PROJECT}  --allow tcp:22 || true
-}
-
 function clean_up {
-  log "Deleteing FW instance ssh-all"
-  gcloud compute firewall-rules delete ssh-all --quiet --project ${PROJECT} || true
   log "Deleteing GCE instance " $VM_NAME
   gcloud compute instances delete ${VM_NAME} --quiet --project=${PROJECT} --zone=$ZONE || true
 }
@@ -87,8 +83,6 @@ function log {
 auth
 
 provision_GCE_VM
-
-allow_SSH
 
 ship_repo
 
