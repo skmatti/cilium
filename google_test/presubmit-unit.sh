@@ -70,6 +70,11 @@ function ship_repo {
   gcloud compute scp ~/$tarball --project $PROJECT --zone $ZONE $VM_NAME:~
 }
 
+function allow_SSH {
+  log "Creating FW ssh-all"
+  gcloud compute firewall-rules create ssh-all --project ${PROJECT}  --allow tcp:22 || true
+}
+
 function rexec {
   local cmd=$@
   log "Running remote cmd " $cmd " on instance " $HOST_NAME
@@ -81,6 +86,8 @@ function log {
 }
 
 auth
+
+allow_SSH
 
 provision_GCE_VM
 
