@@ -63,7 +63,7 @@ function reclaim_hanging_resources {
   old_clusters=($(gcloud container clusters list --project=$GCP_PROJECT | awk '{if (NR!=1) {print $1}}'))
   for c in "${old_clusters[@]}"
   do
-    creation_time=$(gcloud container clusters describe $c | grep createTime | awk -F "'" '{print $2}' | sed 's/T/ /g' | awk -F "+" '{print $1}')
+    creation_time=$(gcloud container clusters describe $c --project $GCP_PROJECT --zone $GKE_ZONE | grep createTime | awk -F "'" '{print $2}' | sed 's/T/ /g' | awk -F "+" '{print $1}')
     t1=$(date --date "$creation_time" +%s)
     t2=$(date --date "$cur" +%s)
     diff=$((t2 - t1))
@@ -71,13 +71,13 @@ function reclaim_hanging_resources {
     lifespan=$((3600 * 24))
     if [ "$diff" -gt "$lifespan" ]; then
       log "Deleting old GKE cluster: " $c
-      gcloud container clusters delete $c --project $GCP_PROJECT --quiet
+      gcloud container clusters delete $c --project $GCP_PROJECT --zone $GKE_ZONE --quiet
     fi
   done
 
   log "Deleting old images"
-  gcloud container images list-tags gcr.io/$GCP_PROJECT/cilium/cilium --filter='-tags:*' --format='get(digest)' --limit=unlimited | awk '{print gcr.io/'$GCP_PROJECT'/cilium/cilium@ $1}' | xargs gcloud container images delete --quiet  || true
-  gcloud container images list-tags gcr.io/$GCP_PROJECT/cilium/cilium-dev --filter='-tags:*' --format='get(digest)' --limit=unlimited | awk '{print gcr.io/'$GCP_PROJECT'/cilium/cilium-dev@" $1}' | xargs gcloud container images delete --quiet || true
+  gcloud container images list-tags gcr.io/$GCP_PROJECT/cilium/cilium --filter='-tags:*' --format='get(digest)' --limit=unlimited | awk '{print "gcr.io/'$GCP_PROJECT'/cilium/cilium@" $1}' | xargs gcloud container images delete --quiet  || true
+  gcloud container images list-tags gcr.io/$GCP_PROJECT/cilium/cilium-dev --filter='-tags:*' --format='get(digest)' --limit=unlimited | awk '{print "gcr.io/'$GCP_PROJECT'/cilium/cilium-dev@" $1}' | xargs gcloud container images delete --quiet || true
   gcloud container images list-tags gcr.io/$GCP_PROJECT/cilium/operator --filter='-tags:*' --format='get(digest)' --limit=unlimited | awk '{print "gcr.io/'$GCP_PROJECT'/cilium/operator@" $1}' | xargs gcloud container images delete --quiet || true
 }
 
