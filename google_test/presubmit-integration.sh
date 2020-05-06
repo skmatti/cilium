@@ -23,7 +23,6 @@
 #    2.3. Accepts ssh requests from host to run tests.
 
 set -x
-dpkg-reconfigure --frontend noninteractive tzdata
 timestamp=$(TZ=":America/Los_Angeles" date '+%Y-%m-%d-%H-%M-%S')
 PROJECT="${GCP_PROJECT:-gke-anthos-datapath-presubmits}"
 VM_NAME="prow-runtime-$timestamp-ttl1d"
