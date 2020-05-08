@@ -26,9 +26,6 @@
 # 6. Exit with exit code from remote execution.
 #
 # Caveats:
-# This script assumes that there's firewall rule in the testing project which
-# allows Prow to ssh into the testing VM.
-#
 # Testing VMs will be automatically torn down after succesful runs. If
 # the testing job is terminated early, these VMs will be left alive for 1d
 # from the creation time and then self-destruct.

@@ -59,8 +59,6 @@ function allow_SSH {
 }
 
 function clean_up {
-  log "Deleteing FW instance ssh-all"
-  gcloud compute firewall-rules delete ssh-all --quiet --project ${PROJECT} || true
   log "Deleteing GCE instance " $VM_NAME
   gcloud compute instances delete ${VM_NAME} --quiet --project=${PROJECT} --zone=$ZONE || true
 }
