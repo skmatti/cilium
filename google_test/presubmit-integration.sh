@@ -44,7 +44,7 @@ function auth {
 
 function setup_vagrant_user {
   log "Creating dummy vm"
-  gcloud compute instances create $SSH_DUMMY --project ${PROJECT} --zone ${ZONE}
+  gcloud compute instances create $SSH_DUMMY --project ${PROJECT} --zone ${ZONE} --metadata-from-file=startup-script=./google_test/countdown-and-self-destruct.sh --scopes=compute-rw
 
   log "Creating key-pair for vagrant user"
   gcloud compute ssh vagrant@$SSH_DUMMY --project ${PROJECT} --zone ${ZONE} --command="exit"
