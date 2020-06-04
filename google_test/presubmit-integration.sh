@@ -29,7 +29,7 @@ VM_NAME="prow-runtime-$timestamp-ttl1d"
 SSH_DUMMY="dummy-$timestamp"
 ZONE="us-west1-b"
 HOST_NAME="$VM_NAME.$ZONE.$PROJECT"
-TESTING_IMAGE=google-cilium-ubuntu-2020-04-12
+TESTING_IMAGE=cilium-runtime-test-kernel-5-3-20200530
 
 function log {
   echo "`date +'%b %d %T.000'`: INFO: $@"
@@ -82,6 +82,7 @@ setup_vagrant_user
 
 cd test
 
+# TODO: enable RuntimeVerifier when it start supporting the latest kernels
 VAGRANT_VAGRANTFILE="../google_test/runtime_test/gce-vagrantfile" \
   PROJ_ID=$PROJECT \
   ZONE=$ZONE \
@@ -92,7 +93,7 @@ VAGRANT_VAGRANTFILE="../google_test/runtime_test/gce-vagrantfile" \
   METADATA_KEY1="startup-script" \
   METADATA_VAL1=$(cat ../google_test/countdown-and-self-destruct.sh) \
   SCOPES_VAL1="compute-rw" \
-  ginkgo -v --focus="Runtime*" -noColor
+  ginkgo -v -noColor --focus="Runtime*" -skip="RuntimeVerifier"
 
 EXIT_VALUE=$?
 
