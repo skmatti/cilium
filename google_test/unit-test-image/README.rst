@@ -20,17 +20,17 @@ Create an Image
 ===============
 
 PROJ_ID=<PROJ_ID> \
-SERVICE_ACCT_KEY=<SERVICE_ACCT_KEY> \
-SSH_USERNAME=<SSH_USERNAME> \
-IMAGE_NAME=<IMAGE_NAME> \
-packer build unit-test-env.json
+  SERVICE_ACCT_KEY=<SERVICE_ACCT_KEY> \
+  SSH_USERNAME=<SSH_USERNAME> \
+  IMAGE_NAME=<IMAGE_NAME> \
+  packer build unit-test-env.json
 
 example:
 PROJ_ID="gke-anthos-datapath-presubmits" \
-SERVICE_ACCT_KEY="./gke-anthos-datapath-presubmits-868b024a9596.json" \
-SSH_USERNAME="prow" \
-IMAGE_NAME="cilium-unit-test-$(TZ=':America/Los_Angeles' date '+%Y%m%d')" \
-packer build unit-test-env.json
+  SERVICE_ACCT_KEY="./gke-anthos-datapath-presubmits-868b024a9596.json" \
+  SSH_USERNAME="prow" \
+  IMAGE_NAME="cilium-unit-test-$(TZ=':America/Los_Angeles' date '+%Y%m%d')" \
+  packer build unit-test-env.json
 
 Packer will do the following:
 1. Creates a temporary VM on GCE

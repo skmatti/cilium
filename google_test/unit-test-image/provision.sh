@@ -17,6 +17,8 @@
 # This script installs dependencies Cilium needs to run unit tests,
 # including clang, llvm, make, go, docker, tc, and bpftool.
 
+set -e -x
+
 export GOPATH=/go
 export GOROOT=/usr/local/go
 
@@ -39,7 +41,6 @@ cd $WORKING_DIR
 # build dependencies
 
 sudo apt-get update
-
 sudo apt-get upgrade -y --no-install-recommends
 
 sudo apt-get install -y --no-install-recommends \
@@ -48,7 +49,6 @@ sudo apt-get install -y --no-install-recommends \
   bison \
   build-essential \
   ca-certificates \
-  clang-7 \
   coreutils \
   curl \
   flex \
@@ -59,7 +59,6 @@ sudo apt-get install -y --no-install-recommends \
   libc6-dev-i386 \
   libelf-dev \
   libmnl-dev \
-  llvm-7 \
   m4 \
   make \
   pkg-config \
@@ -71,9 +70,25 @@ sudo apt-get install -y --no-install-recommends \
   zip \
   zlib1g-dev
 
-sudo update-alternatives --install /usr/bin/clang clang /usr/bin/clang-7 100
+# clang/llvm
 
-sudo update-alternatives --install /usr/bin/llc llc /usr/bin/llc-7 100
+sudo apt-get install -y --no-install-recommends \
+  gnupg \
+  lsb-release \
+  software-properties-common
+
+sudo apt-get update
+
+wget https://apt.llvm.org/llvm.sh
+chmod +x llvm.sh
+sudo ./llvm.sh 11
+
+sudo mv /usr/bin/readelf /usr/bin/readelf_old
+
+sudo ln -s /usr/bin/clang-11 /usr/bin/clang
+sudo ln -s /usr/bin/clang++-11 /usr/bin/clang++
+sudo ln -s /usr/lib/llvm-11/bin/llc /usr/bin/llc
+sudo ln -s /usr/lib/llvm-11/bin/llvm-readelf /usr/bin/readelf
 
 # go
 
@@ -89,7 +104,7 @@ go get -u github.com/gordonklaus/ineffassign
 
 # docker
 
-sudo apt-get purge -y docker docker-engine docker.io containerd runc
+sudo dpkg --remove docker docker-engine docker.io containerd runc
 
 sudo apt-get install -y \
   apt-transport-https \
@@ -106,7 +121,7 @@ sudo apt-get update
 
 sudo apt-get install -y docker-ce docker-ce-cli containerd.io
 
-sudo groupadd docker
+sudo getent group docker || sudo groupadd docker
 sudo usermod -aG docker $USER
 
 # tc
