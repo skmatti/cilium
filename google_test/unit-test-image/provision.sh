@@ -101,6 +101,7 @@ curl -O https://dl.google.com/go/$GO_TAR
 sudo tar -C /usr/local -xzf $GO_TAR
 
 go get -u github.com/gordonklaus/ineffassign
+go get -u github.com/jteeuwen/go-bindata/...
 
 # docker
 
