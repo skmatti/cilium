@@ -41,10 +41,10 @@ func TestAddFlowListener(t *testing.T) {
 		p := <-traceCh
 		t.Logf("Trace chan %v receives a flow: %v", traceCh, p)
 	}()
-	observer.OnDecodedFlow(context.TODO(),
+	observer.OnDecodedFlow(context.Background(),
 		&flow.Flow{EventType: &flow.CiliumEventType{Type: api.MessageTypePolicyVerdict}})
 
-	observer.OnDecodedFlow(context.TODO(),
+	observer.OnDecodedFlow(context.Background(),
 		&flow.Flow{EventType: &flow.CiliumEventType{Type: api.MessageTypeTrace}})
 	wg.Wait()
 	t.Logf("Received both events. Finish the test.")

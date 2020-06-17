@@ -38,7 +38,7 @@ type flowListener struct {
 }
 
 type dispatcher struct {
-	mutex lock.Mutex
+	lock lock.Mutex
 	// flowListeners is a map from the event type to the map of listeners (name -> flowListener)
 	// so that it can be quickly fetched on processing the flow events.
 	flowListeners map[int32]map[string]*flowListener
@@ -68,8 +68,8 @@ func NewDispatcher() Dispatcher {
 // sent to the provided channel.
 func (d *dispatcher) AddFlowListener(name string, typ int32, ch chan *flow.Flow) error {
 	log.WithFields(logrus.Fields{"name": name, "event": api.MessageTypeName(int(typ))}).Info("Add flow listener")
-	d.mutex.Lock()
-	defer d.mutex.Unlock()
+	d.lock.Lock()
+	defer d.lock.Unlock()
 	if ls, ok := d.flowListeners[typ]; !ok {
 		ls = map[string]*flowListener{name: {name: name, ch: ch}}
 		d.flowListeners[typ] = ls
@@ -85,8 +85,8 @@ func (d *dispatcher) AddFlowListener(name string, typ int32, ch chan *flow.Flow)
 // RemoveFlowListener removes a registered flow listenser for type typ.
 func (d *dispatcher) RemoveFlowListener(name string, typ int32) {
 	log.WithFields(logrus.Fields{"name": name, "event": api.MessageTypeName(int(typ))}).Info("Remove flow listener")
-	d.mutex.Lock()
-	defer d.mutex.Unlock()
+	d.lock.Lock()
+	defer d.lock.Unlock()
 	ls := d.flowListeners[typ]
 	if ls == nil {
 		return
@@ -103,8 +103,8 @@ func (d *dispatcher) RemoveFlowListener(name string, typ int32) {
 
 // getFlowListener gets the flow listeners for the given type.
 func (d *dispatcher) getFlowListener(typ int32) []*flowListener {
-	d.mutex.Lock()
-	defer d.mutex.Unlock()
+	d.lock.Lock()
+	defer d.lock.Unlock()
 	ls, ok := d.flowListeners[typ]
 	if !ok {
 		return nil
