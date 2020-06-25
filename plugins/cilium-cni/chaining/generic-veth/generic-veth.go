@@ -218,5 +218,5 @@ func (f *GenericVethChainer) Check(ctx context.Context, pluginCtx chainingapi.Pl
 }
 
 func init() {
-	chainingapi.Register("generic-veth", &GenericVethChainer{})
+	chainingapi.Register(chainingapi.GenericConfigName, &GenericVethChainer{})
 }
