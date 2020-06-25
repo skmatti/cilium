@@ -71,7 +71,7 @@ func (d *dispatcher) AddFlowListener(name string, typ int32, ch chan *flow.Flow)
 	d.mutex.Lock()
 	defer d.mutex.Unlock()
 	if ls, ok := d.flowListeners[typ]; !ok {
-		ls = map[string]*flowListener{name: &flowListener{name: name, ch: ch}}
+		ls = map[string]*flowListener{name: {name: name, ch: ch}}
 		d.flowListeners[typ] = ls
 	} else {
 		if _, ok := ls[name]; ok {

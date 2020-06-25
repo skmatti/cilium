@@ -54,6 +54,9 @@ ch_dir
 # Allow non-root docker operations.
 allow_docker_op
 
+# Run build first.
+make
+
 # Run un-priviledged tests first.
 make unit-tests
 

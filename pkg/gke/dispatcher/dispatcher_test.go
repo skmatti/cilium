@@ -1,3 +1,5 @@
+// +build !privileged_tests
+
 package dispatcher
 
 import (
