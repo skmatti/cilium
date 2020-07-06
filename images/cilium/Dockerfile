@@ -95,6 +95,7 @@ COPY --from=hubble /out/${TARGETOS}/${TARGETARCH}/bin/hubble /usr/bin/hubble
 COPY --from=hubble /out/linux/bash_completion /etc/bash_completion.d/hubble
 
 COPY --from=builder /tmp/install/${TARGETOS}/${TARGETARCH} /
+COPY google-diagnose.sh /google-diagnose.sh
 WORKDIR /home/cilium
 
 ENV INITSYSTEM="SYSTEMD"
