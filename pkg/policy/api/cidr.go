@@ -10,6 +10,7 @@ import (
 	"github.com/cilium/cilium/pkg/ip"
 	"github.com/cilium/cilium/pkg/labels"
 	cidrpkg "github.com/cilium/cilium/pkg/labels/cidr"
+	"github.com/cilium/cilium/pkg/node"
 )
 
 // +kubebuilder:validation:Pattern=`^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\/([0-9]|[1-2][0-9]|3[0-2])$|^s*((([0-9A-Fa-f]{1,4}:){7}(:|([0-9A-Fa-f]{1,4})))|(([0-9A-Fa-f]{1,4}:){6}:([0-9A-Fa-f]{1,4})?)|(([0-9A-Fa-f]{1,4}:){5}(((:[0-9A-Fa-f]{1,4}){0,1}):([0-9A-Fa-f]{1,4})?))|(([0-9A-Fa-f]{1,4}:){4}(((:[0-9A-Fa-f]{1,4}){0,2}):([0-9A-Fa-f]{1,4})?))|(([0-9A-Fa-f]{1,4}:){3}(((:[0-9A-Fa-f]{1,4}){0,3}):([0-9A-Fa-f]{1,4})?))|(([0-9A-Fa-f]{1,4}:){2}(((:[0-9A-Fa-f]{1,4}){0,4}):([0-9A-Fa-f]{1,4})?))|(([0-9A-Fa-f]{1,4}:){1}(((:[0-9A-Fa-f]{1,4}){0,5}):([0-9A-Fa-f]{1,4})?))|(:(:|((:[0-9A-Fa-f]{1,4}){1,7}))))(%.+)?s*/([0-9]|[1-9][0-9]|1[0-1][0-9]|12[0-8])$`
@@ -29,6 +30,19 @@ func (c CIDR) MatchesAll() bool {
 		}
 	}
 	return false
+}
+
+// MatchesLocalNode determines whether the CIDR matches the local node IP.
+func (c CIDR) MatchesLocalNode() bool {
+	localIP := node.GetK8sNodeIP()
+	if localIP == nil {
+		return false
+	}
+	_, allowNet, err := net.ParseCIDR(string(c))
+	if err != nil {
+		return false
+	}
+	return allowNet.Contains(localIP)
 }
 
 // CIDRRule is a rule that specifies a CIDR prefix to/from which outside
@@ -75,12 +89,26 @@ func (s CIDRSlice) GetAsEndpointSelectors() EndpointSelectorSlice {
 	// we only have to add the EndpointSelector representing reserved:world
 	// once.
 	var hasWorldBeenAdded bool
+	var hasNodeBeenAdded bool
 	slice := EndpointSelectorSlice{}
 	for _, cidr := range s {
 		if cidr.MatchesAll() && !hasWorldBeenAdded {
 			hasWorldBeenAdded = true
 			slice = append(slice, ReservedEndpointSelectors[labels.IDNameWorld])
 		}
+		// If CIDR matches the local node IP, add the local host and remote node identity
+		// to the allowed list. This is a workaround to alleviate the CIDR issue
+		// https://github.com/cilium/cilium/issues/12277
+		// for kubernetes network policy.
+		// Local host and remote nodes are not distinguished to make the workaround simple.
+		// Note that this will change the behavior of cilium network policies as well if
+		// CIDR is configured and overlaps the node IP address.
+		if !hasNodeBeenAdded && cidr.MatchesLocalNode() {
+			hasNodeBeenAdded = true
+			slice = append(slice, ReservedEndpointSelectors[labels.IDNameHost])
+			slice = append(slice, ReservedEndpointSelectors[labels.IDNameRemoteNode])
+		}
+
 		lbl, err := cidrpkg.IPStringToLabel(string(cidr))
 		if err == nil {
 			slice = append(slice, NewESFromLabels(lbl))
