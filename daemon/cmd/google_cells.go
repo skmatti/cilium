@@ -5,6 +5,7 @@ import (
 
 	"github.com/cilium/cilium/pkg/endpointmanager"
 	"github.com/cilium/cilium/pkg/gke/fqdnnetworkpolicy"
+	"github.com/cilium/cilium/pkg/gke/localnode"
 	"github.com/cilium/cilium/pkg/gke/nodefirewall"
 	"github.com/cilium/cilium/pkg/gke/nodefirewall/types"
 	"github.com/cilium/cilium/pkg/gke/redirectservice"
@@ -36,6 +37,7 @@ var googleCell = cell.Module(
 	trafficsteering.Cell,
 	fqdnnetworkpolicy.Cell,
 	redirectservice.Cell,
+	localnode.Cell,
 )
 
 // Converts Daemon promise into a PolicyManager promise
