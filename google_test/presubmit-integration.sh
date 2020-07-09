@@ -29,7 +29,7 @@ VM_NAME="prow-runtime-$timestamp-$(git rev-parse --short=5 HEAD)-ttl1d"
 SSH_DUMMY="dummy-$timestamp"
 ZONE="us-west1-b"
 HOST_NAME="$VM_NAME.$ZONE.$PROJECT"
-TESTING_IMAGE=cilium-runtime-test-kernel-5-3-20200530
+TESTING_IMAGE="cilium-runtime-test-kernel-5-3-20200831"
 
 function log {
   echo "`date +'%b %d %T.000'`: INFO: $@"
