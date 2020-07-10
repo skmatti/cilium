@@ -25,7 +25,7 @@
 set -x
 timestamp=$(TZ=":America/Los_Angeles" date '+%Y-%m-%d-%H-%M-%S')
 PROJECT="${GCP_PROJECT:-gke-anthos-datapath-presubmits}"
-VM_NAME="prow-runtime-$timestamp-ttl1d"
+VM_NAME="prow-runtime-$timestamp-$(git rev-parse --short=5 HEAD)-ttl1d"
 SSH_DUMMY="dummy-$timestamp"
 ZONE="us-west1-b"
 HOST_NAME="$VM_NAME.$ZONE.$PROJECT"
