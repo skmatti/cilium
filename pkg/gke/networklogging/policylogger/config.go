@@ -101,7 +101,7 @@ var defaultConfig = policyLoggerConfig{
 	logFileName:            "policy_action.log",
 	logFileMaxSize:         10, // MB
 	logFileMaxBackups:      5,
-	maxLogRate:             1000, // logs per second
+	maxLogRate:             500, // logs per second
 	logQueueSize:           2000,
 	denyAggregationSeconds: 5, // seconds
 	denyAggregationMapSize: 3000,
