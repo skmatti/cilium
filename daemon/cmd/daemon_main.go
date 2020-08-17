@@ -1437,6 +1437,17 @@ func initEnv(cmd *cobra.Command) {
 		}
 	}
 
+	if option.Config.EnableHostFirewall {
+		if option.Config.EnableIPSec {
+			log.Fatal("IPSec cannot be used with the host firewall.")
+		}
+		// Allow enable-host-firewall and enable-endpoint-routes to be enabled together.
+		// This setting bypasses the host firewall for traffic between a pod and the host node.
+		// This does not affect the Node Network Policy feature for now as we allow the
+		// traffic between cluster entities by default.
+		// Reverts upstream commit: https://github.com/cilium/cilium/pull/12495/commits/a81df6f6499cd9e0a34e0a63c9e319860f7950f6
+	}
+
 	if option.Config.EnableBandwidthManager && option.Config.EnableIPSec {
 		log.Warning("The bandwidth manager cannot be used with IPSec. Disabling the bandwidth manager.")
 		option.Config.EnableBandwidthManager = false
