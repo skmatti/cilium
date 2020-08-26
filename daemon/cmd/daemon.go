@@ -45,6 +45,7 @@ import (
 	"github.com/cilium/cilium/pkg/endpointmanager"
 	"github.com/cilium/cilium/pkg/eventqueue"
 	"github.com/cilium/cilium/pkg/fqdn"
+	nodefirewall "github.com/cilium/cilium/pkg/gke/nodefirewall/bootstrap"
 	"github.com/cilium/cilium/pkg/hubble/observer"
 	"github.com/cilium/cilium/pkg/identity"
 	"github.com/cilium/cilium/pkg/identity/identitymanager"
@@ -688,6 +689,14 @@ func NewDaemon(ctx context.Context, cancel context.CancelFunc, epMgr *endpointma
 	d.redirectPolicyManager.RegisterGetStores(d.k8sWatcher)
 	if option.Config.BGPAnnounceLBIP {
 		d.bgpSpeaker.RegisterSvcCache(&d.k8sWatcher.K8sSvcCache)
+	}
+
+	if k8s.IsEnabled() && option.Config.EnableHostFirewall {
+		// Initialize anet node firewall agent workflow.
+		if err = nodefirewall.Init(&d); err != nil {
+			log.WithError(err).Error("Error while bootstrapping node firewall agent")
+			return nil, nil, err
+		}
 	}
 
 	bootstrapStats.daemonInit.End(true)
