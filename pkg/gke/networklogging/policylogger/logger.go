@@ -281,10 +281,14 @@ func (n *networkPolicyLogger) processFlow(f *flow.Flow) {
 		log.Debugf("Flow parsing failed: flow %v, err: %v", f, err)
 		return
 	}
+	if isNodeTraffic(e) {
+		log.Debugf("Node policy log is not supported. Flow: %v", f)
+		return
+	}
 	// Don't count the connections allowed by default, such as health checks.
 	allow := isAllow(f)
 	if allow && e.Policies == nil {
-		log.Debugf("No log as matched policy is empty. flow: %v", f)
+		log.Debugf("Skip as matched policy is empty. Flow: %v", f)
 		return
 	}
 

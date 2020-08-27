@@ -26,6 +26,11 @@ func isAllow(f *flow.Flow) bool {
 	return f.GetVerdict() == flow.Verdict_FORWARDED
 }
 
+func isNodeTraffic(entry *PolicyActionLogEntry) bool {
+	// GKE node network policy is enabled for ingress connections only.
+	return entry.Connection.Direction == ConnectionDirectionIngress && entry.Dest.PodName == ""
+}
+
 func (n *networkPolicyLogger) flowToPolicyActionLogEntry(f *flow.Flow) (*PolicyActionLogEntry, error) {
 	var entry PolicyActionLogEntry
 	var conn = &entry.Connection
@@ -83,11 +88,6 @@ func (n *networkPolicyLogger) flowToPolicyActionLogEntry(f *flow.Flow) (*PolicyA
 			Instance: conn.DestIP,
 		}
 	}
-	if policies, err := n.policyCorrelator.correlatePolicy(f); err != nil {
-		return nil, err
-	} else {
-		entry.Policies = policies
-	}
 	entry.Count = 1
 	if n.cfg.logNodeName {
 		entry.NodeName = f.GetNodeName()
@@ -96,6 +96,16 @@ func (n *networkPolicyLogger) flowToPolicyActionLogEntry(f *flow.Flow) (*PolicyA
 		entry.Timestamp = t
 	} else {
 		entry.Timestamp = time.Now()
+	}
+
+	if isNodeTraffic(&entry) {
+		// Node policy correlation is not supported yet.
+		return &entry, nil
+	}
+	if policies, err := n.policyCorrelator.correlatePolicy(f); err != nil {
+		return nil, err
+	} else {
+		entry.Policies = policies
 	}
 	return &entry, nil
 }
