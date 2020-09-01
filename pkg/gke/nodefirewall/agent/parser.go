@@ -59,7 +59,7 @@ func objToNodeNetworkPolicy(obj interface{}) (*v1alpha1.NodeNetworkPolicy, bool)
 const (
 	resourceTypeNodeNetworkPolicy = "NodeNetworkPolicy"
 	// This needs to be sync with gke-internal/gke-node-firewall/pkg/basepolicy/generator/policy.go.
-	baseNodeToNodePolicyName = "base-allow-node"
+	baseNodeToNodePolicyName = "anet-base-allow-node"
 )
 
 func nnpToCiliumPolicyRules(policy *v1alpha1.NodeNetworkPolicy) (api.Rules, error) {
