@@ -93,7 +93,7 @@ VAGRANT_VAGRANTFILE="../google_test/runtime_test/gce-vagrantfile" \
   METADATA_KEY1="startup-script" \
   METADATA_VAL1=$(cat ../google_test/countdown-and-self-destruct.sh) \
   SCOPES_VAL1="compute-rw" \
-  ginkgo -v -noColor --focus="Runtime*" -skip="RuntimeVerifier"
+  ginkgo -v -noColor --focus="Runtime*" -skip="RuntimeVerifier|Init Policy"
 
 EXIT_VALUE=$?
 
