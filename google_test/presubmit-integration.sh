@@ -73,6 +73,23 @@ function log {
   echo "`date +'%b %d %T.000'`: INFO: $@"
 }
 
+function preserve_log {
+  VAGRANT_VAGRANTFILE="../google_test/runtime_test/gce-vagrantfile" \
+    PROJ_ID=$PROJECT \
+    ZONE=$ZONE \
+    SERVICE_ACCT_KEY=$GOOGLE_APPLICATION_CREDENTIALS \
+    IMAGE=$TESTING_IMAGE \
+    VAGRANT_SSH_KEY="~/.ssh/google_compute_engine" \
+    INSTANCE_NAME=$VM_NAME \
+    METADATA_KEY1="startup-script" \
+    METADATA_VAL1=$(cat ../google_test/countdown-and-self-destruct.sh) \
+    SCOPES_VAL1="compute-rw" \
+    vagrant ssh runtime -c "journalctl -u cilium.service --no-pager" > ${ARTIFACTS}/cilium.log
+
+  mv test_results ${ARTIFACTS}
+
+  mv runtime.xml ${ARTIFACTS}/junit_runtime.xml
+}
 
 auth
 
@@ -97,7 +114,7 @@ VAGRANT_VAGRANTFILE="../google_test/runtime_test/gce-vagrantfile" \
 
 EXIT_VALUE=$?
 
-mv runtime.xml ${ARTIFACTS}/junit_runtime.xml
+preserve_log
 
 clean_up
 
