@@ -5,7 +5,7 @@
 
 TAG=my-cilium
 
-DOCKER_IMAGE_TAG=$TAG make docker-image
+DOCKER_IMAGE_TAG=$TAG make docker-images-all
 docker tag cilium/cilium:$TAG gcr.io/$USER-gke-dev/cilium:$TAG
 docker push gcr.io/$USER-gke-dev/cilium:$TAG
 docker tag cilium/operator-generic:$TAG gcr.io/$USER-gke-dev/cilium-operator:$TAG
