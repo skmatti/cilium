@@ -19,7 +19,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"reflect"
-	"strings"
 	"time"
 
 	"github.com/cilium/cilium/api/v1/flow"
@@ -73,8 +72,6 @@ type networkPolicyLogger struct {
 	rateLimiter      *ratelimiter.RateLimiter
 	aggregator       *aggregator.Aggregator
 	aggregatorCh     chan *aggregator.AggregatorEntry
-	counter          counters
-	metricsCollector *metricsCollector
 	cfg              *policyLoggerConfig
 
 	lock lock.Mutex
@@ -185,29 +182,15 @@ func (n *networkPolicyLogger) stop() {
 // run listens and process the flow.
 func (n *networkPolicyLogger) run() {
 	log.Infof("Logger started with cfg: %s", n.cfg.print())
-	ticker := time.NewTicker(time.Duration(n.cfg.counterLogInterval) * time.Second)
-	prev := n.counter
-	start := time.Now()
 	for {
 		select {
 		case f := <-n.flowCh:
 			n.processFlow(f)
 		case ae := <-n.aggregatorCh:
 			n.processAggregatedEntry(ae)
-		case <-ticker.C:
-			curr := &n.counter
-			end := time.Now()
-			diff := curr.sub(&prev)
-			msg := diff.formatMsg(n.cfg.counterLogErrorOnly)
-			if len(msg) > 0 {
-				log.WithFields(logrus.Fields{"start": start, "end": end}).Infof("Counter changed: %s", strings.Join(msg, ", "))
-			}
-			prev = *curr
-			start = end
 		case <-n.stopCh:
 			log.Info("Remove flow listener")
 			n.dispatcher.RemoveFlowListener("policy", int32(api.MessageTypePolicyVerdict))
-			ticker.Stop()
 			n.flowCh = nil
 			n.writer.Close()
 			n.rateLimiter.Stop()
@@ -225,7 +208,6 @@ func (n *networkPolicyLogger) loggingPolicies(policies []*Policy) []*Policy {
 	policyStore := n.storeGetter.GetK8sStore("networkpolicy")
 	if policyStore == nil {
 		log.Error("Cannot find the policy store")
-		(&n.counter.storeErrors).inc(1)
 		return policies
 	}
 	var ret []*Policy
@@ -234,12 +216,10 @@ func (n *networkPolicyLogger) loggingPolicies(policies []*Policy) []*Policy {
 		obj, exist, err := policyStore.GetByKey(key)
 		if err != nil {
 			log.Errorf("Fail to fetch policy object: %v", err)
-			(&n.counter.storeErrors).inc(1)
 			continue
 		}
 		// Maybe the policy is already deleted.
 		if !exist {
-			(&n.counter.storeErrors).inc(1)
 			continue
 		}
 		policy := k8s.ObjToV1NetworkPolicy(obj)
@@ -254,13 +234,11 @@ func (n *networkPolicyLogger) shouldLogNamespace(name string) bool {
 	namespaceStore := n.storeGetter.GetK8sStore("namespace")
 	if namespaceStore == nil {
 		log.Error("Cannot find the namespace store")
-		(&n.counter.storeErrors).inc(1)
 		return false
 	}
 	obj, exist, err := namespaceStore.GetByKey(name)
 	if err != nil {
 		log.Errorf("Fail to fetch namespace object: %v", err)
-		(&n.counter.storeErrors).inc(1)
 		return false
 	}
 	// Maybe the namespace is already deleted.
@@ -277,7 +255,6 @@ func (n *networkPolicyLogger) shouldLogNamespace(name string) bool {
 func (n *networkPolicyLogger) processFlow(f *flow.Flow) {
 	e, err := n.flowToPolicyActionLogEntry(f)
 	if err != nil {
-		(&n.counter.flowParseFails).inc(1)
 		log.Debugf("Flow parsing failed: flow %v, err: %v", f, err)
 		return
 	}
@@ -292,14 +269,7 @@ func (n *networkPolicyLogger) processFlow(f *flow.Flow) {
 		return
 	}
 
-	if allow {
-		(&n.counter.allowedConnections).inc(1)
-	} else {
-		(&n.counter.deniedConnections).inc(1)
-	}
-
 	spec := n.getSpec()
-
 	// Only support cluster-level policy logs now. When node network policies
 	// are supported, this needs to be revised.
 	action := spec.getLogAction(false, allow)
@@ -338,25 +308,18 @@ func (n *networkPolicyLogger) processFlow(f *flow.Flow) {
 		// If aggregate fails due to aggregator size, drop the log to avoid it using
 		// up the rateLimiter quota.
 		log.Debugf("Fail to aggregate %v, err: %v", e, err)
-		(&n.counter.aggregateFails).inc(1)
 		return
 	}
 
 	if n.rateLimiter.Allow() {
 		if b, err := json.Marshal(e); err != nil {
 			log.Errorf("Marshal failed: %v", err)
-			(&n.counter.typeErrors).inc(1)
 			return
 		} else {
 			if _, err = n.writer.Write(append(b, '\n')); err != nil {
-				(&n.counter.logWriteFails).inc(1)
 				return
 			}
-			(&n.counter.generatedLogs).inc(1)
 		}
-	} else {
-		(&n.counter.rateLimitDroppedLogs).inc(1)
-		(&n.counter.rateLimitDroppedConnections).inc(1)
 	}
 }
 
@@ -364,24 +327,17 @@ func (n *networkPolicyLogger) processAggregatedEntry(ae *aggregator.AggregatorEn
 	e, ok := ae.Entry.(*PolicyActionLogEntry)
 	if !ok {
 		log.Errorf("Unexpected type %T", ae.Entry)
-		(&n.counter.typeErrors).inc(1)
 		return
 	}
 	e.Count = ae.Count
 	if n.rateLimiter.Allow() {
 		if b, err := json.Marshal(e); err != nil {
 			log.Errorf("Marshal failed: %v", err)
-			(&n.counter.typeErrors).inc(1)
 			return
 		} else {
 			if _, err = n.writer.Write(append(b, '\n')); err != nil {
-				n.counter.logWriteFails++
 				return
 			}
-			(&n.counter.generatedLogs).inc(1)
 		}
-	} else {
-		(&n.counter.rateLimitDroppedLogs).inc(1)
-		(&n.counter.rateLimitDroppedConnections).inc(uint64(ae.Count))
 	}
 }

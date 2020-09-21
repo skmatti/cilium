@@ -27,8 +27,6 @@ var (
 		logQueueSize:           100,
 		denyAggregationSeconds: 2,
 		denyAggregationMapSize: 100,
-		counterLogInterval:     120,
-		counterLogErrorOnly:    defaultConfig.counterLogErrorOnly,
 		logNodeName:            false,
 	}
 

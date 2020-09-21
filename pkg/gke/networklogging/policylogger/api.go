@@ -21,7 +21,6 @@ import (
 	"github.com/cilium/cilium/pkg/hubble/parser/getters"
 	"github.com/cilium/cilium/pkg/logging"
 	"github.com/cilium/cilium/pkg/logging/logfields"
-	"github.com/cilium/cilium/pkg/metrics"
 )
 
 var (
@@ -44,7 +43,5 @@ func NewLogger(dispatcher dispatcher.Dispatcher, endpointGetter getters.Endpoint
 		cfg:              &defaultConfig,
 		spec:             getLogSpec(nil),
 	}
-	n.metricsCollector = newMetricsCollector(n)
-	metrics.MustRegister(n.metricsCollector)
 	return n
 }

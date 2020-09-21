@@ -35,8 +35,6 @@ type PolicyLoggerConfiguration struct {
 	LogQueueSize           *uint   `yaml:"logQueueSize"`
 	DenyAggregationSeconds *uint   `yaml:"denyAggregationSeconds"`
 	DenyAggregationMapSize *uint   `yaml:"denyAggregationMapSize"`
-	CounterLogInterval     *uint   `yaml:"counterLogInterval"`
-	CounterLogErrorOnly    *bool   `yaml:"counterLogErrorOnly"`
 	LogNodeName            *bool   `yaml:"logNodeName"`
 }
 
@@ -66,13 +64,6 @@ type policyLoggerConfig struct {
 	// It decides the maximum different entries allowed within denyAggregationSeconds.
 	denyAggregationMapSize uint
 
-	// counterLogInterval is the intervel in seconds on how frequently
-	// a counter log is output to container log output.
-	counterLogInterval uint
-
-	// counterLogErrorOnly decides if the counter log will show error counter only or not.
-	counterLogErrorOnly bool
-
 	// logNodeName decides if node name should be logged in the log output.
 	logNodeName bool
 }
@@ -87,8 +78,6 @@ func (c *policyLoggerConfig) print() string {
 		fmt.Sprintf("queue-size: %d", c.logQueueSize),
 		fmt.Sprintf("deny-aggregation-seconds: %d", c.denyAggregationSeconds),
 		fmt.Sprintf("deny-aggregation-map-size: %d", c.denyAggregationMapSize),
-		fmt.Sprintf("counter-log-interval: %d", c.counterLogInterval),
-		fmt.Sprintf("counter-log-error-only: %v", c.counterLogErrorOnly),
 		fmt.Sprintf("log-node-name: %v", c.logNodeName),
 	}
 	return strings.Join(str, ", ")
@@ -105,8 +94,6 @@ var defaultConfig = policyLoggerConfig{
 	logQueueSize:           2000,
 	denyAggregationSeconds: 5, // seconds
 	denyAggregationMapSize: 3000,
-	counterLogInterval:     120, // seconds
-	counterLogErrorOnly:    false,
 	logNodeName:            true,
 }
 
@@ -152,12 +139,6 @@ func loadInternalConfig(file string) *policyLoggerConfig {
 	}
 	if userConfig.DenyAggregationMapSize != nil {
 		cfg.denyAggregationMapSize = *userConfig.DenyAggregationMapSize
-	}
-	if userConfig.CounterLogInterval != nil {
-		cfg.counterLogInterval = *userConfig.CounterLogInterval
-	}
-	if userConfig.CounterLogErrorOnly != nil {
-		cfg.counterLogErrorOnly = *userConfig.CounterLogErrorOnly
 	}
 	if userConfig.LogNodeName != nil {
 		cfg.logNodeName = *userConfig.LogNodeName
