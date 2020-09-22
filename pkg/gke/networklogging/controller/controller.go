@@ -162,10 +162,7 @@ func (c *Controller) updateHandler(obj interface{}) {
 		return
 	}
 
-	if err, update := c.policyLogger.UpdateLoggingSpec(&o.Spec); err != nil {
-		c.eventRecorder.Eventf(o, v1.EventTypeWarning, FailedToUpdateNetworkLogging,
-			fmt.Sprintf("failed to %s network policy logging: %s", operation, err.Error()))
-	} else if update {
+	if update := c.policyLogger.UpdateLoggingSpec(&o.Spec); update {
 		policyLoggingEnabled := o.Spec.Cluster.Allow.Log || o.Spec.Cluster.Deny.Log
 		if !c.policyLoggingEnabled && policyLoggingEnabled {
 			operation = "enable"
@@ -197,10 +194,7 @@ func (c *Controller) delHandler(obj interface{}) {
 	}
 
 	log.Infof("Delete network logging obj %v", o)
-	if err, _ := c.policyLogger.UpdateLoggingSpec(nil); err != nil {
-		c.eventRecorder.Eventf(o, v1.EventTypeWarning, FailedToUpdateNetworkLogging,
-			fmt.Sprintf("failed to delete network logging: %s", err.Error()))
-	} else {
+	if update := c.policyLogger.UpdateLoggingSpec(nil); update {
 		c.policyLoggingEnabled = false
 		c.eventRecorder.Eventf(o, v1.EventTypeNormal, UpdateNetworkLogging,
 			fmt.Sprintf("deleted network logging"))
@@ -210,13 +204,24 @@ func (c *Controller) delHandler(obj interface{}) {
 // run starts network logging controller and wait for stop.
 func (c *Controller) Run() {
 	log.Info("Starting network logging controller")
+	// Start the policy logger first so that if something is wrong informer doesn't need
+	// to start. After the informer cache is synced, call the readyCb function to notify
+	// the policyLogger
+	err, readyCb := c.policyLogger.Start()
+	if err != nil {
+		log.Errorf("Failed to start policy logger: %v", err)
+		return
+	}
 	go c.networkLoggingInformer.Run(c.stopCh)
 	if ok := cache.WaitForNamedCacheSync("networklogging", c.stopCh, c.networkLoggingInformer.HasSynced); !ok {
 		log.Error("Failed to wait for networklogging caches to sync")
 		return
 	}
-
+	if readyCb != nil {
+		readyCb()
+	}
 	<-c.stopCh
+	c.policyLogger.Stop()
 	log.Info("Shutting down network logging controller")
 	return
 }

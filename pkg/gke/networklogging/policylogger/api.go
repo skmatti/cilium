@@ -29,8 +29,13 @@ var (
 
 // Logger is the interface used by network policy logger.
 type Logger interface {
-	// UpdateLoggingSpec returns error and whether an update happened.
-	UpdateLoggingSpec(spec *v1alpha1.NetworkLoggingSpec) (error, bool)
+	// UpdateLoggingSpec returns whether an update happened.
+	UpdateLoggingSpec(spec *v1alpha1.NetworkLoggingSpec) bool
+	// Start starts the logger, and returns the error if any and a callback function.
+	// The callback function is for the controller to notify the logger that it is
+	// ready to watch user configurations.
+	Start() (error, func())
+	Stop()
 }
 
 // NewLogger create a new network policy logger.

@@ -113,37 +113,28 @@ func (n *networkPolicyLogger) setSpec(spec *logSpec) {
 }
 
 // API Interface to satisfy the Logger interface.
-// UpdateLoggingSpec updates the network logging spec. Return error message if any and whether the
-// configuration is updated.
-func (n *networkPolicyLogger) UpdateLoggingSpec(spec *v1alpha1.NetworkLoggingSpec) (error, bool) {
+// UpdateLoggingSpec updates the network logging spec. Return whether the
+// configuration has changed.
+func (n *networkPolicyLogger) UpdateLoggingSpec(spec *v1alpha1.NetworkLoggingSpec) bool {
 	curr := getLogSpec(spec)
 	old := n.getSpec()
 	if reflect.DeepEqual(curr, old) {
-		return nil, false
+		return false
 	}
 	log.WithFields(logrus.Fields{"old": old, "curr": curr}).Info("Update logging spec")
 	n.setSpec(curr)
-	if !old.log && curr.log {
-		log.Info("Start policy logger")
-		if err := n.start(); err != nil {
-			n.setSpec(old)
-			return err, false
-		}
-	} else if old.log && !curr.log {
-		log.Info("Stop policy logger")
-		n.stop()
-	}
-	return nil, true
+	return true
 }
 
-// start starts network policy logger.
-func (n *networkPolicyLogger) start() error {
+// Start the network policy logger. It returns a callback function to set the policy_logging_ready.
+// state to be true after the caller is ready when error is nil.
+func (n *networkPolicyLogger) Start() (error, func()) {
 	n.cfg = loadInternalConfig(configFile)
 	w, err := writer.NewFileWriter(n.cfg.logFilePath, n.cfg.logFileName,
 		int(n.cfg.logFileMaxSize), int(n.cfg.logFileMaxBackups))
 	if err != nil {
-		log.Errorf("Fail to create new file writer %v", err)
-		return fmt.Errorf("Fail to create new file writer %v", err)
+		err = fmt.Errorf("failed to create FileWriter (path = %q, name = %q): %w", n.cfg.logFilePath, n.cfg.logFileName, err)
+		return err, nil
 	}
 	n.writer = w
 
@@ -166,15 +157,16 @@ func (n *networkPolicyLogger) start() error {
 	go n.run()
 
 	if err := n.dispatcher.AddFlowListener("policy", int32(api.MessageTypePolicyVerdict), n.flowCh); err != nil {
-		log.Errorf("Fail to add policy verdict listener: %v", err)
-		n.stop()
-		return fmt.Errorf("Fail to add policy verdict listener: %v", err)
+		err = fmt.Errorf("failed to add policy verdict listener: type %d, %w", api.MessageTypePolicyVerdict, err)
+		log.Error(err)
+		n.Stop()
+		return err, nil
 	}
-	return nil
+	return nil, func() { /* policyLoggingReady.Set(1) */ }
 }
 
-// stop stops network policy logger.
-func (n *networkPolicyLogger) stop() {
+// Stop stops network policy logger.
+func (n *networkPolicyLogger) Stop() {
 	close(n.stopCh)
 	<-n.doneCh
 }
@@ -253,15 +245,23 @@ func (n *networkPolicyLogger) shouldLogNamespace(name string) bool {
 }
 
 func (n *networkPolicyLogger) processFlow(f *flow.Flow) {
+	spec := n.getSpec()
+	if !spec.log {
+		log.Debugf("Logging is disabled, flow %v", f)
+		return
+	}
+
 	e, err := n.flowToPolicyActionLogEntry(f)
 	if err != nil {
-		log.Debugf("Flow parsing failed: flow %v, err: %v", f, err)
+		log.Errorf("Flow parsing failed: flow %v, err: %v", f, err)
 		return
 	}
+
 	if isNodeTraffic(e) {
-		log.Debugf("Node policy log is not supported. Flow: %v", f)
+		log.Debugf("Node network policy logging is not supported yet. Flow: %v", f)
 		return
 	}
+
 	// Don't count the connections allowed by default, such as health checks.
 	allow := isAllow(f)
 	if allow && e.Policies == nil {
@@ -269,7 +269,6 @@ func (n *networkPolicyLogger) processFlow(f *flow.Flow) {
 		return
 	}
 
-	spec := n.getSpec()
 	// Only support cluster-level policy logs now. When node network policies
 	// are supported, this needs to be revised.
 	action := spec.getLogAction(false, allow)
@@ -277,7 +276,6 @@ func (n *networkPolicyLogger) processFlow(f *flow.Flow) {
 		log.Debugf("Logging is disabled for cluster, allow %v", allow)
 		return
 	}
-
 	if action.delegate {
 		if allow {
 			logPolicies := n.loggingPolicies(e.Policies)
