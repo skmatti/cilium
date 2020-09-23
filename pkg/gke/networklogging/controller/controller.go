@@ -152,7 +152,6 @@ func (c *Controller) validateObj(obj interface{}) (*v1alpha1.NetworkLogging, err
 
 // updateHandler handles NetworkLogging CRD add and update events.
 func (c *Controller) updateHandler(obj interface{}) {
-	var operation string = "update"
 	o, err := c.validateObj(obj)
 	if err != nil {
 		// Note that when validation fails, although the CR is already in etcd, it doesn't
@@ -163,15 +162,21 @@ func (c *Controller) updateHandler(obj interface{}) {
 	}
 
 	if update := c.policyLogger.UpdateLoggingSpec(&o.Spec); update {
-		policyLoggingEnabled := o.Spec.Cluster.Allow.Log || o.Spec.Cluster.Deny.Log
-		if !c.policyLoggingEnabled && policyLoggingEnabled {
-			operation = "enable"
-		} else if c.policyLoggingEnabled && !policyLoggingEnabled {
-			operation = "disable"
+		policyLoggingEnabled := o.Spec.Cluster.Allow.Log || o.Spec.Cluster.Deny.Log || o.Spec.Node.Allow.Log || o.Spec.Node.Deny.Log
+		operation := "update"
+		switch c.policyLoggingEnabled {
+		case false:
+			if policyLoggingEnabled {
+				operation = "enable"
+			}
+		case true:
+			if !policyLoggingEnabled {
+				operation = "disable"
+			}
 		}
 		c.policyLoggingEnabled = policyLoggingEnabled
 		c.eventRecorder.Eventf(o, v1.EventTypeNormal, UpdateNetworkLogging,
-			fmt.Sprintf("%sd network policy logging", operation))
+			fmt.Sprintf("%sd network policy logging (resourceVersion = %s) ", operation, o.ResourceVersion))
 	}
 }
 
