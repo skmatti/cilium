@@ -34,7 +34,10 @@ var (
 
 type flowListener struct {
 	name string
-	ch   chan *flow.Flow
+	// ch is the flow listener queue for receiving flows.
+	ch chan *flow.Flow
+	// dropNotify is the callback function when a flow is dropped.
+	dropNotify func()
 }
 
 type dispatcher struct {
@@ -47,7 +50,9 @@ type dispatcher struct {
 // Dispatcher provides the interface for a client to listen to a given type of flow.
 // The supported message type is defined in pkg/monitor/api/types.go
 type Dispatcher interface {
-	AddFlowListener(name string, typ int32, ch chan *flow.Flow) error
+	// AddFlowListener adds a flow listener for the given message type.
+	// ch is the flow receiver channel, and dropNotify is the callback function when drop happens.
+	AddFlowListener(name string, typ int32, ch chan *flow.Flow, dropNotify func()) error
 	RemoveFlowListener(name string, typ int32)
 }
 
@@ -66,18 +71,18 @@ func NewDispatcher() Dispatcher {
 
 // AddFlowListener register a listenser to flow type typ. The given flow will be
 // sent to the provided channel.
-func (d *dispatcher) AddFlowListener(name string, typ int32, ch chan *flow.Flow) error {
+func (d *dispatcher) AddFlowListener(name string, typ int32, ch chan *flow.Flow, dropNotify func()) error {
 	log.WithFields(logrus.Fields{"name": name, "event": api.MessageTypeName(int(typ))}).Info("Add flow listener")
 	d.lock.Lock()
 	defer d.lock.Unlock()
 	if ls, ok := d.flowListeners[typ]; !ok {
-		ls = map[string]*flowListener{name: {name: name, ch: ch}}
+		ls = map[string]*flowListener{name: {name: name, ch: ch, dropNotify: dropNotify}}
 		d.flowListeners[typ] = ls
 	} else {
 		if _, ok := ls[name]; ok {
 			return fmt.Errorf("listener %q exists for type: %q", name, api.MessageTypeName(int(typ)))
 		}
-		ls[name] = &flowListener{name: name, ch: ch}
+		ls[name] = &flowListener{name: name, ch: ch, dropNotify: dropNotify}
 	}
 	return nil
 }
@@ -129,6 +134,7 @@ func (d *dispatcher) OnDecodedFlow(ctx context.Context, pb *flow.Flow) (bool, er
 		select {
 		case l.ch <- pb:
 		default:
+			l.dropNotify()
 			log.WithFields(logrus.Fields{"listener": l.name, "event": api.MessageTypeName(int(typ))}).Info("Queue full. Dropping.")
 		}
 	}

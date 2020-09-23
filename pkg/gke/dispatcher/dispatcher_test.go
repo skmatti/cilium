@@ -6,6 +6,7 @@ import (
 	"context"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/cilium/cilium/api/v1/flow"
 	"github.com/cilium/cilium/pkg/monitor/api"
@@ -16,13 +17,14 @@ func TestAddFlowListener(t *testing.T) {
 	dpatcher := NewDispatcher()
 	observer := dpatcher.(Observer)
 	policyCh := make(chan *flow.Flow, 1)
-	err := dpatcher.AddFlowListener("policy", api.MessageTypePolicyVerdict, policyCh)
+	policyQueueDrop := 0
+	err := dpatcher.AddFlowListener("policy", api.MessageTypePolicyVerdict, policyCh, func() { policyQueueDrop++ })
 	if err != nil {
 		t.Fatalf("AddFlowListener(\"policy\", api.MessageTypePolicyVerdict, %v) = %v, want nil", policyCh, err)
 	}
 
 	traceCh := make(chan *flow.Flow, 1)
-	err = dpatcher.AddFlowListener("trace", api.MessageTypeTrace, traceCh)
+	err = dpatcher.AddFlowListener("trace", api.MessageTypeTrace, traceCh, func() {})
 	if err != nil {
 		t.Fatalf("AddFlowListener(\"flow\", api.MessageTypetrace, %v) = %v, want nil", traceCh, err)
 	}
@@ -43,11 +45,21 @@ func TestAddFlowListener(t *testing.T) {
 	}()
 	observer.OnDecodedFlow(context.Background(),
 		&flow.Flow{EventType: &flow.CiliumEventType{Type: api.MessageTypePolicyVerdict}})
-
 	observer.OnDecodedFlow(context.Background(),
 		&flow.Flow{EventType: &flow.CiliumEventType{Type: api.MessageTypeTrace}})
 	wg.Wait()
-	t.Logf("Received both events. Finish the test.")
+	t.Logf("Received both events. Now test queue drop")
+	observer.OnDecodedFlow(context.Background(),
+		&flow.Flow{EventType: &flow.CiliumEventType{Type: api.MessageTypePolicyVerdict}})
+	observer.OnDecodedFlow(context.Background(),
+		&flow.Flow{EventType: &flow.CiliumEventType{Type: api.MessageTypePolicyVerdict}})
+	// Send twice but want = 1 because the channel has length 1, so only the second flow is dropped.
+	want := 1
+	time.Sleep(time.Second)
+	if policyQueueDrop != want {
+		t.Fatalf("policyQueueDrop = %d, want %d", policyQueueDrop, want)
+	}
+
 }
 
 func verifyFlowListeners(t *testing.T, d *dispatcher, typ int32, expect int) {
@@ -64,17 +76,17 @@ func TestRemoveFlowListener(t *testing.T) {
 		flowListeners: make(map[int32]map[string]*flowListener),
 	}
 	policyCh := make(chan *flow.Flow, 1)
-	err := dpatcher.AddFlowListener("policy", api.MessageTypePolicyVerdict, policyCh)
+	err := dpatcher.AddFlowListener("policy", api.MessageTypePolicyVerdict, policyCh, func() {})
 	if err != nil {
 		t.Fatalf("AddFlowListener(\"policy\", api.MessageTypePolicyVerdict, %v) = %v, want nil", policyCh, err)
 	}
 	traceCh1 := make(chan *flow.Flow, 1)
-	err = dpatcher.AddFlowListener("trace1", api.MessageTypeTrace, traceCh1)
+	err = dpatcher.AddFlowListener("trace1", api.MessageTypeTrace, traceCh1, func() {})
 	if err != nil {
 		t.Fatalf("AddFlowListener(\"trace1\", api.MessageTypetrace, %v) = %v, want nil", traceCh1, err)
 	}
 	traceCh2 := make(chan *flow.Flow, 1)
-	err = dpatcher.AddFlowListener("trace2", api.MessageTypeTrace, traceCh2)
+	err = dpatcher.AddFlowListener("trace2", api.MessageTypeTrace, traceCh2, func() {})
 	if err != nil {
 		t.Fatalf("AddFlowListener(\"trace2\", api.MessageTypetrace, %v) = %v, want nil", traceCh2, err)
 	}

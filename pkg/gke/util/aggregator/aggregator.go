@@ -34,17 +34,21 @@ var (
 // time since the first appearance of the event, the event will be emitted with the number of
 // occurrence during this interval.
 type Aggregator struct {
-	tw       *timewheel.Timewheel
-	outputCh chan *AggregatorEntry
+	tw *timewheel.Timewheel
 
 	// interval is the length of aggregation period. Value should be fixed after init.
 	interval time.Duration
+
 	// capacity is the maximum number of different entries that can be
 	// stored in cache at the same time. Value should be fixed after init.
 	capacity int
+
 	// outputCh is the channel to output the events after the aggregation.
-	// queueDrop counts the number of drops due to outputCh is full.
-	queueDrop uint64
+	outputCh chan *AggregatorEntry
+
+	// dropNotify is the callback function when an aggregation event is dropped
+	// due to outputCh being full.
+	dropNotify func()
 
 	lock lock.Mutex
 	// cachedEntries stores all aggregate entries with AggregationKey.
@@ -74,17 +78,19 @@ func (ae *AggregatorEntry) Expire() {
 	select {
 	case ae.agg.outputCh <- ae:
 	default:
-		ae.agg.queueDrop++
-		log.WithFields(logrus.Fields{"entry": ae.Entry, "cnt": ae.Count,
-			"queueDrop": ae.agg.queueDrop}).Info("Queue full. Dropping aggregator entry.")
+		if ae.agg.dropNotify != nil {
+			ae.agg.dropNotify()
+		}
+		log.WithFields(logrus.Fields{"entry": ae.Entry, "cnt": ae.Count}).Info("Queue full. Dropping aggregator entry.")
 	}
 	return
 }
 
 // NewAggregator creates a new aggregator. aggregateInterval is the interval of aggregation. tick decides the
 // resolution of the aggregation timer. capacity is the maximum number of different entries the aggregator can
-// store at the same time. outputCh is the output channel for aggregated events.
-func NewAggregator(aggregateInterval, tick time.Duration, capacity int, outputCh chan *AggregatorEntry) *Aggregator {
+// store at the same time. outputCh is the output channel for aggregated events. dropNotify is the callback function
+// when a event is dropped due to output channel full.
+func NewAggregator(aggregateInterval, tick time.Duration, capacity int, outputCh chan *AggregatorEntry, dropNotify func()) *Aggregator {
 	log.WithFields(logrus.Fields{"aggregateInterval": aggregateInterval, "capacity": capacity}).Info("New aggregator")
 	ag := &Aggregator{
 		cachedEntries: make(map[interface{}]*AggregatorEntry),
@@ -92,6 +98,7 @@ func NewAggregator(aggregateInterval, tick time.Duration, capacity int, outputCh
 		capacity:      capacity,
 		outputCh:      outputCh,
 		tw:            timewheel.NewTimewheel(tick),
+		dropNotify:    dropNotify,
 	}
 	return ag
 }

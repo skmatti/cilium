@@ -50,5 +50,6 @@ func NewLogger(dispatcher dispatcher.Dispatcher, endpointGetter getters.Endpoint
 		spec:             getLogSpec(nil),
 	}
 	metrics.MustRegister(metricsCollectors()...)
+	policyLoggingReady.Set(0)
 	return n
 }

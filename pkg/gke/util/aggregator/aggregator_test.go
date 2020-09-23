@@ -56,12 +56,13 @@ func (e *testEvent) AggregationKey() interface{} {
 // increments the drop counter.
 func TestAggregator(t *testing.T) {
 	expireCh := make(chan *AggregatorEntry)
-	a := NewAggregator(testAggregationInterval, testAggregationTick, testCapacity, expireCh)
+	var queueDrop int
+	a := NewAggregator(testAggregationInterval, testAggregationTick, testCapacity, expireCh, func() { queueDrop++ })
 	a.Start()
 
 	testName := "test"
 	repeats := 10
-	// When the same event arrives for repeats times, we should get one expired entry with the count euqals to repeats
+	// When the same event arrives for repeats times, we should get one expired entry with the count equals to repeats.
 	cnt := 0
 	for cnt < repeats {
 		if err := a.Aggregate(&testEvent{name: testName}); err != nil {
@@ -94,7 +95,7 @@ func TestAggregator(t *testing.T) {
 	// the rest is expected to drop. Wait here so that the queueDrop counter will have time
 	// to increment.
 	time.Sleep(2 * time.Second)
-	if a.queueDrop != testCapacity-1 {
-		t.Errorf("queueDrop = %d,  want %d", a.queueDrop, testCapacity-1)
+	if queueDrop != testCapacity-1 {
+		t.Errorf("queueDrop = %d,  want %d", queueDrop, testCapacity-1)
 	}
 }
