@@ -47,7 +47,7 @@ const (
 	denyLog = `{"connection":{"src_ip":"10.84.1.8","dest_ip":"10.84.0.11","src_port":45084,"dest_port":8080,"protocol":"tcp","direction":"ingress"},"disposition":"deny","src":{"pod_name":"client-deny-5689846f5b-cqqsj","pod_namespace":"default"},"dest":{"pod_name":"test-service-745c798fc9-hzpxt","pod_namespace":"default"},"count":1,"timestamp":"2020-06-13T21:30:22.292379064Z"}`
 
 	// testCfgString is the config file content for the testCfg
-	testCfgString = "logFilePath: /tmp/test \nlogFileName: policy_action.log\nlogFileMaxSize: 1\nlogFileMaxBackups: 1\nlogQueueSize: 100\ndenyAggregationSeconds: 2\ndenyAggregationMapSize: 100\nlogNodeName: false"
+	testCfgString = "logFilePath: /tmp/test \nlogFileName: policy_action.log\nlogFileMaxSize: 1\nlogFileMaxBackups: 1\nmaxLogRate: 200\nlogQueueSize: 100\ndenyAggregationSeconds: 2\ndenyAggregationMapSize: 100\nlogNodeName: false"
 )
 
 var (
@@ -56,7 +56,7 @@ var (
 		logFileName:            "policy_action.log",
 		logFileMaxSize:         1,
 		logFileMaxBackups:      1,
-		maxLogRate:             defaultConfig.maxLogRate,
+		maxLogRate:             200,
 		logQueueSize:           100,
 		denyAggregationSeconds: 2,
 		denyAggregationMapSize: 100,

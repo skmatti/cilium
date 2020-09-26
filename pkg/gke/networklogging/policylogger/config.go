@@ -131,6 +131,9 @@ func loadInternalConfig(file string) *policyLoggerConfig {
 	if userConfig.LogFileMaxBackups != nil {
 		cfg.logFileMaxBackups = *userConfig.LogFileMaxBackups
 	}
+	if userConfig.MaxLogRate != nil {
+		cfg.maxLogRate = *userConfig.MaxLogRate
+	}
 	if userConfig.LogQueueSize != nil {
 		cfg.logQueueSize = *userConfig.LogQueueSize
 	}
