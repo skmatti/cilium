@@ -1,0 +1,32 @@
+{
+  "_comment": "Use this file to create a new devbox image: ./packer build gcilium-devbox.json",
+  "variables": {
+    "user" : "{{env `USER`}}"
+  },
+  "builders": [
+    {
+      "type": "googlecompute",
+      "image_name": "gcilium-devbox-{{isotime \"20060102\"}}",
+      "instance_name": "{{user `user`}}-gcilium-devbox-{{timestamp}}",
+      "project_id": "{{user `user`}}-gke-dev",
+      "ssh_username": "{{user `user`}}",
+      "source_image_family": "ubuntu-2004-lts",
+      "source_image": "ubuntu-2004-focal-v20200917",
+      "zone": "us-west1-a",
+      "disk_size": "20",
+      "min_cpu_platform": "Intel Skylake",
+      "machine_type": "n1-standard-32"
+    }
+  ],
+  "provisioners": [
+    {
+      "type": "shell",
+      "script": "0-machine-install.sh"
+    },
+    {
+      "type": "file",
+      "source": "1-bringup-k8s.sh",
+      "destination": "~/"
+    }
+  ]
+}

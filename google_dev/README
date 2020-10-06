@@ -1,0 +1,13 @@
+Step 0: [Optional] Create an image.
+
+cd package
+[... install packer ...]
+./packer build gcilium-devbox-packer.json
+
+Step 1: Start an instance with K8s and cilium-operator.
+
+./setup-devbox.sh
+
+Step 2: Push Cilium agent from the local working directory.
+
+./push-cilium.sh
