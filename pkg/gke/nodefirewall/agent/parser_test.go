@@ -137,8 +137,10 @@ func TestNNPToCiliumPolicyRules(t *testing.T) {
 				},
 				Ingress: []api.IngressRule{
 					{
-						FromCIDRSet: api.CIDRRuleSlice{
-							{Cidr: "10.5.6.4/24"},
+						IngressCommonRule: api.IngressCommonRule{
+							FromCIDRSet: api.CIDRRuleSlice{
+								{Cidr: "10.5.6.4/24"},
+							},
 						},
 					},
 				},
@@ -168,11 +170,13 @@ func TestNNPToCiliumPolicyRules(t *testing.T) {
 				},
 				Ingress: []api.IngressRule{
 					{
-						FromCIDRSet: api.CIDRRuleSlice{
-							{
-								Cidr: "10.5.6.4/24",
-								ExceptCIDRs: []api.CIDR{
-									"10.5.6.230/32",
+						IngressCommonRule: api.IngressCommonRule{
+							FromCIDRSet: api.CIDRRuleSlice{
+								{
+									Cidr: "10.5.6.4/24",
+									ExceptCIDRs: []api.CIDR{
+										"10.5.6.230/32",
+									},
 								},
 							},
 						},
@@ -206,7 +210,9 @@ func TestNNPToCiliumPolicyRules(t *testing.T) {
 				},
 				Ingress: []api.IngressRule{
 					{
-						FromEntities: api.EntitySlice{api.EntityCluster},
+						IngressCommonRule: api.IngressCommonRule{
+							FromEntities: api.EntitySlice{api.EntityCluster},
+						},
 					},
 				},
 			},
@@ -237,16 +243,20 @@ func TestNNPToCiliumPolicyRules(t *testing.T) {
 				},
 				Ingress: []api.IngressRule{
 					{
-						FromCIDRSet: api.CIDRRuleSlice{
-							{
-								Cidr: "10.5.6.4/24",
+						IngressCommonRule: api.IngressCommonRule{
+							FromCIDRSet: api.CIDRRuleSlice{
+								{
+									Cidr: "10.5.6.4/24",
+								},
 							},
 						},
 					},
 					{
-						FromCIDRSet: api.CIDRRuleSlice{
-							{
-								Cidr: "1.1.2.20/24",
+						IngressCommonRule: api.IngressCommonRule{
+							FromCIDRSet: api.CIDRRuleSlice{
+								{
+									Cidr: "1.1.2.20/24",
+								},
 							},
 						},
 					},
@@ -286,11 +296,13 @@ func TestNNPToCiliumPolicyRules(t *testing.T) {
 				},
 				Ingress: []api.IngressRule{
 					{
-						FromCIDRSet: api.CIDRRuleSlice{
-							{
-								Cidr: "10.5.6.4/24",
-								ExceptCIDRs: []api.CIDR{
-									"10.5.6.230/32",
+						IngressCommonRule: api.IngressCommonRule{
+							FromCIDRSet: api.CIDRRuleSlice{
+								{
+									Cidr: "10.5.6.4/24",
+									ExceptCIDRs: []api.CIDR{
+										"10.5.6.230/32",
+									},
 								},
 							},
 						},

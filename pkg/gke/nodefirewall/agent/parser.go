@@ -98,7 +98,11 @@ func nnpToCiliumIngressRules(policy *v1alpha1.NodeNetworkPolicy) []api.IngressRu
 	// all cluster entities.
 	if policy.Name == baseNodeToNodePolicyName {
 		return []api.IngressRule{
-			{FromEntities: api.EntitySlice{api.EntityCluster}},
+			{
+				IngressCommonRule: api.IngressCommonRule{
+					FromEntities: api.EntitySlice{api.EntityCluster},
+				},
+			},
 		}
 	}
 
@@ -119,7 +123,9 @@ func nnpToCiliumIngressRules(policy *v1alpha1.NodeNetworkPolicy) []api.IngressRu
 			// If `From` field is empty or missing, this rule matches all
 			// sources (traffic not restricted by source).
 			ingress := api.IngressRule{
-				FromEndpoints: []api.EndpointSelector{api.WildcardEndpointSelector},
+				IngressCommonRule: api.IngressCommonRule{
+					FromEndpoints: []api.EndpointSelector{api.WildcardEndpointSelector},
+				},
 			}
 
 			fromRules = append(fromRules, ingress)
