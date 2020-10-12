@@ -691,14 +691,6 @@ func NewDaemon(ctx context.Context, cancel context.CancelFunc, epMgr *endpointma
 		d.bgpSpeaker.RegisterSvcCache(&d.k8sWatcher.K8sSvcCache)
 	}
 
-	if k8s.IsEnabled() && option.Config.EnableHostFirewall {
-		// Initialize anet node firewall agent workflow.
-		if err = nodefirewall.Init(&d); err != nil {
-			log.WithError(err).Error("Error while bootstrapping node firewall agent")
-			return nil, nil, err
-		}
-	}
-
 	bootstrapStats.daemonInit.End(true)
 
 	// Stop all endpoints (its goroutines) on exit.
@@ -1038,6 +1030,16 @@ func NewDaemon(ctx context.Context, cancel context.CancelFunc, epMgr *endpointma
 		// daemon options.
 		d.k8sWatcher.InitK8sSubsystem(d.ctx, cachesSynced)
 		bootstrapStats.k8sInit.End(true)
+	}
+
+	// Node firewall needs to be initialized after the reserved entities and k8s
+	// are initialized.
+	if k8s.IsEnabled() && option.Config.EnableHostFirewall {
+		// Initialize anet node firewall agent workflow.
+		if err = nodefirewall.Init(&d); err != nil {
+			log.WithError(err).Error("Error while bootstrapping node firewall agent")
+			return nil, nil, err
+		}
 	}
 
 	bootstrapStats.cleanup.Start()
