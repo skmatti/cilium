@@ -32,11 +32,6 @@ gcloud compute instances create $INSTANCE --image=$IMAGE --image-project=$IMAGE_
 # TODO(valas): Find better way to find if instance is up.
 sleep 60
 
-# Bring up K8s.
-$gssh $INSTANCE --command "./1-bringup-k8s.sh"
-
-# Copy Cilium to target instance.
-echo "Done with K8s bring up, back to local."
 cd ..
 tar cfz /tmp/cilium-repo-snapshot.tar.gz *
 $gssh $INSTANCE --command "mkdir -p ~/cilium/"
@@ -44,6 +39,9 @@ $gscp /tmp/cilium-repo-snapshot.tar.gz $INSTANCE:~/cilium/
 rm /tmp/cilium-repo-snapshot.tar.gz
 $gssh $INSTANCE --command "cd cilium && tar zxf cilium-repo-snapshot.tar.gz"
 
+# Bring up K8s.
+$gssh $INSTANCE --command "cd cilium/google_dev && ./package/1-bringup-k8s.sh"
+echo "Done with K8s bring up, back to local."
 
 # Bringup Cilium.
 $gssh $INSTANCE --command "cd cilium/google_dev && ./bringup-cilium.sh"
