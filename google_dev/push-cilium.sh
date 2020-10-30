@@ -12,7 +12,7 @@ set -x
 
 cd ..
 make
-gcloud compute ssh $INSTANCE --command "killall cilium-agent"
+gcloud compute ssh $INSTANCE --command "sudo killall cilium-agent"
 gcloud compute scp ./daemon/cilium-agent $INSTANCE:~/
 gcloud compute ssh $INSTANCE --command "\
 	sudo ./cilium-agent --identity-allocation-mode=crd --debug=true \

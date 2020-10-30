@@ -1,3 +1,5 @@
+--- HOW TO START DEVBOX? ---
+
 Step 0: [Optional] Create an image.
 
 cd package
@@ -11,3 +13,37 @@ Step 1: Start an instance with K8s and cilium-operator.
 Step 2: Push Cilium agent from the local working directory.
 
 ./push-cilium.sh
+
+--- HOW DOES THE SETUP WORK? ---
+
+The "Step 0" above creates a GCP VM image with a lot of requisite tools. It
+then publishes the image into a hardcoded GCP project.
+
+The "Step 1" above performs the following:
+  * The script creates a VM from the image created during "Step 0". The
+    creation script has an annoying 60 sec 'sleep' to wait for SSH to
+    become available - someone please fix it.
+  * The script then archives the whole currently checked out Cilium git repo
+    and ships it to the newly created VM and unpacks it.
+  * The script then requests kubeadm to start a barebones K8s cluster on the
+    newly created VM. Kubeadm starts the following binaries: etcd, kubeapi
+    server, kube scheduler, and kubelet. It also requests a start of DNS
+    service, which for now is in CrashLoop because CNI is not present yet.
+  * The script then compiles Cilium (on the remote VM), installs Cilium-CNI,
+    and starts a non-containerized instance of cilium-operator.
+
+The "Step 2" above compiles Cilium again, but this time on your local
+workstation. It then pushes the newly compiled cilium-agent binary and starts
+it on the VM. At this point KubeDNS service should stop crashlooping as the
+Cilium-CNI finally succeeds.
+
+--- FAQ ---
+
+Q: Why do compile cilium repository twice?
+A: We do compile Cilium twice: once on a remote VM and once on the local
+desktop. The reasons for this are as follows. We need to be able to 'make
+install' on the remote machine to setup the environment (e.g. copy cilium-cni
+binary) for cilium-agent and cilium-operator to run. We then code and compile
+cilium-agent on the local workstation because we need to be developing on the
+workstation, i.e. we can't push code to GOB from a VM.
+
