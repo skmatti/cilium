@@ -46,6 +46,7 @@ import (
 	"github.com/cilium/cilium/pkg/eventqueue"
 	"github.com/cilium/cilium/pkg/fqdn"
 	nodefirewall "github.com/cilium/cilium/pkg/gke/nodefirewall/bootstrap"
+	gkeredirectservice "github.com/cilium/cilium/pkg/gke/redirectservice/controller"
 	"github.com/cilium/cilium/pkg/hubble/observer"
 	"github.com/cilium/cilium/pkg/identity"
 	"github.com/cilium/cilium/pkg/identity/identitymanager"
@@ -1038,6 +1039,13 @@ func NewDaemon(ctx context.Context, cancel context.CancelFunc, epMgr *endpointma
 		// Initialize anet node firewall agent workflow.
 		if err = nodefirewall.Init(&d); err != nil {
 			log.WithError(err).Error("Error while bootstrapping node firewall agent")
+			return nil, nil, err
+		}
+	}
+
+	if k8s.IsEnabled() {
+		if _, err = gkeredirectservice.Init(d.redirectPolicyManager); err != nil {
+			log.WithError(err).Error("Error while starting redirect service controller")
 			return nil, nil, err
 		}
 	}
