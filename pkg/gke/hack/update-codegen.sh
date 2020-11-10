@@ -41,3 +41,10 @@ ${CODEGEN_PKG}/generate-groups.sh \
   github.com/cilium/cilium/pkg/gke/client/fqdnnetworkpolicy github.com/cilium/cilium/pkg/gke/apis \
   "fqdnnetworkpolicy:v1alpha1" \
   --go-header-file ${SCRIPT_ROOT}/hack/boilerplate.go.txt
+
+echo "Performing code generation for RedirectService CRD"
+${CODEGEN_PKG}/generate-groups.sh \
+  "deepcopy,client,informer,lister" \
+  github.com/cilium/cilium/pkg/gke/client/redirectservice github.com/cilium/cilium/pkg/gke/apis \
+  "redirectservice:v1alpha1" \
+  --go-header-file ${SCRIPT_ROOT}/hack/boilerplate.go.txt

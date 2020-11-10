@@ -29,4 +29,7 @@ const (
 
 	// EnableFQDNNetworkPolicy enables google fqdn network policy
 	EnableFQDNNetworkPolicy = "enable-fqdn-network-policy"
+
+	// EnableRedirectService enables google redirect service for the host
+	EnableRedirectService = "enable-redirect-service"
 )

@@ -3,9 +3,11 @@ package cmd
 import (
 	"fmt"
 
+	"github.com/cilium/cilium/pkg/endpointmanager"
 	"github.com/cilium/cilium/pkg/gke/fqdnnetworkpolicy"
 	"github.com/cilium/cilium/pkg/gke/nodefirewall"
 	"github.com/cilium/cilium/pkg/gke/nodefirewall/types"
+	"github.com/cilium/cilium/pkg/gke/redirectservice"
 	"github.com/cilium/cilium/pkg/gke/subnet"
 	"github.com/cilium/cilium/pkg/gke/trafficsteering"
 	"github.com/cilium/cilium/pkg/gke/trafficsteering/controller"
@@ -16,6 +18,8 @@ import (
 	nodeTypes "github.com/cilium/cilium/pkg/node/types"
 	"github.com/cilium/cilium/pkg/option"
 	"github.com/cilium/cilium/pkg/promise"
+
+	rsController "github.com/cilium/cilium/pkg/gke/redirectservice/controller"
 )
 
 var googleCell = cell.Module(
@@ -25,10 +29,13 @@ var googleCell = cell.Module(
 	cell.Provide(newPolicyManagerPromise),
 	cell.Provide(newLocalNodePromise),
 	cell.Provide(newEgressMapPromise),
+	cell.Provide(newRedirectPolicyManagerPromise),
+	cell.Provide(newEndpointManagerPromise),
 	nodefirewall.Cell,
 	subnet.Cell,
 	trafficsteering.Cell,
 	fqdnnetworkpolicy.Cell,
+	redirectservice.Cell,
 )
 
 // Converts Daemon promise into a PolicyManager promise
@@ -97,5 +104,37 @@ func newEgressMapPromise(dp promise.Promise[*Daemon], lc hive.Lifecycle, config 
 	} else {
 		emResolver.Reject(fmt.Errorf("egress map requires %s to be set", option.EnableIPv4EgressGateway))
 	}
+	return emPromise
+}
+
+// Converts Daemon promise into a RedirectPolicyManager promise
+func newRedirectPolicyManagerPromise(dp promise.Promise[*Daemon], lc hive.Lifecycle) promise.Promise[rsController.RedirectPolicyManager] {
+	pmResolver, pmPromise := promise.New[rsController.RedirectPolicyManager]()
+	lc.Append(hive.Hook{
+		OnStart: func(hc hive.HookContext) error {
+			daemon, err := dp.Await(hc)
+			if err != nil {
+				return err
+			}
+			pmResolver.Resolve(daemon.redirectPolicyManager)
+			return nil
+		},
+	})
+	return pmPromise
+}
+
+// Converts Daemon promise into EndpointManager promise
+func newEndpointManagerPromise(dp promise.Promise[*Daemon], lc hive.Lifecycle) promise.Promise[*endpointmanager.EndpointManager] {
+	emResolver, emPromise := promise.New[*endpointmanager.EndpointManager]()
+	lc.Append(hive.Hook{
+		OnStart: func(hc hive.HookContext) error {
+			daemon, err := dp.Await(hc)
+			if err != nil {
+				return err
+			}
+			emResolver.Resolve(daemon.endpointManager)
+			return nil
+		},
+	})
 	return emPromise
 }
