@@ -54,9 +54,6 @@ ch_dir
 # Allow non-root docker operations.
 allow_docker_op
 
-# Run prechecks including golang fmt check and bpf prog compilcation first.
-make ci-precheck
-
 # Run un-priviledged tests first.
 make unit-tests
 
