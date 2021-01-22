@@ -682,6 +682,9 @@ func initializeFlags() {
 	flags.Bool(option.EnableHostFirewall, false, "Enable host network policies")
 	option.BindEnv(option.EnableHostFirewall)
 
+	flags.Bool(option.EnableRedirectService, false, "Enable google redirect service (beta)")
+	option.BindEnv(option.EnableRedirectService)
+
 	flags.String(option.IPv4NativeRoutingCIDR, "", "Allows to explicitly specify the IPv4 CIDR for native routing. "+
 		"When specified, Cilium assumes networking for this CIDR is preconfigured and hands traffic destined for that range to the Linux network stack without applying any SNAT. "+
 		"Generally speaking, specifying a native routing CIDR implies that Cilium can depend on the underlying networking stack to route packets to their destination. "+

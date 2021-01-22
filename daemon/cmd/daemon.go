@@ -1043,7 +1043,7 @@ func NewDaemon(ctx context.Context, cancel context.CancelFunc, epMgr *endpointma
 		}
 	}
 
-	if k8s.IsEnabled() {
+	if k8s.IsEnabled() && option.Config.EnableRedirectService {
 		if _, err = gkeredirectservice.Init(d.redirectPolicyManager); err != nil {
 			log.WithError(err).Error("Error while starting redirect service controller")
 			return nil, nil, err
