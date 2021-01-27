@@ -29,7 +29,7 @@ VM_NAME="prow-runtime-$timestamp-$(git rev-parse --short=5 HEAD)-ttl1d"
 SSH_DUMMY="dummy-$timestamp"
 ZONE="us-west1-b"
 HOST_NAME="$VM_NAME.$ZONE.$PROJECT"
-TESTING_IMAGE="cilium-runtime-test-kernel-5-3-20200831"
+TESTING_IMAGE="cilium-runtime-test-kernel-5-4-20210127"
 
 function log {
   echo "`date +'%b %d %T.000'`: INFO: $@"
@@ -99,7 +99,8 @@ setup_vagrant_user
 
 cd test
 
-# TODO: enable RuntimeVerifier when it start supporting the latest kernels
+# TODO: fix RuntimeMonitorTest
+# Policy/Policies tests are skipped because CNP & CCNP are disabled
 VAGRANT_VAGRANTFILE="../google_test/runtime_test/gce-vagrantfile" \
   PROJ_ID=$PROJECT \
   ZONE=$ZONE \
@@ -110,7 +111,7 @@ VAGRANT_VAGRANTFILE="../google_test/runtime_test/gce-vagrantfile" \
   METADATA_KEY1="startup-script" \
   METADATA_VAL1=$(cat ../google_test/countdown-and-self-destruct.sh) \
   SCOPES_VAL1="compute-rw" \
-  ginkgo -v -noColor --focus="Runtime*" -skip="RuntimeVerifier|Init Policy"
+  ginkgo -v -noColor --focus="Runtime*" -skip="Polic|Monitor"
 
 EXIT_VALUE=$?
 

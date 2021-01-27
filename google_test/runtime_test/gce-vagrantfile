@@ -29,6 +29,20 @@ $METADATA_VAL1 = ENV['METADATA_VAL1']
 $SCOPES_VAL1 = ENV['SCOPES_VAL1']
 $VAGRANT_SSH_KEY = ENV['VAGRANT_SSH_KEY']
 
+$bootstrap = <<SCRIPT
+set -o errexit
+set -o nounset
+set -o pipefail
+if [ -x /home/vagrant/go/src/github.com/cilium/cilium/.devvmrc ] ; then
+   echo "----------------------------------------------------------------"
+   echo "Executing .devvmrc"
+   /home/vagrant/go/src/github.com/cilium/cilium/.devvmrc || true
+fi
+echo "----------------------------------------------------------------"
+sudo sed -i 's/^mesg n$/tty -s \\&\\& mesg n/g' /root/.profile
+echo 'export GOPATH=$(go env GOPATH)' >> /home/vagrant/.bashrc
+SCRIPT
+
 Vagrant.configure("2") do |config|
 
     config.vm.define "runtime" do |server|
@@ -53,25 +67,19 @@ Vagrant.configure("2") do |config|
         server.vm.synced_folder "../", "/home/vagrant/go/src/github.com/cilium/cilium", type: "rsync"
 
         # Provision section
-        server.vm.provision :shell,
-            :inline => "sed -i 's/^mesg n$/tty -s \\&\\& mesg n/g' /root/.profile"
+        server.vm.provision "bootstrap", type: "shell", inline: $bootstrap
         # resolves 'sudo: unable to resolve host xxx' error
         server.vm.provision "shell",
             :inline => "sudo hostnamectl set-hostname runtime && (echo \"127.0.0.1 runtime\" | sudo tee -a /etc/hosts)"
-        # Disable unattended-upgrades to prevent it from holding the dpkg frontend loc
-        # To be removed once this has been added through packer-ci-build
-        server.vm.provision :shell,
-            :inline => "sudo systemctl disable unattended-upgrades.service"
-        server.vm.provision :shell,
-            :inline => "sudo systemctl stop unattended-upgrades.service"
-        server.vm.provision :shell,
-            :inline => "echo 'export GOPATH=$(go env GOPATH)' >> /home/vagrant/.bashrc"
+        server.vm.provision "file", source: "../test/provision/", destination: "/tmp/"
         # adds virtualbox's default ip (10.0.2.15) to host
         server.vm.provision "shell",
             :inline => "sudo ip addr add 10.0.2.15/24 dev ens4"
-        server.vm.provision "file", source: "../test/provision/", destination: "/tmp/"
         server.vm.provision "shell" do |sh|
             sh.path = "../test/provision/runtime_install.sh"
+            sh.env = {
+              "PROVISION_EXTERNAL_WORKLOAD" => "false"
+            }
         end
     end
 end
