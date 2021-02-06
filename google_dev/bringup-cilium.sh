@@ -6,7 +6,7 @@
 set -x
 
 cd ..
-sudo make
+sudo SKIP_CUSTOMVET_CHECK=true make
 sudo make install
 
 # TODO: Figure out the right values for --cluster-pool-ipv4-cidr and
