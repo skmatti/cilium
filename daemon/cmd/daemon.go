@@ -47,6 +47,7 @@ import (
 	"github.com/cilium/cilium/pkg/fqdn"
 	nodefirewall "github.com/cilium/cilium/pkg/gke/nodefirewall/bootstrap"
 	gkeredirectservice "github.com/cilium/cilium/pkg/gke/redirectservice/controller"
+	"github.com/cilium/cilium/pkg/gke/subnet"
 	"github.com/cilium/cilium/pkg/hubble/observer"
 	"github.com/cilium/cilium/pkg/identity"
 	"github.com/cilium/cilium/pkg/identity/identitymanager"
@@ -1159,6 +1160,19 @@ func NewDaemon(ctx context.Context, cancel context.CancelFunc, epMgr *endpointma
 		bootstrapStats.k8sInit.End(true)
 	} else if !option.Config.AnnotateK8sNode {
 		log.Debug("Annotate k8s node is disabled.")
+	}
+
+	// Annotate the K8s node with subnet information. This will be a no-op if
+	// the proper config setting is not enabled. These annotations are used by
+	// Anthos Network Gateway (http://go/ang-design).
+	//
+	// See the subnet pkg for more details.
+	if k8s.IsEnabled() {
+		client := k8s.Client()
+		nodeName := d.nodeDiscovery.LocalNode.Name
+		nodeIPv4 := d.nodeDiscovery.LocalNode.GetNodeIP(false)
+		nodeIPv6 := d.nodeDiscovery.LocalNode.GetNodeIP(true)
+		subnet.AnnotateNodeSubnets(ctx, client, nodeName, nodeIPv4, nodeIPv6)
 	}
 
 	// Trigger refresh and update custom resource in the apiserver with all restored endpoints.
