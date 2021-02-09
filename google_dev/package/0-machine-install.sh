@@ -4,7 +4,7 @@
 # the necessary packges into a new devbox image.
 
 # Echo all the commands.
-set -x
+set -ex
 
 # --- Install docker. ---
 # Docker preconditions.
@@ -56,12 +56,12 @@ sudo apt-get -y -q install net-tools
 sudo apt-get -y -q install locate
 
 # Cilium dependencies
+sudo apt-get -y -q install build-essential
 sudo apt-get -y -q install clang
 sudo apt-get -y -q install llvm
 sudo apt-get -y -q install linux-tools-5.4.0-1024-gcp
-sudo apt-get -y -q install linux-cloud-tools-5.4.0-1025-gcp
+# sudo apt-get -y -q install linux-cloud-tools-5.4.0-1025-gcp
 sudo apt-get -y -q install make
-sudo apt-get -y -q install golang
 sudo apt-get -y -q install linux-generic
 sudo apt-get -y -q install libelf-dev
 sudo apt-get -y -q install bison
@@ -70,3 +70,13 @@ sudo apt-get -y -q install flex
 git clone https://github.com/cilium/iproute2.git && cd iproute2 && make
 sudo mv /usr/sbin/tc /usr/sbin/tc-old
 sudo cp tc/tc /usr/sbin/
+
+# Golang 1.15
+wget https://dl.google.com/go/go1.15.8.linux-amd64.tar.gz
+sudo tar -xvf go1.15.8.linux-amd64.tar.gz
+sudo mv go /usr/local
+export GOROOT=/usr/local/go
+export GOPATH=$HOME/go
+export PATH=$GOPATH/bin:$GOROOT/bin:$PATH
+sudo ln -s /usr/local/go/bin/go /usr/local/bin/go
+sudo ln -s /usr/local/go/bin/gofmt /usr/local/bin/gofmt
