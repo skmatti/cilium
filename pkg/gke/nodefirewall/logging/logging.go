@@ -24,4 +24,4 @@ const (
 	NodeNetworkPolicyName = "k8sNodeNetworkPolicyName"
 )
 
-var NodeFWLogger = logging.DefaultLogger.WithField(logfields.LogSubsys, "anet-node-firewall")
+var NodeFWLogger = logging.DefaultLogger.WithField(logfields.LogSubsys, "node-network-policy")

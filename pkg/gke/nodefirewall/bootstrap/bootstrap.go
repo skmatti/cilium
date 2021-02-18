@@ -46,7 +46,7 @@ func Init(policyManager types.PolicyManager) error {
 
 	nodeFirewallAgent := agent.NewNodeFirewallAgent(kubeClient, nodeFirewallClient, policyManager)
 
-	go nodeFirewallAgent.Run()
+	nodeFirewallAgent.Run()
 	logging.NodeFWLogger.Info("Node firewall agent started")
 	return nil
 }

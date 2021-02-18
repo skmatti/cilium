@@ -138,8 +138,8 @@ func NewNodeFirewallAgent(kubeClient kubernetes.Interface, nodeFWClient nnpclien
 func (nc *NodeFirewallAgent) Run() {
 	logging.NodeFWLogger.Info("Starting NodeNetworkPolicy controller")
 
-	nc.policyInformer.Run(nc.stopCh)
-	nc.queue.Run()
+	go nc.policyInformer.Run(nc.stopCh)
+	go nc.queue.Run()
 }
 
 // Shutdown terminates the controller gracefully.

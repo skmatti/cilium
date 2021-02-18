@@ -67,6 +67,7 @@ func (t *PeriodicTaskQueue) Run() {
 	for {
 		key, quit := t.queue.Get()
 		if quit {
+			logging.NodeFWLogger.Debugf("Queue shutdown, exiting worker (%v)", t.resource)
 			close(t.workerDone)
 			return
 		}
