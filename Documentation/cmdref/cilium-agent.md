@@ -122,6 +122,7 @@ cilium-agent [flags]
       --enable-node-port                                        Enable NodePort type services by Cilium
       --enable-policy string                                    Enable policy enforcement (default "default")
       --enable-recorder                                         Enable BPF datapath pcap recorder
+      --enable-redirect-service                              Enable google redirect service (beta)
       --enable-remote-node-identity                             Enable use of remote node identity
       --enable-runtime-device-detection                         Enable runtime device detection and datapath reconfiguration (experimental)
       --enable-service-topology                                 Enable support for service topology aware hints
