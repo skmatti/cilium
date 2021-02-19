@@ -54,6 +54,14 @@ ch_dir
 # Allow non-root docker operations.
 allow_docker_op
 
+# Run prechecks, including:
+# - format check
+# - codegen check
+# - test tag check
+# - cmdref check
+make precheck
+make postcheck
+
 # Run un-priviledged tests first.
 make unit-tests
 
