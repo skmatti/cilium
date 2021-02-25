@@ -61,6 +61,7 @@ RUN --mount=type=bind,readwrite,target=/go/src/github.com/cilium/cilium --mount=
     mv LICENSE.all /tmp/install/${TARGETOS}/${TARGETARCH}/LICENSE.all
 
 COPY images/cilium/init-container.sh \
+     images/cilium/run_cilium_agent.sh \
      plugins/cilium-cni/cni-install.sh \
      plugins/cilium-cni/install-plugin.sh \
      plugins/cilium-cni/cni-uninstall.sh \
