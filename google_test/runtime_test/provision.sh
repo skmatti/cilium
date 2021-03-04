@@ -35,7 +35,7 @@ vagrant plugin install vagrant-google vagrant-scp
 
 # go
 
-VERSION=1.14.1
+VERSION=1.16
 OS=linux
 ARCH=amd64
 GO_TAR=go$VERSION.$OS-$ARCH.tar.gz
