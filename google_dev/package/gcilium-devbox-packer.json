@@ -1,5 +1,10 @@
 {
-  "_comment": "Use this file to create a new devbox image: ./packer build gcilium-devbox.json",
+  "_comment": "Use this file to create a new devbox image that is uploaded to teh gke-anthos-datapath-presubmits project:
+PROJ_ID=gke-anthos-datapath-presubmits  \
+SERVICE_ACCT_KEY=../../gke-anthos-datapath-presubmits-f3384a7e0ea1.json \
+SSH_USERNAME=prow \
+IMAGE_NAME=gcilium-devbox-$(TZ=':America/Los_Angeles' date '+%Y%m%d') \
+packer build -on-error=ask gcilium-devbox-packer.json",
   "variables": {
     "user" : "{{env `USER`}}"
   },

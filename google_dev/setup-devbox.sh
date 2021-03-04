@@ -10,7 +10,7 @@ if [ $# -eq 3 ]; then
   IMAGE_PROJECT=$3
 else
   INSTANCE="devbox"
-  IMAGE="gcilium-devbox-20210209"
+  IMAGE="gcilium-devbox-20210303"
   IMAGE_PROJECT="gke-anthos-datapath-presubmits"
 fi
 

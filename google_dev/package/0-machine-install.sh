@@ -8,6 +8,10 @@ set -ex
 
 # --- Install docker. ---
 # Docker preconditions.
+# apt-get update does dumb things if package repositories have changed from 
+# the base image's list.
+# Run it twice, to clean up any errors encountered by the first run.
+sudo apt-get update || true
 sudo apt-get update
 sudo apt-get -y -q install dialog apt-utils
 sudo apt-get -y -q install \
@@ -71,9 +75,9 @@ git clone https://github.com/cilium/iproute2.git && cd iproute2 && make
 sudo mv /usr/sbin/tc /usr/sbin/tc-old
 sudo cp tc/tc /usr/sbin/
 
-# Golang 1.15
-wget https://dl.google.com/go/go1.15.8.linux-amd64.tar.gz
-sudo tar -xvf go1.15.8.linux-amd64.tar.gz
+# Golang 1.16
+wget https://dl.google.com/go/go1.16.linux-amd64.tar.gz
+sudo tar -xvf go1.16.linux-amd64.tar.gz
 sudo mv go /usr/local
 export GOROOT=/usr/local/go
 export GOPATH=$HOME/go
