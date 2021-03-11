@@ -87,6 +87,17 @@ func lookupPolicyForKey(ep endpointPolicyGetter, key policy.Key) (derivedFroms l
 	}
 
 	// Check for L3 policy rules
+	//
+	// Consider the network policy:
+	// spec:
+	//  podSelector: {}
+	//  ingress:
+	//  - from:
+	//    - podSelector:
+	//        app: frontend
+	//
+	// This policy allows all ingress traffic from the identity of the pods
+	// with labels {app: frontend}
 	derivedFrom, rev, ok = ep.GetRealizedPolicyRuleLabelsForKey(policy.Key{
 		Identity:         key.Identity,
 		DestPort:         0,
@@ -99,7 +110,63 @@ func lookupPolicyForKey(ep endpointPolicyGetter, key policy.Key) (derivedFroms l
 		oks = ok
 	}
 
+	// Check for allow-specific-port-protocol policies.
+	// This covers the case where one or more identities are allowed by network policy.
+	//
+	// Consider the network policy:
+	// spec:
+	//  podSelector: {}
+	//  ingress:
+	//  - ports:
+	//    - port: 80
+	//      protocol: TCP
+	//
+	// The policy applies to ingress TCP traffic on port 80 from all the remote
+	// pods/ identities.
+	derivedFrom, rev, ok = ep.GetRealizedPolicyRuleLabelsForKey(policy.Key{
+		Identity:         0,
+		DestPort:         key.DestPort,
+		Nexthdr:          key.Nexthdr,
+		TrafficDirection: key.TrafficDirection,
+	})
+	if ok {
+		derivedFroms = append(derivedFroms, derivedFrom...)
+		revs = rev
+		oks = ok
+	}
+
+	// Check for allow-specific-protocol policy rules.
+	//
+	// Consider the network policy:
+	// spec:
+	//  podSelector: {}
+	//  ingress:
+	//  - ports:
+	//    - protocol: TCP
+	//
+	// The policy applies to ingress TCP traffic from all the remote pods/ identities.
+	if key.DestPort != 0 {
+		derivedFrom, rev, ok = ep.GetRealizedPolicyRuleLabelsForKey(policy.Key{
+			Identity:         0,
+			DestPort:         0,
+			Nexthdr:          key.Nexthdr,
+			TrafficDirection: key.TrafficDirection,
+		})
+		if ok {
+			derivedFroms = append(derivedFroms, derivedFrom...)
+			revs = rev
+			oks = ok
+		}
+	}
+
 	// Check for allow-all policy rules
+	//
+	// Consider the network policy:
+	// spec:
+	//  podSelector: {}
+	//  ingress: {}
+	//
+	// The policy applies to ingress traffic from all the remote pods/ identities.
 	derivedFrom, rev, ok = ep.GetRealizedPolicyRuleLabelsForKey(policy.Key{
 		Identity:         0,
 		DestPort:         0,
