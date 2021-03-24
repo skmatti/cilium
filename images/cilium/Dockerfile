@@ -84,7 +84,18 @@ ARG TARGETOS
 ARG TARGETARCH
 LABEL maintainer="maintainer@cilium.io"
 RUN echo ". /etc/profile.d/bash_completion.sh" >> /etc/bash.bashrc
-RUN apt-get update && apt-get install curl tcpdump conntrack -y
+# Update below packages to latest version, older version of this packages
+# have vulnerabilities.
+RUN apt-get update && apt-get install -y \
+      libgnutls30 \
+      openssl \
+      libssl1.1 \
+      libzstd1 \
+      p11-kit \
+      sqlite3 \
+      apt
+# Packages for debug and troubleshooting purpose.
+RUN apt-get install curl tcpdump conntrack -y
 COPY --from=cilium-envoy / /
 # When used within the Cilium container, Hubble CLI should target the
 # local unix domain socket instead of Hubble Relay.
