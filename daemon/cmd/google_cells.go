@@ -12,6 +12,9 @@ import (
 	"github.com/cilium/cilium/pkg/gke/nodefirewall/types"
 	"github.com/cilium/cilium/pkg/gke/redirectservice"
 	"github.com/cilium/cilium/pkg/gke/subnet"
+	"github.com/cilium/cilium/pkg/gke/trafficsteering"
+	"github.com/cilium/cilium/pkg/gke/trafficsteering/controller"
+	"github.com/cilium/cilium/pkg/maps/egressmap"
 	"github.com/cilium/cilium/pkg/node"
 	"github.com/cilium/cilium/pkg/option"
 
@@ -40,6 +43,7 @@ var googleCell = cell.Module(
 	subnet.Cell,
 
 	cell.Provide(newEndpointCreationSinkPromise),
+	cell.Provide(newEgressMapPromise),
 	endpointqueue.Cell,
 
 	cell.Provide(newRedirectPolicyManagerPromise),
@@ -47,6 +51,7 @@ var googleCell = cell.Module(
 
 	networklogging.Cell,
 	fqdnnetworkpolicy.Cell,
+	trafficsteering.Cell,
 
 	imds.Cell,
 )
@@ -146,4 +151,27 @@ func newEndpointCreationSinkPromise(dp promise.Promise[*Daemon], lc cell.Lifecyc
 		},
 	})
 	return sPromise
+}
+
+func newEgressMapPromise(dp promise.Promise[*Daemon], lc cell.Lifecycle, config *option.DaemonConfig, policyMap egressmap.PolicyMap) promise.Promise[controller.EgressMapInterface] {
+	emResolver, emPromise := promise.New[controller.EgressMapInterface]()
+	if config.EnableIPv4EgressGateway {
+		lc.Append(cell.Hook{
+			OnStart: func(hc cell.HookContext) error {
+				// Daemon initialization has to complete before egress map is initialized
+				if _, err := dp.Await(hc); err != nil {
+					return err
+				}
+				emResolver.Resolve(policyMap)
+				return nil
+			},
+			OnStop: func(_ cell.HookContext) error {
+				emResolver.Reject(fmt.Errorf("failed to initialize egress map"))
+				return nil
+			},
+		})
+	} else {
+		emResolver.Reject(fmt.Errorf("egress map requires %s to be set", option.EnableIPv4EgressGateway))
+	}
+	return emPromise
 }

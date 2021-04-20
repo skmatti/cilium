@@ -44,4 +44,7 @@ const (
 
 	// PopulateGCENICInfo is the name of the option to populate GCE NIC information as node annotation.
 	PopulateGCENICInfo = "populate-gce-nic-info"
+
+	// EnableTrafficSteering enables google traffic steering for the host.
+	EnableTrafficSteering = "enable-traffic-steering"
 )

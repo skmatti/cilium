@@ -85,16 +85,9 @@ struct egress_gw_policy_entry *lookup_ip4_egress_gw_policy(__be32 saddr, __be32 
 
 static __always_inline int
 egress_gw_request_needs_redirect(struct ipv4_ct_tuple *rtuple __maybe_unused,
-				 __be32 *gateway_ip __maybe_unused)
+				 __be32 *gateway_ip __maybe_unused, struct egress_gw_policy_entry * egress_gw_policy)
 {
 #if defined(ENABLE_EGRESS_GATEWAY)
-	struct egress_gw_policy_entry *egress_gw_policy;
-
-	egress_gw_policy = lookup_ip4_egress_gw_policy(ipv4_ct_reverse_tuple_saddr(rtuple),
-						       ipv4_ct_reverse_tuple_daddr(rtuple));
-	if (!egress_gw_policy)
-		return CTX_ACT_OK;
-
 	switch (egress_gw_policy->gateway_ip) {
 	case EGRESS_GATEWAY_NO_GATEWAY:
 		/* If no gateway is found, drop the packet. */
@@ -169,13 +162,28 @@ egress_gw_request_needs_redirect_hook(struct ipv4_ct_tuple *rtuple,
 				      enum ct_status ct_status,
 				      __be32 *gateway_ip)
 {
+	struct egress_gw_policy_entry *egress_gw_policy;
+
+	egress_gw_policy = lookup_ip4_egress_gw_policy(ipv4_ct_reverse_tuple_saddr(rtuple),
+						       ipv4_ct_reverse_tuple_daddr(rtuple));
+	if (!egress_gw_policy)
+		return CTX_ACT_OK;
 #if defined(IS_BPF_LXC)
 	/* If the packet is a reply or is related, it means that outside
 	 * has initiated the connection, and so we should skip egress
 	 * gateway, since an egress policy is only matching connections
 	 * originating from a pod.
+	 *
+	 * The excpetion to the above decision is in the following case:
+	 * For the egress gateway policy installed by TrafficSteering CR,
+	 * egress_ip is always set to 0xffffffff (255.255.255.255).
+	 * For the packet which is outside initiated, if egress_gw_policy has egress_ip
+	 * set to 0xffffffff (255.255.255.255), we want this
+	 * packet not to skip egress gateway and we want this packet to follow
+	 * the egress gw policy and go back to the ANG/GNG node, before going
+	 * back outside of the cluster.
 	 */
-	if (ct_status == CT_REPLY || ct_status == CT_RELATED)
+	if ((ct_status == CT_REPLY || ct_status == CT_RELATED) && egress_gw_policy->egress_ip != 0xffffffff)
 		return CTX_ACT_OK;
 #else
 	/* We lookup CT in forward direction at to-netdev and expect to
@@ -189,7 +197,7 @@ egress_gw_request_needs_redirect_hook(struct ipv4_ct_tuple *rtuple,
 		return CTX_ACT_OK;
 #endif
 
-	return egress_gw_request_needs_redirect(rtuple, gateway_ip);
+	return egress_gw_request_needs_redirect(rtuple, gateway_ip, egress_gw_policy);
 }
 
 static __always_inline

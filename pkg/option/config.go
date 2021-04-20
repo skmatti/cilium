@@ -2358,6 +2358,9 @@ type DaemonConfig struct {
 	// the provided comma-separated list of ports in the container network namespace
 	ContainerIPLocalReservedPorts string
 
+	// EnableTrafficSteering determines if traffic steering is enabled in the cluster.
+	EnableTrafficSteering bool
+
 	// EnableCustomCalls enables tail call hooks for user-defined custom
 	// eBPF programs, typically used to collect custom per-endpoint
 	// metrics.
@@ -3247,6 +3250,7 @@ func (c *DaemonConfig) Populate(vp *viper.Viper) {
 	c.populateLoadBalancerSettings(vp)
 	c.EnableRuntimeDeviceDetection = vp.GetBool(EnableRuntimeDeviceDetection)
 	c.EgressMultiHomeIPRuleCompat = vp.GetBool(EgressMultiHomeIPRuleCompat)
+	c.EnableTrafficSteering = vp.GetBool(EnableTrafficSteering)
 
 	vlanBPFBypassIDs := vp.GetStringSlice(VLANBPFBypass)
 	c.VLANBPFBypass = make([]int, 0, len(vlanBPFBypassIDs))
