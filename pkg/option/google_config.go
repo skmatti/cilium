@@ -20,4 +20,7 @@ const (
 
 	// DisableIPv6Tunnel is the name of the option to disable tunnel for IPv6
 	DisableIPv6Tunnel = "disable-ipv6-tunnel"
+
+	// EnableTrafficSteering enables google traffic steering for the host.
+	EnableTrafficSteering = "enable-traffic-steering"
 )

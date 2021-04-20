@@ -4,6 +4,7 @@ import (
 	"github.com/cilium/cilium/pkg/gke/nodefirewall"
 	"github.com/cilium/cilium/pkg/gke/nodefirewall/types"
 	"github.com/cilium/cilium/pkg/gke/subnet"
+	"github.com/cilium/cilium/pkg/gke/trafficsteering"
 	"github.com/cilium/cilium/pkg/hive"
 	"github.com/cilium/cilium/pkg/hive/cell"
 	"github.com/cilium/cilium/pkg/node"
@@ -19,6 +20,7 @@ var googleCell = cell.Module(
 	cell.Provide(newLocalNodePromise),
 	nodefirewall.Cell,
 	subnet.Cell,
+	trafficsteering.Cell,
 )
 
 // Converts Daemon promise into a PolicyManager promise
