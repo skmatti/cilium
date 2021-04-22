@@ -93,6 +93,8 @@ RUN apt-get update && apt-get install -y \
       libzstd1 \
       p11-kit \
       sqlite3 \
+      # TODO (b/186145472): Remove nettle fix once CVE-2021-20305 is fixed in upstream.
+      nettle-dev=3.5.1+really3.5.1-2ubuntu0.1 \
       apt
 # Packages for debug and troubleshooting purpose.
 RUN apt-get install curl tcpdump conntrack -y
