@@ -108,6 +108,8 @@ require (
 	sigs.k8s.io/yaml v1.3.0
 )
 
+require k8s.io/klog v1.0.0
+
 require (
 	github.com/Azure/go-autorest v14.2.0+incompatible // indirect
 	github.com/Azure/go-autorest/autorest/azure/cli v0.4.5 // indirect
@@ -222,10 +224,14 @@ require (
 	gopkg.in/tomb.v1 v1.0.0-20141024135613-dd632973f1e7 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	k8s.io/gengo v0.0.0-20211129171323-c02415ce4185 // indirect
-	k8s.io/klog v1.0.0 // indirect
 	sigs.k8s.io/json v0.0.0-20211208200746-9f7c6b3444d2 // indirect
 	sigs.k8s.io/structured-merge-diff/v4 v4.2.3 // indirect
 )
+
+// GKE specific dependencies.
+require gke-internal/gke-node-firewall v0.0.0-00010101000000-000000000000
+
+replace gke-internal/gke-node-firewall => gke-internal.googlesource.com/kubernetes/gke-node-firewall.git v0.0.20
 
 replace (
 	github.com/miekg/dns => github.com/cilium/dns v1.1.51-0.20220729113855-5b94b11b46fc

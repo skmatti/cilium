@@ -830,6 +830,19 @@ github.com/yusufpapurcu/wmi
 # gitlab.com/golang-commonmark/puny v0.0.0-20191124015043-9f83538fa04f
 ## explicit; go 1.13
 gitlab.com/golang-commonmark/puny
+# gke-internal/gke-node-firewall v0.0.0-00010101000000-000000000000 => gke-internal.googlesource.com/kubernetes/gke-node-firewall.git v0.0.20
+## explicit; go 1.15
+gke-internal/gke-node-firewall/pkg/apis/nodenetworkpolicy/v1alpha1
+gke-internal/gke-node-firewall/pkg/client/nodenetworkpolicy/clientset/versioned
+gke-internal/gke-node-firewall/pkg/client/nodenetworkpolicy/clientset/versioned/fake
+gke-internal/gke-node-firewall/pkg/client/nodenetworkpolicy/clientset/versioned/scheme
+gke-internal/gke-node-firewall/pkg/client/nodenetworkpolicy/clientset/versioned/typed/nodenetworkpolicy/v1alpha1
+gke-internal/gke-node-firewall/pkg/client/nodenetworkpolicy/clientset/versioned/typed/nodenetworkpolicy/v1alpha1/fake
+gke-internal/gke-node-firewall/pkg/client/nodenetworkpolicy/informers/externalversions
+gke-internal/gke-node-firewall/pkg/client/nodenetworkpolicy/informers/externalversions/internalinterfaces
+gke-internal/gke-node-firewall/pkg/client/nodenetworkpolicy/informers/externalversions/nodenetworkpolicy
+gke-internal/gke-node-firewall/pkg/client/nodenetworkpolicy/informers/externalversions/nodenetworkpolicy/v1alpha1
+gke-internal/gke-node-firewall/pkg/client/nodenetworkpolicy/listers/nodenetworkpolicy/v1alpha1
 # go.etcd.io/etcd/api/v3 v3.5.4
 ## explicit; go 1.16
 go.etcd.io/etcd/api/v3/authpb
@@ -1662,6 +1675,7 @@ sigs.k8s.io/structured-merge-diff/v4/value
 # sigs.k8s.io/yaml v1.3.0
 ## explicit; go 1.12
 sigs.k8s.io/yaml
+# gke-internal/gke-node-firewall => gke-internal.googlesource.com/kubernetes/gke-node-firewall.git v0.0.20
 # github.com/miekg/dns => github.com/cilium/dns v1.1.51-0.20220729113855-5b94b11b46fc
 # github.com/optiopay/kafka => github.com/cilium/kafka v0.0.0-20180809090225-01ce283b732b
 # go.universe.tf/metallb => github.com/cilium/metallb v0.1.1-0.20220829170633-5d7dfb1129f7

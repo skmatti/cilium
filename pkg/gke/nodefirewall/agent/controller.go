@@ -35,7 +35,7 @@ import (
 	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/record"
-	"k8s.io/klog"
+	"k8s.io/klog/v2"
 
 	"github.com/cilium/cilium/pkg/gke/nodefirewall/logging"
 	"github.com/cilium/cilium/pkg/gke/nodefirewall/taskqueue"
