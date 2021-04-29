@@ -37,15 +37,17 @@ type TrafficSteeringSpec struct {
 	// Selector defines what traffic is matched by this spec.
 	Selector TrafficSelector `json:"selector"`
 	// Traffic selected are tunnelled to this IP.
-	DestinationIP string `json:"destinationIP"`
+	NextHopIP string `json:"nextHopIP"`
 }
 
 // TrafficSelector selects traffic to be routed according to the spec.
 // Criterias in this struct are "AND"ed together.
 type TrafficSelector struct {
 	// Selects nodes to apply the steering.
-	NodeSelector metav1.LabelSelector `json:"nodeSelector"`
+	// +optional
+	NodeSelector *metav1.LabelSelector `json:"nodeSelector,omitempty"`
 	// Selects traffic to dst IPs in these CIDRs
+	// +kubebuilder:validation:MinItems:=1
 	DestinationCIDRs []string `json:"destinationCIDRs"`
 }
 
