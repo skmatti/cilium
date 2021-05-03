@@ -26,8 +26,11 @@ PROJ_ID=<PROJ_ID> \
   packer build unit-test-env.json
 
 example:
+
+gcloud iam service-accounts keys create key-file --iam-account=packer@gke-anthos-datapath-presubmits.iam.gserviceaccount.com
+
 PROJ_ID="gke-anthos-datapath-presubmits" \
-  SERVICE_ACCT_KEY="./gke-anthos-datapath-presubmits-868b024a9596.json" \
+  SERVICE_ACCT_KEY="./key-file" \
   SSH_USERNAME="prow" \
   IMAGE_NAME="cilium-unit-test-$(TZ=':America/Los_Angeles' date '+%Y%m%d')" \
   packer build unit-test-env.json
