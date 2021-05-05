@@ -238,6 +238,9 @@ const (
 	// EnableRedirectService enables google redirect service for the host
 	EnableRedirectService = "enable-redirect-service"
 
+	// EnableTrafficSteering enables google traffic steering for the host
+	EnableTrafficSteering = "enable-traffic-steering"
+
 	// EnableHostPort enables HostPort forwarding implemented by Cilium in BPF
 	EnableHostPort = "enable-host-port"
 
@@ -1945,6 +1948,9 @@ type DaemonConfig struct {
 	// EnableRedirectService enables google redirect service for the host
 	EnableRedirectService bool
 
+	// EnableTrafficSteering enables google traffic steering for the host
+	EnableTrafficSteering bool
+
 	// EnableLocalRedirectPolicy enables redirect policies to redirect traffic within nodes
 	EnableLocalRedirectPolicy bool
 
@@ -2852,6 +2858,7 @@ func (c *DaemonConfig) Populate() {
 	c.CgroupPathMKE = viper.GetString(CgroupPathMKE)
 	c.EnableHostFirewall = viper.GetBool(EnableHostFirewall)
 	c.EnableRedirectService = viper.GetBool(EnableRedirectService)
+	c.EnableTrafficSteering = viper.GetBool(EnableTrafficSteering)
 	c.EnableLocalRedirectPolicy = viper.GetBool(EnableLocalRedirectPolicy)
 	c.EncryptInterface = viper.GetStringSlice(EncryptInterface)
 	c.EncryptNode = viper.GetBool(EncryptNode)

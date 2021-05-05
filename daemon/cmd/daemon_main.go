@@ -691,6 +691,9 @@ func initializeFlags() {
 		"To offer a concrete example, if Cilium is configured to use direct routing and the Kubernetes CIDR is included in the native routing CIDR, the user must configure the routes to reach pods, either manually or by setting the auto-direct-node-routes flag.")
 	option.BindEnv(option.IPv4NativeRoutingCIDR)
 
+	flags.Bool(option.EnableTrafficSteering, false, "Enable google traffic steering functionality")
+	option.BindEnv(option.EnableTrafficSteering)
+
 	flags.String(option.IPv6NativeRoutingCIDR, "", "Allows to explicitly specify the IPv6 CIDR for native routing. "+
 		"When specified, Cilium assumes networking for this CIDR is preconfigured and hands traffic destined for that range to the Linux network stack without applying any SNAT. "+
 		"Generally speaking, specifying a native routing CIDR implies that Cilium can depend on the underlying networking stack to route packets to their destination. "+

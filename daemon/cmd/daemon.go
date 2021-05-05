@@ -48,6 +48,7 @@ import (
 	nodefirewall "github.com/cilium/cilium/pkg/gke/nodefirewall/bootstrap"
 	gkeredirectservice "github.com/cilium/cilium/pkg/gke/redirectservice/controller"
 	"github.com/cilium/cilium/pkg/gke/subnet"
+	gketrafficsteering "github.com/cilium/cilium/pkg/gke/trafficsteering/controller"
 	"github.com/cilium/cilium/pkg/hubble/observer"
 	"github.com/cilium/cilium/pkg/identity"
 	"github.com/cilium/cilium/pkg/identity/identitymanager"
@@ -1055,6 +1056,18 @@ func NewDaemon(ctx context.Context, cancel context.CancelFunc, epMgr *endpointma
 		if _, err = gkeredirectservice.Init(d.redirectPolicyManager); err != nil {
 			log.WithError(err).Error("Error while starting redirect service controller")
 			return nil, nil, err
+		}
+	}
+
+	if option.Config.EnableTrafficSteering {
+		if !option.Config.EnableEgressGateway {
+			log.Fatalf("Traffic Steering requires --%s=\"true\"", option.EnableEgressGateway)
+		}
+		if k8s.IsEnabled() {
+			if _, err = gketrafficsteering.Init(); err != nil {
+				log.WithError(err).Error("Error while starting traffic steering controller")
+				return nil, nil, err
+			}
 		}
 	}
 
