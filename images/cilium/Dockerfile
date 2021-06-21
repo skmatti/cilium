@@ -94,7 +94,7 @@ RUN apt-get update && apt-get install -y \
       p11-kit \
       sqlite3 \
       # TODO (b/186145472): Remove nettle fix once CVE-2021-20305 is fixed in upstream.
-      nettle-dev=3.5.1+really3.5.1-2ubuntu0.1 \
+      nettle-dev \
       # TODO (b/186763575): Remove gcc fix once CVE-2020-13844 is fixed in upstream.
       gcc-10=10.2.0-5ubuntu1~20.04 \
       apt
