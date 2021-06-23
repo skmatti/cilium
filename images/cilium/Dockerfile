@@ -96,7 +96,7 @@ RUN apt-get update && apt-get install -y \
       # TODO (b/186145472): Remove nettle fix once CVE-2021-20305 is fixed in upstream.
       nettle-dev \
       # TODO (b/186763575): Remove gcc fix once CVE-2020-13844 is fixed in upstream.
-      gcc-10=10.2.0-5ubuntu1~20.04 \
+      gcc-10 \
       apt
 # Packages for debug and troubleshooting purpose.
 RUN apt-get install curl tcpdump conntrack -y
