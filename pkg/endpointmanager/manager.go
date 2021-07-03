@@ -23,7 +23,9 @@ import (
 	"github.com/cilium/cilium/pkg/endpointmanager/idallocator"
 	"github.com/cilium/cilium/pkg/identity/cache"
 	"github.com/cilium/cilium/pkg/ipcache"
+	slim_corev1 "github.com/cilium/cilium/pkg/k8s/slim/k8s/api/core/v1"
 	"github.com/cilium/cilium/pkg/k8s/watchers/subscriber"
+	"github.com/cilium/cilium/pkg/labels"
 	"github.com/cilium/cilium/pkg/lock"
 	"github.com/cilium/cilium/pkg/logging"
 	"github.com/cilium/cilium/pkg/logging/logfields"
@@ -44,6 +46,10 @@ var (
 // subscriber.Node
 var _ subscriber.Node = (*EndpointManager)(nil)
 
+type rpManager interface {
+	OnDeletePod(*slim_corev1.Pod)
+}
+
 // EndpointManager is a structure designed for containing state about the
 // collection of locally running endpoints.
 type EndpointManager struct {
@@ -59,6 +65,9 @@ type EndpointManager struct {
 	// node to receive ICMPv6 NDP messages, especially NS (Neighbor Solicitation) message, so
 	// pod's IPv6 address is discoverable.
 	mcastManager *mcastmanager.MCastManager
+
+	// rpManager handles LRP restoration upon pod delete so that LRP is managed sooner than when we got pod delete from control plane to avoid potential serrvice disruption.
+	rpManager rpManager
 
 	// EndpointSynchronizer updates external resources (e.g., Kubernetes) with
 	// up-to-date information about endpoints managed by the endpoint manager.
@@ -118,6 +127,11 @@ func (mgr *EndpointManager) WithPeriodicEndpointGC(ctx context.Context, checkHea
 			Context:     ctx,
 		})
 	return mgr
+}
+
+// RegisterRPManager stores the handle to redirect policy manager in endpoint manager.
+func (mgr *EndpointManager) RegisterRPManager(rpMgr rpManager) {
+	mgr.rpManager = rpMgr
 }
 
 // waitForProxyCompletions blocks until all proxy changes have been completed.
@@ -376,6 +390,11 @@ func (mgr *EndpointManager) unexpose(ep *endpoint.Endpoint) {
 // removeEndpoint stops the active handling of events by the specified endpoint,
 // and prevents the endpoint from being globally acccessible via other packages.
 func (mgr *EndpointManager) removeEndpoint(ep *endpoint.Endpoint, conf endpoint.DeleteConfig) []error {
+	if option.Config.EnableLocalRedirectPolicy {
+		if ep.HasLabels(labels.NewLabelsFromModel([]string{fmt.Sprintf("%s:%s", labels.LabelSourceK8s, labels.LabelNodeLocalDNS)})) {
+			mgr.rpManager.OnDeletePod(ep.GetPod())
+		}
+	}
 	mgr.unexpose(ep)
 	result := ep.Delete(conf)
 

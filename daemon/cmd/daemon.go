@@ -639,6 +639,7 @@ func NewDaemon(ctx context.Context, cancel context.CancelFunc, epMgr *endpointma
 	d.svc = service.NewService(&d, d.l7Proxy)
 
 	d.redirectPolicyManager = redirectpolicy.NewRedirectPolicyManager(d.svc)
+	d.endpointManager.RegisterRPManager(d.redirectPolicyManager)
 	if option.Config.BGPAnnounceLBIP || option.Config.BGPAnnouncePodCIDR {
 		d.bgpSpeaker, err = speaker.New(ctx, speaker.Opts{
 			LoadBalancerIP: option.Config.BGPAnnounceLBIP,
