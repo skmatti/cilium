@@ -1,0 +1,21 @@
+ARG WINDOWS_VERSION=ltsc2019
+
+FROM golang:1.16 as antrea-build-windows
+
+WORKDIR /cilium
+
+COPY pkg /cilium/pkg
+COPY api /cilium/api
+COPY slim-daemon /cilium/slim-daemon
+COPY go.mod /cilium/go.mod
+COPY go.sum /cilium/go.sum
+COPY vendor /cilium/vendor
+
+RUN make -C /cilium/slim-daemon windows
+
+FROM mcr.microsoft.com/windows/nanoserver:ltsc2019
+
+USER ContainerAdministrator
+
+COPY --from=antrea-build-windows  /cilium/slim-daemon/anet-agent.exe /anet-agent.exe
+

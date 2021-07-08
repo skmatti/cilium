@@ -1,0 +1,17 @@
+FROM golang:1.16 as antrea-build
+
+WORKDIR /cilium
+
+COPY pkg /cilium/pkg
+COPY api /cilium/api
+COPY slim-daemon /cilium/slim-daemon
+COPY go.mod /cilium/go.mod
+COPY go.sum /cilium/go.sum
+COPY vendor /cilium/vendor
+
+RUN make -C /cilium/slim-daemon linux
+
+FROM ubuntu
+
+COPY --from=antrea-build /cilium/slim-daemon/anet-agent /
+
