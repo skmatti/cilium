@@ -1,0 +1,29 @@
+{
+  "history": [
+    {
+      "created_by": "Apply image 1909-RTM-amd64",
+      "created": "2019-10-07T20:38:30.5534634+00:00"
+    },
+    {
+      "created_by": "Install update 1909-amd64",
+      "created": "2020-03-12T05:38:28.2447712+00:00"
+    }
+  ],
+  "rootfS": {
+    "diff_ids": [
+      "sha256:bf734a4b22c426683025f0e2e1d4507fb02f510acf1f2576a40e6f203d9e35e3",
+      "sha256:2a284959685857d931804a6535b0836f5e14bea06db0eb02e884ef5abe188128"
+    ],
+    "type": "layers"
+  },
+  "os": "windows",
+  "created": "2020-03-12T05:38:28.2447712+00:00",
+  "config": {
+    "cmd": [
+      "c:\\windows\\system32\\cmd.exe"
+    ],
+    "user": null
+  },
+  "os.version": "10.0.18363.720",
+  "architecture": "amd64"
+}

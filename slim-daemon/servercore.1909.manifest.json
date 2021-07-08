@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 2,
+  "layers": [
+    {
+      "urls": [
+        "https://mcr.microsoft.com/v2/windows/servercore/blobs/sha256:9038b92872bc268d5c975e84dd94e69848564b222ad116ee652c62e0c2f894b2"
+      ],
+      "digest": "sha256:9038b92872bc268d5c975e84dd94e69848564b222ad116ee652c62e0c2f894b2",
+      "size": 1612893008,
+      "mediaType": "application/vnd.docker.image.rootfs.foreign.diff.tar.gzip"
+    },
+    {
+      "urls": [
+        "https://mcr.microsoft.com/v2/windows/servercore/blobs/sha256:0a251632e591b1155ca3df933b5745205af83d5ab2c45d65c74071b3b2c62942"
+      ],
+      "digest": "sha256:0a251632e591b1155ca3df933b5745205af83d5ab2c45d65c74071b3b2c62942",
+      "size": 591615364,
+      "mediaType": "application/vnd.docker.image.rootfs.foreign.diff.tar.gzip"
+    }
+  ],
+  "config": {
+    "digest": "sha256:ae65f6800c3141d30752efd5a2e090e1b6bc872d1f3e1b665a5f3be6d8ae8ff2",
+    "size": 558,
+    "mediaType": "application/vnd.docker.container.image.v1+json"
+  },
+  "mediaType": "application/vnd.docker.distribution.manifest.v2+json"
+}

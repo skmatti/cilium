@@ -1,0 +1,28 @@
+{
+  "architecture": "amd64",
+  "created": "2020-12-03T07:22:57.993243Z",
+  "history": [
+    {
+      "created": "2019-12-07T09:28:27.585Z",
+      "created_by": "Apply image 2004-RTM-amd64"
+    },
+    {
+      "created": "2020-12-03T07:22:57.993243Z",
+      "created_by": "Install update 2004-amd64"
+    }
+  ],
+  "os": "windows",
+  "rootfs": {
+    "type": "layers",
+    "diff_ids": [
+      "sha256:345550b5cacc31efae770e24e66ca3c6be85cbc95fbebe657b430e2f13ac7786",
+      "sha256:e93ac31b5b2fae822647a6bd81c250c95d3d924b12de0736b51a9a6bcbafc4a2"
+    ]
+  },
+  "config": {
+    "Cmd": [
+      "c:\\windows\\system32\\cmd.exe"
+    ]
+  },
+  "os.version": "10.0.19041.685"
+}

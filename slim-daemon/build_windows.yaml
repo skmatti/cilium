@@ -1,0 +1,107 @@
+# Syntax reference:
+# https://cloud.google.com/cloud-build/docs/api/reference/rest/v1/projects.builds
+
+# Variables that can be used inside the script.
+# GCB provides some default substitutions:
+# https://cloud.google.com/cloud-build/docs/configuring-builds/substitute-variable-values
+
+# Substitutions can be overridden:
+# gcloud builds submit --config build.yaml --substitutions='_TAG=0.1'
+timeout: 7000s
+substitutions:
+  _TAG: "0.1"
+  _LICENSE_SCAN_DIR: /workspace/scan_results
+steps:
+# Build the image(s).
+- name: golang
+  id: build
+  args: ['go',  'build',  '-o', 'otelsvc.exe', '-ldflags', '-X main.buildLabel=${TAG_NAME}']
+  env: ['GOOS=windows']
+# Generate OSS licenses
+- name: golang
+  id: add_sources
+  entrypoint: bash
+  args:
+  - -c
+  - |
+    set -ex
+    go mod vendor
+    tar -zcf source.tar.gz vendor
+# Build and push the Docker images using bazel. This doesn't use docker for
+# pushing the images, which is necessary to allow working with Windows images
+# on Linux. Running docker directly is not feasible, because it loads the
+# images into the docker daemon and it is not possible to load a Windows image
+# on Linux.
+- name: gcr.io/cloud-builders/bazel
+  id: win1909container
+  args: ['run', '--cpu=x86_64-windows', '--define=PROJECT_ID=${PROJECT_ID}', '--define=TAG=${_TAG}', '//:gke-metrics-agent-windows1909']
+- name: gcr.io/cloud-builders/bazel
+  id: win2019container
+  args: ['run', '--cpu=x86_64-windows', '--define=PROJECT_ID=${PROJECT_ID}', '--define=TAG=${_TAG}', '//:gke-metrics-agent-windows2019']
+- name: gcr.io/cloud-builders/bazel
+  id: win2004container
+  args: ['run', '--cpu=x86_64-windows', '--define=PROJECT_ID=${PROJECT_ID}', '--define=TAG=${_TAG}', '//:gke-metrics-agent-windows2004']
+- name: gcr.io/cloud-builders/bazel
+  id: win20h2container
+  args: ['run', '--cpu=x86_64-windows', '--define=PROJECT_ID=${PROJECT_ID}', '--define=TAG=${_TAG}', '//:gke-metrics-agent-windows20h2']
+# Re-tag images so that they share the image name. Manifest push will fail to
+# reference these images if the image name is different.
+- name: gcr.io/cloud-builders/gcloud
+  args:
+  - 'container'
+  - 'images'
+  - 'add-tag'
+  - 'gcr.io/${PROJECT_ID}/gke-metrics-agent-windows-1909:${_TAG}'
+  - 'gcr.io/${PROJECT_ID}/gke-metrics-agent-windows:${_TAG}_1909'
+  - '-q'
+- name: gcr.io/cloud-builders/gcloud
+  args:
+  - 'container'
+  - 'images'
+  - 'add-tag'
+  - 'gcr.io/${PROJECT_ID}/gke-metrics-agent-windows-2019:${_TAG}'
+  - 'gcr.io/${PROJECT_ID}/gke-metrics-agent-windows:${_TAG}_2019'
+  - '-q'
+- name: gcr.io/cloud-builders/gcloud
+  args:
+  - 'container'
+  - 'images'
+  - 'add-tag'
+  - 'gcr.io/${PROJECT_ID}/gke-metrics-agent-windows-2004:${_TAG}'
+  - 'gcr.io/${PROJECT_ID}/gke-metrics-agent-windows:${_TAG}_2004'
+  - '-q'
+- name: gcr.io/cloud-builders/gcloud
+  args:
+  - 'container'
+  - 'images'
+  - 'add-tag'
+  # Upstream Windows tag is 20H2 (uppercase H), to be consistent we carry that
+  # casing forward but image names cannot be uppercased.
+  - 'gcr.io/${PROJECT_ID}/gke-metrics-agent-windows-20h2:${_TAG}'
+  - 'gcr.io/${PROJECT_ID}/gke-metrics-agent-windows:${_TAG}_20H2'
+  - '-q'
+# Create a docker manifest out of these images.
+- name: gcr.io/cloud-builders/docker
+  # This is required because `docker manifest` is an experimental command. It
+  # will likely disappear someday and we'll have to switch to something else.
+  # See https://github.com/docker/cli/pull/1355#issuecomment-469836843
+  env: ['DOCKER_CLI_EXPERIMENTAL=enabled']
+  args:
+  - 'manifest'
+  - 'create'
+  - 'gcr.io/${PROJECT_ID}/gke-metrics-agent-windows:${_TAG}'
+  - 'gcr.io/${PROJECT_ID}/gke-metrics-agent-windows:${_TAG}_1909'
+  - 'gcr.io/${PROJECT_ID}/gke-metrics-agent-windows:${_TAG}_2019'
+  - 'gcr.io/${PROJECT_ID}/gke-metrics-agent-windows:${_TAG}_2004'
+  - 'gcr.io/${PROJECT_ID}/gke-metrics-agent-windows:${_TAG}_20H2'
+# Custom step to inject os.version flag into the manifests. Ideally, this should
+# be done by `docker manifest annotate`, but it doesn't support os.version flag
+# today.
+- name: debian
+  args: ['/bin/bash', '-x', 'set_os_versions.sh', '${PROJECT_ID}', '${_TAG}']
+- name: gcr.io/cloud-builders/docker
+  env: ['DOCKER_CLI_EXPERIMENTAL=enabled']
+  args:
+  - 'manifest'
+  - 'push'
+  - 'gcr.io/${PROJECT_ID}/gke-metrics-agent-windows:${_TAG}'
