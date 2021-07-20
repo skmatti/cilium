@@ -45,6 +45,7 @@ func NewLogger(dispatcher dispatcher.Dispatcher, endpointGetter getters.Endpoint
 	n := &networkPolicyLogger{
 		dispatcher:       dispatcher,
 		policyCorrelator: &policyCorrelation{endpointGetter: endpointGetter},
+		endpointGetter:   endpointGetter,
 		storeGetter:      storeGetter,
 		cfg:              &defaultConfig,
 		spec:             getLogSpec(nil),

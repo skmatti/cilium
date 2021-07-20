@@ -41,10 +41,10 @@ const (
 	maxRetry = 5
 
 	// allowLog is the expected policy log for the allowFlow
-	allowLog = `{"connection":{"src_ip":"10.84.1.7","dest_ip":"10.84.0.11","src_port":55644,"dest_port":8080,"protocol":"tcp","direction":"ingress"},"disposition":"allow","policies":[{"name":"allow-all","namespace":"default"}],"src":{"pod_name":"client-allow-7b78d7c957-zkn54","pod_namespace":"default"},"dest":{"pod_name":"test-service-745c798fc9-hzpxt","pod_namespace":"default"},"count":1,"timestamp":"2020-06-13T21:29:31.445836587Z"}`
+	allowLog = `{"connection":{"src_ip":"10.84.1.7","dest_ip":"10.84.0.11","src_port":55644,"dest_port":8080,"protocol":"tcp","direction":"ingress"},"disposition":"allow","policies":[{"name":"allow-all","namespace":"default"}],"src":{"pod_name":"client-allow-7b78d7c957-zkn54","workload_kind":"ReplicaSet","workload_name":"client-allow-7b78d7c957","namespace":"default"},"dest":{"pod_name":"test-service-745c798fc9-hzpxt","workload_kind":"ReplicaSet","workload_name":"test-service-745c798fc9","namespace":"default"},"count":1,"timestamp":"2020-06-13T21:29:31.445836587Z"}`
 
 	// denyLog is the expected policy log for the denyFlow
-	denyLog = `{"connection":{"src_ip":"10.84.1.8","dest_ip":"10.84.0.11","src_port":45084,"dest_port":8080,"protocol":"tcp","direction":"ingress"},"disposition":"deny","src":{"pod_name":"client-deny-5689846f5b-cqqsj","pod_namespace":"default"},"dest":{"pod_name":"test-service-745c798fc9-hzpxt","pod_namespace":"default"},"count":1,"timestamp":"2020-06-13T21:30:22.292379064Z"}`
+	denyLog = `{"connection":{"src_ip":"10.84.1.8","dest_ip":"10.84.0.11","src_port":45084,"dest_port":8080,"protocol":"tcp","direction":"ingress"},"disposition":"deny","src":{"pod_name":"client-deny-5689846f5b-cqqsj","workload_kind":"ReplicaSet","workload_name":"client-deny-5689846f5b","namespace":"default"},"dest":{"pod_name":"test-service-745c798fc9-hzpxt","workload_kind":"ReplicaSet","workload_name":"test-service-745c798fc9","namespace":"default"},"count":1,"timestamp":"2020-06-13T21:30:22.292379064Z"}`
 
 	// testCfgString is the config file content for the testCfg
 	testCfgString = "logFilePath: /tmp/test \nlogFileName: policy_action.log\nlogFileMaxSize: 1\nlogFileMaxBackups: 1\nmaxLogRate: 200\nlogQueueSize: 100\ndenyAggregationSeconds: 2\ndenyAggregationMapSize: 100\nlogNodeName: false"
@@ -90,6 +90,12 @@ var (
 				"k8s:io.kubernetes.pod.namespace=default",
 			},
 			PodName: "client-allow-7b78d7c957-zkn54",
+			Workloads: []*flow.Workload{
+				{
+					Kind: "ReplicaSet",
+					Name: "client-allow-7b78d7c957",
+				},
+			},
 		},
 		Destination: &flow.Endpoint{
 			ID:        1072,
@@ -102,6 +108,12 @@ var (
 				"k8s:io.kubernetes.pod.namespace=default",
 			},
 			PodName: "test-service-745c798fc9-hzpxt",
+			Workloads: []*flow.Workload{
+				{
+					Kind: "ReplicaSet",
+					Name: "test-service-745c798fc9",
+				},
+			},
 		},
 		Type:                  flow.FlowType_L3_L4,
 		NodeName:              "gke-demo-default-pool-e8df3298-412p",
@@ -139,6 +151,12 @@ var (
 				"k8s:io.kubernetes.pod.namespace=default",
 			},
 			PodName: "client-deny-5689846f5b-cqqsj",
+			Workloads: []*flow.Workload{
+				{
+					Kind: "ReplicaSet",
+					Name: "client-deny-5689846f5b",
+				},
+			},
 		},
 		Destination: &flow.Endpoint{
 			ID:        1072,
@@ -151,6 +169,12 @@ var (
 				"k8s:io.kubernetes.pod.namespace=default",
 			},
 			PodName: "test-service-745c798fc9-hzpxt",
+			Workloads: []*flow.Workload{
+				{
+					Kind: "ReplicaSet",
+					Name: "test-service-745c798fc9",
+				},
+			},
 		},
 		Type:                  flow.FlowType_L3_L4,
 		NodeName:              "gke-demo-default-pool-e8df3298-412p",

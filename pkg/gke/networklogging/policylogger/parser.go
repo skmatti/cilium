@@ -68,10 +68,20 @@ func (n *networkPolicyLogger) flowToPolicyActionLogEntry(f *flow.Flow) (*PolicyA
 
 	wl := f.GetSource()
 	if wl != nil && wl.GetPodName() != "" {
-		entry.Src = Workload{
-			PodName:      wl.GetPodName(),
-			PodNamespace: wl.GetNamespace(),
+		if len(wl.Workloads) != 0 {
+			entry.Src = Workload{
+				PodName:      wl.GetPodName(),
+				WorkloadKind: wl.Workloads[0].Kind,
+				WorkloadName: wl.Workloads[0].Name,
+				Namespace:    wl.GetNamespace(),
+			}
+		} else {
+			entry.Src = Workload{
+				PodName:   wl.GetPodName(),
+				Namespace: wl.GetNamespace(),
+			}
 		}
+
 	} else {
 		entry.Src = Workload{
 			Instance: conn.SrcIP,
@@ -79,9 +89,18 @@ func (n *networkPolicyLogger) flowToPolicyActionLogEntry(f *flow.Flow) (*PolicyA
 	}
 	wl = f.GetDestination()
 	if wl != nil && wl.GetPodName() != "" {
-		entry.Dest = Workload{
-			PodName:      wl.GetPodName(),
-			PodNamespace: wl.GetNamespace(),
+		if len(wl.Workloads) != 0 {
+			entry.Dest = Workload{
+				PodName:      wl.GetPodName(),
+				WorkloadKind: wl.Workloads[0].Kind,
+				WorkloadName: wl.Workloads[0].Name,
+				Namespace:    wl.GetNamespace(),
+			}
+		} else {
+			entry.Dest = Workload{
+				PodName:   wl.GetPodName(),
+				Namespace: wl.GetNamespace(),
+			}
 		}
 	} else {
 		entry.Dest = Workload{

@@ -46,7 +46,9 @@ type Policy struct {
 // Otherwise, IP is stored in the Instance field.
 type Workload struct {
 	PodName      string `json:"pod_name,omitempty"`
-	PodNamespace string `json:"pod_namespace,omitempty"`
+	WorkloadKind string `json:"workload_kind,omitempty"`
+	WorkloadName string `json:"workload_name,omitempty"`
+	Namespace    string `json:"namespace,omitempty"`
 	Instance     string `json:"instance,omitempty"`
 }
 

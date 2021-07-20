@@ -65,6 +65,7 @@ type networkPolicyLogger struct {
 	dispatcher       dispatcher.Dispatcher
 	policyCorrelator policyCorrelator
 	storeGetter      getters.StoreGetter
+	endpointGetter   getters.EndpointGetter
 	flowCh           chan *flow.Flow
 	stopCh           chan struct{}
 	doneCh           chan struct{}
@@ -312,9 +313,9 @@ func (n *networkPolicyLogger) processFlow(f *flow.Flow) {
 		} else {
 			var namespace string
 			if e.Connection.Direction == ConnectionDirectionIngress {
-				namespace = e.Dest.PodNamespace
+				namespace = e.Dest.Namespace
 			} else {
-				namespace = e.Src.PodNamespace
+				namespace = e.Src.Namespace
 			}
 			if !n.shouldLogNamespace(namespace) {
 				log.Debugf("No log for namespace %s", namespace)
