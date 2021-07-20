@@ -40,7 +40,6 @@ import (
 	"github.com/cilium/cilium/pkg/lock"
 	"github.com/cilium/cilium/pkg/logging/logfields"
 	"github.com/cilium/cilium/pkg/node"
-	"github.com/cilium/cilium/pkg/option"
 	"github.com/cilium/cilium/pkg/time"
 	"github.com/cilium/cilium/pkg/versioncheck"
 )
@@ -627,7 +626,7 @@ func (m *Manager) installStaticProxyRules() error {
 		}
 
 		// No conntrack for proxy forward traffic that is heading to cilium_host
-		if option.Config.EnableIPSec {
+		if m.sharedCfg.EnableIPSec {
 			if err := ip4tables.runProg([]string{
 				"-t", "raw",
 				"-A", ciliumOutputRawChain,
@@ -1179,6 +1178,23 @@ func (m *Manager) installForwardChainRulesIpX(prog runnable, ifName, localDelive
 	return nil
 }
 
+// installMasqueradeRulesForHost installs masqerading rules for packets going to cilium_host.
+// This is needed specifically in ABM where we enabled BPF masquerading but don't have host reachable service.
+func (m *Manager) installMasqueradeRulesForHost(prog iptablesInterface, allocRange, hostMasqueradeIP string) error {
+	if err := prog.runProg([]string{
+		"-t", "nat",
+		"-A", ciliumPostNatChain,
+		"!", "-s", allocRange,
+		"-m", "addrtype", "--src-type", "LOCAL",
+		"!", "-d", allocRange,
+		"-o", "cilium_host",
+		"-m", "comment", "--comment", "cilium host->cluster masquerade",
+		"-j", "SNAT", "--to-source", hostMasqueradeIP}); err != nil {
+		return err
+	}
+	return nil
+}
+
 func (m *Manager) installMasqueradeRules(
 	prog iptablesInterface, nativeDevices []string,
 	localDeliveryInterface, snatDstExclusionCIDR, allocRange, hostMasqueradeIP string,
@@ -1524,6 +1540,15 @@ func (m *Manager) installRules(state desiredState) error {
 				return fmt.Errorf("cannot install masquerade rules: %w", err)
 			}
 		}
+
+		if m.sharedCfg.IptablesMasqueradingIPv4Enabled && m.sharedCfg.TunnelingEnabled {
+			if err := m.installMasqueradeRulesForHost(ip4tables,
+				node.GetIPv4AllocRange().String(),
+				node.GetHostMasqueradeIPv4().String(),
+			); err != nil {
+				return err
+			}
+		}
 	}
 
 	if m.sharedCfg.EnableIPv6 {
@@ -1538,6 +1563,15 @@ func (m *Manager) installRules(state desiredState) error {
 				state.localNodeInfo.internalIPv6.String(),
 			); err != nil {
 				return fmt.Errorf("cannot install masquerade rules: %w", err)
+			}
+		}
+
+		if m.sharedCfg.IptablesMasqueradingIPv6Enabled && m.sharedCfg.TunnelingEnabled {
+			if err := m.installMasqueradeRulesForHost(ip6tables,
+				node.GetIPv6AllocRange().String(),
+				node.GetHostMasqueradeIPv6().String(),
+			); err != nil {
+				return err
 			}
 		}
 	}
