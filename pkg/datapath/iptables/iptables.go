@@ -1094,6 +1094,30 @@ func RemoveFromNodeIpset(nodeIP net.IP) {
 	}
 }
 
+// installMasqueradeRulesForHost installs masqerading rules for packets going to cilium_host.
+// This is needed specifically in ABM where we enabled BPF masquerading but don't have host reachable service.
+func (m *IptablesManager) installMasqueradeRulesForHost(prog iptablesInterface, allocRange, hostMasqueradeIP string) error {
+	if err := prog.runProg([]string{
+		"-t", "nat",
+		"-A", ciliumPostNatChain,
+		"!", "-s", allocRange,
+		"-m", "addrtype", "--src-type", "LOCAL",
+		"!", "-d", allocRange,
+		"-o", "cilium_host",
+		"-m", "comment", "--comment", "cilium host->cluster masquerade",
+		"-j", "SNAT", "--to-source", hostMasqueradeIP}); err != nil {
+		return err
+	}
+	return nil
+}
+
+// useNodeIpset returns true if the ipset for node IP addresses should be
+// used to skip masquerading.
+func useNodeIpset() bool {
+	return option.Config.Tunnel == option.TunnelDisabled &&
+		option.Config.IptablesMasqueradingEnabled()
+}
+
 func (m *IptablesManager) installMasqueradeRules(prog iptablesInterface, ifName, localDeliveryInterface,
 	snatDstExclusionCIDR, allocRange, hostMasqueradeIP string) error {
 	if option.Config.NodeIpsetNeeded() {
@@ -1438,6 +1462,15 @@ func (m *IptablesManager) installRules(ifName string) error {
 				return fmt.Errorf("cannot install masquerade rules: %w", err)
 			}
 		}
+
+		if option.Config.EnableIPv4Masquerade && option.Config.EnableBPFMasquerade && option.Config.Tunnel != option.TunnelDisabled {
+			if err := m.installMasqueradeRulesForHost(ip4tables,
+				node.GetIPv4AllocRange().String(),
+				node.GetHostMasqueradeIPv4().String(),
+			); err != nil {
+				return err
+			}
+		}
 	}
 
 	if option.Config.EnableIPv6 {
@@ -1452,6 +1485,15 @@ func (m *IptablesManager) installRules(ifName string) error {
 				node.GetHostMasqueradeIPv6().String(),
 			); err != nil {
 				return fmt.Errorf("cannot install masquerade rules: %w", err)
+			}
+		}
+
+		if option.Config.EnableIPv6Masquerade && option.Config.EnableBPFMasquerade && option.Config.Tunnel != option.TunnelDisabled {
+			if err := m.installMasqueradeRulesForHost(ip6tables,
+				node.GetIPv6AllocRange().String(),
+				node.GetHostMasqueradeIPv6().String(),
+			); err != nil {
+				return err
 			}
 		}
 	}
