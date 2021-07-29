@@ -23,6 +23,7 @@ import (
 	pb "github.com/cilium/cilium/api/v1/flow"
 	"github.com/cilium/cilium/pkg/gke/dispatcher"
 	nlcontroller "github.com/cilium/cilium/pkg/gke/networklogging/controller"
+	me "github.com/cilium/cilium/pkg/gke/networkpolicy/metrics"
 	"github.com/cilium/cilium/pkg/hubble/observer/observeroption"
 	"github.com/cilium/cilium/pkg/hubble/parser/getters"
 	"github.com/cilium/cilium/pkg/logging"
@@ -35,12 +36,14 @@ var (
 )
 
 type gkeFlowPlugin struct {
-	networkLoggingController *nlcontroller.Controller
-	endpointGetter           getters.EndpointGetter
-	storeGetter              getters.StoreGetter
-	dispatcher               dispatcher.Dispatcher
-	observer                 dispatcher.Observer
-	stopCh                   chan struct{}
+	networkLoggingController  *nlcontroller.Controller
+	metricsExporterController *me.Controller
+	endpointGetter            getters.EndpointGetter
+	storeGetter               getters.StoreGetter
+	dispatcher                dispatcher.Dispatcher
+	observer                  dispatcher.Observer
+	networkLoggingStopCh      chan struct{}
+	metricExporterStopCh      chan struct{}
 }
 
 // GKEPlugin provides the functions to be inserted into Hubble processing chain
@@ -62,7 +65,8 @@ func New() GKEFlowPlugin {
 // Stop stops GKEFlowPlugin.
 func (p *gkeFlowPlugin) Stop() {
 	log.Info("Stop GKE flow plugin")
-	close(p.stopCh)
+	close(p.networkLoggingStopCh)
+	close(p.metricExporterStopCh)
 }
 
 // OnDecodedFlow provides the API to observe Hubble flow.
@@ -97,15 +101,26 @@ func (p *gkeFlowPlugin) OnServerInit(srv observeroption.Server) error {
 	}
 	log.Infof("Successfully obtained kubernetes config")
 
-	// stopCh is used to only signal closing. So it doesn't needs any buffer
+	// networkLoggingstopCh is used to only signal closing. So it doesn't needs any buffer
 	// and will only have open and close operations.
-	p.stopCh = make(chan struct{})
-	p.networkLoggingController, err = nlcontroller.NewController(kubeConfig, p.stopCh, p.dispatcher, p.endpointGetter, p.storeGetter)
+	p.networkLoggingStopCh = make(chan struct{})
+	p.networkLoggingController, err = nlcontroller.NewController(kubeConfig, p.networkLoggingStopCh, p.dispatcher, p.endpointGetter, p.storeGetter)
 	if err != nil {
 		log.Errorf("Failed to create network logging controller: %v", err)
 		return err
 	}
 	log.Info("Created network logging controller")
+
+	// metricExporterStopCh is used to only signal closing. So it doesn't needs any buffer
+	// and will only have open and close operations.
+	p.metricExporterStopCh = make(chan struct{})
+	p.metricsExporterController, err = me.NewController(p.dispatcher, p.metricExporterStopCh)
+	if err != nil {
+		log.Errorf("Failed to create metric exporter controller: %v", err)
+		return err
+	}
+	log.Info("Created metric exporter controller")
+	go p.metricsExporterController.Run()
 	go p.networkLoggingController.Run()
 	return nil
 }

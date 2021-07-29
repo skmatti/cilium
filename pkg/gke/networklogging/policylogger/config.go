@@ -20,6 +20,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/cilium/cilium/pkg/gke/util"
 	"gopkg.in/yaml.v2"
 )
 
@@ -91,7 +92,7 @@ var defaultConfig = policyLoggerConfig{
 	logFileMaxSize:         10, // MB
 	logFileMaxBackups:      5,
 	maxLogRate:             500, // logs per second
-	logQueueSize:           2000,
+	logQueueSize:           util.QueueSize,
 	denyAggregationSeconds: 5, // seconds
 	denyAggregationMapSize: 3000,
 	logNodeName:            true,
