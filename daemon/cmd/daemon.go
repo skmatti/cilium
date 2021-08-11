@@ -48,6 +48,7 @@ import (
 	"github.com/cilium/cilium/pkg/endpointmanager"
 	"github.com/cilium/cilium/pkg/eventqueue"
 	"github.com/cilium/cilium/pkg/fqdn"
+	"github.com/cilium/cilium/pkg/gke/multinic"
 	"github.com/cilium/cilium/pkg/hubble/observer"
 	"github.com/cilium/cilium/pkg/identity"
 	"github.com/cilium/cilium/pkg/identity/identitymanager"
@@ -199,6 +200,13 @@ type Daemon struct {
 
 	// event queue for serializing configuration updates to the daemon.
 	configModifyQueue *eventqueue.EventQueue
+
+	// client used to query and update Network and NetworkInterface resources
+	// when multinic is enabled
+	multinicClient multinic.K8sClient
+
+	// kubeletClient is used to query resource information for a given pod
+	kubeletClient *multinic.KubeletClient
 
 	// controller for Cilium's BGP control plane.
 	bgpControlPlaneController *bgpv1.Controller
@@ -1095,6 +1103,21 @@ func newDaemon(ctx context.Context, cleaner *daemonCleanup,
 		// daemon options.
 		d.k8sWatcher.InitK8sSubsystem(d.ctx, cachesSynced)
 		bootstrapStats.k8sInit.End(true)
+	}
+
+	// Initialize and wait for multinic client cache to sync
+	if option.Config.EnableGoogleMultiNIC {
+		if !clientset.IsEnabled() {
+			log.Fatal("K8s needs to be enabled for multi nic support")
+		}
+		d.multinicClient, err = multinic.NewK8sClient(clientset.RestConfig())
+		if err != nil {
+			log.WithError(err).Fatal("Unable to create multinic client")
+		}
+		d.kubeletClient, err = multinic.NewKubeletClient(d.ctx)
+		if err != nil {
+			log.WithError(err).Fatal("Unable to create kubelet client")
+		}
 	}
 
 	bootstrapStats.cleanup.Start()

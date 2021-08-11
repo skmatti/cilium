@@ -993,6 +993,10 @@ func initializeFlags() {
 	flags.MarkHidden(option.EnableGDCILB)
 	option.BindEnv(Vp, option.EnableGDCILB)
 
+	flags.Bool(option.EnableGoogleMultiNIC, false, "Enable google multi NIC support")
+	flags.MarkHidden(option.EnableGoogleMultiNIC)
+	option.BindEnv(Vp, option.EnableGoogleMultiNIC)
+
 	flags.Int(option.LBMapEntriesName, lbmap.DefaultMaxEntries, "Maximum number of entries in Cilium BPF lbmap")
 	option.BindEnv(Vp, option.LBMapEntriesName)
 

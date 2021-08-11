@@ -26,6 +26,7 @@ import (
 	"github.com/cilium/cilium/pkg/option"
 	"github.com/cilium/cilium/pkg/policy"
 	"github.com/cilium/cilium/pkg/revert"
+	"github.com/cilium/cilium/pkg/testutils"
 	testidentity "github.com/cilium/cilium/pkg/testutils/identity"
 	testipcache "github.com/cilium/cilium/pkg/testutils/ipcache"
 )
@@ -53,6 +54,8 @@ type EndpointManagerSuite struct {
 var _ = Suite(&EndpointManagerSuite{})
 
 func (s *EndpointManagerSuite) SetUpSuite(c *C) {
+	testutils.PrivilegedCheck(c)
+
 	idAllocator := testidentity.NewMockIdentityAllocator(nil)
 	s.repo = policy.NewPolicyRepository(idAllocator, nil, nil)
 }

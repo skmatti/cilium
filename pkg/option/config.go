@@ -2306,6 +2306,9 @@ type DaemonConfig struct {
 	// EnableGDCILB is a feature flag for google GDC-H ILB Support, default is false
 	EnableGDCILB bool
 
+	// EnableGoogleMultiNIC is a feature flag for google multi nic support, default is false.
+	EnableGoogleMultiNIC bool
+
 	// VLANBPFBypass list of explicitly allowed VLAN id's for bpf logic bypass
 	VLANBPFBypass []int
 	// EnableL2NeighDiscovery determines if cilium should perform L2 neighbor
@@ -2969,6 +2972,7 @@ func (c *DaemonConfig) Populate(vp *viper.Viper) {
 	c.CgroupPathMKE = vp.GetString(CgroupPathMKE)
 	c.EnableHostFirewall = vp.GetBool(EnableHostFirewall)
 	c.EnableLocalRedirectPolicy = vp.GetBool(EnableLocalRedirectPolicy)
+	c.EnableGoogleMultiNIC = vp.GetBool(EnableGoogleMultiNIC)
 	c.EncryptInterface = vp.GetStringSlice(EncryptInterface)
 	c.EncryptNode = vp.GetBool(EncryptNode)
 	c.EnvoyLogPath = vp.GetString(EnvoyLog)

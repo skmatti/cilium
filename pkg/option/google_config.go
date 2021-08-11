@@ -23,4 +23,7 @@ const (
 
 	// EnableTrafficSteering enables google traffic steering for the host.
 	EnableTrafficSteering = "enable-traffic-steering"
+
+	// EnableGoogleMultiNIC is the name of the option to enable gogole multi nic support.
+	EnableGoogleMultiNIC = "enable-google-multi-nic"
 )

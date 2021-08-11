@@ -304,6 +304,8 @@ func (l *Loader) reloadDatapath(ctx context.Context, ep datapath.Endpoint, dirs 
 		if err := l.reloadHostDatapath(ctx, ep, objPath); err != nil {
 			return err
 		}
+	} else if ep.IsMultiNIC() {
+		return setupMultiNICDataPath(ctx, ep, objPath)
 	} else {
 		progs := []progDefinition{{progName: symbolFromEndpoint, direction: dirIngress}}
 

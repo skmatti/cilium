@@ -9,9 +9,11 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
+	"github.com/sirupsen/logrus"
 	"github.com/vishvananda/netlink"
 	"golang.org/x/sys/unix"
 
@@ -19,9 +21,11 @@ import (
 	"github.com/cilium/ebpf/link"
 
 	"github.com/cilium/cilium/pkg/bpf"
+	"github.com/cilium/cilium/pkg/command/exec"
 	"github.com/cilium/cilium/pkg/defaults"
 	"github.com/cilium/cilium/pkg/inctimer"
 	ipamOption "github.com/cilium/cilium/pkg/ipam/option"
+	"github.com/cilium/cilium/pkg/logging/logfields"
 	"github.com/cilium/cilium/pkg/mac"
 	"github.com/cilium/cilium/pkg/maps/policymap"
 	"github.com/cilium/cilium/pkg/option"
@@ -33,6 +37,8 @@ type baseDeviceMode string
 const (
 	directMode = baseDeviceMode("direct")
 	tunnelMode = baseDeviceMode("tunnel")
+
+	libbpfFixupMsg = "struct bpf_elf_map fixup performed due to size mismatch!"
 )
 
 func directionToParent(dir string) uint32 {
@@ -299,6 +305,45 @@ func attachProgram(link netlink.Link, prog *ebpf.Program, progName string, qdisc
 
 	if err := netlink.FilterReplace(filter); err != nil {
 		return fmt.Errorf("replacing tc filter: %w", err)
+	}
+
+	return nil
+}
+
+// graftDatapath replaces obj in tail call map
+func graftDatapath(ctx context.Context, mapPath, objPath, progSec string, key int) error {
+	scopedLog := log.WithField("mapPath", mapPath).WithField("objPath", objPath).
+		WithField("progSection", progSec).WithField("direction", key)
+
+	scopedLog.Debug("Loading CollectionSpec from ELF")
+	spec, err := bpf.LoadCollectionSpec(objPath)
+	if err != nil {
+		return fmt.Errorf("loading eBPF ELF: %w", err)
+	}
+	scopedLog.Debug("Starting bpffs map migration")
+	if err := bpf.StartBPFFSMigration(bpf.MapPrefixPath(), spec); err != nil {
+		return fmt.Errorf("Failed to start bpffs map migration: %w", err)
+	}
+
+	var revert bool
+	defer func() {
+		scopedLog.Debug("Finalizing bpffs map migration")
+		if err := bpf.FinalizeBPFFSMigration(bpf.MapPrefixPath(), spec, revert); err != nil {
+			scopedLog.WithError(err).WithFields(logrus.Fields{logfields.BPFMapPath: mapPath, "objPath": objPath}).
+				Error("Could not finalize bpffs map migration")
+		}
+	}()
+
+	// FIXME: replace exec with native call
+	// Load the object from the tail call map with the provided key.
+	args := []string{"exec", "bpf", "graft", mapPath, "key", strconv.Itoa(key),
+		"obj", objPath, "sec", progSec,
+	}
+	scopedLog.Info("Grafting program")
+	cmd := exec.CommandContext(ctx, "tc", args...).WithFilters(libbpfFixupMsg)
+	if _, err := cmd.CombinedOutput(log, true); err != nil {
+		revert = true
+		return fmt.Errorf("Failed to graft tc object: %s", err)
 	}
 
 	return nil

@@ -6,6 +6,7 @@ package connector
 import (
 	"crypto/sha256"
 	"fmt"
+	"strings"
 
 	"golang.org/x/sys/unix"
 
@@ -54,5 +55,7 @@ func truncateString(epID string, maxLen uint) string {
 
 // DisableRpFilter tries to disable rpfilter on specified interface
 func DisableRpFilter(ifName string) error {
-	return sysctl.Disable(fmt.Sprintf("net.ipv4.conf.%s.rp_filter", ifName))
+	// If there is "." in the ifName, must replace it with "/" so sysctl can handle it.
+	nomalizedName := strings.ReplaceAll(ifName, ".", "/")
+	return sysctl.Disable(fmt.Sprintf("net.ipv4.conf.%s.rp_filter", nomalizedName))
 }

@@ -246,8 +246,11 @@ require (
 	sigs.k8s.io/structured-merge-diff/v4 v4.2.3 // indirect
 )
 
-// GKE specific dependencies.
-require gke-internal/gke-node-firewall v0.0.0-00010101000000-000000000000
+require (
+	// GKE specific dependencies.
+	gke-internal/gke-node-firewall v0.0.0-00010101000000-000000000000
+	k8s.io/kubelet v0.21.3
+)
 
 replace gke-internal/gke-node-firewall => gke-internal.googlesource.com/kubernetes/gke-node-firewall.git v0.0.20
 

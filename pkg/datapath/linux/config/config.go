@@ -604,6 +604,10 @@ func (h *HeaderfileWriter) WriteNodeConfig(w io.Writer, cfg *datapath.LocalNodeC
 		cDefinesMap["DISABLE_IPV6_TUNNEL"] = "1"
 	}
 
+	if option.Config.EnableGoogleMultiNIC {
+		cDefinesMap["ENABLE_GOOGLE_MULTI_NIC"] = "1"
+	}
+
 	cDefinesMap["CIDR_IDENTITY_RANGE_START"] = fmt.Sprintf("%d", identity.MinLocalIdentity)
 	cDefinesMap["CIDR_IDENTITY_RANGE_END"] = fmt.Sprintf("%d", identity.MaxLocalIdentity)
 
@@ -880,6 +884,8 @@ func (h *HeaderfileWriter) WriteEndpointConfig(w io.Writer, e datapath.EndpointC
 }
 
 func (h *HeaderfileWriter) writeTemplateConfig(fw *bufio.Writer, e datapath.EndpointConfiguration) error {
+	h.writeMultinicEndpointConfig(fw, e)
+
 	if e.RequireEgressProg() {
 		fmt.Fprintf(fw, "#define USE_BPF_PROG_FOR_INGRESS_POLICY 1\n")
 	}
