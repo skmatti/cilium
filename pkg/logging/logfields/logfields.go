@@ -207,6 +207,12 @@ const (
 	// Interface is an interface id/name on the system
 	Interface = "interface"
 
+	// InterfaceInPod is a interface name inside the pod namespace
+	InterfaceInPod = "interfaceInPod"
+
+	// Macvtap is a macvtap object or ID
+	Macvtap = "macvtap"
+
 	// Veth is a veth object or ID
 	Veth = "veth"
 

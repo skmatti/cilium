@@ -571,6 +571,10 @@ func (h *HeaderfileWriter) WriteNodeConfig(w io.Writer, cfg *datapath.LocalNodeC
 		cDefinesMap["ENABLE_L7_PROXY"] = "1"
 	}
 
+	if option.Config.EnableGoogleMultiNIC {
+		cDefinesMap["ENABLE_GOOGLE_MULTI_NIC"] = "1"
+	}
+
 	cDefinesMap["CIDR_IDENTITY_RANGE_START"] = fmt.Sprintf("%d", identity.MinLocalIdentity)
 	cDefinesMap["CIDR_IDENTITY_RANGE_END"] = fmt.Sprintf("%d", identity.MaxLocalIdentity)
 

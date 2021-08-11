@@ -16,6 +16,7 @@ import (
 	"github.com/cilium/cilium/api/v1/models"
 	apiEndpoint "github.com/cilium/cilium/api/v1/server/restapi/endpoint"
 	"github.com/cilium/cilium/pkg/checker"
+	"github.com/cilium/cilium/pkg/endpoint"
 	endpointid "github.com/cilium/cilium/pkg/endpoint/id"
 	"github.com/cilium/cilium/pkg/identity"
 	"github.com/cilium/cilium/pkg/labels"
@@ -31,6 +32,7 @@ func getEPTemplate(c *C, d *Daemon) *models.EndpointChangeRequest {
 
 	return &models.EndpointChangeRequest{
 		ContainerName: "foo",
+		ContainerID:   "continaer-id",
 		State:         models.EndpointStateWaitingForIdentity,
 		Addressing: &models.AddressPair{
 			IPV6: ip6.IP.String(),
@@ -94,7 +96,7 @@ func (ds *DaemonSuite) TestEndpointAddNoLabels(c *C) {
 	c.Assert(err, IsNil)
 
 	expectedLabels := labels.Labels{
-		labels.IDNameInit: labels.NewLabel(labels.IDNameInit, "", labels.LabelSourceReserved),
+		labels.IDNameInit: labels.NewLabel(labels.IDNameInit, endpoint.EndpointDeviceVETH, labels.LabelSourceReserved),
 	}
 	// Check that the endpoint has the reserved:init label.
 	ep, err := ds.d.endpointManager.Lookup(endpointid.NewIPPrefixID(net.ParseIP(epTemplate.Addressing.IPV4)))

@@ -384,6 +384,7 @@ func (e *Endpoint) toSerializedEndpoint() *serializableEndpoint {
 		ContainerID:           e.containerID,
 		DockerNetworkID:       e.dockerNetworkID,
 		DockerEndpointID:      e.dockerEndpointID,
+		DatapathMapID:         e.datapathMapID,
 		IfName:                e.ifName,
 		IfIndex:               e.ifIndex,
 		OpLabels:              e.OpLabels,
@@ -400,6 +401,11 @@ func (e *Endpoint) toSerializedEndpoint() *serializableEndpoint {
 		K8sNamespace:          e.K8sNamespace,
 		DatapathConfiguration: e.DatapathConfiguration,
 		CiliumEndpointUID:     e.ciliumEndpointUID,
+		IfNameInPod:           e.ifNameInPod,
+		NetNs:                 e.netNs,
+		DeviceType:            e.deviceType,
+		ParentDevName:         e.parentDevName,
+		ParentDevIndex:        e.parentDevIndex,
 	}
 }
 
@@ -432,6 +438,9 @@ type serializableEndpoint struct {
 	// dockerEndpointID is the Docker network endpoint ID if managed by
 	// libnetwork
 	DockerEndpointID string
+
+	// Corresponding BPF map identifier for tail call map of macvlan/macvtap datapath
+	DatapathMapID int
 
 	// ifName is the name of the host facing interface (veth pair) which
 	// connects into the endpoint
@@ -494,6 +503,21 @@ type serializableEndpoint struct {
 	// This is used to avoid overwriting/deleting ciliumendpoints that are managed
 	// by other endpoints.
 	CiliumEndpointUID types.UID
+
+	// ifNameInPod is the name of the interface inside the pod namespace which connects from endpoint to host
+	IfNameInPod string
+
+	// netNs is the Linux network namespace of the container.
+	NetNs string
+
+	// Device type of the endpoint. If it's unset (empty), it's the normal veth endpoint.
+	DeviceType EndpointDeviceType
+
+	// parentDevName is the name of the parent interface for a macvtap/macvlan endpoint.
+	ParentDevName string
+
+	// parentDevIndex is the index of the parent interface for a macvtap/macvlan endpoint.
+	ParentDevIndex int
 }
 
 // UnmarshalJSON expects that the contents of `raw` are a serializableEndpoint,
@@ -526,6 +550,7 @@ func (ep *Endpoint) fromSerializedEndpoint(r *serializableEndpoint) {
 	ep.containerID = r.ContainerID
 	ep.dockerNetworkID = r.DockerNetworkID
 	ep.dockerEndpointID = r.DockerEndpointID
+	ep.datapathMapID = r.DatapathMapID
 	ep.ifName = r.IfName
 	ep.ifIndex = r.IfIndex
 	ep.OpLabels = r.OpLabels
@@ -542,4 +567,9 @@ func (ep *Endpoint) fromSerializedEndpoint(r *serializableEndpoint) {
 	ep.DatapathConfiguration = r.DatapathConfiguration
 	ep.Options = r.Options
 	ep.ciliumEndpointUID = r.CiliumEndpointUID
+	ep.ifNameInPod = r.IfNameInPod
+	ep.netNs = r.NetNs
+	ep.deviceType = r.DeviceType
+	ep.parentDevName = r.ParentDevName
+	ep.parentDevIndex = r.ParentDevIndex
 }

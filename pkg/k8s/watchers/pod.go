@@ -69,7 +69,7 @@ func (k *K8sWatcher) createPodController(getter cache.Getter, fieldSelector fiel
 					// first and the k8s event afterwards, if this happens it's
 					// likely the Kube API Server is getting behind the event
 					// handling.
-					if ep := k.endpointManager.LookupPodName(podNSName); ep != nil {
+					if ep := k.endpointManager.LookupPrimaryEndpointByPodName(podNSName); ep != nil {
 						epCreatedAt := ep.GetCreatedAt()
 						timeSinceEpCreated := time.Since(epCreatedAt)
 						if timeSinceEpCreated <= 0 {
@@ -321,8 +321,7 @@ func (k *K8sWatcher) updateK8sPodV1(oldK8sPod, newK8sPod *slim_corev1.Pod) error
 	}
 
 	podNSName := k8sUtils.GetObjNamespaceName(&newK8sPod.ObjectMeta)
-
-	podEP := k.endpointManager.LookupPodName(podNSName)
+	podEP := k.endpointManager.LookupPrimaryEndpointByPodName(podNSName)
 	if podEP == nil {
 		log.WithField("pod", podNSName).Debugf("Endpoint not found running for the given pod")
 		return nil

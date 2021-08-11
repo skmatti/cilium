@@ -1142,6 +1142,8 @@ definitions:
   EndpointChangeRequest:
     description: |
       Structure which contains the mutable elements of an Endpoint.
+      
+      +k8s:deepcopy-gen=true
     type: object
     required:
       - state
@@ -1187,6 +1189,9 @@ definitions:
       k8s-namespace:
         description: Kubernetes namespace name
         type: string
+      network-namespace:
+        description: Linux network namespace of the container
+        type: string
       datapath-map-id:
         description: ID of datapath tail call map
         type: integer
@@ -1202,8 +1207,23 @@ definitions:
         type: boolean
       datapath-configuration:
         "$ref": "#/definitions/EndpointDatapathConfiguration"
+      parent-device-name:
+        description: Name of the parent interface for a macvtap/macvlan endpoint
+        type: string
+      parent-device-index:
+        description: Index of the parent interface for a macvtap/macvlan endpoint
+        type: integer
+      interface-name-in-pod:
+        description: Name of the interface inside the pod namespace
+        type: string
+      device-type:
+        description: Type of the device. Empty string for veth.
+        type: string
   EndpointDatapathConfiguration:
-    description: Datapath configuration to be used for the endpoint
+    description: |-
+      Datapath configuration to be used for the endpoint
+      
+      +k8s:deepcopy-gen=true
     type: object
     properties:
       require-arp-passthrough:

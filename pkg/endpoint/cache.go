@@ -52,6 +52,8 @@ type epInfoCache struct {
 	// holding the endpoint lock, for use beyond the holding of that lock.
 	// Dereferencing fields in this endpoint is not guaranteed to be safe.
 	endpoint *Endpoint
+
+	deviceType EndpointDeviceType
 }
 
 // Must be called when endpoint is still locked.
@@ -82,6 +84,8 @@ func (e *Endpoint) createEpInfoCache(epdir string) *epInfoCache {
 		ifIndex:                e.ifIndex,
 
 		endpoint: e,
+
+		deviceType: e.GetDeviceType(),
 	}
 	return ep
 }
@@ -98,6 +102,11 @@ func (ep *epInfoCache) LXCMac() mac.MAC {
 // communicating with the endpoint.
 func (ep *epInfoCache) InterfaceName() string {
 	return ep.ifName
+}
+
+// MapPath returns tail call map path.
+func (ep *epInfoCache) MapPath() string {
+	return ep.endpoint.BPFMapPath()
 }
 
 // GetID returns the endpoint's ID.

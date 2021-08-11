@@ -16,6 +16,7 @@ import (
 
 // EndpointChangeRequest Structure which contains the mutable elements of an Endpoint.
 //
+// +k8s:deepcopy-gen=true
 //
 // swagger:model EndpointChangeRequest
 type EndpointChangeRequest struct {
@@ -35,6 +36,9 @@ type EndpointChangeRequest struct {
 	// ID of datapath tail call map
 	DatapathMapID int64 `json:"datapath-map-id,omitempty"`
 
+	// Type of the device. Empty string for veth.
+	DeviceType string `json:"device-type,omitempty"`
+
 	// Docker endpoint ID
 	DockerEndpointID string `json:"docker-endpoint-id,omitempty"`
 
@@ -53,6 +57,9 @@ type EndpointChangeRequest struct {
 	// Name of network device
 	InterfaceName string `json:"interface-name,omitempty"`
 
+	// Name of the interface inside the pod namespace
+	InterfaceNameInPod string `json:"interface-name-in-pod,omitempty"`
+
 	// Kubernetes namespace name
 	K8sNamespace string `json:"k8s-namespace,omitempty"`
 
@@ -64,6 +71,15 @@ type EndpointChangeRequest struct {
 
 	// MAC address
 	Mac string `json:"mac,omitempty"`
+
+	// Linux network namespace of the container
+	NetworkNamespace string `json:"network-namespace,omitempty"`
+
+	// Index of the parent interface for a macvtap/macvlan endpoint
+	ParentDeviceIndex int64 `json:"parent-device-index,omitempty"`
+
+	// Name of the parent interface for a macvtap/macvlan endpoint
+	ParentDeviceName string `json:"parent-device-name,omitempty"`
 
 	// Process ID of the workload belonging to this endpoint
 	Pid int64 `json:"pid,omitempty"`

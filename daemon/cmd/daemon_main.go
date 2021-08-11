@@ -1041,6 +1041,9 @@ func initializeFlags() {
 	flags.Int(option.FragmentsMapEntriesName, defaults.FragmentsMapEntries, "Maximum number of entries in fragments tracking map")
 	option.BindEnv(option.FragmentsMapEntriesName)
 
+	flags.Bool(option.EnableGoogleMultiNIC, false, "Enable google multi NIC support")
+	option.BindEnv(option.EnableGoogleMultiNIC)
+
 	flags.Int(option.LBMapEntriesName, lbmap.DefaultMaxEntries, "Maximum number of entries in Cilium BPF lbmap")
 	option.BindEnv(option.LBMapEntriesName)
 

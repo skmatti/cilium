@@ -2146,7 +2146,7 @@ func init() {
       }
     },
     "EndpointChangeRequest": {
-      "description": "Structure which contains the mutable elements of an Endpoint.\n",
+      "description": "Structure which contains the mutable elements of an Endpoint.\n\n+k8s:deepcopy-gen=true\n",
       "type": "object",
       "required": [
         "state"
@@ -2169,6 +2169,10 @@ func init() {
         "datapath-map-id": {
           "description": "ID of datapath tail call map",
           "type": "integer"
+        },
+        "device-type": {
+          "description": "Type of the device. Empty string for veth.",
+          "type": "string"
         },
         "docker-endpoint-id": {
           "description": "Docker endpoint ID",
@@ -2194,6 +2198,10 @@ func init() {
           "description": "Name of network device",
           "type": "string"
         },
+        "interface-name-in-pod": {
+          "description": "Name of the interface inside the pod namespace",
+          "type": "string"
+        },
         "k8s-namespace": {
           "description": "Kubernetes namespace name",
           "type": "string"
@@ -2208,6 +2216,18 @@ func init() {
         },
         "mac": {
           "description": "MAC address",
+          "type": "string"
+        },
+        "network-namespace": {
+          "description": "Linux network namespace of the container",
+          "type": "string"
+        },
+        "parent-device-index": {
+          "description": "Index of the parent interface for a macvtap/macvlan endpoint",
+          "type": "integer"
+        },
+        "parent-device-name": {
+          "description": "Name of the parent interface for a macvtap/macvlan endpoint",
           "type": "string"
         },
         "pid": {
@@ -2261,7 +2281,7 @@ func init() {
       }
     },
     "EndpointDatapathConfiguration": {
-      "description": "Datapath configuration to be used for the endpoint",
+      "description": "Datapath configuration to be used for the endpoint\n\n+k8s:deepcopy-gen=true",
       "type": "object",
       "properties": {
         "disable-sip-verification": {
@@ -6730,7 +6750,7 @@ func init() {
       }
     },
     "EndpointChangeRequest": {
-      "description": "Structure which contains the mutable elements of an Endpoint.\n",
+      "description": "Structure which contains the mutable elements of an Endpoint.\n\n+k8s:deepcopy-gen=true\n",
       "type": "object",
       "required": [
         "state"
@@ -6753,6 +6773,10 @@ func init() {
         "datapath-map-id": {
           "description": "ID of datapath tail call map",
           "type": "integer"
+        },
+        "device-type": {
+          "description": "Type of the device. Empty string for veth.",
+          "type": "string"
         },
         "docker-endpoint-id": {
           "description": "Docker endpoint ID",
@@ -6778,6 +6802,10 @@ func init() {
           "description": "Name of network device",
           "type": "string"
         },
+        "interface-name-in-pod": {
+          "description": "Name of the interface inside the pod namespace",
+          "type": "string"
+        },
         "k8s-namespace": {
           "description": "Kubernetes namespace name",
           "type": "string"
@@ -6792,6 +6820,18 @@ func init() {
         },
         "mac": {
           "description": "MAC address",
+          "type": "string"
+        },
+        "network-namespace": {
+          "description": "Linux network namespace of the container",
+          "type": "string"
+        },
+        "parent-device-index": {
+          "description": "Index of the parent interface for a macvtap/macvlan endpoint",
+          "type": "integer"
+        },
+        "parent-device-name": {
+          "description": "Name of the parent interface for a macvtap/macvlan endpoint",
           "type": "string"
         },
         "pid": {
@@ -6845,7 +6885,7 @@ func init() {
       }
     },
     "EndpointDatapathConfiguration": {
-      "description": "Datapath configuration to be used for the endpoint",
+      "description": "Datapath configuration to be used for the endpoint\n\n+k8s:deepcopy-gen=true",
       "type": "object",
       "properties": {
         "disable-sip-verification": {

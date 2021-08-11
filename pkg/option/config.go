@@ -1056,6 +1056,9 @@ const (
 	// cluster external access to ClusterIP services.
 	ExternalClusterIPName = "bpf-lb-external-clusterip"
 
+	// EnableGoogleMultiNIC is the name of the option to enable gogole multi nic support.
+	EnableGoogleMultiNIC = "enable-google-multi-nic"
+
 	// VLANBPFBypass instructs Cilium to bypass bpf logic for vlan tagged packets
 	VLANBPFBypass = "vlan-bpf-bypass"
 
@@ -2229,6 +2232,9 @@ type DaemonConfig struct {
 	// ARPPingKernelManaged denotes whether kernel can auto-refresh Neighbor entries
 	ARPPingKernelManaged bool
 
+	// EnableGoogleMultiNIC is a feature flag for google multi nic support, default is false.
+	EnableGoogleMultiNIC bool
+
 	// VLANBPFBypass list of explicitly allowed VLAN id's for bpf logic bypass
 	VLANBPFBypass []int
 	// EnableL2NeighDiscovery determines if cilium should perform L2 neighbor
@@ -2869,6 +2875,7 @@ func (c *DaemonConfig) Populate() {
 	c.EnableRedirectService = viper.GetBool(EnableRedirectService)
 	c.EnableTrafficSteering = viper.GetBool(EnableTrafficSteering)
 	c.EnableLocalRedirectPolicy = viper.GetBool(EnableLocalRedirectPolicy)
+	c.EnableGoogleMultiNIC = viper.GetBool(EnableGoogleMultiNIC)
 	c.EncryptInterface = viper.GetStringSlice(EncryptInterface)
 	c.EncryptNode = viper.GetBool(EncryptNode)
 	c.EnvoyLogPath = viper.GetString(EnvoyLog)

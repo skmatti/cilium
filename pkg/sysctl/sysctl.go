@@ -29,7 +29,7 @@ var (
 	log = logging.DefaultLogger.WithField(logfields.LogSubsys, subsystem)
 
 	// parameterElemRx matches an element of a sysctl parameter.
-	parameterElemRx = regexp.MustCompile(`\A[-0-9_a-z]+\z`)
+	parameterElemRx = regexp.MustCompile(`\A[-0-9_a-zA-Z\.]+\z`)
 
 	procFsMU lock.Mutex
 	// procFsRead is mark as true if procFs changes value.
@@ -58,12 +58,15 @@ type Setting struct {
 // parameterPath returns the path to the sysctl file for parameter name.
 func parameterPath(name string) (string, error) {
 	elems := strings.Split(name, ".")
+	var paths []string
 	for _, elem := range elems {
-		if !parameterElemRx.MatchString(elem) {
+		reverted := strings.ReplaceAll(elem, "/", ".")
+		if !parameterElemRx.MatchString(reverted) {
 			return "", ErrInvalidSysctlParameter(name)
 		}
+		paths = append(paths, reverted)
 	}
-	return filepath.Join(append([]string{GetProcfs(), "sys"}, elems...)...), nil
+	return filepath.Join(append([]string{GetProcfs(), "sys"}, paths...)...), nil
 }
 
 // SetProcfs sets path for the root's /proc. Calling it after GetProcfs causes

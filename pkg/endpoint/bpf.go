@@ -963,6 +963,7 @@ func (e *Endpoint) deleteMaps() []error {
 	maps := map[string]string{
 		"policy": e.policyMapPath(),
 		"calls":  e.callsMapPath(),
+		"egress": e.BPFMapPath(),
 	}
 	if !e.isHost {
 		maps["custom"] = e.customCallsMapPath()
@@ -1491,6 +1492,16 @@ type linkCheckerFunc func(string) error
 
 // ValidateConnectorPlumbing checks whether the endpoint is correctly plumbed.
 func (e *Endpoint) ValidateConnectorPlumbing(linkChecker linkCheckerFunc) error {
+	if e.IsMultiNIC() {
+		// FIXME: We cannot check whether macvlan/macvtap slave netdev exists,
+		// because it requires entering container netns which is not
+		// always accessible (e.g. in k8s case "/proc" has to be bind
+		// mounted). Instead, we check whether the tail call map exists.
+		if _, err := os.Stat(e.BPFMapPath()); err != nil {
+			return fmt.Errorf("tail call map for Macvlan/Macvtap unavailable: %s", err)
+		}
+		return nil
+	}
 	if linkChecker == nil {
 		return fmt.Errorf("cannot check state of datapath; link checker is nil")
 	}

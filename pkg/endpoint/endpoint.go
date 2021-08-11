@@ -19,6 +19,7 @@ import (
 	"unsafe"
 
 	"github.com/sirupsen/logrus"
+	"golang.org/x/sys/unix"
 
 	"k8s.io/apimachinery/pkg/types"
 
@@ -26,6 +27,7 @@ import (
 	"github.com/cilium/cilium/pkg/addressing"
 	"github.com/cilium/cilium/pkg/annotation"
 	"github.com/cilium/cilium/pkg/bandwidth"
+	"github.com/cilium/cilium/pkg/bpf"
 	"github.com/cilium/cilium/pkg/completion"
 	"github.com/cilium/cilium/pkg/controller"
 	"github.com/cilium/cilium/pkg/datapath/link"
@@ -139,6 +141,9 @@ type Endpoint struct {
 	// dockerEndpointID is the Docker network endpoint ID if managed by
 	// libnetwork
 	dockerEndpointID string
+
+	// Corresponding BPF map identifier for tail call map of macvlan/macvtap datapath
+	datapathMapID int
 
 	// ifName is the name of the host facing interface (veth pair) which
 	// connects into the endpoint
@@ -339,6 +344,21 @@ type Endpoint struct {
 	noTrackPort uint16
 
 	ciliumEndpointUID types.UID
+
+	// ifNameInPod is the name of the interface inside the pod namespace which connects from endpoint to host
+	ifNameInPod string
+
+	// netNs is the Linux network namespace of the container.
+	netNs string
+
+	// Device type of the endpoint. If it's unset (empty), it's the normal veth endpoint.
+	deviceType EndpointDeviceType
+
+	// parentDevName is the name of the parent interface for a macvtap/macvlan endpoint.
+	parentDevName string
+
+	// parentDevIndex is the index of the parent interface for a macvtap/macvlan endpoint.
+	parentDevIndex int
 }
 
 type namedPortsGetter interface {
@@ -545,6 +565,9 @@ func (e *Endpoint) GetID16() uint16 {
 // In some datapath modes, it may return an empty string as there is no unique
 // host netns network interface for this endpoint.
 func (e *Endpoint) HostInterface() string {
+	if e.IsMultiNIC() {
+		return ""
+	}
 	return e.ifName
 }
 
@@ -1193,6 +1216,12 @@ func (e *Endpoint) SetK8sNamespace(name string) {
 		logfields.K8sPodName: e.getK8sNamespaceAndPodName(),
 	})
 	e.unlock()
+}
+
+// GetInterfaceName returns the interface name inside the host namespace.
+// For ipvlan/macvlan/macvtap endpoint, it's the interface name before namespace moving and renaming.
+func (e *Endpoint) GetInterfaceName() string {
+	return e.ifName
 }
 
 // SetK8sMetadata sets the k8s container ports specified by kubernetes.
@@ -2098,6 +2127,32 @@ func (e *Endpoint) IPs() []net.IP {
 // endpoint.mutex must be held in read mode at least
 func (e *Endpoint) IsDisconnecting() bool {
 	return e.state == StateDisconnected || e.state == StateDisconnecting
+}
+
+// PinDatapathMap retrieves a file descriptor from the map ID from the API call
+// and pins the corresponding map into the BPF file system.
+func (e *Endpoint) PinDatapathMap() error {
+	if err := e.lockAlive(); err != nil {
+		return err
+	}
+	defer e.unlock()
+	return e.pinDatapathMap()
+}
+
+// PinDatapathMap retrieves a file descriptor from the map ID from the API call
+// and pins the corresponding map into the BPF file system.
+func (e *Endpoint) pinDatapathMap() error {
+	if e.datapathMapID == 0 {
+		return nil
+	}
+
+	mapFd, err := bpf.MapFdFromID(e.datapathMapID)
+	if err != nil {
+		return err
+	}
+	defer unix.Close(mapFd)
+
+	return bpf.ObjPin(mapFd, e.BPFMapPath())
 }
 
 func (e *Endpoint) syncEndpointHeaderFile(reasons []string) {

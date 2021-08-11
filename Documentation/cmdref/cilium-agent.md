@@ -93,6 +93,7 @@ cilium-agent [flags]
       --enable-endpoint-routes                                  Use per endpoint routes instead of routing via cilium_host
       --enable-envoy-config                                     Enable Envoy Config CRDs
       --enable-external-ips                                     Enable k8s service externalIPs feature (requires enabling enable-node-port) (default true)
+      --enable-google-multi-nic                              Enable google multi NIC support
       --enable-health-check-nodeport                            Enables a healthcheck nodePort server for NodePort services with 'healthCheckNodePort' being set (default true)
       --enable-health-checking                                  Enable connectivity health checking (default true)
       --enable-host-firewall                                    Enable host network policies

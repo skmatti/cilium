@@ -62,6 +62,15 @@ func NewEndpointFromChangeModel(ctx context.Context, owner regeneration.Owner, p
 	ep.dockerEndpointID = base.DockerEndpointID
 	ep.K8sPodName = base.K8sPodName
 	ep.K8sNamespace = base.K8sNamespace
+	ep.datapathMapID = int(base.DatapathMapID)
+	ep.deviceType = EndpointDeviceType(base.DeviceType)
+
+	if option.Config.EnableGoogleMultiNIC && base.DeviceType != EndpointDeviceVETH {
+		ep.parentDevIndex = int(base.ParentDeviceIndex)
+		ep.parentDevName = base.ParentDeviceName
+		ep.netNs = base.NetworkNamespace
+		ep.ifNameInPod = base.InterfaceNameInPod
+	}
 
 	if base.Mac != "" {
 		m, err := mac.ParseMAC(base.Mac)

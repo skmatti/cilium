@@ -81,6 +81,9 @@ type CompileTimeConfiguration interface {
 	// IsHost returns true if the endpoint is the host endpoint.
 	IsHost() bool
 
+	// HasMacvtapDataPath returns true if the endpoint is a MACVTAP device.
+	HasMacvtapDataPath() bool
+
 	// DisableSIPVerification returns true if the endpoint wishes to skip
 	// source IP verification
 	DisableSIPVerification() bool

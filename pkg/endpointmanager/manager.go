@@ -61,6 +61,11 @@ type EndpointManager struct {
 	endpoints    map[uint16]*endpoint.Endpoint
 	endpointsAux map[string]*endpoint.Endpoint
 
+	// endpointsMultiNIC holds IDs of type ContainerIdPrefix and PodNamePrefix to all pods in the container.
+	// This map is only populated if EnableGoogleMultiNIC is true.
+	// mutex must be held to read and write.
+	endpointsMultiNIC map[string][]*endpoint.Endpoint
+
 	// mcastManager handles IPv6 multicast group join/leave for pods. This is required for the
 	// node to receive ICMPv6 NDP messages, especially NS (Neighbor Solicitation) message, so
 	// pod's IPv6 address is discoverable.
@@ -107,6 +112,7 @@ func NewEndpointManager(epSynchronizer EndpointResourceSynchronizer) *EndpointMa
 	mgr := EndpointManager{
 		endpoints:                    make(map[uint16]*endpoint.Endpoint),
 		endpointsAux:                 make(map[string]*endpoint.Endpoint),
+		endpointsMultiNIC:            make(map[string][]*endpoint.Endpoint),
 		mcastManager:                 mcastmanager.New(option.Config.IPv6MCastDevice),
 		EndpointResourceSynchronizer: epSynchronizer,
 		subscribers:                  make(map[Subscriber]struct{}),
@@ -276,15 +282,27 @@ func (mgr *EndpointManager) Lookup(id string) (*endpoint.Endpoint, error) {
 		return nil, ErrUnsupportedID
 
 	case endpointid.ContainerIdPrefix:
+		if option.Config.EnableGoogleMultiNIC {
+			return nil, ErrUnsupportedWhenMultiNIC{Prefix: prefix.String()}
+		}
 		return mgr.lookupContainerID(eid), nil
 
 	case endpointid.DockerEndpointPrefix:
+		if option.Config.EnableGoogleMultiNIC {
+			return nil, ErrUnsupportedWhenMultiNIC{Prefix: prefix.String()}
+		}
 		return mgr.lookupDockerEndpoint(eid), nil
 
 	case endpointid.ContainerNamePrefix:
+		if option.Config.EnableGoogleMultiNIC {
+			return nil, ErrUnsupportedWhenMultiNIC{Prefix: prefix.String()}
+		}
 		return mgr.lookupDockerContainerName(eid), nil
 
 	case endpointid.PodNamePrefix:
+		if option.Config.EnableGoogleMultiNIC {
+			return nil, ErrUnsupportedWhenMultiNIC{Prefix: prefix.String()}
+		}
 		return mgr.lookupPodNameLocked(eid), nil
 
 	case endpointid.IPv4Prefix:
@@ -389,7 +407,7 @@ func (mgr *EndpointManager) unexpose(ep *endpoint.Endpoint) {
 		}
 	}
 
-	mgr.removeReferencesLocked(identifiers)
+	mgr.removeReferencesLocked(ep, identifiers)
 }
 
 // removeEndpoint stops the active handling of events by the specified endpoint,
@@ -425,6 +443,7 @@ func (mgr *EndpointManager) RemoveAll() {
 	idallocator.ReallocatePool()
 	mgr.endpoints = map[uint16]*endpoint.Endpoint{}
 	mgr.endpointsAux = map[string]*endpoint.Endpoint{}
+	mgr.endpointsMultiNIC = map[string][]*endpoint.Endpoint{}
 }
 
 // lookupCiliumID looks up endpoint by endpoint ID
@@ -489,6 +508,9 @@ func (mgr *EndpointManager) updateIDReferenceLocked(ep *endpoint.Endpoint) {
 func (mgr *EndpointManager) updateReferencesLocked(ep *endpoint.Endpoint, identifiers endpointid.Identifiers) {
 	for k := range identifiers {
 		id := endpointid.NewID(k, identifiers[k])
+		if mgr.addToMultiNICMapIfNeeded(ep, k, id) {
+			continue
+		}
 		mgr.endpointsAux[id] = ep
 	}
 }
@@ -508,9 +530,10 @@ func (mgr *EndpointManager) UpdateReferences(ep *endpoint.Endpoint) error {
 }
 
 // removeReferencesLocked removes the mappings from the endpointmanager.
-func (mgr *EndpointManager) removeReferencesLocked(identifiers endpointid.Identifiers) {
+func (mgr *EndpointManager) removeReferencesLocked(ep *endpoint.Endpoint, identifiers endpointid.Identifiers) {
 	for prefix := range identifiers {
 		id := endpointid.NewID(prefix, identifiers[prefix])
+		mgr.removeFromMultiNICMapIfNeeded(ep, prefix, id)
 		delete(mgr.endpointsAux, id)
 	}
 }

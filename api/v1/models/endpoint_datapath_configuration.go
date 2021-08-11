@@ -15,6 +15,8 @@ import (
 
 // EndpointDatapathConfiguration Datapath configuration to be used for the endpoint
 //
+// +k8s:deepcopy-gen=true
+//
 // swagger:model EndpointDatapathConfiguration
 type EndpointDatapathConfiguration struct {
 

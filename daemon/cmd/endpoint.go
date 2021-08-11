@@ -13,6 +13,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/cilium/cilium/pkg/datapath/connector"
 	"github.com/go-openapi/runtime/middleware"
 	"github.com/sirupsen/logrus"
 
@@ -240,17 +241,21 @@ func (m *endpointCreationManager) NewCreateRequest(ep *endpoint.Endpoint, cancel
 	}
 
 	podName := ep.GetK8sNamespaceAndPodName()
+	key := podName
+	if ep.IsMultiNIC() {
+		key = fmt.Sprintf("%s-%s", podName, ep.GetInterfaceNameInPod())
+	}
 
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
 
-	if req, ok := m.requests[podName]; ok {
+	if req, ok := m.requests[key]; ok {
 		ep.Logger(daemonSubsys).Warning("Cancelling obsolete endpoint creating due to new create for same pod")
 		req.cancel()
 	}
 
 	ep.Logger(daemonSubsys).Debug("New create request")
-	m.requests[podName] = &endpointCreationRequest{
+	m.requests[key] = &endpointCreationRequest{
 		cancel:   cancel,
 		endpoint: ep,
 		started:  time.Now(),
@@ -263,14 +268,18 @@ func (m *endpointCreationManager) EndCreateRequest(ep *endpoint.Endpoint) bool {
 	}
 
 	podName := ep.GetK8sNamespaceAndPodName()
+	key := podName
+	if ep.IsMultiNIC() {
+		key = fmt.Sprintf("%s-%s", podName, ep.GetInterfaceNameInPod())
+	}
 
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
 
-	if req, ok := m.requests[podName]; ok {
+	if req, ok := m.requests[key]; ok {
 		if req.endpoint == ep {
 			ep.Logger(daemonSubsys).Debug("End of create request")
-			delete(m.requests, podName)
+			delete(m.requests, key)
 			return true
 		}
 	}
@@ -337,9 +346,11 @@ func (d *Daemon) createEndpoint(ctx context.Context, owner regeneration.Owner, e
 		return invalidDataError(ep, fmt.Errorf("endpoint ID %d already exists", ep.ID))
 	}
 
-	oldEp = d.endpointManager.LookupContainerID(ep.GetContainerID())
-	if oldEp != nil {
-		return invalidDataError(ep, fmt.Errorf("endpoint for container %s already exists", ep.GetContainerID()))
+	if !option.Config.EnableGoogleMultiNIC || !ep.IsMultiNIC() {
+		oldEp = d.endpointManager.LookupPrimaryEndpointByContainerID(ep.GetContainerID())
+		if oldEp != nil {
+			return invalidDataError(ep, fmt.Errorf("endpoint for container %s already exists", ep.GetContainerID()))
+		}
 	}
 
 	var checkIDs []string
@@ -442,6 +453,12 @@ func (d *Daemon) createEndpoint(ctx context.Context, owner regeneration.Owner, e
 		return d.errorDuringCreation(ep, fmt.Errorf("unable to insert endpoint into manager: %s", err))
 	}
 
+	// Now that we have ep.ID we can pin the map from this point. This
+	// also has to happen before the first build takes place.
+	if err = ep.PinDatapathMap(); err != nil {
+		return d.errorDuringCreation(ep, fmt.Errorf("unable to pin datapath maps: %s", err))
+	}
+
 	// We need to update the the visibility policy after adding the endpoint in
 	// the endpoint manager because the endpoint manager create the endpoint
 	// queue of the endpoint. If we execute this function before the endpoint
@@ -542,6 +559,17 @@ func (h *putEndpointID) Handle(params PutEndpointIDParams) (resp middleware.Resp
 	}
 
 	ep.Logger(daemonSubsys).Info("Successful endpoint creation")
+
+	if option.Config.EnableGoogleMultiNIC {
+		eps, code, err := h.d.createMultiNICEndpoints(params.HTTPRequest.Context(), h.d, epTemplate, ep)
+		if err != nil {
+			r.Error(err)
+			return api.Error(code, err)
+		}
+		for _, e := range eps {
+			e.Logger(daemonSubsys).Info("Successful multinic endpoint creation")
+		}
+	}
 
 	return NewPutEndpointIDCreated()
 }
@@ -657,9 +685,15 @@ func (d *Daemon) deleteEndpoint(ep *endpoint.Endpoint) int {
 	d.endpointCreations.CancelCreateRequest(ep)
 
 	scopedLog := log.WithField(logfields.EndpointID, ep.ID)
+
+	noIPRelease := ep.DatapathConfiguration.ExternalIpam
+	if ep.IsMultiNIC() {
+		noIPRelease = true
+	}
+
 	errs := d.deleteEndpointQuiet(ep, endpoint.DeleteConfig{
 		// If the IP is managed by an external IPAM, it does not need to be released
-		NoIPRelease: ep.DatapathConfiguration.ExternalIpam,
+		NoIPRelease: noIPRelease,
 	})
 	for _, err := range errs {
 		scopedLog.WithError(err).Warn("Ignoring error while deleting endpoint")
@@ -675,7 +709,61 @@ func (d *Daemon) deleteEndpoint(ep *endpoint.Endpoint) int {
 // Specific users such as the cilium-health EP may choose not to release the IP
 // when deleting the endpoint. Most users should pass true for releaseIP.
 func (d *Daemon) deleteEndpointQuiet(ep *endpoint.Endpoint, conf endpoint.DeleteConfig) []error {
-	return d.endpointManager.RemoveEndpoint(ep, conf)
+	errs := d.endpointManager.RemoveEndpoint(ep, conf)
+
+	if ep.IsMultiNIC() {
+		ifName := ep.GetInterfaceName()
+		ifNameInPod := ep.GetInterfaceNameInPod()
+		netNS := ep.GetNetNS()
+		ep.Logger(daemonSubsys).WithFields(logrus.Fields{
+			logfields.Interface:      ifName,
+			logfields.InterfaceInPod: ifNameInPod,
+			logfields.NetNSName:      netNS,
+		}).Debug("Revert multinic endpoint setup")
+		if err := connector.RevertMacvtapSetup(ifNameInPod, ifName, netNS); err != nil {
+			errs = append(errs, err)
+		}
+	}
+
+	return errs
+}
+
+// DeleteEndpoints deletes all the endpoints for the given id.
+// Only called when EnableGoogleMultiNIC is enabled.
+func (d *Daemon) DeleteEndpoints(id string) (int, error) {
+	prefix, eid, err := endpointid.Parse(id)
+	if err != nil {
+		return 0, api.Error(DeleteEndpointIDInvalidCode, err)
+	}
+
+	var eps []*endpoint.Endpoint
+	switch prefix {
+	case endpointid.ContainerIdPrefix:
+		eps = d.endpointManager.LookupEndpointsByContainerID(eid)
+	case endpointid.PodNamePrefix:
+		eps = d.endpointManager.LookupEndpointsByContainerID(eid)
+	default:
+		return d.DeleteEndpoint(id)
+	}
+
+	if len(eps) == 0 {
+		return 0, api.New(DeleteEndpointIDNotFoundCode, "multinic endpoints %q not found", id)
+	}
+
+	log.Infof("Deleting %d endpoints for id %s", len(eps), id)
+	var nerrs int
+	for _, ep := range eps {
+		log.WithFields(logrus.Fields{
+			logfields.IPv4:        ep.GetIPv4Address(),
+			logfields.IPv6:        ep.GetIPv6Address(),
+			logfields.ContainerID: ep.GetContainerID(),
+		}).Info("Delete multinic endpoints request")
+		if err := endpoint.APICanModify(ep); err != nil {
+			return 0, api.Error(DeleteEndpointIDInvalidCode, err)
+		}
+		nerrs += d.deleteEndpoint(ep)
+	}
+	return nerrs, nil
 }
 
 func (d *Daemon) DeleteEndpoint(id string) (int, error) {
@@ -761,13 +849,26 @@ func (h *deleteEndpointID) Handle(params DeleteEndpointIDParams) middleware.Resp
 	defer r.Done()
 
 	d := h.daemon
-	if nerr, err := d.DeleteEndpoint(params.ID); err != nil {
-		r.Error(err)
-		if apierr, ok := err.(*api.APIError); ok {
-			return apierr
+	var nerr int
+	if option.Config.EnableGoogleMultiNIC {
+		nerr, err = d.DeleteEndpoints(params.ID)
+		if err != nil {
+			r.Error(err)
+			if apierr, ok := err.(*api.APIError); ok {
+				return apierr
+			}
+			return api.Error(DeleteEndpointIDErrorsCode, err)
 		}
-		return api.Error(DeleteEndpointIDErrorsCode, err)
-	} else if nerr > 0 {
+	} else {
+		if nerr, err = d.DeleteEndpoint(params.ID); err != nil {
+			r.Error(err)
+			if apierr, ok := err.(*api.APIError); ok {
+				return apierr
+			}
+			return api.Error(DeleteEndpointIDErrorsCode, err)
+		}
+	}
+	if nerr > 0 {
 		return NewDeleteEndpointIDErrors().WithPayload(int64(nerr))
 	} else {
 		return NewDeleteEndpointIDOK()

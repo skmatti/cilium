@@ -53,6 +53,13 @@ func (epSync *EndpointSynchronizer) RunK8sCiliumEndpointSync(e *endpoint.Endpoin
 		})
 	)
 
+	// TODO(yfshen): remove when multi CiliumEndpoint (CEP) is implemented
+	// Skip CEP creation sync if it's a multi-nic endpoint
+	if e.IsMultiNIC() {
+		scopedLog.Debug("Skip CEP creation sync for multinic endpoint")
+		return
+	}
+
 	if option.Config.DisableCiliumEndpointCRD {
 		scopedLog.Debug("Not running controller. CEP CRD synchronization is disabled")
 		return
@@ -370,6 +377,12 @@ func updateCEPUID(scopedLog *logrus.Entry, e *endpoint.Endpoint, localCEP *ciliu
 // CEP from Kubernetes once the endpoint is stopped / removed from the
 // Cilium agent.
 func (epSync *EndpointSynchronizer) DeleteK8sCiliumEndpointSync(e *endpoint.Endpoint) {
+	// TODO(yfshen): remove when multi CiliumEndpoint (CEP) is implemented
+	// Skip CEP removal sync if it's a multi-nic endpoint
+	if e.IsMultiNIC() {
+		e.Logger(subsysEndpointSync).Debug("Skip CEP removal sync for multinic endpoint")
+		return
+	}
 	controllerName := endpoint.EndpointSyncControllerName(e.ID)
 
 	scopedLog := e.Logger(subsysEndpointSync).WithField("controller", controllerName)

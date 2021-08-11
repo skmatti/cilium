@@ -40,6 +40,8 @@ var (
 const (
 	// EndpointFlagHost indicates that this endpoint represents the host
 	EndpointFlagHost = 1
+	// EndpointFlagMultiNIC indicates that this endpoint represents the multi nic
+	EndpointFlagMultiNIC = 2
 )
 
 // EndpointFrontend is the interface to implement for an object to synchronize
@@ -51,6 +53,7 @@ type EndpointFrontend interface {
 	GetID() uint64
 	IPv4Address() addressing.CiliumIPv4
 	IPv6Address() addressing.CiliumIPv6
+	IsMultiNIC() bool
 }
 
 // GetBPFKeys returns all keys which should represent this endpoint in the BPF
@@ -90,6 +93,9 @@ func GetBPFValue(e EndpointFrontend) (*EndpointInfo, error) {
 		LxcID:   uint16(e.GetID()),
 		MAC:     mac,
 		NodeMAC: nodeMAC,
+	}
+	if e.IsMultiNIC() {
+		info.Flags |= EndpointFlagMultiNIC
 	}
 
 	return info, nil
