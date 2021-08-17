@@ -68,6 +68,7 @@ import (
 	"github.com/cilium/cilium/pkg/maps/lbmap"
 	"github.com/cilium/cilium/pkg/maps/policymap"
 	"github.com/cilium/cilium/pkg/maps/sockmap"
+	"github.com/cilium/cilium/pkg/mcastmanager"
 	"github.com/cilium/cilium/pkg/metrics"
 	monitoragent "github.com/cilium/cilium/pkg/monitor/agent"
 	monitorAPI "github.com/cilium/cilium/pkg/monitor/api"
@@ -932,6 +933,11 @@ func NewDaemon(ctx context.Context, cancel context.CancelFunc, epMgr *endpointma
 		log.WithError(err).Error("failed to finalise LB initialization")
 		return nil, nil, fmt.Errorf("failed to finalise LB initialization: %w", err)
 	}
+
+	// Create mcastManager after auto-detection of IPv6 Mcast device
+	// This handles the case where it is not explicitly configured
+	mcastManager := mcastmanager.New(option.Config.IPv6MCastDevice)
+	d.endpointManager.RegisterMcastManager(mcastManager)
 
 	if k8s.IsEnabled() {
 		bootstrapStats.k8sInit.Start()

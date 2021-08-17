@@ -134,6 +134,11 @@ func (mgr *EndpointManager) RegisterRPManager(rpMgr rpManager) {
 	mgr.rpManager = rpMgr
 }
 
+// RegisterMcastManager stores the handle to redirect policy manager in endpoint manager.
+func (mgr *EndpointManager) RegisterMcastManager(mcastMgr *mcastmanager.MCastManager) {
+	mgr.mcastManager = mcastMgr
+}
+
 // waitForProxyCompletions blocks until all proxy changes have been completed.
 func waitForProxyCompletions(proxyWaitGroup *completion.WaitGroup) error {
 	err := proxyWaitGroup.Context().Err()
