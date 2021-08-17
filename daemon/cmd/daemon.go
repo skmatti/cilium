@@ -69,6 +69,7 @@ import (
 	"github.com/cilium/cilium/pkg/maps/lbmap"
 	"github.com/cilium/cilium/pkg/maps/policymap"
 	"github.com/cilium/cilium/pkg/maps/sockmap"
+	"github.com/cilium/cilium/pkg/mcastmanager"
 	"github.com/cilium/cilium/pkg/metrics"
 	monitoragent "github.com/cilium/cilium/pkg/monitor/agent"
 	monitorAPI "github.com/cilium/cilium/pkg/monitor/api"
@@ -973,6 +974,11 @@ func newDaemon(ctx context.Context, cleaner *daemonCleanup,
 		log.WithError(err).Error("failed to finalise LB initialization")
 		return nil, nil, fmt.Errorf("failed to finalise LB initialization: %w", err)
 	}
+
+	// Create mcastManager after auto-detection of IPv6 Mcast device
+	// This handles the case where it is not explicitly configured
+	mcastManager := mcastmanager.New(option.Config.IPv6MCastDevice)
+	d.endpointManager.RegisterMcastManager(mcastManager)
 
 	// BPF masquerade depends on BPF NodePort and require socket-LB to
 	// be enabled in the tunneling mode, so the following checks should
