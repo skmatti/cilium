@@ -855,6 +855,7 @@ int tail_nodeport_nat_egress_ipv6(struct __ctx_buff *ctx)
 	target.addr = tmp;
 
 #ifdef TUNNEL_MODE
+#ifndef DISABLE_IPV6_TUNNEL
 	if (!revalidate_data(ctx, &data, &data_end, &ip6)) {
 		ret = DROP_INVALID;
 		goto drop_err;
@@ -878,6 +879,7 @@ int tail_nodeport_nat_egress_ipv6(struct __ctx_buff *ctx)
 		verdict = ret;
 	}
 #endif
+#endif
 	ret = snat_v6_nat(ctx, &target, &trace, &ext_err);
 	if (IS_ERR(ret) && ret != NAT_PUNT_TO_STACK)
 		goto drop_err;
@@ -885,8 +887,10 @@ int tail_nodeport_nat_egress_ipv6(struct __ctx_buff *ctx)
 	ctx_snat_done_set(ctx);
 
 #ifdef TUNNEL_MODE
+#ifndef DISABLE_IPV6_TUNNEL
 	if (use_tunnel)
 		goto out_send;
+#endif
 #endif
 	if (!revalidate_data(ctx, &data, &data_end, &ip6)) {
 		ret = DROP_INVALID;
@@ -1224,6 +1228,7 @@ static __always_inline int rev_nodeport_lb6(struct __ctx_buff *ctx, __u32 *ifind
 
 		*ifindex = ct_state.ifindex;
 #ifdef TUNNEL_MODE
+#ifndef DISABLE_IPV6_TUNNEL
 		{
 			union v6addr *dst = (union v6addr *)&ip6->daddr;
 			struct remote_endpoint_info *info;
@@ -1238,6 +1243,8 @@ static __always_inline int rev_nodeport_lb6(struct __ctx_buff *ctx, __u32 *ifind
 			}
 		}
 #endif
+#endif
+
 #ifdef ENABLE_NAT_46X64_GATEWAY
 skip_rev_dnat:
 #endif
@@ -1373,7 +1380,7 @@ int tail_handle_snat_fwd_ipv6(struct __ctx_buff *ctx)
 	enum trace_point obs_point;
 	__s8 ext_err = 0;
 	int ret;
-#if defined(TUNNEL_MODE) && defined(IS_BPF_OVERLAY)
+#if defined(TUNNEL_MODE) && defined(IS_BPF_OVERLAY) && !defined(DISABLE_IPV6_TUNNEL)
 	union v6addr addr = { .p1 = 0 };
 
 	obs_point = TRACE_TO_OVERLAY;

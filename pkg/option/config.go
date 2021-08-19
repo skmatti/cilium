@@ -2269,6 +2269,10 @@ type DaemonConfig struct {
 	// be effective if Tunnel is disabled
 	EnableFlatIPv4 bool
 
+	// DisableIPv6Tunnel determines if IPv6 tunnel should be explicitly disabled
+	// Currently Tunnel is enabled for both IP families by default
+	DisableIPv6Tunnel bool
+
 	// EnableCustomCalls enables tail call hooks for user-defined custom
 	// eBPF programs, typically used to collect custom per-endpoint
 	// metrics.
@@ -3093,6 +3097,7 @@ func (c *DaemonConfig) Populate(vp *viper.Viper) {
 
 	c.EnableGDCILB = vp.GetBool(EnableGDCILB)
 	c.EnableFlatIPv4 = vp.GetBool(EnableFlatIPv4)
+	c.DisableIPv6Tunnel = vp.GetBool(DisableIPv6Tunnel)
 
 	vlanBPFBypassIDs := vp.GetStringSlice(VLANBPFBypass)
 	c.VLANBPFBypass = make([]int, 0, len(vlanBPFBypassIDs))

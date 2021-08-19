@@ -17,4 +17,7 @@ const (
 
 	// EnableFlatIPv4 is the name of the option to enable flat IP for IPv4
 	EnableFlatIPv4 = "enable-flat-ipv4"
+
+	// DisableIPv6Tunnel is the name of the option to disable tunnel for IPv6
+	DisableIPv6Tunnel = "disable-ipv6-tunnel"
 )
