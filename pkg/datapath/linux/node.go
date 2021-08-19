@@ -404,6 +404,12 @@ func (n *linuxNodeHandler) updateNodeRoute(prefix *cidr.CIDR, addressFamilyEnabl
 		return nil
 	}
 
+	// Do not add IPv6 routes if not local, required to enable FlatIP
+	// ToDo (sarveshr): Make tunnel enablement configurable
+	if n.nodeConfig.DisableIPv6Tunnel && prefix.IP.To4() == nil && !isLocalNode {
+		return nil
+	}
+
 	nodeRoute, err := n.createNodeRouteSpec(prefix, isLocalNode)
 	if err != nil {
 		return err
@@ -1120,12 +1126,18 @@ func (n *linuxNodeHandler) nodeUpdate(oldNode, newNode *nodeTypes.Node, firstAdd
 		// node has changed its CIDR range, a new entry in the
 		// map is created and the old entry is removed.
 		updateTunnelMapping(oldIP4Cidr, newNode.IPv4AllocCIDR, oldIP4, newIP4, firstAddition, n.nodeConfig.EnableIPv4, oldKey, newKey, nodeID)
-		// Not a typo, the IPv4 host IP is used to build the IPv6 overlay
-		updateTunnelMapping(oldIP6Cidr, newNode.IPv6AllocCIDR, oldIP4, newIP4, firstAddition, n.nodeConfig.EnableIPv6, oldKey, newKey, nodeID)
+		// Do not enable IPv6 tunneling if explicitly disabled
+		if !n.nodeConfig.DisableIPv6Tunnel {
+			// Not a typo, the IPv4 host IP is used to build the IPv6 overlay
+			updateTunnelMapping(oldIP6Cidr, newNode.IPv6AllocCIDR, oldIP4, newIP4, firstAddition, n.nodeConfig.EnableIPv6, oldKey, newKey, nodeID)
+		}
 
 		if !n.nodeConfig.UseSingleClusterRoute {
 			n.updateOrRemoveNodeRoutes(oldAllIP4AllocCidrs, newAllIP4AllocCidrs, isLocalNode)
-			n.updateOrRemoveNodeRoutes(oldAllIP6AllocCidrs, newAllIP6AllocCidrs, isLocalNode)
+			// Do not enable IPv6 tunneling if explicitly disabled
+			if !n.nodeConfig.DisableIPv6Tunnel {
+				n.updateOrRemoveNodeRoutes(oldAllIP6AllocCidrs, newAllIP6AllocCidrs, isLocalNode)
+			}
 		}
 
 		return nil
@@ -1373,6 +1385,9 @@ func (n *linuxNodeHandler) replaceNodeExternalIPSecOutRoute(ip *net.IPNet) {
 		}
 	} else {
 		if !n.nodeConfig.EnableIPv6 {
+			return
+		}
+		if n.nodeConfig.DisableIPv6Tunnel {
 			return
 		}
 	}

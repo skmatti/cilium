@@ -486,6 +486,7 @@ ct_recreate6:
 
 	/* The packet goes to a peer not managed by this agent instance */
 #ifdef TUNNEL_MODE
+#ifndef DISABLE_IPV6_TUNNEL
 # ifdef ENABLE_WIREGUARD
 	if (!dst_remote_ep)
 # endif /* ENABLE_WIREGUARD */
@@ -517,6 +518,7 @@ ct_recreate6:
 		else if (ret != DROP_NO_TUNNEL_ENDPOINT)
 			return ret;
 	}
+#endif
 #endif
 	if (is_defined(ENABLE_HOST_ROUTING)) {
 		int oif;
@@ -577,7 +579,9 @@ pass_to_stack:
 	}
 
 #ifdef TUNNEL_MODE
+#ifndef DISABLE_IPV6_TUNNEL
 encrypt_to_stack:
+#endif
 #endif
 	send_trace_notify(ctx, TRACE_TO_STACK, SECLABEL, *dst_id, 0, 0,
 			  trace.reason, trace.monitor);

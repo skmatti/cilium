@@ -525,6 +525,9 @@ const (
 	// EnableFlatIPv4 is the name of the option to enable flat IP for IPv4
 	EnableFlatIPv4 = "enable-flat-ipv4"
 
+	// DisableIPv6Tunnel is the name of the option to disable tunnel for IPv6
+	DisableIPv6Tunnel = "disable-ipv6-tunnel"
+
 	// SingleClusterRouteName is the name of the SingleClusterRoute option
 	//
 	// SingleClusterRoute enables use of a single route covering the entire
@@ -2216,6 +2219,10 @@ type DaemonConfig struct {
 	// be effective if Tunnel is disabled
 	EnableFlatIPv4 bool
 
+	// DisableIPv6Tunnel determines if IPv6 tunnel should be explicitly disabled
+	// Currently Tunnel is enabled for both IP families by default
+	DisableIPv6Tunnel bool
+
 	// EnableCustomCalls enables tail call hooks for user-defined custom
 	// eBPF programs, typically used to collect custom per-endpoint
 	// metrics.
@@ -2981,6 +2988,7 @@ func (c *DaemonConfig) Populate() {
 	c.SockopsEnable = viper.GetBool(SockopsEnableName)
 	c.TracePayloadlen = viper.GetInt(TracePayloadlen)
 	c.EnableFlatIPv4 = viper.GetBool(EnableFlatIPv4)
+	c.DisableIPv6Tunnel = viper.GetBool(DisableIPv6Tunnel)
 	c.Version = viper.GetString(Version)
 	c.WriteCNIConfigurationWhenReady = viper.GetString(WriteCNIConfigurationWhenReady)
 	c.PolicyTriggerInterval = viper.GetDuration(PolicyTriggerInterval)

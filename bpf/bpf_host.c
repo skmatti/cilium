@@ -295,6 +295,7 @@ skip_host_firewall:
 		return CTX_ACT_OK;
 
 #ifdef TUNNEL_MODE
+#ifndef DISABLE_IPV6_TUNNEL
 	dst = (union v6addr *) &ip6->daddr;
 	info = ipcache_lookup6(&IPCACHE_MAP, dst, V6_CACHE_KEY_LEN);
 	if (info != NULL && info->tunnel_endpoint != 0) {
@@ -326,6 +327,7 @@ skip_host_firewall:
 		else if (ret != DROP_NO_TUNNEL_ENDPOINT)
 			return ret;
 	}
+#endif
 #endif
 
 	dst = (union v6addr *) &ip6->daddr;

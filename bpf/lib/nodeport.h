@@ -591,6 +591,7 @@ int tail_nodeport_nat_ipv6(struct __ctx_buff *ctx)
 		build_v4_in_v6(&tmp, IPV4_DIRECT_ROUTING);
 	target.addr = tmp;
 #ifdef TUNNEL_MODE
+#ifndef DISABLE_IPV6_TUNNEL
 	if (dir == NAT_DIR_EGRESS) {
 		struct remote_endpoint_info *info;
 		union v6addr *dst;
@@ -626,6 +627,7 @@ int tail_nodeport_nat_ipv6(struct __ctx_buff *ctx)
 		}
 	}
 #endif
+#endif
 	ret = snat_v6_process(ctx, dir, &target);
 	if (IS_ERR(ret)) {
 		/* In case of no mapping, recircle back to main path. SNAT is very
@@ -651,8 +653,10 @@ int tail_nodeport_nat_ipv6(struct __ctx_buff *ctx)
 		goto drop_err;
 	}
 #ifdef TUNNEL_MODE
+#ifndef DISABLE_IPV6_TUNNEL
 	if (fib_params.l.ifindex == ENCAP_IFINDEX)
 		goto out_send;
+#endif
 #endif
 	if (!revalidate_data(ctx, &data, &data_end, &ip6)) {
 		ret = DROP_INVALID;
@@ -925,6 +929,7 @@ static __always_inline int rev_nodeport_lb6(struct __ctx_buff *ctx, int *ifindex
 
 		*ifindex = ct_state.ifindex;
 #ifdef TUNNEL_MODE
+#ifndef DISABLE_IPV6_TUNNEL
 		{
 			union v6addr *dst = (union v6addr *)&ip6->daddr;
 			struct remote_endpoint_info *info;
@@ -950,6 +955,7 @@ static __always_inline int rev_nodeport_lb6(struct __ctx_buff *ctx, int *ifindex
 				return CTX_ACT_OK;
 			}
 		}
+#endif
 #endif
 
 		fib_params.family = AF_INET6;
@@ -1078,7 +1084,7 @@ int tail_handle_nat_fwd_ipv6(struct __ctx_buff *ctx)
 	int ret;
 	enum trace_point obs_point;
 
-#if defined(TUNNEL_MODE) && defined(IS_BPF_OVERLAY)
+#if defined(TUNNEL_MODE) && defined(IS_BPF_OVERLAY) && !defined(DISABLE_IPV6_TUNNEL)
 	obs_point = TRACE_TO_OVERLAY;
 #else
 	obs_point = TRACE_TO_NETWORK;
