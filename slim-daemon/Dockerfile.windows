@@ -11,11 +11,14 @@ COPY go.mod /cilium/go.mod
 COPY go.sum /cilium/go.sum
 COPY vendor /cilium/vendor
 
-RUN make -C /cilium/slim-daemon windows
+RUN /cilium/slim-daemon/build.bat
 
-FROM mcr.microsoft.com/windows/nanoserver:ltsc2019
+FROM mcr.microsoft.com/windows/nanoserver:1809
 
 USER ContainerAdministrator
 
-COPY --from=antrea-build-windows  /cilium/slim-daemon/anet-agent.exe /anet-agent.exe
+RUN mkdir -Force C:\k\cilium\bin
 
+RUN setx /M PATH "%PATH%;C:\k\cilium\bin"
+
+COPY --from=antrea-build-windows  /cilium/slim-daemon/cilium-agent.exe /k/cilium/bin
