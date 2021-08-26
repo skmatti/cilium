@@ -73,12 +73,14 @@ func (n *networkPolicyLogger) flowToPolicyActionLogEntry(f *flow.Flow) (*PolicyA
 				PodName:      wl.GetPodName(),
 				WorkloadKind: wl.Workloads[0].Kind,
 				WorkloadName: wl.Workloads[0].Name,
+				PodNamespace: wl.GetNamespace(),
 				Namespace:    wl.GetNamespace(),
 			}
 		} else {
 			entry.Src = Workload{
-				PodName:   wl.GetPodName(),
-				Namespace: wl.GetNamespace(),
+				PodName:      wl.GetPodName(),
+				PodNamespace: wl.GetNamespace(),
+				Namespace:    wl.GetNamespace(),
 			}
 		}
 
@@ -94,12 +96,14 @@ func (n *networkPolicyLogger) flowToPolicyActionLogEntry(f *flow.Flow) (*PolicyA
 				PodName:      wl.GetPodName(),
 				WorkloadKind: wl.Workloads[0].Kind,
 				WorkloadName: wl.Workloads[0].Name,
+				PodNamespace: wl.GetNamespace(),
 				Namespace:    wl.GetNamespace(),
 			}
 		} else {
 			entry.Dest = Workload{
-				PodName:   wl.GetPodName(),
-				Namespace: wl.GetNamespace(),
+				PodName:      wl.GetPodName(),
+				PodNamespace: wl.GetNamespace(),
+				Namespace:    wl.GetNamespace(),
 			}
 		}
 	} else {
