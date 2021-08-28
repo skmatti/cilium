@@ -16,7 +16,6 @@ package cmd
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"time"
 
@@ -26,10 +25,8 @@ import (
 	cilium_v2 "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2"
 	v2 "github.com/cilium/cilium/pkg/k8s/client/clientset/versioned/typed/cilium.io/v2"
 	"github.com/cilium/cilium/slim-daemon/k8s"
-
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	meta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/types"
 )
 
 const (
@@ -84,13 +81,6 @@ func (epSync *EndpointResourceSynchronizer) RunK8sCiliumEndpointSync(e *Endpoint
 					return nil
 				}
 
-				/*
-					if !e.HaveK8sMetadata() {
-						scopedLog.Debug("Skipping CiliumEndpoint update because k8s metadata is not yet available")
-						return nil
-					}
-				*/
-
 				identity, err := e.GetSecurityIdentity()
 				if err != nil {
 					return err
@@ -103,6 +93,10 @@ func (epSync *EndpointResourceSynchronizer) RunK8sCiliumEndpointSync(e *Endpoint
 				// Serialize the endpoint into a model. It is compared with the one
 				// from before, only updating on changes.
 				mdl := e.GetCiliumEndpointStatus()
+				scopedLog.Infof("mdl: %+v", mdl.Identity)
+				if lastMdl != nil {
+					scopedLog.Infof("lastmdl: %+v", lastMdl.Identity)
+				}
 				if !needInit && mdl.DeepEqual(lastMdl) {
 					scopedLog.Debug("Skipping CiliumEndpoint update because it has not changed")
 					return nil
@@ -144,8 +138,6 @@ func (epSync *EndpointResourceSynchronizer) RunK8sCiliumEndpointSync(e *Endpoint
 							Status: *mdl,
 						}
 
-						scopedLog.Debugf("Creating CiliumEndpoint %+v", cep)
-
 						localCEP, err = ciliumClient.CiliumEndpoints(namespace).Create(ctx, cep, meta_v1.CreateOptions{})
 						if err != nil {
 							// Suppress logging an error if ep backing the pod was terminated
@@ -158,7 +150,13 @@ func (epSync *EndpointResourceSynchronizer) RunK8sCiliumEndpointSync(e *Endpoint
 							return err
 						}
 
-						scopedLog.Debugf("Created CiliumEndpoint %+v", localCEP)
+						cep.ResourceVersion = localCEP.ResourceVersion
+						localCEP, err = ciliumClient.CiliumEndpoints(namespace).UpdateStatus(ctx, cep, meta_v1.UpdateOptions{})
+						if err != nil {
+							scopedLog.WithError(err).Error("Cannot updateStatus CEP")
+							return err
+						}
+						scopedLog.Debugf("Updated CiliumEndpoint Status %+v", localCEP.Status)
 
 						// continue the execution so we update the endpoint
 						// status immediately upon endpoint creation
@@ -203,28 +201,13 @@ func (epSync *EndpointResourceSynchronizer) RunK8sCiliumEndpointSync(e *Endpoint
 					}
 				}
 
-				// For json patch we don't need to perform a GET for endpoints
+				mdl.DeepCopyInto(&localCEP.Status)
 
-				// If it fails it means the test from the previous patch failed
-				// so we can safely replace this node in the CNP status.
-				replaceCEPStatus := []k8s.JSONPatch{
-					{
-						OP:    "replace",
-						Path:  "/status",
-						Value: mdl,
-					},
-				}
-				var createStatusPatch []byte
-				createStatusPatch, err = json.Marshal(replaceCEPStatus)
-				if err != nil {
-					return err
-				}
-
-				localCEP, err = ciliumClient.CiliumEndpoints(namespace).Patch(
-					ctx, podName,
-					types.JSONPatchType,
-					createStatusPatch,
-					meta_v1.PatchOptions{})
+				// We have an object to reuse. Update and push it up. In the case of an
+				// update error, we retry in the next iteration of the controller using
+				// the copy returned by Update.
+				scopedLog.Debug("Updating CEP from local copy")
+				localCEP, err = ciliumClient.CiliumEndpoints(namespace).Update(ctx, localCEP, meta_v1.UpdateOptions{})
 
 				// Handle Update errors or return successfully
 				switch {

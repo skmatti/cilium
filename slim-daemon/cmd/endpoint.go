@@ -22,6 +22,7 @@ import (
 	"github.com/cilium/cilium/pkg/labelsfilter"
 	"github.com/cilium/cilium/pkg/lock"
 	"github.com/cilium/cilium/pkg/logging/logfields"
+	"github.com/cilium/cilium/pkg/node"
 	"github.com/cilium/cilium/pkg/option"
 	"github.com/cilium/cilium/slim-daemon/k8s"
 	"github.com/sirupsen/logrus"
@@ -592,10 +593,7 @@ func (mgr *EndpointManager) Unexpose(ep *Endpoint) error {
 
 	delete(mgr.endpoints, index)
 
-	// Security ID.
-	// 	ep.controllers.RemoveAll()
-
-	// Optionally delete CiliumEndpoint (owner reference)
+	ep.controllers.RemoveAll()
 
 	return nil
 }
@@ -722,10 +720,8 @@ func getEndpointNetworking(mdlNetworking *models.EndpointNetworking) (networking
 	networking = &cilium_v2.EndpointNetworking{
 		Addressing: make(cilium_v2.AddressPairList, len(mdlNetworking.Addressing)),
 	}
-
-	// TODO: IPv4 is always enabled
-	// Removed because of dependency mgmt
-	// networking.NodeIP = node.GetIPv4().String()
+	log.WithField("ip", node.GetIPv4().String()).Info("Set NodeIP")
+	networking.NodeIP = node.GetIPv4().String()
 
 	for i, pair := range mdlNetworking.Addressing {
 		networking.Addressing[i] = &cilium_v2.AddressPair{

@@ -15,18 +15,23 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
+	"net"
 	"os"
 
 	"github.com/cilium/cilium/pkg/defaults"
 	"github.com/cilium/cilium/pkg/labelsfilter"
 	"github.com/cilium/cilium/pkg/logging"
 	"github.com/cilium/cilium/pkg/logging/logfields"
+	"github.com/cilium/cilium/pkg/node"
 	nodeTypes "github.com/cilium/cilium/pkg/node/types"
 	"github.com/cilium/cilium/pkg/option"
 	"github.com/cilium/cilium/slim-daemon/k8s"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	corev1 "k8s.io/api/core/v1"
+	meta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 const (
@@ -127,5 +132,25 @@ func NewDaemon() *Daemon {
 
 func (d *Daemon) Run() {
 	client := k8s.WatcherClient()
+	d.initNode(client)
 	d.watcher.initPodWatcher(client)
+}
+
+func (d *Daemon) initNode(client *k8s.K8sClient) {
+	v1Node, err := client.CoreV1().Nodes().Get(context.Background(), nodeTypes.GetName(), meta_v1.GetOptions{})
+	if err != nil {
+		log.WithError(err).WithField("node", nodeTypes.GetName()).Fatal("Failed to get node")
+		os.Exit(1)
+	}
+
+	for _, address := range v1Node.Status.Addresses {
+		if address.Type == corev1.NodeInternalIP {
+			ip := net.ParseIP(address.Address)
+			if ip.To4() != nil {
+				node.SetIPv4(ip)
+			} else if ip.To16() != nil {
+				node.SetIPv6(ip)
+			}
+		}
+	}
 }
