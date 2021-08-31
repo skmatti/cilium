@@ -25,7 +25,7 @@ var (
 		Subsystem: "policy",
 		Name:      "event_count",
 		Help:      "Total number of network policy events seen in the dataplane.",
-	}, []string{"namespace", "pod_name", "verdict", "workload_name", "workload_kind", "direction"})
+	}, []string{"pod_namespace", "pod_name", "verdict", "workload_name", "workload_kind", "direction"})
 )
 
 func metricsCollector() []prometheus.Collector {

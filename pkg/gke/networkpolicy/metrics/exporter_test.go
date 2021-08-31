@@ -28,13 +28,13 @@ import (
 )
 
 const (
-	srcNamespace    = "src-namespace"
-	srcPodName      = "src-podname"
+	srcPodNamespace = "src-pod-namespace"
+	srcPodName      = "src-pod-name"
 	srcWorkloadName = "src-workload-name"
 	srcWorkloadKind = "src-workload-kind"
 
-	destNamespace    = "dest-namespace"
-	destPodName      = "dest-podname"
+	destPodNamespace = "dest-pod-namespace"
+	destPodName      = "dest-pod-name"
 	destWorkloadName = "dest-workload-name"
 	destWorkloadKind = "dest-workload-kind"
 )
@@ -56,7 +56,7 @@ func TestIsFlowValid(t *testing.T) {
 				Verdict: flow.Verdict_AUDIT,
 				Source: &flow.Endpoint{
 					ID:        1,
-					Namespace: srcNamespace,
+					Namespace: srcPodNamespace,
 					PodName:   srcPodName,
 					Workloads: []*flow.Workload{
 						{
@@ -67,7 +67,7 @@ func TestIsFlowValid(t *testing.T) {
 				},
 				Destination: &flow.Endpoint{
 					ID:        2,
-					Namespace: destNamespace,
+					Namespace: destPodNamespace,
 					PodName:   destPodName,
 					Workloads: []*flow.Workload{
 						{
@@ -87,7 +87,7 @@ func TestIsFlowValid(t *testing.T) {
 				Verdict: flow.Verdict_ERROR,
 				Source: &flow.Endpoint{
 					ID:        1,
-					Namespace: srcNamespace,
+					Namespace: srcPodNamespace,
 					PodName:   srcPodName,
 					Workloads: []*flow.Workload{
 						{
@@ -98,7 +98,7 @@ func TestIsFlowValid(t *testing.T) {
 				},
 				Destination: &flow.Endpoint{
 					ID:        2,
-					Namespace: destNamespace,
+					Namespace: destPodNamespace,
 					PodName:   destPodName,
 					Workloads: []*flow.Workload{
 						{
@@ -118,7 +118,7 @@ func TestIsFlowValid(t *testing.T) {
 				Verdict: flow.Verdict_VERDICT_UNKNOWN,
 				Source: &flow.Endpoint{
 					ID:        1,
-					Namespace: srcNamespace,
+					Namespace: srcPodNamespace,
 					PodName:   srcPodName,
 					Workloads: []*flow.Workload{
 						{
@@ -129,7 +129,7 @@ func TestIsFlowValid(t *testing.T) {
 				},
 				Destination: &flow.Endpoint{
 					ID:        2,
-					Namespace: destNamespace,
+					Namespace: destPodNamespace,
 					PodName:   destPodName,
 					Workloads: []*flow.Workload{
 						{
@@ -149,7 +149,7 @@ func TestIsFlowValid(t *testing.T) {
 				Verdict: flow.Verdict_FORWARDED,
 				Source: &flow.Endpoint{
 					ID:        1,
-					Namespace: srcNamespace,
+					Namespace: srcPodNamespace,
 					PodName:   srcPodName,
 					Workloads: []*flow.Workload{
 						{
@@ -160,7 +160,7 @@ func TestIsFlowValid(t *testing.T) {
 				},
 				Destination: &flow.Endpoint{
 					ID:        2,
-					Namespace: destNamespace,
+					Namespace: destPodNamespace,
 					PodName:   destPodName,
 					Workloads: []*flow.Workload{
 						{
@@ -183,7 +183,7 @@ func TestIsFlowValid(t *testing.T) {
 				Verdict: flow.Verdict_FORWARDED,
 				Source: &flow.Endpoint{
 					ID:        1,
-					Namespace: srcNamespace,
+					Namespace: srcPodNamespace,
 					PodName:   srcPodName,
 					Workloads: []*flow.Workload{
 						{
@@ -194,14 +194,14 @@ func TestIsFlowValid(t *testing.T) {
 				},
 				Destination: &flow.Endpoint{
 					ID:        2,
-					Namespace: destNamespace,
+					Namespace: destPodNamespace,
 					PodName:   destPodName,
 					Workloads: []*flow.Workload{},
 				},
 				TrafficDirection: flow.TrafficDirection_INGRESS,
 			},
 			labels: metricLabels{
-				namespace:    destNamespace,
+				podNamespace: destPodNamespace,
 				podName:      destPodName,
 				verdict:      verdictLabel(flow.Verdict_FORWARDED.String()),
 				workloadName: "",
@@ -216,7 +216,7 @@ func TestIsFlowValid(t *testing.T) {
 				Verdict: flow.Verdict_FORWARDED,
 				Source: &flow.Endpoint{
 					ID:        1,
-					Namespace: srcNamespace,
+					Namespace: srcPodNamespace,
 					PodName:   srcPodName,
 					Workloads: []*flow.Workload{
 						{
@@ -227,7 +227,7 @@ func TestIsFlowValid(t *testing.T) {
 				},
 				Destination: &flow.Endpoint{
 					ID:        2,
-					Namespace: destNamespace,
+					Namespace: destPodNamespace,
 					PodName:   destPodName,
 					Workloads: []*flow.Workload{
 						{
@@ -243,7 +243,7 @@ func TestIsFlowValid(t *testing.T) {
 				TrafficDirection: flow.TrafficDirection_INGRESS,
 			},
 			labels: metricLabels{
-				namespace:    destNamespace,
+				podNamespace: destPodNamespace,
 				podName:      destPodName,
 				verdict:      verdictLabel(flow.Verdict_FORWARDED.String()),
 				workloadName: "dest1-workload-name",
@@ -258,13 +258,13 @@ func TestIsFlowValid(t *testing.T) {
 				Verdict: flow.Verdict_FORWARDED,
 				Source: &flow.Endpoint{
 					ID:        1,
-					Namespace: srcNamespace,
+					Namespace: srcPodNamespace,
 					PodName:   srcPodName,
 					Workloads: []*flow.Workload{},
 				},
 				Destination: &flow.Endpoint{
 					ID:        2,
-					Namespace: destNamespace,
+					Namespace: destPodNamespace,
 					PodName:   destPodName,
 					Workloads: []*flow.Workload{
 						{
@@ -276,10 +276,10 @@ func TestIsFlowValid(t *testing.T) {
 				TrafficDirection: flow.TrafficDirection_EGRESS,
 			},
 			labels: metricLabels{
-				namespace: srcNamespace,
-				podName:   srcPodName,
-				verdict:   verdictLabel(flow.Verdict_FORWARDED.String()),
-				direction: strings.ToLower(flow.TrafficDirection_EGRESS.String()),
+				podNamespace: srcPodNamespace,
+				podName:      srcPodName,
+				verdict:      verdictLabel(flow.Verdict_FORWARDED.String()),
+				direction:    strings.ToLower(flow.TrafficDirection_EGRESS.String()),
 			},
 			ready: true,
 		},
@@ -289,7 +289,7 @@ func TestIsFlowValid(t *testing.T) {
 				Verdict: flow.Verdict_FORWARDED,
 				Source: &flow.Endpoint{
 					ID:        1,
-					Namespace: srcNamespace,
+					Namespace: srcPodNamespace,
 					PodName:   srcPodName,
 					Workloads: []*flow.Workload{
 						{
@@ -304,7 +304,7 @@ func TestIsFlowValid(t *testing.T) {
 				},
 				Destination: &flow.Endpoint{
 					ID:        2,
-					Namespace: destNamespace,
+					Namespace: destPodNamespace,
 					PodName:   destPodName,
 					Workloads: []*flow.Workload{
 						{
@@ -316,7 +316,7 @@ func TestIsFlowValid(t *testing.T) {
 				TrafficDirection: flow.TrafficDirection_EGRESS,
 			},
 			labels: metricLabels{
-				namespace:    srcNamespace,
+				podNamespace: srcPodNamespace,
 				podName:      srcPodName,
 				verdict:      verdictLabel(flow.Verdict_FORWARDED.String()),
 				workloadName: "src1-workload-name",
@@ -331,7 +331,7 @@ func TestIsFlowValid(t *testing.T) {
 				Verdict: flow.Verdict_FORWARDED,
 				Source: &flow.Endpoint{
 					ID:        1,
-					Namespace: srcNamespace,
+					Namespace: srcPodNamespace,
 					PodName:   srcPodName,
 					Workloads: []*flow.Workload{
 						{
@@ -342,7 +342,7 @@ func TestIsFlowValid(t *testing.T) {
 				},
 				Destination: &flow.Endpoint{
 					ID:        2,
-					Namespace: destNamespace,
+					Namespace: destPodNamespace,
 					PodName:   destPodName,
 					Workloads: []*flow.Workload{
 						{
@@ -354,7 +354,7 @@ func TestIsFlowValid(t *testing.T) {
 				TrafficDirection: flow.TrafficDirection_EGRESS,
 			},
 			labels: metricLabels{
-				namespace:    srcNamespace,
+				podNamespace: srcPodNamespace,
 				podName:      srcPodName,
 				verdict:      verdictLabel(flow.Verdict_FORWARDED.String()),
 				workloadName: srcWorkloadName,
@@ -369,7 +369,7 @@ func TestIsFlowValid(t *testing.T) {
 				Verdict: flow.Verdict_DROPPED,
 				Source: &flow.Endpoint{
 					ID:        1,
-					Namespace: srcNamespace,
+					Namespace: srcPodNamespace,
 					PodName:   srcPodName,
 					Workloads: []*flow.Workload{
 						{
@@ -380,7 +380,7 @@ func TestIsFlowValid(t *testing.T) {
 				},
 				Destination: &flow.Endpoint{
 					ID:        2,
-					Namespace: destNamespace,
+					Namespace: destPodNamespace,
 					PodName:   destPodName,
 					Workloads: []*flow.Workload{
 						{
@@ -392,7 +392,7 @@ func TestIsFlowValid(t *testing.T) {
 				TrafficDirection: flow.TrafficDirection_EGRESS,
 			},
 			labels: metricLabels{
-				namespace:    srcNamespace,
+				podNamespace: srcPodNamespace,
 				podName:      srcPodName,
 				verdict:      verdictLabel(flow.Verdict_DROPPED.String()),
 				workloadName: srcWorkloadName,
@@ -407,7 +407,7 @@ func TestIsFlowValid(t *testing.T) {
 				Verdict: flow.Verdict_FORWARDED,
 				Source: &flow.Endpoint{
 					ID:        1,
-					Namespace: srcNamespace,
+					Namespace: srcPodNamespace,
 					PodName:   srcPodName,
 					Workloads: []*flow.Workload{
 						{
@@ -418,7 +418,7 @@ func TestIsFlowValid(t *testing.T) {
 				},
 				Destination: &flow.Endpoint{
 					ID:        2,
-					Namespace: destNamespace,
+					Namespace: destPodNamespace,
 					PodName:   destPodName,
 					Workloads: []*flow.Workload{
 						{
@@ -430,7 +430,7 @@ func TestIsFlowValid(t *testing.T) {
 				TrafficDirection: flow.TrafficDirection_INGRESS,
 			},
 			labels: metricLabels{
-				namespace:    destNamespace,
+				podNamespace: destPodNamespace,
 				podName:      destPodName,
 				verdict:      verdictLabel(flow.Verdict_FORWARDED.String()),
 				workloadName: destWorkloadName,
@@ -445,7 +445,7 @@ func TestIsFlowValid(t *testing.T) {
 				Verdict: flow.Verdict_DROPPED,
 				Source: &flow.Endpoint{
 					ID:        1,
-					Namespace: srcNamespace,
+					Namespace: srcPodNamespace,
 					PodName:   srcPodName,
 					Workloads: []*flow.Workload{
 						{
@@ -456,7 +456,7 @@ func TestIsFlowValid(t *testing.T) {
 				},
 				Destination: &flow.Endpoint{
 					ID:        2,
-					Namespace: destNamespace,
+					Namespace: destPodNamespace,
 					PodName:   destPodName,
 					Workloads: []*flow.Workload{
 						{
@@ -468,7 +468,7 @@ func TestIsFlowValid(t *testing.T) {
 				TrafficDirection: flow.TrafficDirection_INGRESS,
 			},
 			labels: metricLabels{
-				namespace:    destNamespace,
+				podNamespace: destPodNamespace,
 				podName:      destPodName,
 				verdict:      verdictLabel(flow.Verdict_DROPPED.String()),
 				workloadName: destWorkloadName,

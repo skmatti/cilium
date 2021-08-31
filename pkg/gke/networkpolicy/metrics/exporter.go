@@ -40,7 +40,7 @@ type exporter struct {
 
 // metricLabels is a struct that defines the prometheus metric labels for the policy_event_count metric
 type metricLabels struct {
-	namespace    string //namespace is name of the namespace of the pod on which network policy is enforced
+	podNamespace string //podNamespace is name of the namespace of the pod on which network policy is enforced
 	podName      string //podName is name of the on which network policy is enforced
 	verdict      string //verdict is network policy verdict for the event
 	workloadName string //workloadName is the name of the workload that pod might be part of
@@ -93,7 +93,7 @@ func (e *exporter) run() {
 func (e *exporter) processFlowAndRecordMetric(f *flow.Flow) {
 	labels, ready := e.isFlowValid(f)
 	if ready {
-		policyEventCount.WithLabelValues(labels.namespace, labels.podName, labels.verdict, labels.workloadName, labels.workloadKind, labels.direction).Add(1)
+		policyEventCount.WithLabelValues(labels.podNamespace, labels.podName, labels.verdict, labels.workloadName, labels.workloadKind, labels.direction).Add(1)
 	}
 }
 
@@ -121,7 +121,7 @@ func (e *exporter) isFlowValid(f *flow.Flow) (metricLabels, bool) {
 			labels.workloadName = f.Destination.Workloads[0].Name
 			labels.workloadKind = f.Destination.Workloads[0].Kind
 		}
-		labels.namespace = f.Destination.Namespace
+		labels.podNamespace = f.Destination.Namespace
 		labels.podName = f.Destination.PodName
 	case strings.ToLower(flow.TrafficDirection_EGRESS.String()):
 		// Static pods can exist without any workload, in that case we won't report workload_name & workload_kind
@@ -129,7 +129,7 @@ func (e *exporter) isFlowValid(f *flow.Flow) (metricLabels, bool) {
 			labels.workloadName = f.Source.Workloads[0].Name
 			labels.workloadKind = f.Source.Workloads[0].Kind
 		}
-		labels.namespace = f.Source.Namespace
+		labels.podNamespace = f.Source.Namespace
 		labels.podName = f.Source.PodName
 	default:
 		// Invalid Condition: TrafficDirection should either be Egress or Ingress
