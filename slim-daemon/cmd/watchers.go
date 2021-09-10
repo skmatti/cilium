@@ -12,7 +12,6 @@ import (
 	nodeTypes "github.com/cilium/cilium/pkg/node/types"
 	"github.com/cilium/cilium/slim-daemon/k8s"
 	"github.com/sirupsen/logrus"
-	"golang.org/x/net/context"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/client-go/kubernetes"
@@ -110,10 +109,6 @@ func (k *k8sWatcher) addK8sPodV1(pod *slim_corev1.Pod) error {
 				return err2
 			}
 			k.endpointManager.Expose(endpoint)
-			k8sLbls := labels.Map2Labels(pod.Labels, labels.LabelSourceK8s)
-			identityLabels, infoLabels := labelsfilter.Filter(k8sLbls)
-
-			endpoint.UpdateLabels(context.TODO(), identityLabels, infoLabels, true)
 			return nil
 		} else {
 			return err
@@ -160,12 +155,6 @@ func (k *k8sWatcher) updateK8sPodV1(oldK8sPod, newK8sPod *slim_corev1.Pod) error
 			return err
 		}
 		k.endpointManager.Expose(endpoint)
-
-		k8sLbls := labels.Map2Labels(newPodLabels, labels.LabelSourceK8s)
-		identityLabels, infoLabels := labelsfilter.Filter(k8sLbls)
-
-		endpoint.UpdateLabels(context.TODO(), identityLabels, infoLabels, true)
-
 	} else if !comparator.MapStringEquals(oldPodLabels, newPodLabels) {
 		// Label has chanaged
 		err := updateEndpointLabels(endpoint, oldPodLabels, newPodLabels)
