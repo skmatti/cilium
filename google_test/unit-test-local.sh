@@ -63,7 +63,7 @@ make precheck
 make postcheck
 
 # Run un-priviledged tests first.
-make unit-tests
+make integration-tests
 
 # Run privileged tests as root.
 sudo PATH=$PATH make tests-privileged
