@@ -396,7 +396,7 @@ func (mgr *EndpointManager) unexpose(ep *endpoint.Endpoint) {
 // and prevents the endpoint from being globally acccessible via other packages.
 func (mgr *EndpointManager) removeEndpoint(ep *endpoint.Endpoint, conf endpoint.DeleteConfig) []error {
 	if option.Config.EnableLocalRedirectPolicy {
-		if ep.HasLabels(labels.NewLabelsFromModel([]string{fmt.Sprintf("%s:%s", labels.LabelSourceK8s, labels.LabelNodeLocalDNS)})) {
+		if ep.GetPod() != nil && ep.HasLabels(labels.NewLabelsFromModel([]string{fmt.Sprintf("%s:%s", labels.LabelSourceK8s, labels.LabelNodeLocalDNS)})) {
 			mgr.rpManager.OnDeletePod(ep.GetPod())
 		}
 	}
