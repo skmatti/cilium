@@ -61,7 +61,7 @@ type Controller struct {
 }
 
 // NewController returns a new controller for traffic steering.
-func NewController(kubeClient kubernetes.Interface, tsClient versioned.Interface, watcherClient k8s.K8sClient) (*Controller, error) {
+func NewController(kubeClient kubernetes.Interface, tsClient versioned.Interface, watcherClient *k8s.K8sClient) (*Controller, error) {
 
 	broadcaster := record.NewBroadcaster()
 	broadcaster.StartLogging(klog.Infof)
@@ -80,9 +80,9 @@ func NewController(kubeClient kubernetes.Interface, tsClient versioned.Interface
 	}
 
 	_, c.nodeController = informer.NewInformer(
-		cache.NewListWatchFromClient(watcherClient.CoreV1().RESTClient(),
+		cache.NewListWatchFromClient(kubeClient.CoreV1().RESTClient(),
 			"nodes", corev1.NamespaceAll, fields.ParseSelectorOrDie("metadata.name="+nodeTypes.GetName())),
-		&slim_corev1.Node{},
+		&corev1.Node{},
 		informerSyncPeriod,
 		cache.ResourceEventHandlerFuncs{
 			AddFunc:    func(obj interface{}) { c.handleNode(obj) },
@@ -349,7 +349,7 @@ func Init() (*Controller, error) {
 		return nil, fmt.Errorf("failed to create traffic steering client: %v", err)
 	}
 
-	tsController, err := NewController(kubeClient, tsClient, *k8s.WatcherClient())
+	tsController, err := NewController(kubeClient, tsClient, k8s.WatcherClient())
 	if err != nil {
 		return nil, fmt.Errorf("failed to instantiate traffic steering controller %v", err)
 	}
