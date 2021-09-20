@@ -41,7 +41,7 @@ type exporter struct {
 // metricLabels is a struct that defines the prometheus metric labels for the policy_event_count metric
 type metricLabels struct {
 	podNamespace string //podNamespace is name of the namespace of the pod on which network policy is enforced
-	podName      string //podName is name of the on which network policy is enforced
+	podName      string //podName is name of the pod on which network policy is enforced
 	verdict      string //verdict is network policy verdict for the event
 	workloadName string //workloadName is the name of the workload that pod might be part of
 	workloadKind string //workloadKind is the type of the workload that pod might be part of
