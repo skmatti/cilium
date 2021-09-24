@@ -108,6 +108,8 @@ var (
 			lbipam.Cell,
 
 			legacyCell,
+
+			googleCell,
 		),
 	)
 
