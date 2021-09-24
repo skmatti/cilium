@@ -608,6 +608,10 @@ func onOperatorStartLeading(ctx context.Context) {
 		go ingressController.Run()
 	}
 
+	if operatorOption.Config.SyncK8sWindowsNodes {
+		operatorWatchers.StartSynchronizingWindowsNodes()
+	}
+
 	log.Info("Initialization complete")
 
 	<-shutdownSignal

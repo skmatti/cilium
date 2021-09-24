@@ -236,6 +236,9 @@ const (
 	// the number of API calls to AlibabaCloud ECS service.
 	AlibabaCloudReleaseExcessIPs = "alibaba-cloud-release-excess-ips"
 
+	// SyncK8sWindowsNodes creates corresponding CiliumNode resource for Windows node.
+	SyncK8sWindowsNodes = "synchronize-k8s-windows-nodes"
+
 	// CiliumEndpointSlice options
 
 	// CESMaxCEPsInCES is the maximum number of cilium endpoints allowed in single
@@ -474,6 +477,9 @@ type OperatorConfig struct {
 	// the number of API calls to AlibabaCloud ECS service.
 	AlibabaCloudReleaseExcessIPs bool
 
+	// SyncK8sWindowsNodes creates corresponding CiliumNode resource for Windows node.
+	SyncK8sWindowsNodes bool
+
 	// CiliumEndpointSlice options
 
 	// CESMaxCEPsInCES is the maximum number of CiliumEndpoints allowed in single
@@ -565,6 +571,7 @@ func (c *OperatorConfig) Populate() {
 			c.CiliumK8sNamespace = option.Config.K8sNamespace
 		}
 	}
+	c.SyncK8sWindowsNodes = viper.GetBool(SyncK8sWindowsNodes)
 
 	if c.BGPAnnounceLBIP {
 		c.SyncK8sServices = true
