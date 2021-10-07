@@ -10,4 +10,8 @@ const (
 
 	// EnableGDCILB is the name of the option to enable google GDC-H ILB Support
 	EnableGDCILB = "enable-gdc-ilb"
+
+	// AllowIMDSAccessInHostNSOnly adds bpf logic that will block non-hostnetwork
+	// pods from accessing IMDS at 169.254.169.254.
+	AllowIMDSAccessInHostNSOnly = "allow-imds-access-in-hostns-only"
 )
