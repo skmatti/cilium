@@ -33,6 +33,7 @@ import (
 	"github.com/cilium/cilium/pkg/datapath/tables"
 	datapath "github.com/cilium/cilium/pkg/datapath/types"
 	"github.com/cilium/cilium/pkg/defaults"
+	"github.com/cilium/cilium/pkg/gke/imds"
 	"github.com/cilium/cilium/pkg/identity"
 	"github.com/cilium/cilium/pkg/labels"
 	"github.com/cilium/cilium/pkg/mac"
@@ -681,6 +682,10 @@ func (h *HeaderfileWriter) WriteNodeConfig(w io.Writer, cfg *datapath.LocalNodeC
 
 	if option.Config.AllowICMPFragNeeded {
 		cDefinesMap["ALLOW_ICMP_FRAG_NEEDED"] = "1"
+	}
+
+	if imds.GlobalConfig.AllowIMDSAccessInHostNSOnly {
+		cDefinesMap["ALLOW_IMDS_ACCESS_IN_HOSTNS_ONLY"] = "1"
 	}
 
 	if option.Config.ClockSource == option.ClockSourceJiffies {

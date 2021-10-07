@@ -31,4 +31,8 @@ const (
 
 	// EnableFQDNNetworkPolicy enables google fqdn network policy
 	EnableFQDNNetworkPolicy = "enable-fqdn-network-policy"
+
+	// AllowIMDSAccessInHostNSOnly adds bpf logic that will block non-hostnetwork
+	// pods from accessing IMDS at 169.254.169.254.
+	AllowIMDSAccessInHostNSOnly = "allow-imds-access-in-hostns-only"
 )
