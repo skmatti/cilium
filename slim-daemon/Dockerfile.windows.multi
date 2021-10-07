@@ -1,0 +1,11 @@
+ARG WINDOWS_VERSION=
+FROM mcr.microsoft.com/windows/servercore:${WINDOWS_VERSION}
+
+USER ContainerAdministrator
+
+RUN mkdir -Force C:\k\cilium\bin
+
+RUN setx /M PATH "%PATH%;C:\k\cilium\bin"
+
+COPY cilium-agent.exe /k/cilium/bin
+
