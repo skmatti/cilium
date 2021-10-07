@@ -60,6 +60,10 @@ const (
 	// AllowICMPFragNeeded allows ICMP Fragmentation Needed type packets in policy.
 	AllowICMPFragNeeded = "allow-icmp-frag-needed"
 
+	// AllowIMDSAccessInHostNSOnly adds bpf logic that will block non-hostnetwork
+	// pods from accessing IMDS at 169.254.169.254.
+	AllowIMDSAccessInHostNSOnly = "allow-imds-access-in-hostns-only"
+
 	// AllowLocalhost is the policy when to allow local stack to reach local endpoints { auto | always | policy }
 	AllowLocalhost = "allow-localhost"
 
@@ -2026,6 +2030,10 @@ type DaemonConfig struct {
 	// the network policy for cilium-agent.
 	AllowICMPFragNeeded bool
 
+	// AllowIMDSAccessInHostNSOnly adds bpf logic that will block non-hostnetwork
+	// pods from accessing IMDS at 169.254.169.254.
+	AllowIMDSAccessInHostNSOnly bool
+
 	// EnableWellKnownIdentities enables the use of well-known identities.
 	// This is requires if identiy resolution is required to bring up the
 	// control plane, e.g. when using the managed etcd feature
@@ -2795,6 +2803,7 @@ func (c *DaemonConfig) Populate() {
 	c.ClusterMeshHealthPort = viper.GetInt(ClusterMeshHealthPort)
 	c.AgentLabels = viper.GetStringSlice(AgentLabels)
 	c.AllowICMPFragNeeded = viper.GetBool(AllowICMPFragNeeded)
+	c.AllowIMDSAccessInHostNSOnly = viper.GetBool(AllowIMDSAccessInHostNSOnly)
 	c.AllowLocalhost = viper.GetString(AllowLocalhost)
 	c.AnnotateK8sNode = viper.GetBool(AnnotateK8sNode)
 	c.ARPPingRefreshPeriod = viper.GetDuration(ARPPingRefreshPeriod)

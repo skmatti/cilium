@@ -38,6 +38,12 @@ static __always_inline __maybe_unused bool is_v6_loopback(const union v6addr *da
 	return ipv6_addrcmp(&loopback, daddr) == 0;
 }
 
+static __always_inline __maybe_unused bool is_v4_imds(__be32 daddr)
+{
+	/* Check for 169.254.169.254 */
+	return daddr == bpf_htonl(0xa9fea9fe);
+}
+
 /* Hack due to missing narrow ctx access. */
 static __always_inline __maybe_unused __be16
 ctx_dst_port(const struct bpf_sock_addr *ctx)
@@ -480,6 +486,9 @@ int sock4_connect(struct bpf_sock_addr *ctx)
 {
 	if (sock_is_health_check(ctx))
 		return __sock4_health_fwd(ctx);
+
+	if (is_defined(ALLOW_IMDS_ACCESS_IN_HOSTNS_ONLY) && is_v4_imds(ctx->user_ip4) && !ctx_in_hostns(ctx, NULL))
+		return SYS_REJECT;
 
 	__sock4_xlate_fwd(ctx, ctx, false);
 	return SYS_PROCEED;
