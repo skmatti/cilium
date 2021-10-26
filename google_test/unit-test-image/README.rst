@@ -13,24 +13,20 @@ install `packer <https://www.packer.io/downloads.html>`_
 
 GCP project
 
-service account that at least has `Compute Engine Instance Admin (v1)` and
-`Service Account User` roles
+You must at least have `Compute Engine Instance Admin (v1)` and
+`Service Account User` roles in the project of gke-anthos-datapath-presubmits.
 
 Create an Image
 ===============
 
 PROJ_ID=<PROJ_ID> \
-  SERVICE_ACCT_KEY=<SERVICE_ACCT_KEY> \
   SSH_USERNAME=<SSH_USERNAME> \
   IMAGE_NAME=<IMAGE_NAME> \
   packer build unit-test-env.json
 
 example:
 
-gcloud iam service-accounts keys create key-file --iam-account=packer@gke-anthos-datapath-presubmits.iam.gserviceaccount.com
-
 PROJ_ID="gke-anthos-datapath-presubmits" \
-  SERVICE_ACCT_KEY="./key-file" \
   SSH_USERNAME="prow" \
   IMAGE_NAME="cilium-unit-test-$(TZ=':America/Los_Angeles' date '+%Y%m%d')" \
   packer build unit-test-env.json
@@ -44,4 +40,4 @@ Packer will do the following:
 5. Deletes the temporary VM (regardless of whether step 4 succeeded or not)
 
 The Prow job which triggers unit tests need to be updated with the
-new IMAGE_NAME.
+new IMAGE_NAME in `google_test/presubmit-unit.sh`.

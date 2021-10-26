@@ -92,7 +92,7 @@ sudo ln -s /usr/lib/llvm-11/bin/llvm-readelf /usr/bin/readelf
 
 # go
 
-VERSION=1.16
+VERSION=1.17
 OS=linux
 ARCH=amd64
 GO_TAR=go$VERSION.$OS-$ARCH.tar.gz
