@@ -1,3 +1,4 @@
+//go:build !privileged_tests
 // +build !privileged_tests
 
 // Copyright 2020 Google LLC
