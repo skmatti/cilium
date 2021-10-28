@@ -15,6 +15,7 @@
 package connector
 
 import (
+	"errors"
 	"fmt"
 	"net"
 
@@ -86,25 +87,31 @@ func getInterfaceConfiguration(intf *multinicv1alpha1.NetworkInterface, network 
 	if len(intf.Spec.IpAddresses) != 1 {
 		return nil, fmt.Errorf("found %d IP addresses in the interface CR %q. Only single IPv4 address is supported for macvtap interface.", len(intf.Spec.IpAddresses), intfID.String())
 	}
-	if intf.Spec.MacAddress == nil {
-		return nil, fmt.Errorf("no Mac address is found in the interface CR %q", intfID.String())
-	}
 	if network.Spec.NodeInterfaceMatcher.InterfaceName == nil {
 		return nil, fmt.Errorf("parent interface name is not found in the network CR %q", network.Name)
 	}
 
-	var cfg interfaceConfiguration
-	ipNet, err := parseIPSubnet(intf.Spec.IpAddresses[0])
+	var (
+		cfg    interfaceConfiguration
+		macStr string
+		err    error
+	)
+	cfg.IPV4Address, err = parseIPSubnet(intf.Spec.IpAddresses[0])
 	if err != nil {
 		return nil, fmt.Errorf("failed to get a valid IP in the interface CR %q: %v", intfID.String(), err)
 	}
-	cfg.IPV4Address = ipNet
 
-	hardwareAddr, err := net.ParseMAC(*intf.Spec.MacAddress)
-	if err != nil {
-		return nil, fmt.Errorf("unable to parse MAC in the interface CR %q: %v", intfID.String(), err)
+	if intf.Spec.MacAddress != nil {
+		macStr = *intf.Spec.MacAddress
+	} else if intf.Status.MacAddress != "" {
+		macStr = intf.Status.MacAddress
 	}
-	cfg.MacAddress = hardwareAddr
+	if macStr != "" {
+		cfg.MacAddress, err = net.ParseMAC(macStr)
+		if err != nil {
+			return nil, fmt.Errorf("unable to parse MAC in the interface CR %q: %v", intfID.String(), err)
+		}
+	}
 
 	cfg.ParentInterfaceName = *network.Spec.NodeInterfaceMatcher.InterfaceName
 	if cfg.ParentInterfaceName == "" {
@@ -153,8 +160,16 @@ func configureInterface(cfg *interfaceConfiguration, netNs ns.NetNS, ifName stri
 		if err = netlink.LinkSetMTU(l, cfg.MTU); err != nil {
 			return fmt.Errorf("unable to set MTU to %q: %v", l.Attrs().Name, err)
 		}
-		if err := applyMACToLink(cfg.MacAddress, l); err != nil {
-			return fmt.Errorf("failed to apply mac address to %q: %v", l.Attrs().Name, err)
+
+		if cfg.MacAddress != nil {
+			if err := applyMACToLink(cfg.MacAddress, l); err != nil {
+				return fmt.Errorf("failed to apply mac address to %q: %v", l.Attrs().Name, err)
+			}
+		} else {
+			if l.Attrs() == nil {
+				return errors.New("no link attributes found")
+			}
+			cfg.MacAddress = l.Attrs().HardwareAddr
 		}
 		if err := applyIPToLink(cfg.IPV4Address, l); err != nil {
 			return fmt.Errorf("failed to apply IP configuration: %v", err)
@@ -247,6 +262,7 @@ func SetupMacvtapChild(ifNameInPod string, podResources map[string][]string, net
 	if err != nil {
 		return fmt.Errorf("failed to get a valid interface configuration: %v", err)
 	}
+	log.Debugf("macvtap interface configuration: %+v", cfg)
 
 	parentDevLink, err := netlink.LinkByName(cfg.ParentInterfaceName)
 	if err != nil {

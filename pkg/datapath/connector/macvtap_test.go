@@ -49,6 +49,12 @@ func getTestInterfaceCR(ipStrs []string, macStr *string) *multinicv1alpha1.Netwo
 	}
 }
 
+func getTestInterfaceCRWithStatus(ipStrs []string, macStr *string, statusMacStr string) *multinicv1alpha1.NetworkInterface {
+	intfCR := getTestInterfaceCR(ipStrs, macStr)
+	intfCR.Status.MacAddress = statusMacStr
+	return intfCR
+}
+
 func getTestNetworkCR(parentDevName *string) *multinicv1alpha1.Network {
 	return &multinicv1alpha1.Network{
 		ObjectMeta: metav1.ObjectMeta{
@@ -79,11 +85,20 @@ func TestGetInterfaceConfiguration(t *testing.T) {
 		wantErr string
 		intf    *multinicv1alpha1.NetworkInterface
 		net     *multinicv1alpha1.Network
+		want    *interfaceConfiguration
 	}{
 		{
 			desc: "parse successfully",
 			intf: getTestInterfaceCR([]string{goodIPv4Str}, &goodMACStr),
 			net:  getTestNetworkCR(&parentDevName),
+			want: &interfaceConfiguration{
+				ParentInterfaceName: parentDevName,
+				IPV4Address: &net.IPNet{
+					IP:   net.IPv4(1, 2, 3, 4),
+					Mask: net.IPv4Mask(255, 255, 255, 0),
+				},
+				MacAddress: net.HardwareAddr([]byte{1, 2, 3, 4, 5, 6}),
+			},
 		},
 		{
 			desc:    "two ipv4 address",
@@ -104,10 +119,29 @@ func TestGetInterfaceConfiguration(t *testing.T) {
 			wantErr: "Only single IPv4 address is supported for macvtap interface",
 		},
 		{
-			desc:    "no mac address",
-			intf:    getTestInterfaceCR([]string{goodIPv4Str}, nil),
-			net:     getTestNetworkCR(&parentDevName),
-			wantErr: "no Mac address is found in the interface CR",
+			desc: "no mac address in spec and status",
+			intf: getTestInterfaceCR([]string{goodIPv4Str}, nil),
+			net:  getTestNetworkCR(&parentDevName),
+			want: &interfaceConfiguration{
+				ParentInterfaceName: parentDevName,
+				IPV4Address: &net.IPNet{
+					IP:   net.IPv4(1, 2, 3, 4),
+					Mask: net.IPv4Mask(255, 255, 255, 0),
+				},
+			},
+		},
+		{
+			desc: "no mac address in spec but in status",
+			intf: getTestInterfaceCRWithStatus([]string{goodIPv4Str}, nil, goodMACStr),
+			net:  getTestNetworkCR(&parentDevName),
+			want: &interfaceConfiguration{
+				ParentInterfaceName: parentDevName,
+				IPV4Address: &net.IPNet{
+					IP:   net.IPv4(1, 2, 3, 4),
+					Mask: net.IPv4Mask(255, 255, 255, 0),
+				},
+				MacAddress: net.HardwareAddr([]byte{1, 2, 3, 4, 5, 6}),
+			},
 		},
 		{
 			desc:    "no parent interface name",
@@ -153,16 +187,12 @@ func TestGetInterfaceConfiguration(t *testing.T) {
 				return
 			}
 
-			want := &interfaceConfiguration{
-				IPV4Address: &net.IPNet{
-					IP:   net.IPv4(1, 2, 3, 4),
-					Mask: net.IPv4Mask(255, 255, 255, 0),
-				},
-				MacAddress:          net.HardwareAddr([]byte{1, 2, 3, 4, 5, 6}),
-				ParentInterfaceName: parentDevName,
+			if tc.wantErr != "" {
+				t.Fatalf("getInterfaceConfiguration() returns nil but want %v", tc.wantErr)
 			}
-			if s := cmp.Diff(want, got); s != "" {
-				t.Fatalf("getInterfaceConfiguration() returns unexpected output (-want, +got): %s", s)
+
+			if s := cmp.Diff(got, tc.want); s != "" {
+				t.Fatalf("getInterfaceConfiguration() returns unexpected output (-got, +want): %s", s)
 			}
 		})
 	}
