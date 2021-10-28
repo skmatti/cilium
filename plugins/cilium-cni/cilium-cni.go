@@ -483,8 +483,8 @@ func cmdAdd(args *skel.CmdArgs) (err error) {
 		K8sNamespace:          string(cniArgs.K8S_POD_NAMESPACE),
 		DatapathConfiguration: &models.EndpointDatapathConfiguration{},
 		// Constructs the full path of network namespace on the anetd pod.
-		// /host-proc is the mounted volume of the host's /proc directory
-		NetworkNamespace: filepath.Join("/host-proc", args.Netns),
+		// /host is the mounted volume of the host's directory
+		NetworkNamespace: filepath.Join("/host", args.Netns),
 	}
 
 	if conf.IpamMode == ipamOption.IPAMDelegatedPlugin {
