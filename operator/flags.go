@@ -329,6 +329,9 @@ func init() {
 	flags.Bool(option.SkipCRDCreation, false, "When true, Kubernetes Custom Resource Definitions will not be created")
 	option.BindEnv(option.SkipCRDCreation)
 
+	flags.Bool(option.EnableGoogleMultiNIC, false, "Enable google multi NIC support")
+	option.BindEnv(option.EnableGoogleMultiNIC)
+
 	flags.Bool(option.EnableCiliumEndpointSlice, false, "If set to true, the CiliumEndpointSlice feature is enabled. If any CiliumEndpoints resources are created, updated, or deleted in the cluster, all those changes are broadcast as CiliumEndpointSlice updates to all of the Cilium agents.")
 	option.BindEnv(option.EnableCiliumEndpointSlice)
 

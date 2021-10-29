@@ -7,7 +7,11 @@ import (
 	"context"
 
 	apiEndpoint "github.com/cilium/cilium/api/v1/server/restapi/endpoint"
+	"github.com/cilium/cilium/pkg/checker"
 	"github.com/cilium/cilium/pkg/option"
+	networkv1alpha1 "gke-internal.googlesource.com/anthos-networking/apis/network/v1alpha1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/utils/pointer"
 
 	. "gopkg.in/check.v1"
 )
@@ -52,4 +56,38 @@ func (ds *DaemonSuite) TestCreateMultiNICEndpointsNoK8sPodName(c *C) {
 	c.Assert(err, ErrorMatches, "k8s namespace and pod name are required to create multinic endpoints")
 	eps = ds.d.endpointManager.LookupEndpointsByContainerID(epTemplate.ContainerID)
 	c.Assert(eps, HasLen, 0)
+}
+
+func (ds *DaemonSuite) TestConvertNetworkSpec(c *C) {
+	intf := convertNetworkSpecToInterface(nil)
+	c.Assert(intf, IsNil)
+
+	network := &networkv1alpha1.Network{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "network-1",
+		},
+		Spec: networkv1alpha1.NetworkSpec{
+			Routes: []networkv1alpha1.Route{
+				{To: "1.1.1.1/20"},
+				{To: "2.2.2.2/20"},
+			},
+			Gateway4: pointer.StringPtr("3.3.3.3"),
+		},
+	}
+
+	expectedIntf := &networkv1alpha1.NetworkInterface{
+		Spec: networkv1alpha1.NetworkInterfaceSpec{
+			NetworkName: "network-1",
+		},
+		Status: networkv1alpha1.NetworkInterfaceStatus{
+			Routes: []networkv1alpha1.Route{
+				{To: "1.1.1.1/20"},
+				{To: "2.2.2.2/20"},
+			},
+			Gateway4: pointer.StringPtr("3.3.3.3"),
+		},
+	}
+
+	intf = convertNetworkSpecToInterface(network)
+	c.Assert(intf, checker.DeepEquals, expectedIntf)
 }

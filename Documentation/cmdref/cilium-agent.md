@@ -15,6 +15,7 @@ cilium-agent [flags]
       --agent-labels strings                                    Additional labels to identify this agent
       --agent-not-ready-taint-key string                        Key of the taint indicating that Cilium is not ready on the node (default "node.cilium.io/agent-not-ready")
       --allocator-list-timeout duration                         Timeout for listing allocator state before exiting (default 3m0s)
+      --allow-disable-source-ip-validation                      Allow disabling source IP validation on multi-nic endpoints
       --allow-icmp-frag-needed                                  Allow ICMP Fragmentation Needed type packets for purposes like TCP Path MTU. (default true)
       --allow-localhost string                                  Policy when to allow local stack to reach local endpoints { auto | always | policy } (default "auto")
       --annotate-k8s-node                                       Annotate Kubernetes node
@@ -93,8 +94,8 @@ cilium-agent [flags]
       --enable-endpoint-routes                                  Use per endpoint routes instead of routing via cilium_host
       --enable-envoy-config                                     Enable Envoy Config CRDs
       --enable-external-ips                                     Enable k8s service externalIPs feature (requires enabling enable-node-port) (default true)
-      --enable-gdc-ilb                                       Enable google GDC-H ILB Support
-      --enable-google-multi-nic                              Enable google multi NIC support
+      --enable-gdc-ilb                                          Enable google GDC-H ILB Support
+      --enable-google-multi-nic                                 Enable google multi NIC support
       --enable-health-check-nodeport                            Enables a healthcheck nodePort server for NodePort services with 'healthCheckNodePort' being set (default true)
       --enable-health-checking                                  Enable connectivity health checking (default true)
       --enable-host-firewall                                    Enable host network policies
@@ -124,14 +125,14 @@ cilium-agent [flags]
       --enable-node-port                                        Enable NodePort type services by Cilium
       --enable-policy string                                    Enable policy enforcement (default "default")
       --enable-recorder                                         Enable BPF datapath pcap recorder
-      --enable-redirect-service                              Enable google redirect service (beta)
+      --enable-redirect-service                                 Enable google redirect service (beta)
       --enable-remote-node-identity                             Enable use of remote node identity
       --enable-runtime-device-detection                         Enable runtime device detection and datapath reconfiguration (experimental)
       --enable-service-topology                                 Enable support for service topology aware hints
       --enable-session-affinity                                 Enable support for service session affinity
       --enable-svc-source-range-check                           Enable check of service source ranges (currently, only for LoadBalancer) (default true)
       --enable-tracing                                          Enable tracing while determining policy (debugging)
-      --enable-traffic-steering                              Enable google traffic steering functionality
+      --enable-traffic-steering                                 Enable google traffic steering functionality
       --enable-unreachable-routes                               Add unreachable routes on pod deletion
       --enable-vtep                                             Enable  VXLAN Tunnel Endpoint (VTEP) Integration (beta)
       --enable-well-known-identities                            Enable well-known identities for known Kubernetes components (default true)

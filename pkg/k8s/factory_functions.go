@@ -885,8 +885,10 @@ func ConvertToCiliumEndpoint(obj interface{}) interface{} {
 				ResourceVersion: concreteObj.ObjectMeta.ResourceVersion,
 				// We don't need to store labels nor annotations because
 				// they are not used by the CEP handlers.
-				Labels:      nil,
-				Annotations: nil,
+				Labels: nil,
+				// Annotations are used to identify multi NIC related information.
+				Annotations:     concreteObj.GetObjectMeta().GetAnnotations(),
+				OwnerReferences: slim_metav1.SlimOwnerReferences(concreteObj.GetObjectMeta().GetOwnerReferences()),
 			},
 			Encryption: func() *cilium_v2.EncryptionSpec {
 				enc := concreteObj.Status.Encryption

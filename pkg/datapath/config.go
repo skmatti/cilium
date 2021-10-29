@@ -46,6 +46,7 @@ type LoadTimeConfiguration interface {
 	IPv4Address() addressing.CiliumIPv4
 	IPv6Address() addressing.CiliumIPv6
 	GetNodeMAC() mac.MAC
+	GetPodStackRedirectIfindex() int
 }
 
 // CompileTimeConfiguration provides datapath implementations a clean interface

@@ -8,6 +8,7 @@ import (
 	"github.com/cilium/cilium/pkg/checker"
 	"github.com/cilium/cilium/pkg/endpoint"
 	endpointid "github.com/cilium/cilium/pkg/endpoint/id"
+	multinicep "github.com/cilium/cilium/pkg/gke/multinic/endpoint"
 	"github.com/cilium/cilium/pkg/ipcache"
 	"github.com/cilium/cilium/pkg/option"
 	allocator "github.com/cilium/cilium/pkg/testutils/identity"
@@ -463,7 +464,7 @@ func (s *EndpointManagerSuite) TestLookupPrimaryEndpointByContainerID(c *C) {
 			preTestRun: func() {
 				ep1.SetContainerID("foo")
 				ep2.SetContainerID("foo")
-				ep1.SetDeviceTypeForTest(endpoint.EndpointDeviceMACVLAN)
+				ep1.SetDeviceTypeForTest(multinicep.EndpointDeviceMACVLAN)
 				mgr.expose(ep1)
 				mgr.expose(ep2)
 			},
@@ -482,7 +483,7 @@ func (s *EndpointManagerSuite) TestLookupPrimaryEndpointByContainerID(c *C) {
 				mgr.WaitEndpointRemoved(ep2)
 				ep1.SetContainerID("")
 				ep2.SetContainerID("")
-				ep1.SetDeviceTypeForTest(endpoint.EndpointDeviceVETH)
+				ep1.SetDeviceTypeForTest(multinicep.EndpointDeviceVETH)
 			},
 		},
 	}
@@ -566,7 +567,7 @@ func (s *EndpointManagerSuite) TestLookupPrimaryEndpointByPodName(c *C) {
 				ep2.SetK8sNamespace("default")
 				ep1.SetK8sPodName("foo")
 				ep2.SetK8sPodName("foo")
-				ep1.SetDeviceTypeForTest(endpoint.EndpointDeviceMACVLAN)
+				ep1.SetDeviceTypeForTest(multinicep.EndpointDeviceMACVLAN)
 				mgr.expose(ep1)
 				mgr.expose(ep2)
 			},
@@ -587,7 +588,7 @@ func (s *EndpointManagerSuite) TestLookupPrimaryEndpointByPodName(c *C) {
 				ep2.SetK8sNamespace("")
 				ep1.SetK8sPodName("")
 				ep2.SetK8sPodName("")
-				ep1.SetDeviceTypeForTest(endpoint.EndpointDeviceVETH)
+				ep1.SetDeviceTypeForTest(multinicep.EndpointDeviceVETH)
 			},
 		},
 	}

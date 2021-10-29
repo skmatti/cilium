@@ -237,6 +237,7 @@ func (d *Daemon) restoreOldEndpoints(state *endpointRestoreState, clean bool) er
 		}
 	}
 
+	cleanupMultiNICDevMap(state.restored)
 	return nil
 }
 

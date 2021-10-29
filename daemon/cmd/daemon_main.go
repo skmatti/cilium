@@ -1051,6 +1051,9 @@ func initializeFlags() {
 	flags.Bool(option.EnableGDCILB, false, "Enable google GDC-H ILB Support")
 	option.BindEnv(Vp, option.EnableGDCILB)
 
+	flags.Bool(option.AllowDisableSourceIPValidation, false, "Allow disabling source IP validation on multi-nic endpoints")
+	option.BindEnv(option.AllowDisableSourceIPValidation)
+
 	flags.Int(option.LBMapEntriesName, lbmap.DefaultMaxEntries, "Maximum number of entries in Cilium BPF lbmap")
 	option.BindEnv(option.LBMapEntriesName)
 

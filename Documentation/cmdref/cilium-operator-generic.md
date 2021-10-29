@@ -31,6 +31,7 @@ cilium-operator-generic [flags]
   -D, --debug                                     Enable debugging mode
       --enable-cilium-endpoint-slice              If set to true, the CiliumEndpointSlice feature is enabled. If any CiliumEndpoints resources are created, updated, or deleted in the cluster, all those changes are broadcast as CiliumEndpointSlice updates to all of the Cilium agents.
       --enable-endpoint-slicing-operator-only     Enables cilium endpoint slicing in the operator only
+      --enable-google-multi-nic                   Enable google multi NIC support
       --enable-ipv4                               Enable IPv4 support (default true)
       --enable-ipv6                               Enable IPv6 support (default true)
       --enable-k8s-api-discovery                  Enable discovery of Kubernetes API groups and resources with the discovery API

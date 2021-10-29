@@ -45,6 +45,9 @@ type EndpointChangeRequest struct {
 	// Docker network ID
 	DockerNetworkID string `json:"docker-network-id,omitempty"`
 
+	// Whether the IPAM is static or allocation by the external DHCP server
+	ExternalDHCP4 bool `json:"externalDHCP4,omitempty"`
+
 	// MAC address
 	HostMac string `json:"host-mac,omitempty"`
 
@@ -83,6 +86,9 @@ type EndpointChangeRequest struct {
 
 	// Process ID of the workload belonging to this endpoint
 	Pid int64 `json:"pid,omitempty"`
+
+	// Interface index of the pod-network interface inside the pod-ns
+	PodStackRedirectIfindex int64 `json:"pod-stack-redirect-ifindex,omitempty"`
 
 	// Whether policy enforcement is enabled or not
 	PolicyEnabled bool `json:"policy-enabled,omitempty"`

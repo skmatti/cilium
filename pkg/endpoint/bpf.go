@@ -33,6 +33,7 @@ import (
 	"github.com/cilium/cilium/pkg/maps/ctmap"
 	"github.com/cilium/cilium/pkg/maps/eppolicymap"
 	"github.com/cilium/cilium/pkg/maps/lxcmap"
+	"github.com/cilium/cilium/pkg/maps/multinicdev"
 	"github.com/cilium/cilium/pkg/maps/policymap"
 	"github.com/cilium/cilium/pkg/metrics"
 	"github.com/cilium/cilium/pkg/option"
@@ -618,6 +619,10 @@ func (e *Endpoint) regenerateBPF(regenContext *regenerationContext) (revnum uint
 		stats.mapSync.Start()
 		epErr := eppolicymap.WriteEndpoint(datapathRegenCtxt.epInfoCache, e.policyMap)
 		err = lxcmap.WriteEndpoint(datapathRegenCtxt.epInfoCache)
+		if err == nil {
+			err = multinicdev.AddEndpointToMap(datapathRegenCtxt.epInfoCache)
+		}
+
 		stats.mapSync.End(err == nil)
 		if epErr != nil {
 			e.logStatusLocked(BPF, Warning, fmt.Sprintf("Unable to sync EpToPolicy Map continue with Sockmap support: %s", epErr))

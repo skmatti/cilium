@@ -229,6 +229,8 @@ func elfVariableSubstitutions(ep datapath.Endpoint) map[string]uint32 {
 	result["NODE_MAC_1"] = sliceToBe32(mac[0:4])
 	result["NODE_MAC_2"] = uint32(sliceToBe16(mac[4:6]))
 
+	multiNicElfVariableSubstitutions(ep, result)
+
 	if ep.IsHost() {
 		if option.Config.EnableNodePort {
 			result["NATIVE_DEV_IFINDEX"] = 0

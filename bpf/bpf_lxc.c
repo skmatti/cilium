@@ -799,10 +799,13 @@ static __always_inline int handle_ipv4_from_lxc(struct __ctx_buff *ctx, __u32 *d
 
 #ifdef IS_MULTI_NIC_DEVICE
 	// Examine packet sourcing from multi NIC endpoint.
-	ret = drop_if_dhcp(ctx, tuple.nexthdr, l4_off);
-	if (IS_ERR(ret))
-		return ret;
+	ret = redirect_if_dhcp(ctx, ip4->protocol, ETH_HLEN + ipv4_hdrlen(ip4));
+	if (ret != CTX_ACT_OK)
+	        return ret;
 #endif /* IS_MULTI_NIC_DEVICE */
+
+	if (unlikely(!is_valid_lxc_src_ipv4(ip4)))
+		return DROP_INVALID_SIP;
 
 	/* Determine the destination category for policy fallback. */
 	if (1) {

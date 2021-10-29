@@ -155,7 +155,10 @@ func (l *BPFListener) OnIPIdentityCacheChange(modType ipcache.CacheModification,
 			// to a tunnel endpoint destination.
 			nodeIPv4 := node.GetIPv4()
 			if ip4 := newHostIP.To4(); ip4 != nil && !ip4.Equal(nodeIPv4) {
-				copy(value.TunnelEndpoint[:], ip4)
+				// Only update the tunnel endpoint for non multi NIC.
+				if k8sMeta == nil || (k8sMeta != nil && !k8sMeta.IsMultiNIC) {
+					copy(value.TunnelEndpoint[:], ip4)
+				}
 			}
 		}
 		err := l.bpfMap.Update(&key, &value)

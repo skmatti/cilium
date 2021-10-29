@@ -1626,8 +1626,9 @@ func getSelectorPointer(sel api.EndpointSelector) *api.EndpointSelector {
 
 func Test_parseNetworkPolicyPeer(t *testing.T) {
 	type args struct {
-		namespace string
-		peer      *slim_networkingv1.NetworkPolicyPeer
+		namespace       string
+		peer            *slim_networkingv1.NetworkPolicyPeer
+		networkSelector *slim_metav1.LabelSelector
 	}
 	tests := []struct {
 		name string
@@ -1781,7 +1782,7 @@ func Test_parseNetworkPolicyPeer(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := parseNetworkPolicyPeer(tt.args.namespace, tt.args.peer)
+			got := parseNetworkPolicyPeer(tt.args.namespace, tt.args.peer, tt.args.networkSelector)
 			args := []interface{}{got, tt.want}
 			names := []string{"obtained", "expected"}
 			if equal, err := checker.DeepEquals.Check(args, names); !equal {

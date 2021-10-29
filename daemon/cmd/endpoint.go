@@ -13,7 +13,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/cilium/cilium/pkg/datapath/connector"
 	"github.com/go-openapi/runtime/middleware"
 	"github.com/sirupsen/logrus"
 
@@ -36,6 +35,7 @@ import (
 	monitorAPI "github.com/cilium/cilium/pkg/monitor/api"
 	"github.com/cilium/cilium/pkg/option"
 	"github.com/cilium/cilium/pkg/proxy"
+	networkv1alpha1 "gke-internal.googlesource.com/anthos-networking/apis/network/v1alpha1"
 )
 
 var errEndpointNotFound = errors.New("endpoint not found")
@@ -545,6 +545,7 @@ func (h *putEndpointID) Handle(params PutEndpointIDParams) (resp middleware.Resp
 		log.WithField(logfields.Params, logfields.Repr(params)).Debug("PUT /endpoint/{id} request")
 	}
 	epTemplate := params.Endpoint
+	addNetworkLabelIfMultiNICEnabled(epTemplate, networkv1alpha1.DefaultNetworkName)
 
 	r, err := h.d.apiLimiterSet.Wait(params.HTTPRequest.Context(), apiRequestEndpointCreate)
 	if err != nil {
@@ -709,61 +710,10 @@ func (d *Daemon) deleteEndpoint(ep *endpoint.Endpoint) int {
 // Specific users such as the cilium-health EP may choose not to release the IP
 // when deleting the endpoint. Most users should pass true for releaseIP.
 func (d *Daemon) deleteEndpointQuiet(ep *endpoint.Endpoint, conf endpoint.DeleteConfig) []error {
-	errs := d.endpointManager.RemoveEndpoint(ep, conf)
-
 	if ep.IsMultiNIC() {
-		ifName := ep.GetInterfaceName()
-		ifNameInPod := ep.GetInterfaceNameInPod()
-		netNS := ep.GetNetNS()
-		ep.Logger(daemonSubsys).WithFields(logrus.Fields{
-			logfields.Interface:      ifName,
-			logfields.InterfaceInPod: ifNameInPod,
-			logfields.NetNSName:      netNS,
-		}).Info("Revert multinic endpoint setup")
-		if err := connector.RevertMacvtapSetup(ifNameInPod, ifName, netNS); err != nil {
-			errs = append(errs, err)
-		}
+		return d.deleteMultiNICEndpointQuiet(ep, conf)
 	}
-
-	return errs
-}
-
-// DeleteEndpoints deletes all the endpoints for the given id.
-// Only called when EnableGoogleMultiNIC is enabled.
-func (d *Daemon) DeleteEndpoints(id string) (int, error) {
-	prefix, eid, err := endpointid.Parse(id)
-	if err != nil {
-		return 0, api.Error(DeleteEndpointIDInvalidCode, err)
-	}
-
-	var eps []*endpoint.Endpoint
-	switch prefix {
-	case endpointid.ContainerIdPrefix:
-		eps = d.endpointManager.LookupEndpointsByContainerID(eid)
-	case endpointid.PodNamePrefix:
-		eps = d.endpointManager.LookupEndpointsByContainerID(eid)
-	default:
-		return d.DeleteEndpoint(id)
-	}
-
-	if len(eps) == 0 {
-		return 0, api.New(DeleteEndpointIDNotFoundCode, "multinic endpoints %q not found", id)
-	}
-
-	log.Infof("Deleting %d endpoints for id %s", len(eps), id)
-	var nerrs int
-	for _, ep := range eps {
-		log.WithFields(logrus.Fields{
-			logfields.IPv4:        ep.GetIPv4Address(),
-			logfields.IPv6:        ep.GetIPv6Address(),
-			logfields.ContainerID: ep.GetContainerID(),
-		}).Info("Delete multinic endpoints request")
-		if err := endpoint.APICanModify(ep); err != nil {
-			return 0, api.Error(DeleteEndpointIDInvalidCode, err)
-		}
-		nerrs += d.deleteEndpoint(ep)
-	}
-	return nerrs, nil
+	return d.endpointManager.RemoveEndpoint(ep, conf)
 }
 
 func (d *Daemon) DeleteEndpoint(id string) (int, error) {

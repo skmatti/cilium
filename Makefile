@@ -403,6 +403,7 @@ generate-k8s-api: ## Generate Cilium k8s API client, deepcopy and deepequal Go s
 	maps:lbmap\
 	maps:lxcmap\
 	maps:metricsmap\
+	maps:multinicdev\
 	maps:nat\
 	maps:neighborsmap\
 	maps:policymap\

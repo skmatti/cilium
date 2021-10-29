@@ -25,6 +25,7 @@ import (
 	"github.com/cilium/cilium/pkg/endpoint/regeneration"
 	"github.com/cilium/cilium/pkg/fqdn"
 	"github.com/cilium/cilium/pkg/fqdn/restore"
+	multinicep "github.com/cilium/cilium/pkg/gke/multinic/endpoint"
 	"github.com/cilium/cilium/pkg/identity"
 	"github.com/cilium/cilium/pkg/ipcache"
 	"github.com/cilium/cilium/pkg/labels"
@@ -379,33 +380,35 @@ func (e *Endpoint) restoreIdentity() error {
 func (e *Endpoint) toSerializedEndpoint() *serializableEndpoint {
 
 	return &serializableEndpoint{
-		ID:                    e.ID,
-		ContainerName:         e.containerName,
-		ContainerID:           e.containerID,
-		DockerNetworkID:       e.dockerNetworkID,
-		DockerEndpointID:      e.dockerEndpointID,
-		DatapathMapID:         e.datapathMapID,
-		IfName:                e.ifName,
-		IfIndex:               e.ifIndex,
-		OpLabels:              e.OpLabels,
-		LXCMAC:                e.mac,
-		IPv6:                  e.IPv6,
-		IPv4:                  e.IPv4,
-		NodeMAC:               e.nodeMAC,
-		SecurityIdentity:      e.SecurityIdentity,
-		Options:               e.Options,
-		DNSRules:              e.DNSRules,
-		DNSHistory:            e.DNSHistory,
-		DNSZombies:            e.DNSZombies,
-		K8sPodName:            e.K8sPodName,
-		K8sNamespace:          e.K8sNamespace,
-		DatapathConfiguration: e.DatapathConfiguration,
-		CiliumEndpointUID:     e.ciliumEndpointUID,
-		IfNameInPod:           e.ifNameInPod,
-		NetNs:                 e.netNs,
-		DeviceType:            e.deviceType,
-		ParentDevName:         e.parentDevName,
-		ParentDevIndex:        e.parentDevIndex,
+		ID:                      e.ID,
+		ContainerName:           e.containerName,
+		ContainerID:             e.containerID,
+		DockerNetworkID:         e.dockerNetworkID,
+		DockerEndpointID:        e.dockerEndpointID,
+		DatapathMapID:           e.datapathMapID,
+		IfName:                  e.ifName,
+		IfIndex:                 e.ifIndex,
+		OpLabels:                e.OpLabels,
+		LXCMAC:                  e.mac,
+		IPv6:                    e.IPv6,
+		IPv4:                    e.IPv4,
+		NodeMAC:                 e.nodeMAC,
+		SecurityIdentity:        e.SecurityIdentity,
+		Options:                 e.Options,
+		DNSRules:                e.DNSRules,
+		DNSHistory:              e.DNSHistory,
+		DNSZombies:              e.DNSZombies,
+		K8sPodName:              e.K8sPodName,
+		K8sNamespace:            e.K8sNamespace,
+		DatapathConfiguration:   e.DatapathConfiguration,
+		CiliumEndpointUID:       e.ciliumEndpointUID,
+		IfNameInPod:             e.ifNameInPod,
+		NetNs:                   e.netNs,
+		DeviceType:              e.deviceType,
+		ParentDevName:           e.parentDevName,
+		ParentDevIndex:          e.parentDevIndex,
+		PodStackRedirectIfindex: e.podStackRedirectIfindex,
+		ExternalDHCP4:           e.externalDHCP4,
 	}
 }
 
@@ -511,13 +514,22 @@ type serializableEndpoint struct {
 	NetNs string
 
 	// Device type of the endpoint. If it's unset (empty), it's the normal veth endpoint.
-	DeviceType EndpointDeviceType
+	DeviceType multinicep.EndpointDeviceType
 
 	// parentDevName is the name of the parent interface for a macvtap/macvlan endpoint.
 	ParentDevName string
 
 	// parentDevIndex is the index of the parent interface for a macvtap/macvlan endpoint.
 	ParentDevIndex int
+
+	// pod stack redirect can be used to send traffic to the pod-ns
+	// kernel stack. The primary use if from a macvtap interface to redirect
+	// dhcp traffic.
+	PodStackRedirectIfindex int
+
+	// ExternalDHCP4 indicates whether the IPAM is static or
+	// allocation by the external DHCP server
+	ExternalDHCP4 bool
 }
 
 // UnmarshalJSON expects that the contents of `raw` are a serializableEndpoint,
@@ -572,4 +584,6 @@ func (ep *Endpoint) fromSerializedEndpoint(r *serializableEndpoint) {
 	ep.deviceType = r.DeviceType
 	ep.parentDevName = r.ParentDevName
 	ep.parentDevIndex = r.ParentDevIndex
+	ep.podStackRedirectIfindex = r.PodStackRedirectIfindex
+	ep.externalDHCP4 = r.ExternalDHCP4
 }

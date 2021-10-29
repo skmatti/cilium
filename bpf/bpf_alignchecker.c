@@ -28,6 +28,7 @@
 #include "lib/policy_log.h"
 #include "lib/pcap.h"
 #include "sockops/bpf_sockops.h"
+#include "lib/google_maps.h"
 
 /* DECLARE declares a unique usage of the union or struct 'x' on the stack.
  *
@@ -92,6 +93,8 @@ int main(void)
 	DECLARE(struct vtep_value);
 	DECLARE(struct local_redirect_key);
 	DECLARE(struct local_redirect_info);
+	DECLARE(struct multi_nic_dev_key);
+	DECLARE(struct multi_nic_dev_info);
 	DECLARE(struct capture4_wcard);
 	DECLARE(struct capture6_wcard);
 	DECLARE(struct capture_rule);

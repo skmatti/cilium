@@ -45,6 +45,7 @@ import (
 	"github.com/cilium/cilium/pkg/eventqueue"
 	"github.com/cilium/cilium/pkg/fqdn"
 	"github.com/cilium/cilium/pkg/gke/multinic"
+	dhcp "github.com/cilium/cilium/pkg/gke/multinic/dhcp"
 	nodefirewall "github.com/cilium/cilium/pkg/gke/nodefirewall/bootstrap"
 	gkeredirectservice "github.com/cilium/cilium/pkg/gke/redirectservice/controller"
 	"github.com/cilium/cilium/pkg/gke/subnet"
@@ -197,6 +198,9 @@ type Daemon struct {
 	// client used to query and update Network and NetworkInterface resources
 	// when multinic is enabled
 	multinicClient multinic.K8sClient
+
+	// dhcpClient is used to allocate and release IPs from external DHCP server
+	dhcpClient dhcp.DHCPClient
 
 	// kubeletClient is used to query resource information for a given pod
 	kubeletClient *multinic.KubeletClient
@@ -1092,13 +1096,9 @@ func NewDaemon(ctx context.Context, cancel context.CancelFunc, epMgr *endpointma
 		if !k8s.IsEnabled() {
 			log.Fatal("K8s needs to be enabled for multi nic support")
 		}
-		d.multinicClient, err = multinic.NewK8sClient()
+		d.multinicClient, d.kubeletClient, d.dhcpClient, err = multinic.Init(d.ctx, d.endpointManager)
 		if err != nil {
-			log.WithError(err).Fatal("Unable to create multinic client")
-		}
-		d.kubeletClient, err = multinic.NewKubeletClient(d.ctx)
-		if err != nil {
-			log.WithError(err).Fatal("Unable to create kubelet client")
+			log.WithError(err).Fatal("Unable to init multinic")
 		}
 	}
 

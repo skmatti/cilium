@@ -1219,6 +1219,12 @@ definitions:
       device-type:
         description: Type of the device. Empty string for veth.
         type: string
+      pod-stack-redirect-ifindex:
+        description: Interface index of the pod-network interface inside the pod-ns
+        type: integer
+      externalDHCP4:
+        description: Whether the IPAM is static or allocation by the external DHCP server
+        type: boolean
   EndpointDatapathConfiguration:
     description: |-
       Datapath configuration to be used for the endpoint

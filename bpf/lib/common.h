@@ -506,6 +506,13 @@ enum {
 #define REASON_FRAG_PACKET_UPDATE	10
 #define REASON_MISSED_CUSTOM_CALL	11
 
+/* Metrics used by google specific code.The range for the metrics
+ * is between the REASON codes and the drop codes to avoid
+ * conflicts with cilium OSS code
+ */
+#define REASON_GOOGLE_DHCP_REQ_REDIRECT    	100
+#define REASON_GOOGLE_DHCP_RESP_REDIRECT    	101
+
 /* Lookup scope for externalTrafficPolicy=Local */
 #define LB_LOOKUP_SCOPE_EXT	0
 #define LB_LOOKUP_SCOPE_INT	1

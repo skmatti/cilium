@@ -213,6 +213,12 @@ const (
 	// Macvtap is a macvtap object or ID
 	Macvtap = "macvtap"
 
+	// Macvlan is a macvtap object or ID
+	Macvlan = "macvlan"
+
+	// DeviceType is the name of device type.
+	DeviceType = "deviceType"
+
 	// Veth is a veth object or ID
 	Veth = "veth"
 

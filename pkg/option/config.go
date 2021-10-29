@@ -1066,7 +1066,7 @@ const (
 	// cluster external access to ClusterIP services.
 	ExternalClusterIPName = "bpf-lb-external-clusterip"
 
-	// EnableGoogleMultiNIC is the name of the option to enable gogole multi nic support.
+	// EnableGoogleMultiNIC is the name of the option to enable gogole multi NIC support.
 	EnableGoogleMultiNIC = "enable-google-multi-nic"
 
 	// EnableGDCILB is the name of the option to enable google GDC-H ILB Support
@@ -1077,6 +1077,9 @@ const (
 
 	// EnableICMPRules enables ICMP-based rule support for Cilium Network Policies.
 	EnableICMPRules = "enable-icmp-rules"
+
+	// AllowDisableSourceIPValidation is the name of the option to allow disabling source IP validation for multi-nic endpoints.
+	AllowDisableSourceIPValidation = "allow-disable-source-ip-validation"
 
 	// BypassIPAvailabilityUponRestore bypasses the IP availability error
 	// within IPAM upon endpoint restore and allows the use of the restored IP
@@ -2256,7 +2259,7 @@ type DaemonConfig struct {
 	// ARPPingKernelManaged denotes whether kernel can auto-refresh Neighbor entries
 	ARPPingKernelManaged bool
 
-	// EnableGoogleMultiNIC is a feature flag for google multi nic support, default is false.
+	// EnableGoogleMultiNIC is a feature flag for google multi NIC support, default is false.
 	EnableGoogleMultiNIC bool
 
 	// EnableGDCILB is a feature flag for google GDC-H ILB Support, default is false
@@ -2264,6 +2267,10 @@ type DaemonConfig struct {
 
 	// VLANBPFBypass list of explicitly allowed VLAN id's for bpf logic bypass
 	VLANBPFBypass []int
+
+	// AllowDisableSourceIPValidation is a feature flag to allow disable source IP validation, default is false.
+	AllowDisableSourceIPValidation bool
+
 	// EnableL2NeighDiscovery determines if cilium should perform L2 neighbor
 	// discovery.
 	EnableL2NeighDiscovery bool
@@ -2905,6 +2912,7 @@ func (c *DaemonConfig) Populate() {
 	c.EnableLocalRedirectPolicy = viper.GetBool(EnableLocalRedirectPolicy)
 	c.EnableGoogleMultiNIC = viper.GetBool(EnableGoogleMultiNIC)
 	c.EnableGDCILB = vp.GetBool(EnableGDCILB)
+	c.AllowDisableSourceIPValidation = viper.GetBool(AllowDisableSourceIPValidation)
 	c.EncryptInterface = viper.GetStringSlice(EncryptInterface)
 	c.EncryptNode = viper.GetBool(EncryptNode)
 	c.EnvoyLogPath = viper.GetString(EnvoyLog)

@@ -59,6 +59,7 @@
 #include "lib/encrypt.h"
 #include "lib/google_arp_responder.h"
 #include "lib/egress_policies.h"
+#include "lib/google_multinic.h"
 
 static __always_inline bool allow_vlan(__u32 __maybe_unused ifindex, __u32 __maybe_unused vlan_id) {
 	VLAN_FILTER(ifindex, vlan_id);
@@ -1095,6 +1096,16 @@ out:
 		return send_drop_notify_error(ctx, 0, ret, CTX_ACT_DROP,
 					      METRIC_EGRESS);
 #endif
+
+#if defined(ENABLE_GOOGLE_MULTI_NIC)
+	ret = multinic_redirect_ipv4(ctx);
+	if (IS_ERR(ret))
+		return send_drop_notify_error(ctx, 0, ret, CTX_ACT_DROP,
+					      METRIC_EGRESS);
+	if (ret != CTX_ACT_OK)
+		return ret;
+#endif
+
 	send_trace_notify(ctx, TRACE_TO_NETWORK, 0, 0, 0,
 			  0, trace.reason, trace.monitor);
 

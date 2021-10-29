@@ -18,79 +18,61 @@ package multinic
 
 import (
 	"context"
-	"fmt"
 
-	multinicv1alpha1 "github.com/cilium/cilium/pkg/gke/apis/multinic/v1alpha1"
-	multinicclient "github.com/cilium/cilium/pkg/gke/client/multinic/clientset/versioned"
-	multinicinformers "github.com/cilium/cilium/pkg/gke/client/multinic/informers/externalversions"
-	multiniclisters "github.com/cilium/cilium/pkg/gke/client/multinic/listers/multinic/v1alpha1"
-	"github.com/cilium/cilium/pkg/k8s"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/util/wait"
+	networkv1alpha1 "gke-internal.googlesource.com/anthos-networking/apis/network/v1alpha1"
+	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 // K8sClient interface contains the methods that can be used to interact with the Network and
 // NetworkInterface CRs.
 type K8sClient interface {
 	// GetNetworkInterface returns the specified NetworkInterface CR
-	GetNetworkInterface(name, namespace string) (*multinicv1alpha1.NetworkInterface, error)
+	GetNetworkInterface(ctx context.Context, name, namespace string) (*networkv1alpha1.NetworkInterface, error)
 
 	// GetNetworkInterface returns the specified Network CR
-	GetNetwork(name string) (*multinicv1alpha1.Network, error)
+	GetNetwork(ctx context.Context, name string) (*networkv1alpha1.Network, error)
 
 	// UpdateNetworkInterfaceStatus updates the NetworkInterface status with the provided status.
-	UpdateNetworkInterfaceStatus(ctx context.Context, update *multinicv1alpha1.NetworkInterface) (*multinicv1alpha1.NetworkInterface, error)
+	UpdateNetworkInterfaceStatus(ctx context.Context, obj *networkv1alpha1.NetworkInterface) error
 }
 
-// k8sClient is an implementation of the K8sClient interface
+// k8sClientImpl is an implementation of the K8sClient interface
+// It helps to restrict the usage of the underlying generic controller-runtime client.
 type k8sClientImpl struct {
-	multinicClient  multinicclient.Interface
-	networkLister   multiniclisters.NetworkLister
-	interfaceLister multiniclisters.NetworkInterfaceLister
-	informerFactory multinicinformers.SharedInformerFactory
+	client client.Client
 }
 
-// NewClient creates a new K8sClient and blocks for the underlying cache to sync before
-// returning
-func NewK8sClient() (K8sClient, error) {
-	kubeConfig, err := k8s.CreateConfig()
-	if err != nil {
-		return &k8sClientImpl{}, fmt.Errorf("failed to create kube rest config: %w", err)
+// NewK8sClient creates a new K8sClient
+func NewK8sClient(client client.Client) K8sClient {
+	return &k8sClientImpl{
+		client: client,
 	}
-	multinicClient, err := multinicclient.NewForConfig(kubeConfig)
-	if err != nil {
-		return &k8sClientImpl{}, fmt.Errorf("failed to create multinic client: %w", err)
+}
+
+func namespacedName(name, namespace string) types.NamespacedName {
+	return types.NamespacedName{
+		Name:      name,
+		Namespace: namespace,
 	}
-	informerFactory := multinicinformers.NewSharedInformerFactory(multinicClient, 0)
-	k8sClient := &k8sClientImpl{
-		multinicClient:  multinicClient,
-		networkLister:   informerFactory.Networking().V1alpha1().Networks().Lister(),
-		interfaceLister: informerFactory.Networking().V1alpha1().NetworkInterfaces().Lister(),
-		informerFactory: informerFactory,
+}
+
+func (c *k8sClientImpl) GetNetworkInterface(ctx context.Context, name, namespace string) (*networkv1alpha1.NetworkInterface, error) {
+	intf := &networkv1alpha1.NetworkInterface{}
+	if err := c.client.Get(ctx, namespacedName(name, namespace), intf); err != nil {
+		return nil, err
 	}
-
-	// The multinic K8s client only needs the listers but the informer go routines
-	// need to be running for the cache to be populated. Informers are created when
-	// listers are created.
-	informerFactory.Start(wait.NeverStop)
-	informerFactory.WaitForCacheSync(wait.NeverStop)
-
-	return k8sClient, nil
+	return intf, nil
 }
 
-// GetNetworkInterface returns the specified NetworkInterface. If the NetworkInterface is
-// not in the store, it queries the api server.
-func (c *k8sClientImpl) GetNetworkInterface(name, namespace string) (*multinicv1alpha1.NetworkInterface, error) {
-	return c.interfaceLister.NetworkInterfaces(namespace).Get(name)
+func (c *k8sClientImpl) GetNetwork(ctx context.Context, name string) (*networkv1alpha1.Network, error) {
+	network := &networkv1alpha1.Network{}
+	if err := c.client.Get(ctx, namespacedName(name, ""), network); err != nil {
+		return nil, err
+	}
+	return network, nil
 }
 
-// GetNetwork returns the specified Network. If the Network is not in the store, it
-// queries the api server.
-func (c *k8sClientImpl) GetNetwork(name string) (*multinicv1alpha1.Network, error) {
-	return c.networkLister.Get(name)
-}
-
-// UpdateNetworkInterfaceStatus updates the specified NetworkInterface's status with the provided status
-func (c *k8sClientImpl) UpdateNetworkInterfaceStatus(ctx context.Context, update *multinicv1alpha1.NetworkInterface) (*multinicv1alpha1.NetworkInterface, error) {
-	return c.multinicClient.NetworkingV1alpha1().NetworkInterfaces(update.Namespace).UpdateStatus(ctx, update, metav1.UpdateOptions{})
+func (c *k8sClientImpl) UpdateNetworkInterfaceStatus(ctx context.Context, obj *networkv1alpha1.NetworkInterface) error {
+	return c.client.Status().Update(ctx, obj)
 }

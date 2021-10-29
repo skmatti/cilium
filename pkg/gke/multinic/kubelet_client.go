@@ -24,8 +24,6 @@ import (
 	"os"
 
 	slimv1 "github.com/cilium/cilium/pkg/k8s/slim/k8s/api/core/v1"
-	"github.com/cilium/cilium/pkg/logging"
-	"github.com/cilium/cilium/pkg/logging/logfields"
 	"google.golang.org/grpc"
 	podresourcesv1 "k8s.io/kubelet/pkg/apis/podresources/v1"
 )
@@ -35,10 +33,6 @@ const (
 	unixProtocol               = "unix"
 	defaultKubeletAPISocket    = "unix:/var/lib/kubelet/pod-resources/kubelet.sock"
 	defaultPodResourcesMaxSize = 1024 * 1024 * 16 // 16 Mb
-)
-
-var (
-	log = logging.DefaultLogger.WithField(logfields.LogSubsys, "kubelet-client")
 )
 
 // KubeletClient is a grpc client to query pod resources through the kubelet api.

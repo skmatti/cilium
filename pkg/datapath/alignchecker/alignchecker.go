@@ -19,6 +19,7 @@ import (
 	"github.com/cilium/cilium/pkg/maps/localredirect"
 	"github.com/cilium/cilium/pkg/maps/lxcmap"
 	"github.com/cilium/cilium/pkg/maps/metricsmap"
+	"github.com/cilium/cilium/pkg/maps/multinicdev"
 	"github.com/cilium/cilium/pkg/maps/neighborsmap"
 	"github.com/cilium/cilium/pkg/maps/policymap"
 	"github.com/cilium/cilium/pkg/maps/recorder"
@@ -93,6 +94,8 @@ func CheckStructAlignments(path string) error {
 		"vtep_value":             {reflect.TypeOf(vtep.VtepEndpointInfo{})},
 		"local_redirect_key":     {reflect.TypeOf(localredirect.LocalRedirectKey{})},
 		"local_redirect_info":    {reflect.TypeOf(localredirect.LocalRedirectInfo{})},
+		"multi_nic_dev_key":      {reflect.TypeOf(multinicdev.Key{})},
+		"multi_nic_dev_info":     {reflect.TypeOf(multinicdev.MultiNICDevInfo{})},
 	}
 	if err := check.CheckStructAlignments(path, toCheck, true); err != nil {
 		return err

@@ -27,6 +27,8 @@ import (
 	"github.com/cilium/cilium/pkg/node"
 	"github.com/cilium/cilium/pkg/node/types"
 	"github.com/cilium/cilium/pkg/option"
+
+	multiniccep "github.com/cilium/cilium/pkg/gke/multinic/ciliumendpoint"
 )
 
 const (
@@ -52,13 +54,6 @@ func (epSync *EndpointSynchronizer) RunK8sCiliumEndpointSync(e *endpoint.Endpoin
 			"endpointID": e.ID,
 		})
 	)
-
-	// TODO(yfshen): remove when multi CiliumEndpoint (CEP) is implemented
-	// Skip CEP creation sync if it's a multi-nic endpoint
-	if e.IsMultiNIC() {
-		scopedLog.Debug("Skip CEP creation sync for multinic endpoint")
-		return
-	}
 
 	if option.Config.DisableCiliumEndpointCRD {
 		scopedLog.Debug("Not running controller. CEP CRD synchronization is disabled")
@@ -100,9 +95,9 @@ func (epSync *EndpointSynchronizer) RunK8sCiliumEndpointSync(e *endpoint.Endpoin
 
 				// K8sPodName and K8sNamespace are not always available when an
 				// endpoint is first created, so we collect them here.
-				podName := e.GetK8sPodName()
-				if podName == "" {
-					scopedLog.Debug("Skipping CiliumEndpoint update because it has no k8s pod name")
+				cepName := e.GenerateCEPName()
+				if cepName == "" {
+					scopedLog.Debug("Skipping CiliumEndpoint update because it has empty CEP name")
 					return nil
 				}
 
@@ -144,7 +139,7 @@ func (epSync *EndpointSynchronizer) RunK8sCiliumEndpointSync(e *endpoint.Endpoin
 					}
 
 					scopedLog.Debug("Getting CEP during an initialization")
-					localCEP, err = ciliumClient.CiliumEndpoints(namespace).Get(ctx, podName, meta_v1.GetOptions{})
+					localCEP, err = ciliumClient.CiliumEndpoints(namespace).Get(ctx, cepName, meta_v1.GetOptions{})
 					// It's only an error if it exists but something else happened
 					switch {
 					case err == nil:
@@ -166,7 +161,7 @@ func (epSync *EndpointSynchronizer) RunK8sCiliumEndpointSync(e *endpoint.Endpoin
 						// server via an API call.
 						cep := &cilium_v2.CiliumEndpoint{
 							ObjectMeta: meta_v1.ObjectMeta{
-								Name: podName,
+								Name: cepName,
 								OwnerReferences: []meta_v1.OwnerReference{
 									{
 										APIVersion: "v1",
@@ -181,6 +176,8 @@ func (epSync *EndpointSynchronizer) RunK8sCiliumEndpointSync(e *endpoint.Endpoin
 							},
 							Status: *mdl,
 						}
+						// For multi NIC CEP, we add annotation to identify.
+						multiniccep.AddAnnotationIfMultiNIC(e, cep)
 						localCEP, err = ciliumClient.CiliumEndpoints(namespace).Create(ctx, cep, meta_v1.CreateOptions{})
 						if err != nil {
 							// Suppress logging an error if ep backing the pod was terminated
@@ -218,7 +215,7 @@ func (epSync *EndpointSynchronizer) RunK8sCiliumEndpointSync(e *endpoint.Endpoin
 				// This is unexpected as there should be only 1 writer per CEP, this
 				// controller, and the localCEP created on startup will be used.
 				if localCEP == nil {
-					localCEP, err = ciliumClient.CiliumEndpoints(namespace).Get(ctx, podName, meta_v1.GetOptions{})
+					localCEP, err = ciliumClient.CiliumEndpoints(namespace).Get(ctx, cepName, meta_v1.GetOptions{})
 					switch {
 					case err == nil:
 						// Backfill the CEP UID as we need to do if the CEP was
@@ -278,7 +275,7 @@ func (epSync *EndpointSynchronizer) RunK8sCiliumEndpointSync(e *endpoint.Endpoin
 				}
 
 				localCEP, err = ciliumClient.CiliumEndpoints(namespace).Patch(
-					ctx, podName,
+					ctx, cepName,
 					k8stypes.JSONPatchType,
 					createStatusPatch,
 					meta_v1.PatchOptions{})
@@ -377,12 +374,6 @@ func updateCEPUID(scopedLog *logrus.Entry, e *endpoint.Endpoint, localCEP *ciliu
 // CEP from Kubernetes once the endpoint is stopped / removed from the
 // Cilium agent.
 func (epSync *EndpointSynchronizer) DeleteK8sCiliumEndpointSync(e *endpoint.Endpoint) {
-	// TODO(yfshen): remove when multi CiliumEndpoint (CEP) is implemented
-	// Skip CEP removal sync if it's a multi-nic endpoint
-	if e.IsMultiNIC() {
-		e.Logger(subsysEndpointSync).Debug("Skip CEP removal sync for multinic endpoint")
-		return
-	}
 	controllerName := endpoint.EndpointSyncControllerName(e.ID)
 
 	scopedLog := e.Logger(subsysEndpointSync).WithField("controller", controllerName)
@@ -411,9 +402,9 @@ func (epSync *EndpointSynchronizer) DeleteK8sCiliumEndpointSync(e *endpoint.Endp
 }
 
 func deleteCEP(ctx context.Context, scopedLog *logrus.Entry, ciliumClient v2.CiliumV2Interface, e *endpoint.Endpoint) error {
-	podName := e.GetK8sPodName()
-	if podName == "" {
-		scopedLog.Debug("Skipping CiliumEndpoint deletion because it has no k8s pod name")
+	cepName := e.GenerateCEPName()
+	if cepName == "" {
+		scopedLog.Debug("Skipping CiliumEndpoint deletion because it has empty CEP name")
 		return nil
 	}
 	namespace := e.GetK8sNamespace()
@@ -441,7 +432,7 @@ func deleteCEP(ctx context.Context, scopedLog *logrus.Entry, ciliumClient v2.Cil
 	}
 
 	scopedLog.WithField(logfields.CEPUID, cepUID).Debug("deleting CEP with UID")
-	if err := ciliumClient.CiliumEndpoints(namespace).Delete(ctx, podName, meta_v1.DeleteOptions{
+	if err := ciliumClient.CiliumEndpoints(namespace).Delete(ctx, cepName, meta_v1.DeleteOptions{
 		Preconditions: &meta_v1.Preconditions{
 			UID: &cepUID,
 		},

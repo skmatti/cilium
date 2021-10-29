@@ -252,6 +252,9 @@ const (
 	// CESSlicingMode instructs how CEPs are grouped in a CES.
 	CESSlicingMode = "ces-slice-mode"
 
+	// EnableGoogleMultiNIC is the name of the option to enable gogole multi NIC support.
+	EnableGoogleMultiNIC = "enable-google-multi-nic"
+
 	// EnableIngressController enables cilium ingress controller
 	// This must be enabled along with enable-envoy-config in cilium agent.
 	EnableIngressController = "enable-ingress-controller"
@@ -497,6 +500,9 @@ type OperatorConfig struct {
 	// CESSlicingMode instructs how CEPs are grouped in a CES.
 	CESSlicingMode string
 
+	// EnableGoogleMultiNIC is a feature flag for google multi NIC support, default is false.
+	EnableGoogleMultiNIC bool
+
 	// EnableIngressController enables cilium ingress controller
 	EnableIngressController bool
 
@@ -562,6 +568,7 @@ func (c *OperatorConfig) Populate() {
 	c.BGPConfigPath = viper.GetString(BGPConfigPath)
 	c.EnableEndpointSlicing = viper.GetBool(EnableEndpointSlicing)
 	c.SkipCRDCreation = viper.GetBool(SkipCRDCreation)
+	c.EnableGoogleMultiNIC = viper.GetBool(EnableGoogleMultiNIC)
 	c.EnableIngressController = viper.GetBool(EnableIngressController)
 	c.EnforceIngressHTTPS = viper.GetBool(EnforceIngressHttps)
 	c.IngressSecretsNamespace = viper.GetString(IngressSecretsNamespace)

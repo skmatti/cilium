@@ -37,6 +37,7 @@ import (
 	"github.com/cilium/cilium/pkg/eventqueue"
 	"github.com/cilium/cilium/pkg/fqdn"
 	"github.com/cilium/cilium/pkg/fqdn/restore"
+	multinicep "github.com/cilium/cilium/pkg/gke/multinic/endpoint"
 	"github.com/cilium/cilium/pkg/identity"
 	"github.com/cilium/cilium/pkg/identity/cache"
 	"github.com/cilium/cilium/pkg/identity/identitymanager"
@@ -50,6 +51,7 @@ import (
 	"github.com/cilium/cilium/pkg/mac"
 	"github.com/cilium/cilium/pkg/maps/ctmap"
 	"github.com/cilium/cilium/pkg/maps/lxcmap"
+	"github.com/cilium/cilium/pkg/maps/multinicdev"
 	"github.com/cilium/cilium/pkg/maps/policymap"
 	"github.com/cilium/cilium/pkg/metrics"
 	"github.com/cilium/cilium/pkg/monitor/notifications"
@@ -352,13 +354,22 @@ type Endpoint struct {
 	netNs string
 
 	// Device type of the endpoint. If it's unset (empty), it's the normal veth endpoint.
-	deviceType EndpointDeviceType
+	deviceType multinicep.EndpointDeviceType
 
 	// parentDevName is the name of the parent interface for a macvtap/macvlan endpoint.
 	parentDevName string
 
 	// parentDevIndex is the index of the parent interface for a macvtap/macvlan endpoint.
 	parentDevIndex int
+
+	// pod stack redirect can be used to send traffic to the pod-ns
+	// kernel stack. The primary use is to redirect traffic from a
+	// macvtap interface into the pod networking stack for dhcp traffic
+	podStackRedirectIfindex int
+
+	// externalDHCP4 indicates whether the IPAM is static or
+	// allocation by the external DHCP server
+	externalDHCP4 bool
 }
 
 type namedPortsGetter interface {
@@ -2224,6 +2235,10 @@ func (e *Endpoint) Delete(conf DeleteConfig) []error {
 	if !option.Config.DryMode {
 		if errs2 := lxcmap.DeleteElement(e); errs2 != nil {
 			errs = append(errs, errs2...)
+		}
+
+		if err := multinicdev.DeleteEndpointFromMap(e); err != nil {
+			errs = append(errs, err)
 		}
 
 		if errs2 := e.deleteMaps(); errs2 != nil {

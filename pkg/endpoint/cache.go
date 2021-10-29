@@ -9,6 +9,7 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"github.com/cilium/cilium/pkg/addressing"
+	multinicep "github.com/cilium/cilium/pkg/gke/multinic/endpoint"
 	"github.com/cilium/cilium/pkg/identity"
 	"github.com/cilium/cilium/pkg/mac"
 	"github.com/cilium/cilium/pkg/option"
@@ -53,7 +54,9 @@ type epInfoCache struct {
 	// Dereferencing fields in this endpoint is not guaranteed to be safe.
 	endpoint *Endpoint
 
-	deviceType EndpointDeviceType
+	deviceType              multinicep.EndpointDeviceType
+	parentDevIndex          int
+	podStackRedirectIfindex int
 }
 
 // Must be called when endpoint is still locked.
@@ -85,7 +88,9 @@ func (e *Endpoint) createEpInfoCache(epdir string) *epInfoCache {
 
 		endpoint: e,
 
-		deviceType: e.GetDeviceType(),
+		deviceType:              e.GetDeviceType(),
+		parentDevIndex:          e.parentDevIndex,
+		podStackRedirectIfindex: e.podStackRedirectIfindex,
 	}
 	return ep
 }

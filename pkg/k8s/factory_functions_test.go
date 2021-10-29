@@ -1337,6 +1337,53 @@ func (s *K8sSuite) Test_ConvertToCiliumEndpoint(c *C) {
 			},
 		},
 		{
+			name: "normal conversion with annotation",
+			args: args{
+				obj: &v2.CiliumEndpoint{
+					ObjectMeta: metav1.ObjectMeta{
+						Annotations: map[string]string{
+							"foo": "bar",
+						},
+					},
+				},
+			},
+			want: &types.CiliumEndpoint{
+				ObjectMeta: slim_metav1.ObjectMeta{
+					Annotations: map[string]string{
+						"foo": "bar",
+					},
+				},
+				Encryption: &v2.EncryptionSpec{},
+			},
+		},
+		{
+			name: "normal conversion with OwnerReference",
+			args: args{
+				obj: &v2.CiliumEndpoint{
+					ObjectMeta: metav1.ObjectMeta{
+						OwnerReferences: []metav1.OwnerReference{
+							{
+								Kind:       "Pod",
+								APIVersion: "v1",
+								Name:       "foo",
+							},
+						},
+					},
+				},
+			},
+			want: &types.CiliumEndpoint{
+				ObjectMeta: slim_metav1.ObjectMeta{
+					OwnerReferences: []slim_metav1.OwnerReference{
+						{
+							Kind: "Pod",
+							Name: "foo",
+						},
+					},
+				},
+				Encryption: &v2.EncryptionSpec{},
+			},
+		},
+		{
 			name: "delete final state unknown conversion",
 			args: args{
 				obj: cache.DeletedFinalStateUnknown{

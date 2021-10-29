@@ -35,30 +35,25 @@ func TestMergeMultiNICLabels(t *testing.T) {
 				"key2": NewLabel("key2", "value2", "source2"),
 			},
 			from: Labels{
-				multinicInterface: NewLabel(multinicInterface, "value3", "source4"),
-				multinicNetwork:   NewLabel(multinicNetwork, "value3", "source4"),
+				MultinicNetwork: NewLabel(MultinicNetwork, "value3", "source4"),
 			},
 			want: Labels{
-				"key1":            NewLabel("key1", "value1", "source1"),
-				"key2":            NewLabel("key2", "value2", "source2"),
-				multinicInterface: NewLabel(multinicInterface, "value3", "source4"),
-				multinicNetwork:   NewLabel(multinicNetwork, "value3", "source4"),
+				"key1":          NewLabel("key1", "value1", "source1"),
+				"key2":          NewLabel("key2", "value2", "source2"),
+				MultinicNetwork: NewLabel(MultinicNetwork, "value3", "source4"),
 			},
 		},
 		{
 			desc: "merge multinic labels with overwriting",
 			to: Labels{
-				"key1":            NewLabel("key1", "value1", "source1"),
-				multinicInterface: NewLabel(multinicInterface, "value2", "source2"),
+				"key1": NewLabel("key1", "value1", "source1"),
 			},
 			from: Labels{
-				multinicInterface: NewLabel(multinicInterface, "value3", "source4"),
-				multinicNetwork:   NewLabel(multinicNetwork, "value3", "source4"),
+				MultinicNetwork: NewLabel(MultinicNetwork, "value3", "source4"),
 			},
 			want: Labels{
-				"key1":            NewLabel("key1", "value1", "source1"),
-				multinicInterface: NewLabel(multinicInterface, "value3", "source4"),
-				multinicNetwork:   NewLabel(multinicNetwork, "value3", "source4"),
+				"key1":          NewLabel("key1", "value1", "source1"),
+				MultinicNetwork: NewLabel(MultinicNetwork, "value3", "source4"),
 			},
 		},
 	}

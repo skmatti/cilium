@@ -12,6 +12,7 @@ import (
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/client-go/tools/cache"
 
+	multiniccep "github.com/cilium/cilium/pkg/gke/multinic/ciliumendpoint"
 	"github.com/cilium/cilium/pkg/identity"
 	"github.com/cilium/cilium/pkg/ipcache"
 	"github.com/cilium/cilium/pkg/k8s"
@@ -178,7 +179,14 @@ func (k *K8sWatcher) endpointUpdated(oldEndpoint, endpoint *types.CiliumEndpoint
 		Namespace:  endpoint.Namespace,
 		PodName:    endpoint.Name,
 		NamedPorts: make(policy.NamedPortMap, len(endpoint.NamedPorts)),
+		IsMultiNIC: multiniccep.IsMultiNICCEP(endpoint),
 	}
+	podName, err := multiniccep.GetPodNameFromCEP(endpoint)
+	if err != nil {
+		log.WithError(err).Warning("cannot get pod name from CiliumEndpoint")
+		return
+	}
+	k8sMeta.PodName = podName
 	for _, port := range endpoint.NamedPorts {
 		p, err := u8proto.ParseProtocol(port.Protocol)
 		if err != nil {
@@ -216,18 +224,23 @@ func (k *K8sWatcher) endpointUpdated(oldEndpoint, endpoint *types.CiliumEndpoint
 }
 
 func (k *K8sWatcher) endpointDeleted(endpoint *types.CiliumEndpoint) {
+	podName, err := multiniccep.GetPodNameFromCEP(endpoint)
+	if err != nil {
+		log.WithError(err).Warning("cannot get pod name from CiliumEndpoint")
+		return
+	}
 	if endpoint.Networking != nil {
 		namedPortsChanged := false
 		for _, pair := range endpoint.Networking.Addressing {
 			if pair.IPV4 != "" {
-				portsChanged := k.ipcache.DeleteOnMetadataMatch(pair.IPV4, source.CustomResource, endpoint.Namespace, endpoint.Name)
+				portsChanged := k.ipcache.DeleteOnMetadataMatch(pair.IPV4, source.CustomResource, endpoint.Namespace, podName)
 				if portsChanged {
 					namedPortsChanged = true
 				}
 			}
 
 			if pair.IPV6 != "" {
-				portsChanged := k.ipcache.DeleteOnMetadataMatch(pair.IPV6, source.CustomResource, endpoint.Namespace, endpoint.Name)
+				portsChanged := k.ipcache.DeleteOnMetadataMatch(pair.IPV6, source.CustomResource, endpoint.Namespace, podName)
 				if portsChanged {
 					namedPortsChanged = true
 				}
