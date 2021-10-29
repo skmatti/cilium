@@ -247,12 +247,16 @@ require (
 )
 
 require (
+	gke-internal.googlesource.com/anthos-networking/apis v0.0.0-00010101000000-000000000000
 	// GKE specific dependencies.
 	gke-internal/gke-node-firewall v0.0.0-00010101000000-000000000000
-	k8s.io/kubelet v0.21.3
+	k8s.io/kubelet v0.23.0
 )
 
-replace gke-internal/gke-node-firewall => gke-internal.googlesource.com/kubernetes/gke-node-firewall.git v0.0.20
+replace (
+	gke-internal.googlesource.com/anthos-networking/apis => gke-internal.googlesource.com/anthos-networking.git/apis v0.0.0-20220301232334-fc89b0fcc868
+	gke-internal/gke-node-firewall => gke-internal.googlesource.com/kubernetes/gke-node-firewall.git v0.0.20
+)
 
 replace (
 	github.com/optiopay/kafka => github.com/cilium/kafka v0.0.0-20180809090225-01ce283b732b

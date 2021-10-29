@@ -75,7 +75,14 @@ func (mgr *EndpointManager) LookupPrimaryEndpointByPodName(name string) *endpoin
 
 func (mgr *EndpointManager) addToMultiNICMapIfNeeded(ep *endpoint.Endpoint, prefix endpointid.PrefixType, id string) bool {
 	if option.Config.EnableGoogleMultiNIC && (prefix == endpointid.ContainerIdPrefix || prefix == endpointid.PodNamePrefix || prefix == endpointid.DockerEndpointPrefix || prefix == endpointid.ContainerNamePrefix) {
-		mgr.endpointsMultiNIC[id] = append(mgr.endpointsMultiNIC[id], ep)
+		eps := mgr.endpointsMultiNIC[id]
+		for _, epInList := range eps {
+			if ep.ID == epInList.ID {
+				// endpoint is already in multi-nic map
+				return true
+			}
+		}
+		mgr.endpointsMultiNIC[id] = append(eps, ep)
 		return true
 	}
 	return false

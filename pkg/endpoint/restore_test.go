@@ -19,6 +19,7 @@ import (
 	"github.com/cilium/cilium/pkg/checker"
 	linuxDatapath "github.com/cilium/cilium/pkg/datapath/linux"
 	"github.com/cilium/cilium/pkg/endpoint/regeneration"
+	multinicep "github.com/cilium/cilium/pkg/gke/multinic/endpoint"
 	"github.com/cilium/cilium/pkg/identity"
 	"github.com/cilium/cilium/pkg/labels"
 	"github.com/cilium/cilium/pkg/mac"
@@ -85,7 +86,7 @@ func (ds *EndpointSuite) endpointCreatorMultiNIC(id uint16, secID identity.Numer
 	strID := getStrID(id)
 	ep.ifNameInPod = "eth" + strID
 	ep.netNs = "/proc/" + strID
-	ep.deviceType = EndpointDeviceMACVTAP
+	ep.deviceType = multinicep.EndpointDeviceMACVTAP
 	ep.parentDevIndex = int(id)
 	ep.parentDevName = "ens" + strID
 	return ep

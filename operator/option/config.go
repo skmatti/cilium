@@ -263,6 +263,9 @@ const (
 	// LoadBalancerL7Algorithm is a default LB algorithm for services that do not specify related annotation
 	LoadBalancerL7Algorithm = "loadbalancer-l7-algorithm"
 
+	// EnableGoogleMultiNIC is the name of the option to enable gogole multi NIC support.
+	EnableGoogleMultiNIC = "enable-google-multi-nic"
+
 	// EnableIngressController enables cilium ingress controller
 	// This must be enabled along with enable-envoy-config in cilium agent.
 	EnableIngressController = "enable-ingress-controller"
@@ -543,6 +546,9 @@ type OperatorConfig struct {
 	// LoadBalancerL7Algorithm is a default LB algorithm for services that do not specify related annotation
 	LoadBalancerL7Algorithm string
 
+	// EnableGoogleMultiNIC is a feature flag for google multi NIC support, default is false.
+	EnableGoogleMultiNIC bool
+
 	// EnableIngressController enables cilium ingress controller
 	EnableIngressController bool
 
@@ -645,6 +651,7 @@ func (c *OperatorConfig) Populate(vp *viper.Viper) {
 	c.IngressSharedLBServiceName = vp.GetString(IngressSharedLBServiceName)
 	c.IngressDefaultLoadbalancerMode = vp.GetString(IngressDefaultLoadbalancerMode)
 	c.EnableK8s = vp.GetBool(EnableK8s)
+	c.EnableGoogleMultiNIC = vp.GetBool(EnableGoogleMultiNIC)
 
 	c.CiliumK8sNamespace = vp.GetString(CiliumK8sNamespace)
 

@@ -20,12 +20,14 @@ var (
 )
 
 type TestEndpoint struct {
-	Id       uint64
-	Identity *identity.Identity
-	Opts     *option.IntOptions
-	MAC      mac.MAC
-	IPv6     netip.Addr
-	isHost   bool
+	Id                      uint64
+	Identity                *identity.Identity
+	Opts                    *option.IntOptions
+	MAC                     mac.MAC
+	IPv6                    netip.Addr
+	isHost                  bool
+	PodRedirectStackIfindex int
+	MultiNic                bool
 }
 
 func NewTestEndpoint() TestEndpoint {
@@ -65,9 +67,10 @@ func (e *TestEndpoint) GetIdentity() identity.NumericIdentity       { return e.I
 func (e *TestEndpoint) GetIdentityLocked() identity.NumericIdentity { return e.Identity.ID }
 func (e *TestEndpoint) GetSecurityIdentity() *identity.Identity     { return e.Identity }
 func (e *TestEndpoint) GetNodeMAC() mac.MAC                         { return e.MAC }
+func (e *TestEndpoint) GetPodStackRedirectIfindex() int             { return e.PodRedirectStackIfindex }
 func (e *TestEndpoint) GetOptions() *option.IntOptions              { return e.Opts }
 func (e *TestEndpoint) IsHost() bool                                { return e.isHost }
-func (e *TestEndpoint) IsMultiNIC() bool                            { return false }
+func (e *TestEndpoint) IsMultiNIC() bool                            { return e.MultiNic }
 
 func (e *TestEndpoint) IPv4Address() netip.Addr {
 	return netip.MustParseAddr("192.0.2.3")

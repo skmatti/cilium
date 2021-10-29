@@ -16,6 +16,7 @@ import (
 	operatorOption "github.com/cilium/cilium/operator/option"
 	"github.com/cilium/cilium/operator/watchers"
 	"github.com/cilium/cilium/pkg/controller"
+	multiniccep "github.com/cilium/cilium/pkg/gke/multinic/ciliumendpoint"
 	cilium_v2 "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2"
 	k8sClient "github.com/cilium/cilium/pkg/k8s/client"
 	slim_corev1 "github.com/cilium/cilium/pkg/k8s/slim/k8s/api/core/v1"
@@ -104,6 +105,10 @@ func doCiliumEndpointSyncGC(ctx context.Context, clientset k8sClient.Clientset, 
 			for _, owner := range cep.ObjectMeta.OwnerReferences {
 				switch owner.Kind {
 				case "Pod":
+					if operatorOption.Config.EnableGoogleMultiNIC && multiniccep.IsMultiNICCEP(cep) {
+						log.WithField("ciliumEndpointName", cep.Name).Info("Constructing full pod name for multi NIC CEP")
+						cepFullName = cep.Namespace + "/" + owner.Name
+					}
 					podObj, exists, err = watchers.PodStore.GetByKey(cepFullName)
 					if err != nil {
 						scopedLog.WithError(err).Warn("Unable to get pod from store")

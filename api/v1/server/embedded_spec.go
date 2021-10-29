@@ -2377,6 +2377,10 @@ func init() {
           "description": "Docker network ID",
           "type": "string"
         },
+        "externalDHCP4": {
+          "description": "Whether the IPAM is static or allocation by the external DHCP server",
+          "type": "boolean"
+        },
         "host-mac": {
           "description": "MAC address",
           "type": "string"
@@ -2427,6 +2431,10 @@ func init() {
         },
         "pid": {
           "description": "Process ID of the workload belonging to this endpoint",
+          "type": "integer"
+        },
+        "pod-stack-redirect-ifindex": {
+          "description": "Interface index of the pod-network interface inside the pod-ns",
           "type": "integer"
         },
         "policy-enabled": {
@@ -7329,6 +7337,10 @@ func init() {
           "description": "Docker network ID",
           "type": "string"
         },
+        "externalDHCP4": {
+          "description": "Whether the IPAM is static or allocation by the external DHCP server",
+          "type": "boolean"
+        },
         "host-mac": {
           "description": "MAC address",
           "type": "string"
@@ -7379,6 +7391,10 @@ func init() {
         },
         "pid": {
           "description": "Process ID of the workload belonging to this endpoint",
+          "type": "integer"
+        },
+        "pod-stack-redirect-ifindex": {
+          "description": "Interface index of the pod-network interface inside the pod-ns",
           "type": "integer"
         },
         "policy-enabled": {

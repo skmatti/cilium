@@ -18,6 +18,7 @@ import (
 	"github.com/cilium/cilium/pkg/maps/lbmap"
 	"github.com/cilium/cilium/pkg/maps/lxcmap"
 	"github.com/cilium/cilium/pkg/maps/metricsmap"
+	"github.com/cilium/cilium/pkg/maps/multinicdev"
 	"github.com/cilium/cilium/pkg/maps/neighborsmap"
 	"github.com/cilium/cilium/pkg/maps/policymap"
 	"github.com/cilium/cilium/pkg/maps/recorder"
@@ -98,6 +99,8 @@ func CheckStructAlignments(path string) error {
 		"tunnel_value":           {reflect.TypeOf(tunnel.TunnelValue{})},
 		"vtep_key":               {reflect.TypeOf(vtep.Key{})},
 		"vtep_value":             {reflect.TypeOf(vtep.VtepEndpointInfo{})},
+		"multi_nic_dev_key":      {reflect.TypeOf(multinicdev.Key{})},
+		"multi_nic_dev_info":     {reflect.TypeOf(multinicdev.MultiNICDevInfo{})},
 	}
 	if err := check.CheckStructAlignments(path, toCheck, true); err != nil {
 		return err

@@ -8,6 +8,7 @@ import (
 	"github.com/cilium/cilium/pkg/endpoint"
 	endpointid "github.com/cilium/cilium/pkg/endpoint/id"
 	"github.com/cilium/cilium/pkg/endpointmanager/idallocator"
+	multinicep "github.com/cilium/cilium/pkg/gke/multinic/endpoint"
 	"github.com/cilium/cilium/pkg/option"
 	testidentity "github.com/cilium/cilium/pkg/testutils/identity"
 	testipcache "github.com/cilium/cilium/pkg/testutils/ipcache"
@@ -20,6 +21,7 @@ func (s *EndpointManagerSuite) TestLookupMultiNIC(c *C) {
 	defer func() {
 		option.Config.EnableGoogleMultiNIC = false
 	}()
+
 	type args struct {
 		id string
 	}
@@ -175,24 +177,24 @@ func (s *EndpointManagerSuite) TestLookupEndpointsByContainerID(c *C) {
 
 	ctx := context.Background()
 	mgr := NewEndpointManager(&dummyEpSyncher{})
-	ipc := testipcache.NewMockIPCache()
 
-	ep1, err := endpoint.NewEndpointFromChangeModel(ctx, s, s, ipc, &endpoint.FakeEndpointProxy{}, testidentity.NewMockIdentityAllocator(nil), &apiv1.EndpointChangeRequest{
-		ID:          1,
-		ContainerID: "foo",
-		DeviceType:  endpoint.EndpointDeviceMACVLAN,
+	ep1, err := endpoint.NewEndpointFromChangeModel(ctx, s, s, testipcache.NewMockIPCache(), &endpoint.FakeEndpointProxy{}, testidentity.NewMockIdentityAllocator(nil), &apiv1.EndpointChangeRequest{
+		ID:              1,
+		ContainerID:     "foo",
+		DeviceType:      multinicep.EndpointDeviceMACVLAN,
+		ParentDeviceMac: "5a:74:db:a5:d8:6b",
 	})
 	c.Assert(err, IsNil)
 	mgr.expose(ep1)
 
-	ep2, err := endpoint.NewEndpointFromChangeModel(ctx, s, s, ipc, &endpoint.FakeEndpointProxy{}, testidentity.NewMockIdentityAllocator(nil), &apiv1.EndpointChangeRequest{
+	ep2, err := endpoint.NewEndpointFromChangeModel(ctx, s, s, testipcache.NewMockIPCache(), &endpoint.FakeEndpointProxy{}, testidentity.NewMockIdentityAllocator(nil), &apiv1.EndpointChangeRequest{
 		ID:          2,
 		ContainerID: "foo",
 	})
 	c.Assert(err, IsNil)
 	mgr.expose(ep2)
 
-	ep3, err := endpoint.NewEndpointFromChangeModel(ctx, s, s, ipc, &endpoint.FakeEndpointProxy{}, testidentity.NewMockIdentityAllocator(nil), &apiv1.EndpointChangeRequest{
+	ep3, err := endpoint.NewEndpointFromChangeModel(ctx, s, s, testipcache.NewMockIPCache(), &endpoint.FakeEndpointProxy{}, testidentity.NewMockIdentityAllocator(nil), &apiv1.EndpointChangeRequest{
 		ID:          3,
 		ContainerID: "bar",
 	})
@@ -264,6 +266,10 @@ func (s *EndpointManagerSuite) TestLookupEndpointsByContainerID(c *C) {
 		gotPrimaryEp := mgr.LookupPrimaryEndpointByContainerID(args.id)
 		c.Assert(gotPrimaryEp, checker.DeepEquals, want.primaryEp, Commentf("Test Name: %s", tt.name))
 	}
+
+	mgr.WaitEndpointRemoved(ep1)
+	mgr.WaitEndpointRemoved(ep2)
+	mgr.WaitEndpointRemoved(ep3)
 }
 
 func (s *EndpointManagerSuite) TestLookupEndpointsByPodName(c *C) {
@@ -274,18 +280,18 @@ func (s *EndpointManagerSuite) TestLookupEndpointsByPodName(c *C) {
 
 	ctx := context.Background()
 	mgr := NewEndpointManager(&dummyEpSyncher{})
-	ipc := testipcache.NewMockIPCache()
 
-	ep1, err := endpoint.NewEndpointFromChangeModel(ctx, s, s, ipc, &endpoint.FakeEndpointProxy{}, testidentity.NewMockIdentityAllocator(nil), &apiv1.EndpointChangeRequest{
-		ID:           1,
-		K8sPodName:   "foo",
-		K8sNamespace: "default",
-		DeviceType:   endpoint.EndpointDeviceVETH,
+	ep1, err := endpoint.NewEndpointFromChangeModel(ctx, s, s, testipcache.NewMockIPCache(), &endpoint.FakeEndpointProxy{}, testidentity.NewMockIdentityAllocator(nil), &apiv1.EndpointChangeRequest{
+		ID:              1,
+		K8sPodName:      "foo",
+		K8sNamespace:    "default",
+		DeviceType:      multinicep.EndpointDeviceMACVLAN,
+		ParentDeviceMac: "5a:74:db:a5:d8:6a",
 	})
 	c.Assert(err, IsNil)
 	mgr.expose(ep1)
 
-	ep2, err := endpoint.NewEndpointFromChangeModel(ctx, s, s, ipc, &endpoint.FakeEndpointProxy{}, testidentity.NewMockIdentityAllocator(nil), &apiv1.EndpointChangeRequest{
+	ep2, err := endpoint.NewEndpointFromChangeModel(ctx, s, s, testipcache.NewMockIPCache(), &endpoint.FakeEndpointProxy{}, testidentity.NewMockIdentityAllocator(nil), &apiv1.EndpointChangeRequest{
 		ID:           2,
 		K8sPodName:   "foo",
 		K8sNamespace: "default",
@@ -293,7 +299,7 @@ func (s *EndpointManagerSuite) TestLookupEndpointsByPodName(c *C) {
 	c.Assert(err, IsNil)
 	mgr.expose(ep2)
 
-	ep3, err := endpoint.NewEndpointFromChangeModel(ctx, s, s, ipc, &endpoint.FakeEndpointProxy{}, testidentity.NewMockIdentityAllocator(nil), &apiv1.EndpointChangeRequest{
+	ep3, err := endpoint.NewEndpointFromChangeModel(ctx, s, s, testipcache.NewMockIPCache(), &endpoint.FakeEndpointProxy{}, testidentity.NewMockIdentityAllocator(nil), &apiv1.EndpointChangeRequest{
 		ID:           3,
 		K8sPodName:   "bar",
 		K8sNamespace: "default",
@@ -366,6 +372,10 @@ func (s *EndpointManagerSuite) TestLookupEndpointsByPodName(c *C) {
 		gotPrimaryEp := mgr.LookupPrimaryEndpointByPodName(args.id)
 		c.Assert(gotPrimaryEp, checker.DeepEquals, want.primaryEp, Commentf("Test Name: %s", tt.name))
 	}
+
+	mgr.WaitEndpointRemoved(ep1)
+	mgr.WaitEndpointRemoved(ep2)
+	mgr.WaitEndpointRemoved(ep3)
 }
 
 func (s *EndpointManagerSuite) TestUpdateReferencesMultiNIC(c *C) {
@@ -430,8 +440,10 @@ func (s *EndpointManagerSuite) TestUpdateReferencesMultiNIC(c *C) {
 
 		ep = mgr.LookupPrimaryEndpointByPodName(want.ep.GetK8sNamespaceAndPodName())
 		c.Assert(ep, checker.DeepEquals, want.ep, Commentf("Test Name: %s", tt.name))
+
 		eps := mgr.LookupEndpointsByContainerID(want.ep.GetContainerID())
 		c.Assert(eps, checker.DeepEquals, []*endpoint.Endpoint{want.ep}, Commentf("Test Name: %s", tt.name))
+
 		eps = mgr.LookupEndpointsByPodName(want.ep.GetK8sNamespaceAndPodName())
 		c.Assert(eps, checker.DeepEquals, []*endpoint.Endpoint{want.ep}, Commentf("Test Name: %s", tt.name))
 	}

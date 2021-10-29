@@ -95,7 +95,7 @@ func (ms *MapSweeper) walk(path string, _ os.FileInfo, _ error) error {
 		ctmap.MapNameAny4,
 		callsmap.MapName,
 		callsmap.CustomCallsMapName,
-		endpoint.MacvtapMapName,
+		endpoint.MultiNICMapName,
 	}
 
 	ms.checkStaleGlobalMap(path, filename)

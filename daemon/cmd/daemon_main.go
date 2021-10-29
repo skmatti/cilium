@@ -1005,6 +1005,10 @@ func initializeFlags() {
 	flags.MarkHidden(option.EnableGoogleMultiNIC)
 	option.BindEnv(Vp, option.EnableGoogleMultiNIC)
 
+	flags.Bool(option.AllowDisableSourceIPValidation, false, "Allow disabling source IP validation on multi-nic endpoints")
+	flags.MarkHidden(option.AllowDisableSourceIPValidation)
+	option.BindEnv(Vp, option.AllowDisableSourceIPValidation)
+
 	flags.Int(option.LBMapEntriesName, lbmap.DefaultMaxEntries, "Maximum number of entries in Cilium BPF lbmap")
 	option.BindEnv(Vp, option.LBMapEntriesName)
 

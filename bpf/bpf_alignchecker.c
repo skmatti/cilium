@@ -19,6 +19,7 @@
 #include "lib/policy_log.h"
 #include "lib/pcap.h"
 #include "lib/trace_sock.h"
+#include "lib/google_maps.h"
 
 struct ipv4_ct_tuple _1;
 struct ipv6_ct_tuple _2;
@@ -74,3 +75,5 @@ struct srv6_policy_key6 _51;
 struct trace_sock_notify _52;
 struct tunnel_key _53;
 struct tunnel_value _54;
+struct multi_nic_dev_key _55;
+struct multi_nic_dev_info _56;

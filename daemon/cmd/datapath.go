@@ -39,6 +39,7 @@ import (
 	"github.com/cilium/cilium/pkg/maps/lbmap"
 	"github.com/cilium/cilium/pkg/maps/lxcmap"
 	"github.com/cilium/cilium/pkg/maps/metricsmap"
+	"github.com/cilium/cilium/pkg/maps/multinicdev"
 	"github.com/cilium/cilium/pkg/maps/nat"
 	"github.com/cilium/cilium/pkg/maps/neighborsmap"
 	"github.com/cilium/cilium/pkg/maps/nodemap"
@@ -359,6 +360,12 @@ func (d *Daemon) initMaps() error {
 
 	if option.Config.TunnelingEnabled() {
 		if _, err := tunnel.TunnelMap().OpenOrCreate(); err != nil {
+			return err
+		}
+	}
+
+	if option.Config.EnableGoogleMultiNIC {
+		if _, err := multinicdev.Map.OpenOrCreate(); err != nil {
 			return err
 		}
 	}

@@ -42,6 +42,7 @@ import (
 	"github.com/cilium/cilium/pkg/maps/lbmap"
 	"github.com/cilium/cilium/pkg/maps/lxcmap"
 	"github.com/cilium/cilium/pkg/maps/metricsmap"
+	"github.com/cilium/cilium/pkg/maps/multinicdev"
 	"github.com/cilium/cilium/pkg/maps/nat"
 	"github.com/cilium/cilium/pkg/maps/neighborsmap"
 	"github.com/cilium/cilium/pkg/maps/nodemap"
@@ -606,6 +607,8 @@ func (h *HeaderfileWriter) WriteNodeConfig(w io.Writer, cfg *datapath.LocalNodeC
 
 	if option.Config.EnableGoogleMultiNIC {
 		cDefinesMap["ENABLE_GOOGLE_MULTI_NIC"] = "1"
+		cDefinesMap["MULTI_NIC_DEV_MAP"] = multinicdev.MapName
+		cDefinesMap["MULTI_NIC_DEV_MAP_SIZE"] = fmt.Sprintf("%d", multinicdev.MaxEntries)
 	}
 
 	cDefinesMap["CIDR_IDENTITY_RANGE_START"] = fmt.Sprintf("%d", identity.MinLocalIdentity)
