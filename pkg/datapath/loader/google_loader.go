@@ -9,7 +9,7 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-func setupMacvtapDataPath(ctx context.Context, ep datapath.Endpoint, objPath string) error {
+func setupMultiNICDataPath(ctx context.Context, ep datapath.Endpoint, objPath string) error {
 	// Graft from-container section for the egress direction.
 	if err := graftDatapath(ctx, ep.MapPath(), objPath, "from-container", int(connector.EgressMapIndex)); err != nil {
 		scopedLog := ep.Logger(Subsystem).WithFields(logrus.Fields{

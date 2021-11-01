@@ -847,6 +847,8 @@ func (h *HeaderfileWriter) WriteEndpointConfig(w io.Writer, e datapath.EndpointC
 }
 
 func (h *HeaderfileWriter) writeTemplateConfig(fw *bufio.Writer, e datapath.EndpointConfiguration) error {
+	h.writeMultinicEndpointConfig(fw, e)
+
 	if e.RequireEgressProg() {
 		fmt.Fprintf(fw, "#define USE_BPF_PROG_FOR_INGRESS_POLICY 1\n")
 	}

@@ -26,11 +26,6 @@ func (e *Endpoint) IsMultiNIC() bool {
 	return option.Config.EnableGoogleMultiNIC && e.deviceType != EndpointDeviceVETH
 }
 
-// HasMacvtapDataPath returns whether the endpoint is running as a MACVTAP device.
-func (e *Endpoint) HasMacvtapDataPath() bool {
-	return e.GetDeviceType() == EndpointDeviceMACVTAP
-}
-
 // GetDeviceType returns the device type of the endpoint.
 func (e *Endpoint) GetDeviceType() EndpointDeviceType {
 	return e.deviceType
@@ -56,11 +51,7 @@ func (e *Endpoint) GetNetNS() string {
 	return e.netNs
 }
 
-// HasMacvtapDataPath returns whether the endpoint's datapath is implemented via macvtap.
-func (ep *epInfoCache) HasMacvtapDataPath() bool {
-	return ep.deviceType == EndpointDeviceMACVTAP
-}
-
+// IsMultiNIC retrurns if the endpoint is a multinic endpoint.
 func (ep *epInfoCache) IsMultiNIC() bool {
 	return ep.deviceType != EndpointDeviceVETH
 }

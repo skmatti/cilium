@@ -50,7 +50,6 @@ func NewTestHostEndpoint() TestEndpoint {
 	}
 }
 
-func (e *TestEndpoint) HasMacvtapDataPath() bool                    { return false }
 func (e *TestEndpoint) ConntrackLocalLocked() bool                  { return false }
 func (e *TestEndpoint) RequireARPPassthrough() bool                 { return false }
 func (e *TestEndpoint) RequireEgressProg() bool                     { return false }
@@ -67,6 +66,7 @@ func (e *TestEndpoint) GetSecurityIdentity() *identity.Identity     { return e.I
 func (e *TestEndpoint) GetNodeMAC() mac.MAC                         { return e.MAC }
 func (e *TestEndpoint) GetOptions() *option.IntOptions              { return e.Opts }
 func (e *TestEndpoint) IsHost() bool                                { return e.isHost }
+func (e *TestEndpoint) IsMultiNIC() bool                            { return false }
 
 func (e *TestEndpoint) IPv4Address() addressing.CiliumIPv4 {
 	addr, _ := addressing.NewCiliumIPv4("192.0.2.3")
