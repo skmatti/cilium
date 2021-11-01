@@ -148,8 +148,8 @@ func (d *Daemon) createMultiNICEndpoints(ctx context.Context, owner regeneration
 				return d.errorDuringMultiNICCreation(primaryEp, PutEndpointIDInvalidCode, fmt.Errorf("failed setting up macvtap child interface for pod %q: %v", podID, err))
 			}
 
-			// Append k8s labels for the interface and network
-			multinicTemplate.Labels = append(multinicTemplate.Labels, labels.GenerateK8sLabelString("interface", ref.InterfaceName), labels.GenerateK8sLabelString("network", intfCR.Spec.NetworkName))
+			// Append multinic labels for the interface and network
+			multinicTemplate.Labels = append(multinicTemplate.Labels, labels.GetMultiNICInterfaceLabel(ref.InterfaceName), labels.GetMultiNICNetworkLabel(intfCR.Spec.NetworkName))
 			multinicEndpoint, code, err := d.createEndpoint(ctx, owner, multinicTemplate)
 			if err != nil {
 				return d.errorDuringMultiNICCreation(primaryEp, code, fmt.Errorf("failed creating multinic endpoint for pod %q with code %d: %v", podID, code, err))

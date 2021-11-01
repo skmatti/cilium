@@ -1621,6 +1621,11 @@ func (e *Endpoint) RunMetadataResolver(resolveMetadata MetadataResolverCB) {
 					e.Logger(controllerPrefix).WithError(err).Warning("Unable to fetch kubernetes labels")
 					return err
 				}
+				if e.IsMultiNIC() {
+					// Make sure multinic labels are not lost during label resolving.
+					identityLabels.MergeMultiNICLabels(e.OpLabels.IdentityLabels())
+					e.Logger(controllerPrefix).WithField(logfields.IdentityLabels, identityLabels.String()).Debug("Merged with multinic labels")
+				}
 				e.SetPod(pod)
 				e.SetK8sMetadata(cp)
 				e.UpdateNoTrackRules(func(_, _ string) (noTrackPort string, err error) {
