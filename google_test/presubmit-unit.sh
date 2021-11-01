@@ -37,7 +37,7 @@ VM_NAME="prow-unit-$date-$(git rev-parse --short=5 HEAD)-ttl1d"
 ZONE="us-west1-b"
 HOST_NAME="$VM_NAME.$ZONE.$PROJECT"
 tarball=gob_cilium.tar.gz
-TESTING_IMAGE=cilium-unit-test-20211025
+TESTING_IMAGE=cilium-unit-test-20211104
 
 function log {
   echo "`date +'%b %d %T.000'`: INFO: $@"
