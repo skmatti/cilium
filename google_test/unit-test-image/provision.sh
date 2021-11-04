@@ -19,6 +19,10 @@
 
 set -e -x
 
+export 'IPROUTE_BRANCH'=${IPROUTE_BRANCH:-"libbpf-static-data"}
+export 'IPROUTE_GIT'=${IPROUTE_GIT:-https://github.com/cilium/iproute2}
+export 'LIBBPF_GIT'=${LIBBPF_GIT:-https://github.com/cilium/libbpf}
+
 export GOPATH=/go
 export GOROOT=/usr/local/go
 
@@ -125,14 +129,6 @@ sudo apt-get install -y docker-ce docker-ce-cli containerd.io
 sudo getent group docker || sudo groupadd docker
 sudo usermod -aG docker $USER
 
-# tc
-
-git clone https://github.com/cilium/iproute2.git
-cd iproute2
-make
-cp tc/tc $GOPATH/bin/tc
-cd ..
-
 # bpftool
 
 git clone --depth 1 -b master git://git.kernel.org/pub/scm/linux/kernel/git/bpf/bpf-next.git linux
@@ -141,6 +137,33 @@ make -j `getconf _NPROCESSORS_ONLN`
 strip bpftool
 cd $WORKING_DIR
 cp  linux/tools/bpf/bpftool/bpftool $GOPATH/bin/bpftool
+
+# libbpf and iproute2 build sould be kept close to:
+# https://github.com/cilium/packer-ci-build/blob/d1841cb1162ae91efbae11d5b9709ed880fdcc9c/provision/ubuntu/install.sh#L129
+
+# libbpf and iproute2
+cd /tmp
+git clone --depth=1 ${LIBBPF_GIT}
+cd /tmp/libbpf/src
+make -j "$(getconf _NPROCESSORS_ONLN)"
+# By default, libbpf.so is installed to /usr/lib64 which isn't in LD_LIBRARY_PATH on Ubuntu.
+# Overriding LIBDIR in addition to setting PREFIX seems to be needed due to the structure of
+# libbpf's Makefile.
+sudo PREFIX="/usr" LIBDIR="/usr/lib/x86_64-linux-gnu" make install
+sudo ldconfig
+
+cd /tmp
+git clone -b ${IPROUTE_BRANCH} ${IPROUTE_GIT}
+cd /tmp/iproute2
+LIBBPF_FORCE="on" \
+PKG_CONFIG_PATH="/usr/lib64/pkgconfig"  \
+PKG_CONFIG="pkg-config --define-prefix" \
+./configure
+make -j `getconf _NPROCESSORS_ONLN`
+cp tc/tc $GOPATH/bin/tc
+sudo make install
+rm -rf /tmp/iproute2
+
 
 # set env
 

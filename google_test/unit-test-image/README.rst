@@ -9,7 +9,7 @@ go, docker, tc, and bpftool.
 Prerequisites
 =============
 
-install `packer <https://www.packer.io/downloads.html>`_
+install `packer <https://www.packer.io/downloads.html>`_, ver >= 1.7.8
 
 GCP project
 
