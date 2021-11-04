@@ -124,6 +124,7 @@ func (d *Daemon) createMultiNICEndpoints(ctx context.Context, owner regeneration
 		// Update the interface status of the primary endpoint if the interface CR exists
 		if netCR == nil && intfCR != nil {
 			primaryEp.Logger(daemonSubsys).WithField("interfaceCR", intfCR.Name).Debug("Updating interface status")
+			intfCR.Status.IpAddresses = nil
 			if ipv4 := primaryEp.GetIPv4Address(); ipv4 != "" {
 				intfCR.Status.IpAddresses = append(intfCR.Status.IpAddresses, ipv4)
 			}
