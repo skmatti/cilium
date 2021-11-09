@@ -522,6 +522,9 @@ const (
 	// TunnelPortName is the name of the TunnelPort option
 	TunnelPortName = "tunnel-port"
 
+	// EnableFlatIPv4 is the name of the option to enable flat IP for IPv4
+	EnableFlatIPv4 = "enable-flat-ipv4"
+
 	// SingleClusterRouteName is the name of the SingleClusterRoute option
 	//
 	// SingleClusterRoute enables use of a single route covering the entire
@@ -2205,6 +2208,10 @@ type DaemonConfig struct {
 	// InstallNoConntrackIptRules instructs Cilium to install Iptables rules to skip netfilter connection tracking on all pod traffic.
 	InstallNoConntrackIptRules bool
 
+	// EnableFlatIPv4 determines if Flat IPv4 should be enabled, this will only
+	// be effective if Tunnel is disabled
+	EnableFlatIPv4 bool
+
 	// EnableCustomCalls enables tail call hooks for user-defined custom
 	// eBPF programs, typically used to collect custom per-endpoint
 	// metrics.
@@ -2965,6 +2972,7 @@ func (c *DaemonConfig) Populate() {
 	c.SocketPath = viper.GetString(SocketPath)
 	c.SockopsEnable = viper.GetBool(SockopsEnableName)
 	c.TracePayloadlen = viper.GetInt(TracePayloadlen)
+	c.EnableFlatIPv4 = viper.GetBool(EnableFlatIPv4)
 	c.Version = viper.GetString(Version)
 	c.WriteCNIConfigurationWhenReady = viper.GetString(WriteCNIConfigurationWhenReady)
 	c.PolicyTriggerInterval = viper.GetDuration(PolicyTriggerInterval)

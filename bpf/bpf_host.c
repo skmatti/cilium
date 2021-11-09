@@ -57,6 +57,7 @@
 #include "lib/host_firewall.h"
 #include "lib/overloadable.h"
 #include "lib/encrypt.h"
+#include "lib/google_arp_responder.h"
 
 static __always_inline bool allow_vlan(__u32 __maybe_unused ifindex, __u32 __maybe_unused vlan_id) {
 	VLAN_FILTER(ifindex, vlan_id);
@@ -832,7 +833,7 @@ do_netdev(struct __ctx_buff *ctx, __u16 proto, const bool from_host)
 	switch (proto) {
 # if defined ENABLE_ARP_PASSTHROUGH || defined ENABLE_ARP_RESPONDER
 	case bpf_htons(ETH_P_ARP):
-		ret = CTX_ACT_OK;
+		ret = handle_google_arp(ctx, from_host);
 		break;
 # endif
 #ifdef ENABLE_IPV6
