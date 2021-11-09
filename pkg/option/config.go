@@ -2265,6 +2265,10 @@ type DaemonConfig struct {
 	// InstallNoConntrackIptRules instructs Cilium to install Iptables rules to skip netfilter connection tracking on all pod traffic.
 	InstallNoConntrackIptRules bool
 
+	// EnableFlatIPv4 determines if Flat IPv4 should be enabled, this will only
+	// be effective if Tunnel is disabled
+	EnableFlatIPv4 bool
+
 	// EnableCustomCalls enables tail call hooks for user-defined custom
 	// eBPF programs, typically used to collect custom per-endpoint
 	// metrics.
@@ -3088,6 +3092,7 @@ func (c *DaemonConfig) Populate(vp *viper.Viper) {
 	c.EgressMultiHomeIPRuleCompat = vp.GetBool(EgressMultiHomeIPRuleCompat)
 
 	c.EnableGDCILB = vp.GetBool(EnableGDCILB)
+	c.EnableFlatIPv4 = vp.GetBool(EnableFlatIPv4)
 
 	vlanBPFBypassIDs := vp.GetStringSlice(VLANBPFBypass)
 	c.VLANBPFBypass = make([]int, 0, len(vlanBPFBypassIDs))

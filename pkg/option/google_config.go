@@ -14,4 +14,7 @@ const (
 	// AllowIMDSAccessInHostNSOnly adds bpf logic that will block non-hostnetwork
 	// pods from accessing IMDS at 169.254.169.254.
 	AllowIMDSAccessInHostNSOnly = "allow-imds-access-in-hostns-only"
+
+	// EnableFlatIPv4 is the name of the option to enable flat IP for IPv4
+	EnableFlatIPv4 = "enable-flat-ipv4"
 )
