@@ -28,3 +28,4 @@ cilium bpf lb list
 cilium bpf endpoint list
 cilium bpf ipcache list
 cilium bpf sha list
+cilium bpf egress list
