@@ -1075,8 +1075,8 @@ func NewDaemon(ctx context.Context, cancel context.CancelFunc, epMgr *endpointma
 	}
 
 	if option.Config.EnableTrafficSteering {
-		if !option.Config.EnableEgressGateway {
-			log.Fatalf("Traffic Steering requires --%s=\"true\"", option.EnableEgressGateway)
+		if !option.Config.EnableIPv4EgressGateway {
+			log.Fatalf("Traffic Steering requires --%s=\"true\"", option.EnableIPv4EgressGateway)
 		}
 		if k8s.IsEnabled() {
 			if _, err = gketrafficsteering.Init(); err != nil {

@@ -108,10 +108,7 @@ require (
 	sigs.k8s.io/yaml v1.3.0
 )
 
-require (
-	k8s.io/klog v1.0.0
-	k8s.io/utils v0.0.0-20210707171843-4b05e18ac7d9
-)
+require k8s.io/klog v1.0.0
 
 require (
 	github.com/Azure/go-autorest v14.2.0+incompatible // indirect

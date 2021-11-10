@@ -1635,11 +1635,10 @@ k8s.io/kube-openapi/pkg/validation/spec
 k8s.io/kube-openapi/pkg/validation/strfmt
 k8s.io/kube-openapi/pkg/validation/strfmt/bson
 k8s.io/kube-openapi/pkg/validation/validate
-# k8s.io/utils v0.0.0-20220210201930-3a6ce19ff2f9
-# k8s.io/utils v0.0.0-20220728103510-ee6ede2d64ed
 # k8s.io/kubelet v0.21.3
 ## explicit; go 1.16
 k8s.io/kubelet/pkg/apis/podresources/v1
+# k8s.io/utils v0.0.0-20220728103510-ee6ede2d64ed
 ## explicit; go 1.12
 k8s.io/utils/buffer
 k8s.io/utils/clock

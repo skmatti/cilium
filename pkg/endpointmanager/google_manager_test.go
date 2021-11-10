@@ -9,7 +9,7 @@ import (
 	"github.com/cilium/cilium/pkg/endpoint"
 	endpointid "github.com/cilium/cilium/pkg/endpoint/id"
 	"github.com/cilium/cilium/pkg/option"
-	"github.com/cilium/cilium/pkg/testutils/allocator"
+	allocator "github.com/cilium/cilium/pkg/testutils/identity"
 
 	. "gopkg.in/check.v1"
 )
