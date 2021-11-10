@@ -1647,6 +1647,19 @@ int tail_ipv6_to_endpoint(struct __ctx_buff *ctx)
 #endif
 	ctx_store_meta(ctx, CB_SRC_LABEL, 0);
 
+        /* Always allow NDP messages to bypass policy verification and L7 redirects
+         */
+        if (unlikely(ip6->nexthdr == IPPROTO_ICMPV6)) {
+          __u8 type = icmp6_load_type(ctx, ETH_HLEN);
+          switch (type) {
+            case ICMP6_ROUTER_SOLICIT_TYPE:
+            case ICMP6_ROUTER_ADV_TYPE:
+            case ICMP6_NS_MSG_TYPE:
+            case ICMP6_NA_MSG_TYPE:
+              return CTX_ACT_OK;
+          }
+        }
+
 	ret = ipv6_policy(ctx, 0, src_identity, &ct_status, NULL,
 			  &proxy_port, true);
 	if (ret == POLICY_ACT_PROXY_REDIRECT) {

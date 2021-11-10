@@ -21,6 +21,8 @@
 #define ICMP6_ECHO_REQUEST_MSG_TYPE	128
 #define ICMP6_ECHO_REPLY_MSG_TYPE	129
 #define ICMP6_MULT_LIST_QUERY_TYPE	130
+#define ICMP6_ROUTER_SOLICIT_TYPE       133
+#define ICMP6_ROUTER_ADV_TYPE           134
 #define ICMP6_NS_MSG_TYPE		135
 #define ICMP6_NA_MSG_TYPE		136
 #define ICMP6_RR_MSG_TYPE		138
@@ -33,11 +35,10 @@
 
 #define SKIP_HOST_FIREWALL	-2
 
-/* If no specific action is specified, drop unknown neighbour solicitation
- * messages.
+/* If no specific action is specified, allow neighbour solicitation messages.
  */
 #ifndef ACTION_UNKNOWN_ICMP6_NS
-#define ACTION_UNKNOWN_ICMP6_NS DROP_UNKNOWN_TARGET
+#define ACTION_UNKNOWN_ICMP6_NS CTX_ACT_OK
 #endif
 
 static __always_inline __u8 icmp6_load_type(struct __ctx_buff *ctx, int nh_off)
