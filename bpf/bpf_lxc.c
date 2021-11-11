@@ -51,6 +51,7 @@
 #include "lib/fib.h"
 #include "lib/nodeport.h"
 #include "lib/policy_log.h"
+#include "lib/google_multinic.h"
 
 /* Per-packet LB is needed if all LB cases can not be handled in bpf_sock.
  * Most services with L7 LB flag can not be redirected to their proxy port
@@ -765,6 +766,13 @@ static __always_inline int handle_ipv4_from_lxc(struct __ctx_buff *ctx, __u32 *d
 		return DROP_INVALID;
 
 	has_l4_header = ipv4_has_l4_header(ip4);
+
+#ifndef IS_MULTI_NIC_DEVICE
+	// Examine packet sourcing from multi NIC endpoint.
+	ret = drop_if_dhcp(ctx, tuple.nexthdr, l4_off);
+	if (IS_ERR(ret))
+		return ret;
+#endif // IS_MULTI_NIC_DEVICE
 
 	/* Determine the destination category for policy fallback. */
 	if (1) {
