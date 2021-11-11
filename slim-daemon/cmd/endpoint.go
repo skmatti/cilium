@@ -39,6 +39,15 @@ type EndpointManager struct {
 	EndpointResourceSynchronizer
 }
 
+type IdentityAllocator interface {
+	// AllocateIdentity allocates an identity described by the specified labels.
+	AllocateIdentity(context.Context, labels.Labels, bool) (*identity.Identity, bool, error)
+
+	// Release is the reverse operation of AllocateIdentity() and releases the
+	// specified identity.
+	Release(context.Context, *identity.Identity) (released bool, err error)
+}
+
 type Endpoint struct {
 	// ID of the endpoint, unique in the scope of the node
 	ID uint16
@@ -68,7 +77,7 @@ type Endpoint struct {
 
 	logger *logrus.Entry
 
-	allocator cache.IdentityAllocator
+	allocator IdentityAllocator
 
 	// controllers is the list of async controllers syncing the endpoint to
 	// other resources
@@ -89,7 +98,7 @@ func NewEndpointManager() *EndpointManager {
 	}
 }
 
-func NewEndpoint(pod *slim_corev1.Pod, allocator cache.IdentityAllocator) (*Endpoint, error) {
+func NewEndpoint(pod *slim_corev1.Pod, allocator IdentityAllocator) (*Endpoint, error) {
 	ep := &Endpoint{
 		K8sNamespace: pod.Namespace,
 		K8sPodName:   pod.Name,
