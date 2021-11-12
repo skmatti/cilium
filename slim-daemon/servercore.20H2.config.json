@@ -1,0 +1,28 @@
+{
+  "architecture": "amd64",
+  "created": "2020-12-03T07:29:26.2555794Z",
+  "history": [
+    {
+      "created": "2020-09-10T20:40:05.5866111Z",
+      "created_by": "Apply image 20H2-RTM-amd64"
+    },
+    {
+      "created": "2020-12-03T07:29:26.2555794Z",
+      "created_by": "Install update 20H2-amd64"
+    }
+  ],
+  "os": "windows",
+  "rootfs": {
+    "type": "layers",
+    "diff_ids": [
+      "sha256:86b179761af95a4e473006a1b9b5dbf0d3625f8c074391980184d157ee7ad3bb",
+      "sha256:f9d43b60584a316c61fe220c4228bdf3e2210352b74736b2b4290636afcde15a"
+    ]
+  },
+  "config": {
+    "Cmd": [
+      "c:\\windows\\system32\\cmd.exe"
+    ]
+  },
+  "os.version": "10.0.19042.685"
+}

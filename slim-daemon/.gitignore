@@ -1,1 +1,6 @@
 /anet-agent
+/cilium-agent
+/bazel-bin
+/bazel-out
+/bazel-testlogs
+/bazel-slim-daemon

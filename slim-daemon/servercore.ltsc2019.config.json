@@ -1,0 +1,29 @@
+{
+  "history": [
+    {
+      "created_by": "Apply image 1809-RTM-amd64",
+      "created": "2018-09-15T09:10:26.528+00:00"
+    },
+    {
+      "created_by": "Install update ltsc2019-amd64",
+      "created": "2020-03-06T11:12:29.9572838+00:00"
+    }
+  ],
+  "rootfS": {
+    "diff_ids": [
+      "sha256:c4d02418787d264406bed4956f2faccd58932e4466bbd693c1795e3a64d60e90",
+      "sha256:a41ffe8d1c24ab7d98e4eadfcbb2e5b8dff60070cfc136f96fde6cf889c8d84d"
+    ],
+    "type": "layers"
+  },
+  "os": "windows",
+  "created": "2020-03-06T11:12:29.9572838+00:00",
+  "config": {
+    "cmd": [
+      "c:\\windows\\system32\\cmd.exe"
+    ],
+    "user": null
+  },
+  "os.version": "10.0.17763.1098",
+  "architecture": "amd64"
+}
