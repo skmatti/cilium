@@ -21,6 +21,9 @@ import metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 // +genclient
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
+// +kubebuilder:printcolumn:name="AGE",type="date",JSONPath=".metadata.creationTimestamp",description="The age of this resource"
+// +kubebuilder:printcolumn:name="IP",type="string",JSONPath=".status.ipAddresses[0]",description="IP address assigned to this interface"
+// +kubebuilder:printcolumn:name="MAC",type="string",JSONPath=".status.macAddress",description="MAC address assigned to this interface"
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 // NetworkInterface defines the network interface for a pod to connect to a network.
