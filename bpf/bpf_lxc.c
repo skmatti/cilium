@@ -455,7 +455,8 @@ ct_recreate6:
 		 *    host itself.
 		 */
 		ep = lookup_ip6_endpoint(ip6);
-		if (ep) {
+		// Skip local delivery if the destination endpoint is a multi NIC endpoint.
+		if (ep && !(ep->flags & ENDPOINT_F_MULTI_NIC)) {
 #ifdef ENABLE_ROUTING
 			if (ep->flags & ENDPOINT_F_HOST) {
 #ifdef HOST_IFINDEX
@@ -637,7 +638,7 @@ static __always_inline int __tail_handle_ipv6(struct __ctx_buff *ctx)
 	if (unlikely(!is_valid_lxc_src_ip(ip6)))
 		return DROP_INVALID_SIP;
 
-#ifdef ENABLE_PER_PACKET_LB
+#if defined(ENABLE_PER_PACKET_LB) && !defined(IS_MULTI_NIC_DEVICE)
 	{
 		struct ipv6_ct_tuple tuple = {};
 		struct csum_offset csum_off = {};
@@ -695,7 +696,7 @@ skip_service_lookup:
 		/* Store state to be picked up on the continuation tail call. */
 		lb6_ctx_store_state(ctx, &ct_state_new, proxy_port);
 	}
-#endif /* ENABLE_PER_PACKET_LB */
+#endif /* ENABLE_PER_PACKET_LB && !IS_MULTI_NIC_DEVICE */
 
 	invoke_tailcall_if(is_defined(ENABLE_PER_PACKET_LB),
 			   CILIUM_CALL_IPV6_CT_EGRESS, tail_ipv6_ct_egress);
@@ -986,7 +987,8 @@ ct_recreate4:
 		 *  - The destination IP address belongs to endpoint itself.
 		 */
 		ep = lookup_ip4_endpoint(ip4);
-		if (ep) {
+		// Skip local delivery if the destination endpoint is a multi NIC endpoint.
+		if (ep && !(ep->flags & ENDPOINT_F_MULTI_NIC)) {
 #ifdef ENABLE_ROUTING
 			if (ep->flags & ENDPOINT_F_HOST) {
 #ifdef HOST_IFINDEX
@@ -1226,7 +1228,7 @@ static __always_inline int __tail_handle_ipv4(struct __ctx_buff *ctx)
 	if (unlikely(!is_valid_lxc_src_ipv4(ip4)))
 		return DROP_INVALID_SIP;
 
-#ifdef ENABLE_PER_PACKET_LB
+#if defined(ENABLE_PER_PACKET_LB) && !defined(IS_MULTI_NIC_DEVICE)
 	{
 		struct ipv4_ct_tuple tuple = {};
 		struct csum_offset csum_off = {};
@@ -1274,7 +1276,7 @@ skip_service_lookup:
 		/* Store state to be picked up on the continuation tail call. */
 		lb4_ctx_store_state(ctx, &ct_state_new, proxy_port);
 	}
-#endif /* ENABLE_PER_PACKET_LB */
+#endif /* ENABLE_PER_PACKET_LB && !IS_MULTI_NIC_DEVICE */
 
 	invoke_tailcall_if(is_defined(ENABLE_PER_PACKET_LB),
 			   CILIUM_CALL_IPV4_CT_EGRESS, tail_ipv4_ct_egress);
