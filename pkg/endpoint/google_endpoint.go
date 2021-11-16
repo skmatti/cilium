@@ -18,7 +18,7 @@ const (
 	EndpointDeviceMACVLAN = "macvlan"
 
 	// MacvtapMapName specifies the tail call map for EP on both egress and ingress used with macvtap.
-	MacvtapMapName = "cilium_macvtap_"
+	MacvtapMapName = "cilium_multinic_"
 )
 
 // IsMultiNIC returns if the endpoint is a non veth endpoint.
