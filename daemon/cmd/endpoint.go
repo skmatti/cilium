@@ -719,7 +719,7 @@ func (d *Daemon) deleteEndpointQuiet(ep *endpoint.Endpoint, conf endpoint.Delete
 			logfields.Interface:      ifName,
 			logfields.InterfaceInPod: ifNameInPod,
 			logfields.NetNSName:      netNS,
-		}).Debug("Revert multinic endpoint setup")
+		}).Info("Revert multinic endpoint setup")
 		if err := connector.RevertMacvtapSetup(ifNameInPod, ifName, netNS); err != nil {
 			errs = append(errs, err)
 		}

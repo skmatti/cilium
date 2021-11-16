@@ -107,7 +107,7 @@ func (d *Daemon) createMultiNICEndpoints(ctx context.Context, owner regeneration
 
 	var eps []*endpoint.Endpoint
 	for _, ref := range interfaceAnnotation {
-		log.WithField(logfields.InterfaceInPod, ref.InterfaceName).Debug("Multinic endpoint request")
+		log.WithField(logfields.InterfaceInPod, ref.InterfaceName).Info("Multinic endpoint request")
 
 		if ref.Network != nil && *ref.Network == multinicv1alpha1.DefaultNetworkName {
 			log.Debug("Skip the default pod network configuration")
@@ -156,7 +156,7 @@ func (d *Daemon) createMultiNICEndpoints(ctx context.Context, owner regeneration
 				return d.errorDuringMultiNICCreation(primaryEp, code, fmt.Errorf("failed creating multinic endpoint for pod %q with code %d: %v", podID, code, err))
 			}
 
-			log.WithField(logfields.EndpointID, multinicEndpoint.StringID()).Debug("Successful multinic endpoint request")
+			log.WithField(logfields.EndpointID, multinicEndpoint.StringID()).Info("Successful multinic endpoint request")
 
 			eps = append(eps, multinicEndpoint)
 		}
