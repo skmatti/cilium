@@ -1,8 +1,6 @@
 #ifndef __LIB_GOOGLE_MULTINIC_H_
 #define __LIB_GOOGLE_MULTINIC_H_
 
-#include <bpf/ctx/skb.h>
-
 #include "common.h"
 #include "l4.h"
 
@@ -14,7 +12,7 @@
  *
  * Return CTX_ACT_OK on success or a negative DROP_* reason
  */
-static __always_inline int drop_if_dhcp(struct __ctx_buff *ctx,
+static __always_inline __maybe_unused int drop_if_dhcp(struct __ctx_buff *ctx,
                         __u8 nexthdr, int l4_off)
 {
     __be16 dport;
