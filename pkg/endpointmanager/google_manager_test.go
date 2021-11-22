@@ -8,6 +8,7 @@ import (
 	"github.com/cilium/cilium/pkg/checker"
 	"github.com/cilium/cilium/pkg/endpoint"
 	endpointid "github.com/cilium/cilium/pkg/endpoint/id"
+	"github.com/cilium/cilium/pkg/ipcache"
 	"github.com/cilium/cilium/pkg/option"
 	allocator "github.com/cilium/cilium/pkg/testutils/identity"
 
@@ -20,7 +21,7 @@ func (s *EndpointManagerSuite) TestLookupMultiNIC(c *C) {
 		option.Config.EnableGoogleMultiNIC = false
 	}()
 
-	ep := endpoint.NewEndpointWithState(s, &endpoint.FakeEndpointProxy{}, &allocator.FakeIdentityAllocator{}, 10, endpoint.StateReady)
+	ep := endpoint.NewEndpointWithState(s, s, ipcache.NewIPCache(nil), &endpoint.FakeEndpointProxy{}, &allocator.MockIdentityAllocator{}, 10, endpoint.StateReady)
 	mgr := NewEndpointManager(&dummyEpSyncher{})
 	type args struct {
 		id string
@@ -57,7 +58,7 @@ func (s *EndpointManagerSuite) TestLookupMultiNIC(c *C) {
 			},
 			postTestRun: func() {
 				mgr.WaitEndpointRemoved(ep)
-				ep = endpoint.NewEndpointWithState(s, &endpoint.FakeEndpointProxy{}, &allocator.FakeIdentityAllocator{}, 10, endpoint.StateReady)
+				ep = endpoint.NewEndpointWithState(s, s, ipcache.NewIPCache(nil), &endpoint.FakeEndpointProxy{}, &allocator.MockIdentityAllocator{}, 10, endpoint.StateReady)
 				ep.ID = 0
 			},
 		},
@@ -81,7 +82,7 @@ func (s *EndpointManagerSuite) TestLookupMultiNIC(c *C) {
 			},
 			postTestRun: func() {
 				mgr.WaitEndpointRemoved(ep)
-				ep = endpoint.NewEndpointWithState(s, &endpoint.FakeEndpointProxy{}, &allocator.FakeIdentityAllocator{}, 10, endpoint.StateReady)
+				ep = endpoint.NewEndpointWithState(s, s, ipcache.NewIPCache(nil), &endpoint.FakeEndpointProxy{}, &allocator.MockIdentityAllocator{}, 10, endpoint.StateReady)
 				ep.SetContainerID("")
 			},
 		},
@@ -105,7 +106,7 @@ func (s *EndpointManagerSuite) TestLookupMultiNIC(c *C) {
 			},
 			postTestRun: func() {
 				mgr.WaitEndpointRemoved(ep)
-				ep = endpoint.NewEndpointWithState(s, &endpoint.FakeEndpointProxy{}, &allocator.FakeIdentityAllocator{}, 10, endpoint.StateReady)
+				ep = endpoint.NewEndpointWithState(s, s, ipcache.NewIPCache(nil), &endpoint.FakeEndpointProxy{}, &allocator.MockIdentityAllocator{}, 10, endpoint.StateReady)
 				ep.SetDockerEndpointID("")
 			},
 		},
@@ -129,7 +130,7 @@ func (s *EndpointManagerSuite) TestLookupMultiNIC(c *C) {
 			},
 			postTestRun: func() {
 				mgr.WaitEndpointRemoved(ep)
-				ep = endpoint.NewEndpointWithState(s, &endpoint.FakeEndpointProxy{}, &allocator.FakeIdentityAllocator{}, 10, endpoint.StateReady)
+				ep = endpoint.NewEndpointWithState(s, s, ipcache.NewIPCache(nil), &endpoint.FakeEndpointProxy{}, &allocator.MockIdentityAllocator{}, 10, endpoint.StateReady)
 				ep.SetContainerName("")
 			},
 		},
@@ -154,7 +155,7 @@ func (s *EndpointManagerSuite) TestLookupMultiNIC(c *C) {
 			},
 			postTestRun: func() {
 				mgr.WaitEndpointRemoved(ep)
-				ep = endpoint.NewEndpointWithState(s, &endpoint.FakeEndpointProxy{}, &allocator.FakeIdentityAllocator{}, 10, endpoint.StateReady)
+				ep = endpoint.NewEndpointWithState(s, s, ipcache.NewIPCache(nil), &endpoint.FakeEndpointProxy{}, &allocator.MockIdentityAllocator{}, 10, endpoint.StateReady)
 				ep.SetK8sPodName("")
 			},
 		},
@@ -180,7 +181,7 @@ func (s *EndpointManagerSuite) TestLookupMultiNIC(c *C) {
 			},
 			postTestRun: func() {
 				mgr.WaitEndpointRemoved(ep)
-				ep = endpoint.NewEndpointWithState(s, &endpoint.FakeEndpointProxy{}, &allocator.FakeIdentityAllocator{}, 10, endpoint.StateReady)
+				ep = endpoint.NewEndpointWithState(s, s, ipcache.NewIPCache(nil), &endpoint.FakeEndpointProxy{}, &allocator.MockIdentityAllocator{}, 10, endpoint.StateReady)
 				ep.IPv4 = nil
 			},
 		},
@@ -202,9 +203,9 @@ func (s *EndpointManagerSuite) TestLookupEndpointsByContainerID(c *C) {
 		option.Config.EnableGoogleMultiNIC = false
 	}()
 	mgr := NewEndpointManager(&dummyEpSyncher{})
-	ep1 := endpoint.NewEndpointWithState(s, &endpoint.FakeEndpointProxy{}, &allocator.FakeIdentityAllocator{}, 3, endpoint.StateReady)
+	ep1 := endpoint.NewEndpointWithState(s, s, ipcache.NewIPCache(nil), &endpoint.FakeEndpointProxy{}, &allocator.MockIdentityAllocator{}, 3, endpoint.StateReady)
 	ep1.ID = 1
-	ep2 := endpoint.NewEndpointWithState(s, &endpoint.FakeEndpointProxy{}, &allocator.FakeIdentityAllocator{}, 3, endpoint.StateReady)
+	ep2 := endpoint.NewEndpointWithState(s, s, ipcache.NewIPCache(nil), &endpoint.FakeEndpointProxy{}, &allocator.MockIdentityAllocator{}, 3, endpoint.StateReady)
 	ep2.ID = 2
 	type args struct {
 		id string
@@ -299,9 +300,9 @@ func (s *EndpointManagerSuite) TestLookupEndpointsByPodName(c *C) {
 		option.Config.EnableGoogleMultiNIC = false
 	}()
 	mgr := NewEndpointManager(&dummyEpSyncher{})
-	ep1 := endpoint.NewEndpointWithState(s, &endpoint.FakeEndpointProxy{}, &allocator.FakeIdentityAllocator{}, 3, endpoint.StateReady)
+	ep1 := endpoint.NewEndpointWithState(s, s, ipcache.NewIPCache(nil), &endpoint.FakeEndpointProxy{}, &allocator.MockIdentityAllocator{}, 3, endpoint.StateReady)
 	ep1.ID = 1
-	ep2 := endpoint.NewEndpointWithState(s, &endpoint.FakeEndpointProxy{}, &allocator.FakeIdentityAllocator{}, 3, endpoint.StateReady)
+	ep2 := endpoint.NewEndpointWithState(s, s, ipcache.NewIPCache(nil), &endpoint.FakeEndpointProxy{}, &allocator.MockIdentityAllocator{}, 3, endpoint.StateReady)
 	ep2.ID = 2
 	type args struct {
 		id string
@@ -402,9 +403,9 @@ func (s *EndpointManagerSuite) TestLookupPrimaryEndpointByContainerID(c *C) {
 		option.Config.EnableGoogleMultiNIC = false
 	}()
 	mgr := NewEndpointManager(&dummyEpSyncher{})
-	ep1 := endpoint.NewEndpointWithState(s, &endpoint.FakeEndpointProxy{}, &allocator.FakeIdentityAllocator{}, 3, endpoint.StateReady)
+	ep1 := endpoint.NewEndpointWithState(s, s, ipcache.NewIPCache(nil), &endpoint.FakeEndpointProxy{}, &allocator.MockIdentityAllocator{}, 3, endpoint.StateReady)
 	ep1.ID = 1
-	ep2 := endpoint.NewEndpointWithState(s, &endpoint.FakeEndpointProxy{}, &allocator.FakeIdentityAllocator{}, 3, endpoint.StateReady)
+	ep2 := endpoint.NewEndpointWithState(s, s, ipcache.NewIPCache(nil), &endpoint.FakeEndpointProxy{}, &allocator.MockIdentityAllocator{}, 3, endpoint.StateReady)
 	ep2.ID = 2
 	type args struct {
 		id string
@@ -501,9 +502,9 @@ func (s *EndpointManagerSuite) TestLookupPrimaryEndpointByPodName(c *C) {
 		option.Config.EnableGoogleMultiNIC = false
 	}()
 	mgr := NewEndpointManager(&dummyEpSyncher{})
-	ep1 := endpoint.NewEndpointWithState(s, &endpoint.FakeEndpointProxy{}, &allocator.FakeIdentityAllocator{}, 3, endpoint.StateReady)
+	ep1 := endpoint.NewEndpointWithState(s, s, ipcache.NewIPCache(nil), &endpoint.FakeEndpointProxy{}, &allocator.MockIdentityAllocator{}, 3, endpoint.StateReady)
 	ep1.ID = 1
-	ep2 := endpoint.NewEndpointWithState(s, &endpoint.FakeEndpointProxy{}, &allocator.FakeIdentityAllocator{}, 3, endpoint.StateReady)
+	ep2 := endpoint.NewEndpointWithState(s, s, ipcache.NewIPCache(nil), &endpoint.FakeEndpointProxy{}, &allocator.MockIdentityAllocator{}, 3, endpoint.StateReady)
 	ep2.ID = 2
 	type args struct {
 		id string
@@ -606,7 +607,7 @@ func (s *EndpointManagerSuite) TestUpdateReferencesMultiNIC(c *C) {
 		option.Config.EnableGoogleMultiNIC = false
 	}()
 	mgr := NewEndpointManager(&dummyEpSyncher{})
-	ep := endpoint.NewEndpointWithState(s, &endpoint.FakeEndpointProxy{}, &allocator.FakeIdentityAllocator{}, 6, endpoint.StateReady)
+	ep := endpoint.NewEndpointWithState(s, s, ipcache.NewIPCache(nil), &endpoint.FakeEndpointProxy{}, &allocator.MockIdentityAllocator{}, 6, endpoint.StateReady)
 	type args struct {
 		ep *endpoint.Endpoint
 	}
@@ -695,7 +696,7 @@ func (s *EndpointManagerSuite) TestRemoveMultiNIC(c *C) {
 		option.Config.EnableGoogleMultiNIC = false
 	}()
 	mgr := NewEndpointManager(&dummyEpSyncher{})
-	ep := endpoint.NewEndpointWithState(s, &endpoint.FakeEndpointProxy{}, &allocator.FakeIdentityAllocator{}, 7, endpoint.StateReady)
+	ep := endpoint.NewEndpointWithState(s, s, ipcache.NewIPCache(nil), &endpoint.FakeEndpointProxy{}, &allocator.MockIdentityAllocator{}, 7, endpoint.StateReady)
 	tests := []struct {
 		name        string
 		preTestRun  func()
