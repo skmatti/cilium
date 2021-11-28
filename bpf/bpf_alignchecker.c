@@ -88,6 +88,8 @@ int main(void)
 	DECLARE(struct egress_gw_policy_entry);
 	DECLARE(struct vtep_key);
 	DECLARE(struct vtep_value);
+	DECLARE(struct local_redirect_key);
+	DECLARE(struct local_redirect_info);
 	DECLARE(struct capture4_wcard);
 	DECLARE(struct capture6_wcard);
 	DECLARE(struct capture_rule);

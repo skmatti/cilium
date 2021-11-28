@@ -118,6 +118,8 @@ DEFINE_U32(SECCTX_FROM_IPCACHE, 1);
 #define LB6_MAGLEV_MAP_OUTER test_cilium_lb6_maglev_outer
 #define THROTTLE_MAP test_cilium_throttle
 #define THROTTLE_MAP_SIZE 65536
+#define LOCAL_REDIRECT_MAP test_cilium_local_redirect
+#define LOCAL_REDIRECT_MAP_SIZE 65536
 #define ENABLE_ARP_RESPONDER
 #define TUNNEL_ENDPOINT_MAP_SIZE 65536
 #define VTEP_MAP_SIZE 8

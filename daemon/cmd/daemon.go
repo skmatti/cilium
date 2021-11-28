@@ -66,6 +66,7 @@ import (
 	"github.com/cilium/cilium/pkg/maps/eppolicymap"
 	ipcachemap "github.com/cilium/cilium/pkg/maps/ipcache"
 	"github.com/cilium/cilium/pkg/maps/lbmap"
+	"github.com/cilium/cilium/pkg/maps/localredirect"
 	"github.com/cilium/cilium/pkg/maps/policymap"
 	"github.com/cilium/cilium/pkg/maps/sockmap"
 	"github.com/cilium/cilium/pkg/mcastmanager"
@@ -250,6 +251,12 @@ func (d *Daemon) init() error {
 	// Remove any old sockops and re-enable with _new_ programs if flag is set
 	sockops.SockmapDisable()
 	sockops.SkmsgDisable()
+
+	if _, err := localredirect.LocalRedirectMap.OpenOrCreate(); err != nil {
+		log.WithError(err).Fatal("Failed to access LocalRedirectMap")
+	} else {
+		log.Info("Successfully opened LocalRedirectMap")
+	}
 
 	if !option.Config.DryMode {
 		bandwidth.InitBandwidthManager()

@@ -16,6 +16,7 @@ import (
 	"github.com/cilium/cilium/pkg/maps/fragmap"
 	ipcachemap "github.com/cilium/cilium/pkg/maps/ipcache"
 	"github.com/cilium/cilium/pkg/maps/lbmap"
+	"github.com/cilium/cilium/pkg/maps/localredirect"
 	"github.com/cilium/cilium/pkg/maps/lxcmap"
 	"github.com/cilium/cilium/pkg/maps/metricsmap"
 	"github.com/cilium/cilium/pkg/maps/neighborsmap"
@@ -90,6 +91,8 @@ func CheckStructAlignments(path string) error {
 		"tunnel_value":           {reflect.TypeOf(tunnel.TunnelValue{})},
 		"vtep_key":               {reflect.TypeOf(vtep.Key{})},
 		"vtep_value":             {reflect.TypeOf(vtep.VtepEndpointInfo{})},
+		"local_redirect_key":     {reflect.TypeOf(localredirect.LocalRedirectKey{})},
+		"local_redirect_info":    {reflect.TypeOf(localredirect.LocalRedirectInfo{})},
 	}
 	if err := check.CheckStructAlignments(path, toCheck, true); err != nil {
 		return err
