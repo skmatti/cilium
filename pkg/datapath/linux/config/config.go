@@ -40,6 +40,7 @@ import (
 	ipcachemap "github.com/cilium/cilium/pkg/maps/ipcache"
 	"github.com/cilium/cilium/pkg/maps/ipmasq"
 	"github.com/cilium/cilium/pkg/maps/lbmap"
+	"github.com/cilium/cilium/pkg/maps/localredirect"
 	"github.com/cilium/cilium/pkg/maps/lxcmap"
 	"github.com/cilium/cilium/pkg/maps/metricsmap"
 	"github.com/cilium/cilium/pkg/maps/multinicdev"
@@ -510,6 +511,9 @@ func (h *HeaderfileWriter) WriteNodeConfig(w io.Writer, cfg *datapath.LocalNodeC
 		cDefinesMap["THROTTLE_MAP_SIZE"] = fmt.Sprintf("%d", bwmap.MapSize)
 	}
 
+	cDefinesMap["LOCAL_REDIRECT_MAP"] = localredirect.MapName
+	cDefinesMap["LOCAL_REDIRECT_MAP_SIZE"] = fmt.Sprintf("%d", localredirect.MapSize)
+
 	if option.Config.EnableHostFirewall {
 		cDefinesMap["ENABLE_HOST_FIREWALL"] = "1"
 	}
@@ -595,6 +599,10 @@ func (h *HeaderfileWriter) WriteNodeConfig(w io.Writer, cfg *datapath.LocalNodeC
 
 	if option.Config.EnableICMPRules {
 		cDefinesMap["ENABLE_ICMP_RULE"] = "1"
+	}
+
+	if option.Config.EnableGNG {
+		cDefinesMap["ENABLE_GNG"] = "1"
 	}
 
 	if option.Config.EnableFlatIPv4 {
@@ -906,7 +914,7 @@ func (h *HeaderfileWriter) writeTemplateConfig(fw *bufio.Writer, e datapath.Endp
 		fmt.Fprintf(fw, "#define ENABLE_ROUTING 1\n")
 	}
 
-	if e.DisableSIPVerification() {
+	if e.DisableSIPVerification() || option.Config.EnableGNG {
 		fmt.Fprintf(fw, "#define DISABLE_SIP_VERIFICATION 1\n")
 	}
 

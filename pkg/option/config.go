@@ -1709,6 +1709,7 @@ type DaemonConfig struct {
 	EnableIngressController    bool
 	EnableGatewayAPI           bool
 	EnvoyConfigTimeout         time.Duration
+	EnableGNG                  bool
 	IPMasqAgentConfigPath      string
 	InstallIptRules            bool
 	MonitorAggregation         string
@@ -3133,6 +3134,7 @@ func (c *DaemonConfig) Populate(vp *viper.Viper) {
 	c.EnableGDCILB = vp.GetBool(EnableGDCILB)
 	c.EnableFlatIPv4 = vp.GetBool(EnableFlatIPv4)
 	c.DisableIPv6Tunnel = vp.GetBool(DisableIPv6Tunnel)
+	c.EnableGNG = vp.GetBool(EnableGNG)
 
 	vlanBPFBypassIDs := vp.GetStringSlice(VLANBPFBypass)
 	c.VLANBPFBypass = make([]int, 0, len(vlanBPFBypassIDs))

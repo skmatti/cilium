@@ -681,6 +681,10 @@ func initializeFlags() {
 	flags.Duration(option.EnvoyConfigTimeout, defaults.EnvoyConfigTimeout, "Timeout duration for Envoy Config acknowledgements")
 	option.BindEnv(Vp, option.EnvoyConfigTimeout)
 
+	flags.Bool(option.EnableGNG, false, "Enable GNG redirection")
+	option.BindEnv(Vp, option.EnableGNG)
+	flags.MarkHidden(option.EnableGNG)
+
 	flags.String(option.IPMasqAgentConfigPath, "/etc/config/ip-masq-agent", "ip-masq-agent configuration file path")
 	option.BindEnv(Vp, option.IPMasqAgentConfigPath)
 

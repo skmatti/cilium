@@ -1009,6 +1009,9 @@ func (e *Endpoint) deleteMaps() []error {
 		}
 	}
 
+	// Remove localredirect map entries on endpoint delete as well.
+	errors = append(errors, e.DeleteLocalRedirectMapIfNecessary())
+
 	return errors
 }
 

@@ -77,3 +77,5 @@ struct tunnel_key _53;
 struct tunnel_value _54;
 struct multi_nic_dev_key _55;
 struct multi_nic_dev_info _56;
+struct local_redirect_key _57;
+struct local_redirect_info _58;

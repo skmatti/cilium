@@ -6,8 +6,11 @@ import (
 
 	"github.com/cilium/cilium/pkg/bpf"
 	multinicep "github.com/cilium/cilium/pkg/gke/multinic/endpoint"
+	"github.com/cilium/cilium/pkg/labels"
 	"github.com/cilium/cilium/pkg/mac"
+	"github.com/cilium/cilium/pkg/maps/localredirect"
 	"github.com/cilium/cilium/pkg/option"
+	"github.com/cilium/cilium/pkg/types"
 )
 
 const (
@@ -148,4 +151,45 @@ func (e *Endpoint) GetNetworkID() uint32 {
 		return 0
 	}
 	return e.DatapathConfiguration.NetworkID
+}
+
+func (e *Endpoint) DeleteLocalRedirectMapIfNecessary() error {
+	if _, found := e.OpLabels.GetIdentityLabel("remote-redir-from"); found {
+		return localredirect.LocalRedirectMap.Delete(
+			&localredirect.LocalRedirectKey{Id: uint64(42)},
+		)
+	}
+	return nil
+}
+
+func (e *Endpoint) UpdateLocalRedirectMap(newLabels, oldLabels labels.Labels) error {
+	var hasOldLabel, hasNewLabel bool
+	if oldLabels == nil {
+		hasOldLabel = false
+	} else {
+		_, hasOldLabel = oldLabels["remote-redir-from"]
+	}
+
+	_, hasNewLabel = newLabels["remote-redir-from"]
+
+	if hasOldLabel && !hasNewLabel {
+		return localredirect.LocalRedirectMap.Delete(
+			&localredirect.LocalRedirectKey{Id: 42},
+		)
+	}
+	if hasNewLabel {
+		return e.updateLocalRedirectMap(42)
+	}
+	return nil
+}
+
+func (e *Endpoint) updateLocalRedirectMap(key uint64) error {
+	var epMac types.MACAddr
+	for i, b := range e.LXCMac() {
+		epMac[i] = b
+	}
+	return localredirect.LocalRedirectMap.Update(
+		&localredirect.LocalRedirectKey{Id: key},
+		&localredirect.LocalRedirectInfo{IfIndex: uint16(e.GetIfIndex()), IfMac: epMac},
+	)
 }

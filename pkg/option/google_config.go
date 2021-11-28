@@ -32,4 +32,8 @@ const (
 
 	// EnableRedirectService enables google redirect service for the host
 	EnableRedirectService = "enable-redirect-service"
+
+	// EnableGNG internal flag to enable GNG's eBPF code paths. This should be
+	// replaced with the ServiceChaining enablement.
+	EnableGNG = "enable-gng"
 )
