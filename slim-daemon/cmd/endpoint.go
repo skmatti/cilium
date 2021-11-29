@@ -45,7 +45,7 @@ type IdentityAllocator interface {
 
 	// Release is the reverse operation of AllocateIdentity() and releases the
 	// specified identity.
-	Release(context.Context, *identity.Identity) (released bool, err error)
+	Release(context.Context, *identity.Identity, bool) (released bool, err error)
 }
 
 type Endpoint struct {
@@ -420,7 +420,7 @@ func (e *Endpoint) identityLabelsChanged(ctx context.Context, myChangeRev int) (
 	defer cancel()
 
 	releaseNewlyAllocatedIdentity := func() {
-		_, err := e.allocator.Release(releaseCtx, allocatedIdentity)
+		_, err := e.allocator.Release(releaseCtx, allocatedIdentity, false)
 		if err != nil {
 			// non fatal error as keys will expire after lease expires but log it
 			elog.WithFields(logrus.Fields{logfields.Identity: allocatedIdentity.ID}).
@@ -480,7 +480,7 @@ func (e *Endpoint) identityLabelsChanged(ctx context.Context, myChangeRev int) (
 	e.SetIdentity(allocatedIdentity, false)
 
 	if oldIdentity != nil {
-		_, err := e.allocator.Release(releaseCtx, oldIdentity)
+		_, err := e.allocator.Release(releaseCtx, oldIdentity, false)
 		if err != nil {
 			elog.WithFields(logrus.Fields{logfields.Identity: oldIdentity.ID}).
 				WithError(err).Warn("Unable to release old endpoint identity")
@@ -673,7 +673,7 @@ func (mgr *EndpointManager) removeSecurityIdentity(e *Endpoint) error {
 		releaseCtx, cancel := context.WithTimeout(context.Background(), 2*time.Minute) // KVstoreConnectivityTimeout
 		defer cancel()
 
-		_, err := e.allocator.Release(releaseCtx, e.SecurityIdentity)
+		_, err := e.allocator.Release(releaseCtx, e.SecurityIdentity, false)
 		if err != nil {
 			return err
 		}
