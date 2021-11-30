@@ -4,16 +4,16 @@ import (
 	"fmt"
 	"net"
 
-	"github.com/cilium/cilium/pkg/bpf"
 	"github.com/cilium/cilium/pkg/gke/apis/trafficsteering/v1alpha1"
 	"github.com/cilium/cilium/pkg/maps/egressmap"
 	nodeTypes "github.com/cilium/cilium/pkg/node/types"
+	"github.com/cilium/ebpf"
 	"k8s.io/apimachinery/pkg/types"
 )
 
 type egressMapInterface interface {
-	Update(key bpf.MapKey, value bpf.MapValue) error
-	Delete(key bpf.MapKey) error
+	Update(key, value interface{}, flags ebpf.MapUpdateFlags) error
+	Delete(key interface{}) error
 }
 
 // manager manages egress gateway ebpf map.
@@ -28,7 +28,7 @@ func newManager() *manager {
 	return &manager{
 		tsConfigs: make(map[types.NamespacedName]*tsConfig),
 		podIPs:    make(map[string]net.IP),
-		egressMap: egressmap.EgressMap,
+		egressMap: egressmap.EgressPolicyMap.Map,
 	}
 }
 
@@ -107,9 +107,9 @@ func (m *manager) delTSConfig(name types.NamespacedName) error {
 	someFailed := false
 	for _, pip := range m.podIPs {
 		for _, dst := range stored.dstCIDRs {
-			key := egressmap.NewKey(pip, dst.IP, dst.Mask)
-			if err := m.egressMap.Delete(&key); err != nil {
-				log.Warnf("failed to delete entry %q from egress map: %v", key.String(), err)
+			key := egressmap.NewEgressPolicyKey4(pip, dst.IP, dst.Mask)
+			if err := m.egressMap.Delete(key); err != nil {
+				log.Warnf("failed to delete entry (%s %s) from egress map: %v", pip, dst, err)
 				someFailed = true
 			}
 		}
@@ -144,9 +144,9 @@ func (m *manager) delPodIP(ip net.IP) {
 
 	for _, cfg := range m.tsConfigs {
 		for _, dst := range cfg.dstCIDRs {
-			key := egressmap.NewKey(ip, dst.IP, dst.Mask)
-			if err := m.egressMap.Delete(&key); err != nil {
-				log.Warnf("failed to delete entry %q from egress map: %v", key.String(), err)
+			key := egressmap.NewEgressPolicyKey4(ip, dst.IP, dst.Mask)
+			if err := m.egressMap.Delete(key); err != nil {
+				log.Warnf("failed to delete entry (%s %s) from egress map: %v", ip, dst, err)
 			}
 		}
 	}
@@ -155,10 +155,10 @@ func (m *manager) delPodIP(ip net.IP) {
 }
 
 func (m *manager) updateEgressMap(src net.IP, dst *net.IPNet, nextHop net.IP) error {
-	key := egressmap.NewKey(src, dst.IP, dst.Mask)
-	value := &egressmap.EgressInfo4{}
-	copy(value.TunnelEndpoint[:], nextHop.To4())
-	if err := m.egressMap.Update(&key, value); err != nil {
+	key := egressmap.NewEgressPolicyKey4(src, dst.IP, dst.Mask)
+	value := egressmap.EgressPolicyVal4{}
+	copy(value.GatewayIP[:], nextHop.To4())
+	if err := m.egressMap.Update(key, value, 0); err != nil {
 		return err
 	}
 	return nil

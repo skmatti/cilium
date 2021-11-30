@@ -9,9 +9,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/cilium/cilium/pkg/bpf"
 	"github.com/cilium/cilium/pkg/gke/apis/trafficsteering/v1alpha1"
 	"github.com/cilium/cilium/pkg/maps/egressmap"
+	"github.com/cilium/ebpf"
 	"github.com/google/go-cmp/cmp"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -25,7 +25,7 @@ type key struct {
 
 type fakeMap map[key]string
 
-func keyOf(k *egressmap.Key4) key {
+func keyOf(k egressmap.EgressPolicyKey4) key {
 	// see getStaticPrefixBits in egressmap on how this is calculated.
 	ones := k.PrefixLen - 32
 	return key{
@@ -34,12 +34,12 @@ func keyOf(k *egressmap.Key4) key {
 	}
 }
 
-func (m fakeMap) Update(bk bpf.MapKey, value bpf.MapValue) error {
-	egressKey, ok := bk.(*egressmap.Key4)
+func (m fakeMap) Update(key, value interface{}, flags ebpf.MapUpdateFlags) error {
+	egressKey, ok := key.(egressmap.EgressPolicyKey4)
 	if !ok {
-		return fmt.Errorf("Update() called with bad key: %T", bk)
+		return fmt.Errorf("Update() called with bad key: %T", key)
 	}
-	egressInfo4, ok := value.(*egressmap.EgressInfo4)
+	egressVal4, ok := value.(egressmap.EgressPolicyVal4)
 	if !ok {
 		return fmt.Errorf("Update() called with bad value: %T", value)
 	}
@@ -49,14 +49,14 @@ func (m fakeMap) Update(bk bpf.MapKey, value bpf.MapValue) error {
 	if _, ok := m[k]; ok {
 		return fmt.Errorf("Update() called with duplicated key: %#v", k)
 	}
-	m[k] = egressInfo4.TunnelEndpoint.String()
+	m[k] = egressVal4.GetGatewayIP().String()
 	return nil
 }
 
-func (m fakeMap) Delete(bk bpf.MapKey) error {
-	egressKey, ok := bk.(*egressmap.Key4)
+func (m fakeMap) Delete(key interface{}) error {
+	egressKey, ok := key.(egressmap.EgressPolicyKey4)
 	if !ok {
-		return fmt.Errorf("Delete() called with bad key: %T", bk)
+		return fmt.Errorf("Delete() called with bad key: %T", key)
 	}
 	k := keyOf(egressKey)
 	if _, ok := m[k]; !ok {
@@ -81,10 +81,17 @@ func buildTSObj(name, namespace string, dstCIDRs []string, nextHop string) *v1al
 	}
 }
 
+func newManagerForTest(fm fakeMap) *manager {
+	return &manager{
+		tsConfigs: make(map[types.NamespacedName]*tsConfig),
+		podIPs:    make(map[string]net.IP),
+		egressMap: fm,
+	}
+}
+
 func TestAddDelTSConfig(t *testing.T) {
-	m := newManager()
 	fm := fakeMap{}
-	m.egressMap = fm
+	m := newManagerForTest(fm)
 	m.podIPs = map[string]net.IP{
 		"192.168.1.1": net.ParseIP("192.168.1.1"),
 		"192.168.1.2": net.ParseIP("192.168.1.2"),
@@ -141,9 +148,8 @@ func TestAddDelTSConfig(t *testing.T) {
 }
 
 func TestAddDelPodIP(t *testing.T) {
-	m := newManager()
 	fm := fakeMap{}
-	m.egressMap = fm
+	m := newManagerForTest(fm)
 
 	cfg1, err := parse(buildTSObj("ts-1", "default", []string{"10.1.1.0/24", "10.1.2.0/24"}, "10.1.1.1"))
 	if err != nil {
