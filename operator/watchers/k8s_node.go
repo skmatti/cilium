@@ -23,6 +23,7 @@ import (
 	ciliumv2 "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2"
 	"github.com/cilium/cilium/pkg/k8s/informer"
 	slim_corev1 "github.com/cilium/cilium/pkg/k8s/slim/k8s/api/core/v1"
+	"github.com/cilium/cilium/pkg/logging/logfields"
 	"github.com/cilium/cilium/pkg/node/addressing"
 	v1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
@@ -52,7 +53,7 @@ func StartSynchronizingWindowsNodes() {
 			0,
 			cache.ResourceEventHandlerFuncs{
 				AddFunc: func(obj interface{}) {
-					if node := k8s.ObjToV1Node(obj); node != nil {
+					if node := objToSlimV1Node(obj); node != nil {
 						cn := convertToCiliumNode(node)
 						if _, err := k8s.CiliumClient().CiliumV2().CiliumNodes().Create(context.TODO(), cn, metav1.CreateOptions{}); err != nil {
 							log.WithError(err).Warn("Unable to create CiliumNode resource")
@@ -60,7 +61,7 @@ func StartSynchronizingWindowsNodes() {
 					}
 				},
 				UpdateFunc: func(oldObj, newObj interface{}) {
-					if node := k8s.ObjToV1Node(newObj); node != nil {
+					if node := objToSlimV1Node(newObj); node != nil {
 						cn := convertToCiliumNode(node)
 						replaceCNSpec := []k8s.JSONPatch{
 							{
@@ -94,7 +95,7 @@ func StartSynchronizingWindowsNodes() {
 	})
 }
 
-func convertToCiliumNode(node *v1.Node) *ciliumv2.CiliumNode {
+func convertToCiliumNode(node *slim_corev1.Node) *ciliumv2.CiliumNode {
 	cn := &ciliumv2.CiliumNode{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: node.ObjectMeta.Name,
@@ -123,4 +124,24 @@ func convertToCiliumNode(node *v1.Node) *ciliumv2.CiliumNode {
 	cn.Spec.IPAM.PodCIDRs = []string{node.Spec.PodCIDR}
 
 	return cn
+}
+
+func objToSlimV1Node(obj interface{}) *slim_corev1.Node {
+	node, ok := obj.(*slim_corev1.Node)
+	if ok {
+		return node
+	}
+	deletedObj, ok := obj.(cache.DeletedFinalStateUnknown)
+	if ok {
+		// Delete was not observed by the watcher but is
+		// removed from kube-apiserver. This is the last
+		// known state and the object no longer exists.
+		node, ok := deletedObj.Obj.(*slim_corev1.Node)
+		if ok {
+			return node
+		}
+	}
+	log.WithField(logfields.Object, logfields.Repr(obj)).
+		Warn("Ignoring invalid k8s v1 Node")
+	return nil
 }
