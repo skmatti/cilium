@@ -18,6 +18,7 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
 
+	operatorOption "github.com/cilium/cilium/operator/option"
 	"github.com/cilium/cilium/pkg/k8s"
 	v2 "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2"
 	v2alpha1 "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2alpha1"
@@ -57,7 +58,7 @@ func agentCRDResourceNames() []string {
 
 	if !option.Config.DisableCiliumEndpointCRD {
 		result = append(result, CRDResourceName(v2.CEPName))
-		if option.Config.EnableCiliumEndpointSlice {
+		if option.Config.EnableCiliumEndpointSlice || operatorOption.Config.EnableEndpointSlicing {
 			result = append(result, CRDResourceName(v2alpha1.CESName))
 		}
 	}

@@ -313,6 +313,10 @@ func init() {
 		"Duration that LeaderElector clients should wait between retries of the actions")
 	option.BindEnv(operatorOption.LeaderElectionRetryPeriod)
 
+	// This is a temporary flag that used to control the creation of slices. We will remove this once we fully upgrade to CES version.
+	flags.Bool(operatorOption.EnableEndpointSlicing, false, "Enables cilium endpoint slicing in the operator only")
+	option.BindEnv(operatorOption.EnableEndpointSlicing)
+
 	flags.String(option.K8sServiceProxyName, "", "Value of K8s service-proxy-name label for which Cilium handles the services (empty = all services without service.kubernetes.io/service-proxy-name label)")
 	option.BindEnv(option.K8sServiceProxyName)
 

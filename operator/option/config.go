@@ -51,6 +51,10 @@ const (
 	// disabled for the operator
 	SkipCRDCreation = "skip-crd-creation"
 
+	// EnableEndpointSlicing enables the cilium endpoint slicing logic in the operator
+	// without switching agents to watch for CES (agents still watch CEP for operation).
+	EnableEndpointSlicing = "enable-endpoint-slicing-operator-only"
+
 	// CNPNodeStatusGCInterval is the GC interval for nodes which have been
 	// removed from the cluster in CiliumNetworkPolicy and
 	// CiliumClusterwideNetworkPolicy Status.
@@ -374,6 +378,9 @@ type OperatorConfig struct {
 	// compatible with MetalLB's configuration.
 	BGPConfigPath string
 
+	// EnableEndpointSlicing enables cilium endpoint slicing logic in the operator.
+	EnableEndpointSlicing bool
+
 	// SkipCRDCreation disables creation of the CustomResourceDefinition
 	// for the operator
 	SkipCRDCreation bool
@@ -553,6 +560,7 @@ func (c *OperatorConfig) Populate() {
 	c.LeaderElectionRetryPeriod = viper.GetDuration(LeaderElectionRetryPeriod)
 	c.BGPAnnounceLBIP = viper.GetBool(BGPAnnounceLBIP)
 	c.BGPConfigPath = viper.GetString(BGPConfigPath)
+	c.EnableEndpointSlicing = viper.GetBool(EnableEndpointSlicing)
 	c.SkipCRDCreation = viper.GetBool(SkipCRDCreation)
 	c.EnableIngressController = viper.GetBool(EnableIngressController)
 	c.EnforceIngressHTTPS = viper.GetBool(EnforceIngressHttps)

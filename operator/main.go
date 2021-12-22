@@ -352,7 +352,7 @@ func onOperatorStartLeading(ctx context.Context) {
 	ciliumK8sClient = k8s.CiliumClient()
 
 	// If CiliumEndpointSlice feature is enabled, create CESController, start CEP watcher and run controller.
-	if !option.Config.DisableCiliumEndpointCRD && option.Config.EnableCiliumEndpointSlice {
+	if !option.Config.DisableCiliumEndpointCRD && (option.Config.EnableCiliumEndpointSlice || operatorOption.Config.EnableEndpointSlicing) {
 		log.Info("Create and run CES controller, start CEP watcher")
 		// Initialize  the CES controller
 		cesController := ces.NewCESController(k8s.CiliumClient(),

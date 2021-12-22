@@ -15,6 +15,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/tools/cache"
 
+	operatorOption "github.com/cilium/cilium/operator/option"
 	ces "github.com/cilium/cilium/operator/pkg/ciliumendpointslice"
 	"github.com/cilium/cilium/pkg/k8s"
 	cilium_api_v2 "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2"
@@ -79,7 +80,7 @@ func CiliumEndpointsInit(ciliumNPClient cilium_cli.CiliumV2Interface, stopCh <-c
 		var cacheResourceHandler cache.ResourceEventHandlerFuncs
 
 		// Register notification function only if CES feature is enabled.
-		if option.Config.EnableCiliumEndpointSlice {
+		if option.Config.EnableCiliumEndpointSlice || operatorOption.Config.EnableEndpointSlicing {
 			cacheResourceHandler = cache.ResourceEventHandlerFuncs{
 				AddFunc: func(obj interface{}) {
 					if cep := objToCiliumEndpoint(obj); cep != nil {
