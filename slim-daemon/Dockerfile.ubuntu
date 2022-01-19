@@ -1,4 +1,4 @@
-FROM golang:1.16 as antrea-build
+FROM golang:1.17 as anet-build
 
 WORKDIR /cilium
 
@@ -13,5 +13,5 @@ RUN make -C /cilium/slim-daemon linux
 
 FROM ubuntu
 
-COPY --from=antrea-build /cilium/slim-daemon/anet-agent /
+COPY --from=anet-build /cilium/slim-daemon/anet-agent /
 
