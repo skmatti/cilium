@@ -1023,8 +1023,8 @@ ct_recreate4:
 #ifdef ENABLE_EGRESS_GATEWAY
 	{
 		struct egress_gw_policy_entry *egress_gw_policy;
-		struct endpoint_info *gateway_node_ep;
-		struct tunnel_key key = {};
+		struct endpoint_info __maybe_unused *gateway_node_ep;
+		struct tunnel_key __maybe_unused key = {};
 
 		/* If the packet is destined to an entity inside the cluster,
 		 * either EP or node, it should not be forwarded to an egress
@@ -1046,6 +1046,11 @@ ct_recreate4:
 		if (!egress_gw_policy)
 			goto skip_egress_gateway;
 
+#ifdef TUNNEL_MODE
+		// Use the next section to do the encap_and_redirect to save
+		// insn space: b/214301294
+                tunnel_endpoint = egress_gw_policy->gateway_ip;
+#elif
 		/* If the gateway node is the local node, then just let the
 		 * packet go through, as it will be SNATed later on by
 		 * handle_nat_fwd().
@@ -1063,6 +1068,7 @@ ct_recreate4:
 			goto encrypt_to_stack;
 		else
 			return ret;
+#endif
 	}
 skip_egress_gateway:
 #endif
