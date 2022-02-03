@@ -1050,7 +1050,7 @@ ct_recreate4:
 		// Use the next section to do the encap_and_redirect to save
 		// insn space: b/214301294
                 tunnel_endpoint = egress_gw_policy->gateway_ip;
-#elif
+#else
 		/* If the gateway node is the local node, then just let the
 		 * packet go through, as it will be SNATed later on by
 		 * handle_nat_fwd().
