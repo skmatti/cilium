@@ -23,6 +23,7 @@ import (
 // +genclient
 // +genclient:nonNamespaced
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+// +kubebuilder:resource:scope=Cluster,shortName=nl
 
 // NetworkLogging describes the specification used by network logging.
 // There can be at most one copy of this resource in the cluster.
