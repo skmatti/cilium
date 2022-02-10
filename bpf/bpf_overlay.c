@@ -135,8 +135,6 @@ not_esp:
 	ep = lookup_ip6_endpoint(ip6);
 	if (ep) {
 		__u8 nexthdr;
-		struct remote_endpoint_info *info = NULL;
-
 		/* If identity is empty, try to look it up from ipcache. Because if the packet
 		 * is coming into the tunnel from a windows node, it doesn't have identity info
 		 * as tunnel id. In this case, try to recover the identity like direct routing
@@ -307,8 +305,6 @@ not_esp:
 	/* Lookup IPv4 address in list of local endpoints */
 	ep = lookup_ip4_endpoint(ip4);
 	if (ep) {
-		struct remote_endpoint_info *info = NULL;
-
 		/* If identity is empty, try to look it up from ipcache. Because if the packet
 		 * is coming into the tunnel from a windows node, it doesn't have identity info
 		 * as tunnel id. In this case, try to recover the identity like direct routing

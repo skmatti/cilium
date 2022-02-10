@@ -81,7 +81,7 @@ func StartSynchronizingWindowsNodes() {
 					}
 				},
 				DeleteFunc: func(obj interface{}) {
-					if node := k8s.ObjToV1Node(obj); node != nil {
+					if node := objToSlimV1Node(obj); node != nil {
 						if err := k8s.CiliumClient().CiliumV2().CiliumNodes().Delete(context.TODO(), node.ObjectMeta.Name, metav1.DeleteOptions{}); err != nil && !k8serrors.IsNotFound(err) {
 							log.WithError(err).Warn("Unable to delete CiliumNode resource")
 						}
