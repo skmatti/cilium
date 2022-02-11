@@ -62,6 +62,7 @@ type Config struct {
 	EnableGKEMultiTenancy bool `mapstructure:"enable-multi-project"`
 	// DisablePodToRemoteNodeTunneling disables tunneling for all traffic to the remote nodes.
 	DisablePodToRemoteNodeTunneling bool `mapstructure:"disable-pod-to-remote-node-tunneling"`
+	EnableGDCILB                    bool `mapstructure:"enable-gdc-ilb"`
 }
 
 var defaultConfig = Config{
@@ -79,6 +80,7 @@ var defaultConfig = Config{
 	EnableGKEMultiTenancy:       false,
 
 	DisablePodToRemoteNodeTunneling: false,
+	EnableGDCILB:                    false,
 }
 
 func (cfg Config) Flags(flags *pflag.FlagSet) {
@@ -121,4 +123,7 @@ func (cfg Config) Flags(flags *pflag.FlagSet) {
 
 	flags.Bool(option.DisablePodToRemoteNodeTunneling, defaultConfig.DisablePodToRemoteNodeTunneling, "Disable tunneling for traffic from a pod to the remote nodes")
 	flags.MarkHidden(option.DisablePodToRemoteNodeTunneling)
+
+	flags.Bool(option.EnableGDCILB, defaultConfig.EnableGDCILB, "Enable google GDC-H ILB Support")
+	flags.MarkHidden(option.EnableGDCILB)
 }

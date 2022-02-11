@@ -73,4 +73,7 @@ const (
 
 	// DisablePodToRemoteNodeTunneling disables tunneling for all traffic to the remote nodes.
 	DisablePodToRemoteNodeTunneling = "disable-pod-to-remote-node-tunneling"
+
+	// EnableGDCILB is the name of the option to enable google GDC-H ILB Support
+	EnableGDCILB = "enable-gdc-ilb"
 )

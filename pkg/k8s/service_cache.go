@@ -21,6 +21,7 @@ import (
 
 	cmtypes "github.com/cilium/cilium/pkg/clustermesh/types"
 	datapathTables "github.com/cilium/cilium/pkg/datapath/tables"
+	"github.com/cilium/cilium/pkg/gke/features"
 	"github.com/cilium/cilium/pkg/ip"
 	slim_corev1 "github.com/cilium/cilium/pkg/k8s/slim/k8s/api/core/v1"
 	"github.com/cilium/cilium/pkg/loadbalancer"
@@ -344,6 +345,10 @@ func (s *ServiceCache) UpdateService(k8sSvc *slim_corev1.Service, swg *lock.Stop
 
 	for _, mutator := range s.ServiceMutators {
 		mutator(k8sSvc, newService)
+	}
+
+	if features.GlobalConfig.EnableGDCILB && isIlbService(k8sSvc) {
+		injectIlbInfo(k8sSvc, newService)
 	}
 
 	s.mutex.Lock()
@@ -711,6 +716,17 @@ func (s *ServiceCache) MergeExternalServiceUpdate(service *serviceStore.ClusterS
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
+	if features.GlobalConfig.EnableGDCILB && isIlbClusterService(service) && option.Config.ClusterName != service.Cluster {
+		// This should only be called for remote ILB services, which will be
+		// have their own unique, cluster-keyed IDs. We return afterwards to
+		// prevent the normal path from creating/deleting a second service which
+		// is not keyed on the cluster name.
+		//
+		// More details are in the function comments.
+		s.ilbExternalUpdate(service, swg)
+		return
+	}
+
 	s.mergeServiceUpdateLocked(service, nil, swg)
 }
 
@@ -786,6 +802,17 @@ func (s *ServiceCache) MergeExternalServiceDelete(service *serviceStore.ClusterS
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
+	if features.GlobalConfig.EnableGDCILB && isIlbClusterService(service) && service.Cluster != option.Config.ClusterName {
+		// This should only be called for remote ILB services, which will be
+		// have their own unique, cluster-keyed IDs. We return afterwards to
+		// prevent the normal path from creating/deleting a second service which
+		// is not keyed on the cluster name.
+		//
+		// More details are in the function comments.
+		s.ilbExternalDelete(service, swg)
+		return
+	}
+
 	id := ServiceID{Cluster: service.Cluster, Name: service.Name, Namespace: service.Namespace}
 	var opts []mergeExternalServiceOption
 	if _, clusterAware := s.services[id]; clusterAware {
@@ -853,6 +880,11 @@ func (s *ServiceCache) MergeClusterServiceUpdate(service *serviceStore.ClusterSe
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
+	if isIlbClusterService(service) && option.Config.ClusterName != service.Cluster {
+		// We don't expect this to ever be called but we want visibility if it is.
+		scopedLog.Warningf("Merging a remote ILB service from cluster %s, which is not expected in this code path.", service.Cluster)
+	}
+
 	var oldService *Service
 	svc, ok := s.services[id]
 	if !ok || !svc.EqualsClusterService(service) {
@@ -872,6 +904,11 @@ func (s *ServiceCache) MergeClusterServiceDelete(service *serviceStore.ClusterSe
 
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
+
+	if isIlbClusterService(service) && option.Config.ClusterName != service.Cluster {
+		// We don't expect this to ever be called but we want visibility if it is.
+		scopedLog.Warningf("Deleting a remote ILB service from cluster %s, which is not expected in this code path.", service.Cluster)
+	}
 
 	externalEndpoints, ok := s.externalEndpoints[id]
 	if ok {
