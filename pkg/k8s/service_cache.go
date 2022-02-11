@@ -194,6 +194,10 @@ func (s *ServiceCache) UpdateService(k8sSvc *slim_corev1.Service, swg *lock.Stop
 		return svcID
 	}
 
+	if option.Config.EnableGDCILB && isIlbService(k8sSvc) {
+		injectIlbInfo(k8sSvc, newService)
+	}
+
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -542,6 +546,17 @@ func (s *ServiceCache) MergeExternalServiceUpdate(service *serviceStore.ClusterS
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
+	if option.Config.EnableGDCILB && isIlbClusterService(service) && option.Config.ClusterName != service.Cluster {
+		// This should only be called for remote ILB services, which will be
+		// have their own unique, cluster-keyed IDs. We return afterwards to
+		// prevent the normal path from creating/deleting a second service which
+		// is not keyed on the cluster name.
+		//
+		// More details are in the function comments.
+		s.ilbExternalUpdate(service, swg)
+		return
+	}
+
 	s.mergeServiceUpdateLocked(service, nil, swg)
 }
 
@@ -606,6 +621,17 @@ func (s *ServiceCache) MergeExternalServiceDelete(service *serviceStore.ClusterS
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
+	if option.Config.EnableGDCILB && isIlbClusterService(service) && service.Cluster != option.Config.ClusterName {
+		// This should only be called for remote ILB services, which will be
+		// have their own unique, cluster-keyed IDs. We return afterwards to
+		// prevent the normal path from creating/deleting a second service which
+		// is not keyed on the cluster name.
+		//
+		// More details are in the function comments.
+		s.ilbExternalDelete(service, swg)
+		return
+	}
+
 	externalEndpoints, ok := s.externalEndpoints[id]
 	if ok {
 		scopedLog.Debug("Deleting external endpoints")
@@ -653,6 +679,11 @@ func (s *ServiceCache) MergeClusterServiceUpdate(service *serviceStore.ClusterSe
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
+	if isIlbClusterService(service) && option.Config.ClusterName != service.Cluster {
+		// We don't expect this to ever be called but we want visibility if it is.
+		scopedLog.Warningf("Merging a remote ILB service from cluster %s, which is not expected in this code path.", service.Cluster)
+	}
+
 	var oldService *Service
 	svc, ok := s.services[id]
 	if !ok || !svc.EqualsClusterService(service) {
@@ -672,6 +703,11 @@ func (s *ServiceCache) MergeClusterServiceDelete(service *serviceStore.ClusterSe
 
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
+
+	if isIlbClusterService(service) && option.Config.ClusterName != service.Cluster {
+		// We don't expect this to ever be called but we want visibility if it is.
+		scopedLog.Warningf("Deleting a remote ILB service from cluster %s, which is not expected in this code path.", service.Cluster)
+	}
 
 	externalEndpoints, ok := s.externalEndpoints[id]
 	if ok {

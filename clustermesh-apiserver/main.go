@@ -275,6 +275,9 @@ func runApiserver() error {
 	flags.BoolVar(&cfg.enableExternalWorkloads, option.EnableExternalWorkloads, true, "Enable support for external workloads")
 	option.BindEnv(vp, option.EnableExternalWorkloads)
 
+	flags.Bool(option.EnableGDCILB, false, "Enable google GDC-H ILB Support")
+	option.BindEnv(vp, option.EnableGDCILB)
+
 	vp.BindPFlags(flags)
 
 	if err := rootCmd.Execute(); err != nil {

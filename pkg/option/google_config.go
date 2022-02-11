@@ -7,4 +7,7 @@ const (
 
 	// AnnotateK8sNodeSubnet enables annotation of kubernetes nodes with subnet information.
 	AnnotateK8sNodeSubnet = "annotate-k8s-node-subnet"
+
+	// EnableGDCILB is the name of the option to enable google GDC-H ILB Support
+	EnableGDCILB = "enable-gdc-ilb"
 )

@@ -2291,6 +2291,9 @@ type DaemonConfig struct {
 	// ARPPingKernelManaged denotes whether kernel can auto-refresh Neighbor entries
 	ARPPingKernelManaged bool
 
+	// EnableGDCILB is a feature flag for google GDC-H ILB Support, default is false
+	EnableGDCILB bool
+
 	// VLANBPFBypass list of explicitly allowed VLAN id's for bpf logic bypass
 	VLANBPFBypass []int
 	// EnableL2NeighDiscovery determines if cilium should perform L2 neighbor
@@ -3078,6 +3081,8 @@ func (c *DaemonConfig) Populate(vp *viper.Viper) {
 	c.populateDevices(vp)
 	c.EnableRuntimeDeviceDetection = vp.GetBool(EnableRuntimeDeviceDetection)
 	c.EgressMultiHomeIPRuleCompat = vp.GetBool(EgressMultiHomeIPRuleCompat)
+
+	c.EnableGDCILB = vp.GetBool(EnableGDCILB)
 
 	vlanBPFBypassIDs := vp.GetStringSlice(VLANBPFBypass)
 	c.VLANBPFBypass = make([]int, 0, len(vlanBPFBypassIDs))

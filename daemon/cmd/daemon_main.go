@@ -989,6 +989,10 @@ func initializeFlags() {
 	flags.Int(option.FragmentsMapEntriesName, defaults.FragmentsMapEntries, "Maximum number of entries in fragments tracking map")
 	option.BindEnv(Vp, option.FragmentsMapEntriesName)
 
+	flags.Bool(option.EnableGDCILB, false, "Enable google GDC-H ILB Support")
+	flags.MarkHidden(option.EnableGDCILB)
+	option.BindEnv(Vp, option.EnableGDCILB)
+
 	flags.Int(option.LBMapEntriesName, lbmap.DefaultMaxEntries, "Maximum number of entries in Cilium BPF lbmap")
 	option.BindEnv(Vp, option.LBMapEntriesName)
 
