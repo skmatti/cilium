@@ -193,6 +193,10 @@ func (s *ServiceCache) UpdateService(k8sSvc *slim_corev1.Service, swg *lock.Stop
 		return svcID
 	}
 
+	if option.Config.EnableGDCILB && isIlbService(k8sSvc) {
+		injectIlbInfo(k8sSvc, newService)
+	}
+
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -534,6 +538,10 @@ func (s *ServiceCache) MergeExternalServiceUpdate(service *serviceStore.ClusterS
 		return
 	}
 
+	if option.Config.EnableGDCILB && isIlbClusterService(service) {
+		s.ilbExternalDelete(service, swg)
+	}
+
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -541,6 +549,10 @@ func (s *ServiceCache) MergeExternalServiceUpdate(service *serviceStore.ClusterS
 }
 
 func (s *ServiceCache) mergeServiceUpdateLocked(service *serviceStore.ClusterService, oldService *Service, swg *lock.StoppableWaitGroup) {
+	if option.Config.ClusterName != service.Cluster && option.Config.EnableGDCILB {
+		s.ilbExternalUpdate(service, swg)
+	}
+
 	id := ServiceID{Name: service.Name, Namespace: service.Namespace}
 	scopedLog := log.WithFields(logrus.Fields{logfields.ServiceName: service.String()})
 
