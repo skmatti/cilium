@@ -93,6 +93,10 @@ ARG TARGETOS
 ARG TARGETARCH
 LABEL maintainer="maintainer@cilium.io"
 RUN echo ". /etc/profile.d/bash_completion.sh" >> /etc/bash.bashrc
+
+# patch vulnerabilities; add packages for debug and troubleshooting purpose.
+RUN apt-get update && apt-get upgrade -y && apt-get install curl tcpdump conntrack -y && rm -rf /var/lib/apt/lists/*
+
 COPY --from=cilium-envoy /usr/bin/cilium-envoy /usr/bin/
 # When used within the Cilium container, Hubble CLI should target the
 # local unix domain socket instead of Hubble Relay.
