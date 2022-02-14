@@ -86,18 +86,8 @@ LABEL maintainer="maintainer@cilium.io"
 RUN echo ". /etc/profile.d/bash_completion.sh" >> /etc/bash.bashrc
 # Update below packages to latest version, older version of this packages
 # have vulnerabilities.
-RUN apt-get update && apt-get install -y \
-      libgnutls30 \
-      openssl \
-      libssl1.1 \
-      libzstd1 \
-      p11-kit \
-      sqlite3 \
-      # TODO (b/186145472): Remove nettle fix once CVE-2021-20305 is fixed in upstream.
-      nettle-dev \
-      # TODO (b/186763575): Remove gcc fix once CVE-2020-13844 is fixed in upstream.
-      gcc-10 \
-      apt
+RUN apt-get update && apt-get upgrade -y
+
 # Packages for debug and troubleshooting purpose.
 RUN apt-get install curl tcpdump conntrack -y
 COPY --from=cilium-envoy / /
