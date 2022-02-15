@@ -1069,6 +1069,9 @@ const (
 	// EnableGoogleMultiNIC is the name of the option to enable gogole multi nic support.
 	EnableGoogleMultiNIC = "enable-google-multi-nic"
 
+	// EnableGDCILB is the name of the option to enable google GDC-H ILB Support
+	EnableGDCILB = "enable-gdc-ilb"
+
 	// VLANBPFBypass instructs Cilium to bypass bpf logic for vlan tagged packets
 	VLANBPFBypass = "vlan-bpf-bypass"
 
@@ -2256,6 +2259,9 @@ type DaemonConfig struct {
 	// EnableGoogleMultiNIC is a feature flag for google multi nic support, default is false.
 	EnableGoogleMultiNIC bool
 
+	// EnableGDCILB is a feature flag for google GDC-H ILB Support, default is false
+	EnableGDCILB bool
+
 	// VLANBPFBypass list of explicitly allowed VLAN id's for bpf logic bypass
 	VLANBPFBypass []int
 	// EnableL2NeighDiscovery determines if cilium should perform L2 neighbor
@@ -2898,6 +2904,7 @@ func (c *DaemonConfig) Populate() {
 	c.EnableTrafficSteering = viper.GetBool(EnableTrafficSteering)
 	c.EnableLocalRedirectPolicy = viper.GetBool(EnableLocalRedirectPolicy)
 	c.EnableGoogleMultiNIC = viper.GetBool(EnableGoogleMultiNIC)
+	c.EnableGDCILB = vp.GetBool(EnableGDCILB)
 	c.EncryptInterface = viper.GetStringSlice(EncryptInterface)
 	c.EncryptNode = viper.GetBool(EncryptNode)
 	c.EnvoyLogPath = viper.GetString(EnvoyLog)
