@@ -25,10 +25,10 @@ var apiRateLimitDefaults = map[string]rate.APILimiterParameters{
 		EstimatedProcessingDuration: time.Second * 2,
 		RateLimit:                   0.5,
 		RateBurst:                   4,
-		ParallelRequests:            4,
+		ParallelRequests:            10, // bumped from 4 due to b/220017528
 		SkipInitial:                 4,
-		MaxWaitDuration:             15 * time.Second,
-		Log:                         false,
+		MaxWaitDuration:             30 * time.Second, // bumped from 15s due to b/220017528
+		Log:                         true,
 	},
 	// DELETE /endpoint/{id}
 	//
