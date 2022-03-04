@@ -58,6 +58,7 @@
 #include "lib/overloadable.h"
 #include "lib/encrypt.h"
 #include "lib/google_arp_responder.h"
+#include "lib/egress_policies.h"
 
 static __always_inline bool allow_vlan(__u32 __maybe_unused ifindex, __u32 __maybe_unused vlan_id) {
 	VLAN_FILTER(ifindex, vlan_id);
@@ -488,6 +489,28 @@ handle_ipv4(struct __ctx_buff *ctx, __u32 secctx,
 	if (ipv4_is_fragment(ip4))
 		return DROP_FRAG_NOSUPPORT;
 #endif
+
+        {
+          // If this is a packet destined for the egress gateway and there is a local
+          // GNG pod, send it to the GNG pod instead of the host routing stack.
+          if (lookup_ip4_egress_gw_policy(ip4->saddr, ip4->daddr)) {
+            struct local_redirect_key redirect_key;
+            struct local_redirect_info *redirect_value;
+            redirect_key.id = 42;
+            redirect_value = map_lookup_elem(&LOCAL_REDIRECT_MAP, &redirect_key);
+            if (redirect_value) {
+              union macaddr destmac;
+              // apparently sizeof(destmac) evaluates to 8 instead of 6 for some reason,
+              // and the verifier kicks us out. Just fix the size at 6.
+              memcpy(&destmac.addr, redirect_value->ifmac, 6);
+              /* Rewrite to destination MAC */
+              if (eth_store_daddr(ctx, (__u8 *) &destmac.addr, 0) < 0)
+		return send_drop_notify_error(ctx, SECLABEL, DROP_WRITE_ERROR,
+					      CTX_ACT_OK, METRIC_EGRESS);
+              return ctx_redirect(ctx, redirect_value->ifindex, 0);
+            }
+          }
+        }
 
 #ifdef ENABLE_NODEPORT
 	if (!from_host) {

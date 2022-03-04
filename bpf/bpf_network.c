@@ -10,6 +10,9 @@
 #include "lib/common.h"
 #include "lib/trace.h"
 #include "lib/encrypt.h"
+#include "lib/eps.h"
+#include "lib/drop.h"
+#include "lib/egress_policies.h"
 
 __section("from-network")
 int from_network(struct __ctx_buff *ctx)
@@ -78,6 +81,40 @@ int from_network(struct __ctx_buff *ctx)
 #endif
 
 out:
+        if (validate_ethertype(ctx, &proto))
+          ret = do_decrypt(ctx, proto);
+
+        { // If this is a packet destined for the egress gateway and there is a local
+          // GNG pod, send it to the GNG pod instead of the host routing stack.
+          void *data, *data_end;
+          struct iphdr *ip4;
+          struct egress_gw_policy_entry *info;
+
+          if (!revalidate_data(ctx, &data, &data_end, &ip4))
+		return DROP_INVALID;
+
+          info = lookup_ip4_egress_gw_policy(ip4->saddr, ip4->daddr);
+          if (info) {
+            struct local_redirect_key redirect_key;
+            struct local_redirect_info *redirect_value;
+            redirect_key.id = 42;
+            redirect_value = map_lookup_elem(&LOCAL_REDIRECT_MAP, &redirect_key);
+            if (redirect_value) {
+              union macaddr destmac;
+              // apparently sizeof(destmac) evaluates to 8 instead of 6 for some reason,
+              // and the verifier kicks us out. Just fix the size at 6.
+              memcpy(&destmac.addr, redirect_value->ifmac, 6);
+              /* Rewrite to destination MAC */
+              if (eth_store_daddr(ctx, (__u8 *) &destmac.addr, 0) < 0)
+		return send_drop_notify_error(ctx, SECLABEL, DROP_WRITE_ERROR,
+					      CTX_ACT_OK, METRIC_EGRESS);
+              return ctx_redirect(ctx, redirect_value->ifindex, 0);
+            } else {
+              return DROP_INVALID_SIP;
+            }
+          }
+        }
+        ret = CTX_ACT_OK;
 	send_trace_notify(ctx, obs_point_from, 0, 0, 0,
 			  ctx->ingress_ifindex, reason, TRACE_PAYLOAD_LEN);
 

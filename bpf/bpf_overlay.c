@@ -325,6 +325,22 @@ not_esp:
 		return ipv4_local_delivery(ctx, ETH_HLEN, *identity, ip4, ep,
 					   METRIC_INGRESS, false, false);
 	}
+	else {
+		struct local_redirect_key redirect_key;
+		struct local_redirect_info *redirect_value;
+
+		redirect_key.id = 42;
+		redirect_value = map_lookup_elem(&LOCAL_REDIRECT_MAP, &redirect_key);
+		if (redirect_value) {
+			union macaddr destmac;
+			memcpy(&destmac.addr, redirect_value->ifmac, 6);
+			/* Rewrite to destination MAC */
+			if (eth_store_daddr(ctx, (__u8 *) &destmac.addr, 0) < 0)
+				return send_drop_notify_error(ctx, SECLABEL, DROP_WRITE_ERROR,
+							      CTX_ACT_OK, METRIC_EGRESS);
+			return ctx_redirect(ctx, redirect_value->ifindex, 0);
+		}
+	}
 
 	/* A packet entering the node from the tunnel and not going to a local
 	 * endpoint has to be going to the local host.
