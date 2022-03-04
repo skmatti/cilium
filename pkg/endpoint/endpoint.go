@@ -1693,6 +1693,7 @@ func (e *Endpoint) ModifyIdentityLabels(addLabels, delLabels labels.Labels) erro
 
 		e.identityRevision++
 		rev = e.identityRevision
+		e.UpdateLocalRedirectMap(addLabels, delLabels)
 	}
 	e.unlock()
 
@@ -1755,6 +1756,7 @@ func (e *Endpoint) UpdateLabels(ctx context.Context, identityLabels, infoLabels 
 		return false
 	}
 
+	e.UpdateLocalRedirectMap(identityLabels, nil)
 	e.replaceInformationLabels(infoLabels)
 	// replace identity labels and update the identity if labels have changed
 	rev := e.replaceIdentityLabels(identityLabels)
