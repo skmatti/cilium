@@ -1213,9 +1213,9 @@ func NewDaemon(ctx context.Context, cancel context.CancelFunc, epMgr *endpointma
 	// See the subnet pkg for more details.
 	if k8s.IsEnabled() {
 		client := k8s.Client()
-		nodeName := d.nodeDiscovery.LocalNode.Name
-		nodeIPv4 := d.nodeDiscovery.LocalNode.GetNodeIP(false)
-		nodeIPv6 := d.nodeDiscovery.LocalNode.GetNodeIP(true)
+		nodeName := nodeTypes.GetName()
+		nodeIPv4 := node.GetIPv4()
+		nodeIPv6 := node.GetIPv6()
 		subnet.AnnotateNodeSubnets(ctx, client, nodeName, nodeIPv4, nodeIPv6)
 	}
 
