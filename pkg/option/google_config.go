@@ -51,4 +51,13 @@ const (
 
 	// EnableLoadBalancerIPAM enables the LoadBalancer IPAM feature, and exposes the CiliumLoadBalancerIPPool CRD
 	EnableLoadBalancerIPAM = "enable-lbipam"
+
+	// ClustermeshNamespaceLabels configures a list of labels to limit clustermesh.
+	// Clustermesh will only distribute information from namespaces that have one
+	// of these labels.
+	ClustermeshNamespaceLabels = "clustermesh-namespace-labels"
 )
+
+func (c *DaemonConfig) SyncPredicate() func(string) bool {
+	return nil
+}

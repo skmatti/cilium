@@ -41,6 +41,14 @@ var (
 	kvs               *store.SharedStore
 )
 
+var (
+	// shouldSync is a function that takes namespace as input and returns whether
+	// service should be synced.
+	shouldSync = func(string) bool {
+		return true
+	}
+)
+
 func k8sEventMetric(scope, action string) {
 	metrics.EventTS.WithLabelValues(metrics.LabelEventSourceK8s, scope, action)
 }
@@ -60,6 +68,11 @@ func k8sServiceHandler(ctx context.Context, clusterName string, shared bool) {
 			"endpoints":            event.Endpoints.String(),
 			"shared":               event.Service.Shared,
 		}).Debug("Kubernetes service definition changed")
+
+		if !shouldSync(event.ID.Namespace) {
+			log.Debugf("Not syncing service from namespace %q", event.ID.Namespace)
+			return
+		}
 
 		if shared && !event.Service.Shared {
 			// The annotation may have been added, delete an eventual existing service
@@ -96,6 +109,9 @@ type ServiceSyncConfiguration interface {
 	LocalClusterName() string
 
 	utils.ServiceConfiguration
+
+	// SyncPredicate returns true if the service should be synced, otherwise false.
+	SyncPredicate() func(string) bool
 }
 
 // StartSynchronizingServices starts a controller for synchronizing services from k8s to kvstore
@@ -104,6 +120,9 @@ type ServiceSyncConfiguration interface {
 // VM support we need to sync all the services.
 func StartSynchronizingServices(ctx context.Context, wg *sync.WaitGroup, clientset k8sClient.Clientset, services resource.Resource[*slim_corev1.Service], shared bool, cfg ServiceSyncConfiguration) {
 	log.Info("Starting to synchronize k8s services to kvstore")
+	if cfg.SyncPredicate() != nil {
+		shouldSync = cfg.SyncPredicate()
+	}
 
 	serviceOptsModifier, err := utils.GetServiceListOptionsModifier(cfg)
 	if err != nil {
