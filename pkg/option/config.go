@@ -1072,6 +1072,11 @@ const (
 	// EnableGDCILB is the name of the option to enable google GDC-H ILB Support
 	EnableGDCILB = "enable-gdc-ilb"
 
+	// ClustermeshNamespaceLabels configures a list of labels to limit clustermesh.
+	// Clustermesh will only distribute information from namespaces that have one
+	// of these labels.
+	ClustermeshNamespaceLabels = "clustermesh-namespace-labels"
+
 	// VLANBPFBypass instructs Cilium to bypass bpf logic for vlan tagged packets
 	VLANBPFBypass = "vlan-bpf-bypass"
 
@@ -2427,6 +2432,10 @@ func (c *DaemonConfig) IsExcludedLocalAddress(ip net.IP) bool {
 	}
 
 	return false
+}
+
+func (c *DaemonConfig) SyncPredicate() func(string) bool {
+	return nil
 }
 
 // IsPodSubnetsDefined returns true if encryption subnets should be configured at init time.

@@ -21,12 +21,16 @@ import (
 	"strings"
 	"time"
 
+	ciliumio "github.com/cilium/cilium/pkg/k8s/apis/cilium.io"
+	slim_metav1 "github.com/cilium/cilium/pkg/k8s/slim/k8s/apis/meta/v1"
+	"github.com/cilium/cilium/pkg/k8s/slim/k8s/apis/selection"
 	gops "github.com/google/gops/agent"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"golang.org/x/sys/unix"
 	k8sv1 "k8s.io/api/core/v1"
+	v1meta "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/tools/cache"
@@ -43,6 +47,7 @@ import (
 	k8sconfig "github.com/cilium/cilium/pkg/k8s/config"
 	"github.com/cilium/cilium/pkg/k8s/informer"
 	slim_corev1 "github.com/cilium/cilium/pkg/k8s/slim/k8s/api/core/v1"
+	slim_labels "github.com/cilium/cilium/pkg/k8s/slim/k8s/apis/labels"
 	"github.com/cilium/cilium/pkg/k8s/synced"
 	"github.com/cilium/cilium/pkg/k8s/types"
 	"github.com/cilium/cilium/pkg/kvstore"
@@ -59,6 +64,7 @@ import (
 type configuration struct {
 	clusterName      string
 	serviceProxyName string
+	namespaceLabels  []string
 }
 
 func (c configuration) LocalClusterName() string {
@@ -67,6 +73,10 @@ func (c configuration) LocalClusterName() string {
 
 func (c configuration) K8sServiceProxyNameValue() string {
 	return c.serviceProxyName
+}
+
+func (c configuration) SyncPredicate() func(string) bool {
+	return shouldSync
 }
 
 var (
@@ -108,6 +118,8 @@ var (
 	ciliumNodeStore *store.SharedStore
 
 	identityStore = cache.NewStore(cache.DeletionHandlingMetaNamespaceKeyFunc)
+
+	namespaceCache cache.Store
 )
 
 func installSigHandler() {
@@ -253,6 +265,10 @@ func runApiserver() error {
 
 	flags.Bool(option.EnableGDCILB, false, "Enable google GDC-H ILB Support")
 	option.BindEnv(option.EnableGDCILB)
+
+	flags.StringSliceVar(&cfg.namespaceLabels, option.ClustermeshNamespaceLabels, []string{}, "List of namespace labels to enable clustermesh distribution for (empty means all namespaces are distributed)")
+	option.BindEnv(option.ClustermeshNamespaceLabels)
+
 	viper.BindPFlags(flags)
 
 	if err := rootCmd.Execute(); err != nil {
@@ -321,6 +337,17 @@ func updateIdentity(obj interface{}) {
 		return
 	}
 
+	ns, err := getIdentityNamespace(identity)
+	if err != nil {
+		log.Warningf("Unable to get identity namespace: %v", err)
+		return
+	}
+
+	if !shouldSync(ns) {
+		log.Debugf("Not syncing identity from namespace %s", ns)
+		return
+	}
+
 	keyPath := path.Join(identityCache.IdentitiesPath, "id", identity.Name)
 	labelArray := parseLabelArrayFromMap(identity.SecurityLabels)
 
@@ -336,7 +363,7 @@ func updateIdentity(obj interface{}) {
 	keyEncoded := []byte(kvstore.Client().Encode(key))
 	log.WithFields(logrus.Fields{"key": keyPath, "value": string(keyEncoded)}).Info("Updating identity in etcd")
 
-	_, err := kvstore.Client().UpdateIfDifferent(context.Background(), keyPath, keyEncoded, true)
+	_, err = kvstore.Client().UpdateIfDifferent(context.Background(), keyPath, keyEncoded, true)
 	if err != nil {
 		log.WithError(err).Warningf("Unable to update identity %s in etcd", keyPath)
 	}
@@ -354,8 +381,19 @@ func deleteIdentity(obj interface{}) {
 		return
 	}
 
+	ns, err := getIdentityNamespace(identity)
+	if err != nil {
+		log.Warningf("Unable to get identity namespace: %v", err)
+		return
+	}
+
+	if !shouldSync(ns) {
+		log.Debugf("Not syncing identity from namespace %s", ns)
+		return
+	}
+
 	keyPath := path.Join(identityCache.IdentitiesPath, "id", identity.Name)
-	err := kvstore.Client().Delete(context.Background(), keyPath)
+	err = kvstore.Client().Delete(context.Background(), keyPath)
 	if err != nil {
 		log.WithError(err).Warningf("Unable to delete identity %s in etcd", keyPath)
 	}
@@ -425,6 +463,81 @@ func deleteNode(obj interface{}) {
 	}
 }
 
+func watchNamespaces(labels []string) error {
+	labelSelector, err := buildLabelSelector(labels)
+	if err != nil {
+		return fmt.Errorf("unable to build label selector: %v", err)
+	}
+
+	modifier := func(options *v1meta.ListOptions) {
+		options.LabelSelector = labelSelector.String()
+	}
+
+	namespaceStore, namespaceInformer := informer.NewInformer(
+		cache.NewFilteredListWatchFromClient(k8s.WatcherClient().CoreV1().RESTClient(),
+			"namespaces", k8sv1.NamespaceAll, modifier),
+		&slim_corev1.Namespace{},
+		0,
+		cache.ResourceEventHandlerFuncs{},
+		nil,
+	)
+	namespaceCache = namespaceStore
+
+	go namespaceInformer.Run(wait.NeverStop)
+	if ok := cache.WaitForNamedCacheSync("clustermesh-apiserver", wait.NeverStop, namespaceInformer.HasSynced); !ok {
+		return fmt.Errorf("failed to wait for namespace cache to sync")
+	}
+
+	return nil
+}
+
+func buildLabelSelector(labels []string) (slim_labels.Selector, error) {
+	labelSelector := slim_labels.NewSelector()
+
+	for _, label := range labels {
+		labelNameSelector, err := slim_labels.NewRequirement(
+			label, selection.Exists, nil)
+
+		if err != nil {
+			return nil, err
+		}
+
+		labelSelector = labelSelector.Add(*labelNameSelector)
+	}
+
+	return labelSelector, nil
+}
+
+var shouldSync = func(namespace string) bool {
+	if namespaceCache == nil {
+		return true
+	}
+
+	nsName := &slim_corev1.Namespace{
+		ObjectMeta: slim_metav1.ObjectMeta{
+			Name: namespace,
+		},
+	}
+	_, exists, err := namespaceCache.Get(nsName)
+	if err != nil {
+		log.WithError(err).Errorf("unable to get namespace %q from cache", nsName)
+		return false
+	}
+
+	return exists
+}
+
+func getIdentityNamespace(identity *ciliumv2.CiliumIdentity) (string, error) {
+	l := strings.TrimSuffix(labels.GenerateK8sLabelString(ciliumio.PodNamespaceLabel, ""), "=")
+
+	ns, found := identity.SecurityLabels[l]
+	if !found {
+		return "", fmt.Errorf("no namespace label found on identity %q", identity.Name)
+	}
+
+	return ns, nil
+}
+
 func synchronizeNodes() {
 	_, ciliumNodeInformer := informer.NewInformer(
 		cache.NewListWatchFromClient(ciliumK8sClient.CiliumV2().RESTClient(),
@@ -452,6 +565,11 @@ func synchronizeNodes() {
 }
 
 func updateEndpoint(oldEp, newEp *types.CiliumEndpoint) {
+	if !shouldSync(newEp.Namespace) {
+		log.Debugf("Not syncing endpoint from namespace %s", newEp.Namespace)
+		return
+	}
+
 	var ipsAdded []string
 	if n := newEp.Networking; n != nil {
 		for _, address := range n.Addressing {
@@ -530,6 +648,11 @@ func deleteEndpoint(obj interface{}) {
 	e, ok := obj.(*types.CiliumEndpoint)
 	if !ok {
 		log.Warningf("Unknown CiliumEndpoint object type %T received: %+v", obj, obj)
+		return
+	}
+
+	if !shouldSync(e.Namespace) {
+		log.Debugf("Not syncing endpoint from namespace %s", e.Namespace)
 		return
 	}
 
@@ -633,13 +756,25 @@ func runServer(cmd *cobra.Command) {
 		log.WithError(err).Fatal("Unable to set up node store in etcd")
 	}
 
+	log.Infof("Syncing endpoints from namespaces with following labels: %v", cfg.namespaceLabels)
+
 	if mockFile != "" {
 		if err := readMockFile(mockFile); err != nil {
 			log.WithError(err).Fatal("Unable to read mock file")
 		}
 	} else {
+		// We only need to watch namespaces if some label restrictions are configured.
+		// Otherwise we sync everything.
+		if len(cfg.namespaceLabels) > 0 {
+			if err := watchNamespaces(cfg.namespaceLabels); err != nil {
+				log.WithError(err).Fatal("Unable to watch namespaces")
+			}
+		}
 		synchronizeIdentities()
-		synchronizeNodes()
+		// If sync restrictions are configured, we don't sync nodes at all.
+		if len(cfg.namespaceLabels) == 0 {
+			synchronizeNodes()
+		}
 		synchronizeCiliumEndpoints()
 		operatorWatchers.StartSynchronizingServices(false, cfg)
 	}
