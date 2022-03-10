@@ -63,7 +63,8 @@ make precheck
 make postcheck
 
 # Run un-priviledged tests first.
-make integration-tests
+# daemon/cmd tests now require bpftool probes which needs to run as root.
+sudo GOROOT=$GOROOT GOPATH=$GOPATH PATH=$PATH make integration-tests
 
 # Run privileged tests as root.
 sudo PATH=$PATH make tests-privileged
