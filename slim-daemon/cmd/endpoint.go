@@ -595,6 +595,10 @@ func (mgr *EndpointManager) Unexpose(ep *Endpoint) error {
 
 	ep.controllers.RemoveAll()
 
+	if err := mgr.removeSecurityIdentity(ep); err != nil {
+		return err
+	}
+
 	return nil
 }
 
