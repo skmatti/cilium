@@ -187,7 +187,7 @@ func (k *k8sWatcher) deleteK8sPodV1(pod *slim_corev1.Pod) error {
 func updateEndpointLabels(ep *Endpoint, oldLbls, newLbls map[string]string) error {
 	oldLabels := labels.Map2Labels(oldLbls, labels.LabelSourceK8s)
 	newLabels := labels.Map2Labels(newLbls, labels.LabelSourceK8s)
-	log.WithField("labels", newLabels).Info("old labels")
+	log.WithField("labels", oldLbls).Info("old labels")
 	log.WithField("labels", newLabels).Info("new labels")
 	newIdtyLabels, _ := labelsfilter.Filter(newLabels)
 	oldIdtyLabels, _ := labelsfilter.Filter(oldLabels)
