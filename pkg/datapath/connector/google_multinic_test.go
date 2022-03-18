@@ -886,7 +886,7 @@ func TestConfigureDHCPInfo(t *testing.T) {
 			cfg:     emptyConfig,
 			dc:      fakeClient,
 			wantCfg: emptyConfig,
-			wantErr: "failed to configue dhcp info for : invalid network : network.spec.nodeInterfaceMatcher.InterfaceName cannot be nil or empty",
+			wantErr: "failed to configure dhcp info for : invalid network : network.spec.nodeInterfaceMatcher.InterfaceName cannot be nil or empty",
 		},
 		{
 			desc:    "dhcp client errors",

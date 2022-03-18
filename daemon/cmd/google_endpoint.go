@@ -53,6 +53,21 @@ func (d *Daemon) errorDuringMultiNICCreation(primaryEp *endpoint.Endpoint, code 
 	return nil, code, err
 }
 
+// errorWithMultiNICCleanup is called to execute proper clean up operations for the
+// macvtap/macvlan interface before successful multinic endpoint creation.
+// Note: another approach is to use netlink apis to check the interface inside the pod-ns,
+// find the interface type then call appropriate clean up function. In this way, we could
+// merge to a single cleanup function like errorDuringMultiNICCreation. However,
+// this requires to pass more arguments (ifNameInPod, srcIfName, netns and etc.) and it
+// adds complexity to errorDuringMultiNICCreation which is supposed to be called
+// throughout the createMultiNICEndpoints.
+func (d *Daemon) errorWithMultiNICCleanup(primaryEp *endpoint.Endpoint, code int, err error, cleanup func()) ([]*endpoint.Endpoint, int, error) {
+	if cleanup != nil {
+		cleanup()
+	}
+	return d.errorDuringMultiNICCreation(primaryEp, code, err)
+}
+
 // createMultiNICEndpoints attempts to create the multinic endpoints corresponding to
 // the provided endpoint change request and primary endpoint (assume it's already created).
 func (d *Daemon) createMultiNICEndpoints(ctx context.Context, owner regeneration.Owner, primaryEpTemplate *models.EndpointChangeRequest, primaryEp *endpoint.Endpoint) ([]*endpoint.Endpoint, int, error) {
@@ -149,6 +164,7 @@ func (d *Daemon) createMultiNICEndpoints(ctx context.Context, owner regeneration
 			return d.errorDuringMultiNICCreation(primaryEp, PutEndpointIDInvalidCode, fmt.Errorf("failed getting interface and network CR for pod %q: %v", podID, err))
 		}
 
+		var cleanup func()
 		// Update the interface status of the primary endpoint.
 		if intfCR != nil && intfCR.Spec.NetworkName == networkv1alpha1.DefaultNetworkName {
 			primaryEp.Logger(daemonSubsys).WithField("interfaceCR", intfCR.Name).Debug("Updating interface status")
@@ -170,19 +186,19 @@ func (d *Daemon) createMultiNICEndpoints(ctx context.Context, owner regeneration
 				return d.errorDuringMultiNICCreation(primaryEp, PutEndpointIDInvalidCode, fmt.Errorf("network %q has invalid network type %v of the multinic endpoint for pod %q", netCR.Name, netCR.Spec.Type, podID))
 			}
 
-			if err := connector.SetupL2Interface(ref.InterfaceName, podResources, netCR, intfCR, multinicTemplate, d.dhcpClient); err != nil {
-				return d.errorDuringMultiNICCreation(primaryEp, PutEndpointIDInvalidCode, fmt.Errorf("failed setting up layer2 interface %q for pod %q: %v", intfCR.Name, podID, err))
+			if cleanup, err = connector.SetupL2Interface(ref.InterfaceName, podResources, netCR, intfCR, multinicTemplate, d.dhcpClient); err != nil {
+				return d.errorWithMultiNICCleanup(primaryEp, PutEndpointIDInvalidCode, fmt.Errorf("failed setting up layer2 interface %q for pod %q: %v", intfCR.Name, podID, err), cleanup)
 			}
 			// We don't allow different L2 interfaces share the same parent device.
 			if name, ok := parentDevInUse[multinicTemplate.ParentDeviceName]; ok {
-				return d.errorDuringMultiNICCreation(primaryEp, PutEndpointIDInvalidCode, fmt.Errorf("same parent interface in use by %s and %s for pod %q", ref.InterfaceName, name, podID))
+				return d.errorWithMultiNICCleanup(primaryEp, PutEndpointIDInvalidCode, fmt.Errorf("same parent interface in use by %s and %s for pod %q", ref.InterfaceName, name, podID), cleanup)
 			}
 			parentDevInUse[multinicTemplate.ParentDeviceName] = ref.InterfaceName
 
 			addNetworkLabelIfMultiNICEnabled(multinicTemplate, intfCR.Spec.NetworkName)
 			multinicEndpoint, code, err := d.createEndpoint(ctx, owner, multinicTemplate)
 			if err != nil {
-				return d.errorDuringMultiNICCreation(primaryEp, code, fmt.Errorf("failed creating multinic endpoint for pod %q with code %d: %v", podID, code, err))
+				return d.errorWithMultiNICCleanup(primaryEp, code, fmt.Errorf("failed creating multinic endpoint for pod %q with code %d: %v", podID, code, err), cleanup)
 			}
 
 			intfLog.WithField(logfields.EndpointID, multinicEndpoint.StringID()).Info("Successful multinic endpoint request")
@@ -190,14 +206,15 @@ func (d *Daemon) createMultiNICEndpoints(ctx context.Context, owner regeneration
 			eps = append(eps, multinicEndpoint)
 		}
 		if intfCR != nil {
-			if intfCR.Spec.NetworkName == networkv1alpha1.DefaultNetworkName {
+			networkName := intfCR.Spec.NetworkName
+			if networkName == networkv1alpha1.DefaultNetworkName {
 				podNetworkConfigured = true
 			}
 			if err := connector.SetupNetworkRoutes(ref.InterfaceName, intfCR, multinicTemplate.NetworkNamespace,
 				isDefaultInterface, podNetworkMTU); err != nil {
-				return d.errorDuringMultiNICCreation(primaryEp, PutEndpointIDInvalidCode, fmt.Errorf("failed setting up network %q for pod %q: %v", netCR.Name, podID, err))
+				return d.errorDuringMultiNICCreation(primaryEp, PutEndpointIDInvalidCode, fmt.Errorf("failed setting up network %q for pod %q: %v", networkName, podID, err))
 			}
-			intfLog.Debugf("Successfully configure network %s", netCR.Name)
+			intfLog.Infof("Successfully configure network %s", networkName)
 			// Update interface CR via multinicClient
 			if err = d.multinicClient.UpdateNetworkInterfaceStatus(ctx, intfCR); err != nil {
 				return d.errorDuringMultiNICCreation(primaryEp, PutEndpointIDInvalidCode, fmt.Errorf("failed updating interface CR %q for pod %q: %v", intfCR.Name, podID, err))

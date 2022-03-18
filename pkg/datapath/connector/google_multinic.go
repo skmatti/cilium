@@ -310,11 +310,11 @@ func RevertMacvtapSetup(ifNameInPod, ifName, nsPath string) error {
 	return nil
 }
 
-func createMacvlanChild(ifName string, parentDevIndex int) (*netlink.Macvlan, error) {
+func createMacvlanChild(ifName string, parentDevIndex int) error {
 	var err error
 
 	if parentDevIndex == 0 {
-		return nil, errors.New("invalid parent device ifindex")
+		return errors.New("invalid parent device ifindex")
 	}
 
 	macvlan := &netlink.Macvlan{
@@ -326,7 +326,7 @@ func createMacvlanChild(ifName string, parentDevIndex int) (*netlink.Macvlan, er
 	}
 
 	if err = netlink.LinkAdd(macvlan); err != nil {
-		return nil, fmt.Errorf("unable to create macvlan child device: %v", err)
+		return fmt.Errorf("unable to create macvlan child device: %v", err)
 	}
 
 	log.WithFields(logrus.Fields{
@@ -334,7 +334,7 @@ func createMacvlanChild(ifName string, parentDevIndex int) (*netlink.Macvlan, er
 		"parentIndex":     parentDevIndex,
 	}).Debug("Created macvlan child interface")
 
-	return macvlan, nil
+	return nil
 }
 
 // SetupL2Interface sets up the l2 interface (macvlan/macvtap). If the pre-allocated pod resource exists,
@@ -343,45 +343,45 @@ func createMacvlanChild(ifName string, parentDevIndex int) (*netlink.Macvlan, er
 // The set up operations consist moving the interface to the remote network namespace, initializing
 // bpf tail call map on both directions (see setupInterfaceInRemoteNs), and configuring the interface.
 func SetupL2Interface(ifNameInPod string, podResources map[string][]string, network *networkv1alpha1.Network,
-	intf *networkv1alpha1.NetworkInterface, ep *models.EndpointChangeRequest, dc dhcp.DHCPClient) (err_ error) {
+	intf *networkv1alpha1.NetworkInterface, ep *models.EndpointChangeRequest, dc dhcp.DHCPClient) (func(), error) {
 	cfg, err := getInterfaceConfiguration(intf, network)
 	if err != nil {
-		err_ = fmt.Errorf("failed to get a valid interface configuration: %v", err)
-		return
+		return nil, fmt.Errorf("failed to get a valid interface configuration: %v", err)
 	}
 	log.Debugf("L2 interface configuration: %+v", cfg)
 	parentDevLink, err := netlink.LinkByName(cfg.ParentInterfaceName)
 	if err != nil {
-		err_ = fmt.Errorf("failed to lookup parent interface %q: %v", cfg.ParentInterfaceName, err)
-		return
+		return nil, fmt.Errorf("failed to lookup parent interface %q: %v", cfg.ParentInterfaceName, err)
 	}
 	// TODO(yfshen): get MTU information from interface CR.
 	cfg.MTU = parentDevLink.Attrs().MTU
 
 	var srcIfName string
+	var cleanup func()
 	macvtapIfNames, isMacvtap := podResources[macvtapResourceName(cfg.ParentInterfaceName)]
 	if !isMacvtap {
 		srcIfName = Endpoint2TempRandIfName()
-		macvlan, err := createMacvlanChild(srcIfName, parentDevLink.Attrs().Index)
+		err := createMacvlanChild(srcIfName, parentDevLink.Attrs().Index)
 		if err != nil {
-			err_ = err
-			return
+			return nil, err
 		}
-		defer func() {
-			if err_ != nil {
-				if err = netlink.LinkDel(macvlan); err != nil {
-					log.WithError(err).WithField(logfields.Macvlan, macvlan.Name).Warn("failed to clean up macvlan")
-				}
+		cleanup = func() {
+			if err = DeleteMacvlanInRemoteNs(ifNameInPod, ep.NetworkNamespace); err != nil {
+				log.WithError(err).WithField(logfields.Macvlan, srcIfName).Warn("failed to clean up macvlan")
 			}
-		}()
+		}
 		ep.DeviceType = multinicep.EndpointDeviceMACVLAN
 	} else {
 		if len(macvtapIfNames) != 1 {
-			err_ = fmt.Errorf("found %d macvtap interface for parent interface %q. Only single macvtap interface is supported.", len(macvtapIfNames), cfg.ParentInterfaceName)
-			return
+			return nil, fmt.Errorf("found %d macvtap interface for parent interface %q. Only single macvtap interface is supported.", len(macvtapIfNames), cfg.ParentInterfaceName)
 		}
 		srcIfName = macvtapIfNames[0]
 		ep.DeviceType = multinicep.EndpointDeviceMACVTAP
+		cleanup = func() {
+			if err = RevertMacvtapSetup(ifNameInPod, srcIfName, ep.NetworkNamespace); err != nil {
+				log.WithError(err).WithField(logfields.Macvtap, srcIfName).Warn("failed to revert macvtap")
+			}
+		}
 	}
 
 	log.WithFields(logrus.Fields{
@@ -390,60 +390,51 @@ func SetupL2Interface(ifNameInPod string, podResources map[string][]string, netw
 		logfields.NetNSName:      ep.NetworkNamespace,
 		"sourceInterface":        srcIfName,
 		"parentInterface":        cfg.ParentInterfaceName,
-	}).Debug("Set up L2 interface")
+	}).Info("Set up L2 interface")
 
 	link, err := netlink.LinkByName(srcIfName)
 	if err != nil {
-		err_ = fmt.Errorf("failed to lookup interface %q: %v", srcIfName, err)
-		return
+		return cleanup, fmt.Errorf("failed to lookup interface %q: %v", srcIfName, err)
 	}
 
 	if err = DisableRpFilter(srcIfName); err != nil {
-		err_ = err
-		return
+		return cleanup, err
 	}
 
 	netNs, err := ns.GetNS(ep.NetworkNamespace)
 	if err != nil {
-		err_ = fmt.Errorf("failed to open netns %q: %v", ep.NetworkNamespace, err)
-		return
+		return cleanup, fmt.Errorf("failed to open netns %q: %v", ep.NetworkNamespace, err)
 	}
 	defer netNs.Close()
 
 	// Move the link to the target network namespace.
 	if err = netlink.LinkSetNsFd(link, int(netNs.Fd())); err != nil {
-		err_ = fmt.Errorf("failed to move link %q to netns %q: %v", link.Attrs().Name, netNs.Path(), err)
-		return
+		return cleanup, fmt.Errorf("failed to move link %q to netns %q: %v", link.Attrs().Name, netNs.Path(), err)
 	}
 
 	m, err := setupInterfaceInRemoteNs(netNs, srcIfName, ifNameInPod, true)
 	if err != nil {
-		err_ = fmt.Errorf("unable to setup link %q in remote netns: %v", link.Attrs().Name, err)
-		return
+		return cleanup, fmt.Errorf("unable to setup link %q in remote netns: %v", link.Attrs().Name, err)
 	}
 	defer m.Close()
 
 	info, err := m.Info()
 	if err != nil {
-		err_ = fmt.Errorf("failed to get map info: %w", err)
-		return
+		return cleanup, fmt.Errorf("failed to get map info: %w", err)
 	}
 
 	mapID, exists := info.ID()
 	if !exists {
-		err_ = fmt.Errorf("failed to get map ID")
-		return
+		return cleanup, errors.New("failed to get map ID")
 	}
 
 	dhcpResp, err := configureDHCPInfo(network, cfg, dc, ep.NetworkNamespace, ifNameInPod, ep.ContainerID)
 	if err != nil {
-		err_ = fmt.Errorf("failed to query DHCP information: %v", err)
-		return
+		return cleanup, fmt.Errorf("failed to query DHCP information: %v", err)
 	}
 
 	if err := configureInterface(cfg, netNs, ifNameInPod); err != nil {
-		err_ = fmt.Errorf("failed to configure interface: %v", err)
-		return
+		return cleanup, fmt.Errorf("failed to configure interface: %v", err)
 	}
 
 	populateInterfaceStatus(intf, network, cfg, dhcpResp)
@@ -460,7 +451,7 @@ func SetupL2Interface(ifNameInPod string, podResources map[string][]string, netw
 	ep.DatapathMapID = int64(mapID)
 	ep.ExternalDHCP4 = dhcpResp != nil
 
-	return
+	return cleanup, nil
 }
 
 // DeleteMacvlanInRemoteNs deletes the macvlan interface in the remote network namespace.
@@ -489,7 +480,7 @@ func SetupNetworkRoutes(ifNameInPod string, intf *networkv1alpha1.NetworkInterfa
 		logfields.MTU:            podNetworkMTU,
 		"network":                intf.Spec.NetworkName,
 		"isDefaultInterface":     isDefaultInterface,
-	}).Debug("Set up network")
+	}).Info("Set up network")
 
 	var (
 		destCIDRs []*net.IPNet
@@ -554,8 +545,7 @@ func configureDHCPInfo(network *networkv1alpha1.Network, cfg *interfaceConfigura
 
 	parentInterface, err := network.InterfaceName()
 	if err != nil {
-
-		return nil, fmt.Errorf("failed to configue dhcp info for %s: %s", network.Name, err)
+		return nil, fmt.Errorf("failed to configure dhcp info for %s: %s", network.Name, err)
 	}
 
 	staticConfig := isStaticNetwork(network)
