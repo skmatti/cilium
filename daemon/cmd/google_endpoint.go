@@ -212,12 +212,12 @@ func (d *Daemon) createMultiNICEndpoints(ctx context.Context, owner regeneration
 			}
 			if err := connector.SetupNetworkRoutes(ref.InterfaceName, intfCR, multinicTemplate.NetworkNamespace,
 				isDefaultInterface, podNetworkMTU); err != nil {
-				return d.errorDuringMultiNICCreation(primaryEp, PutEndpointIDInvalidCode, fmt.Errorf("failed setting up network %q for pod %q: %v", networkName, podID, err))
+				return d.errorWithMultiNICCleanup(primaryEp, PutEndpointIDInvalidCode, fmt.Errorf("failed setting up network %q for pod %q: %v", networkName, podID, err), nil)
 			}
 			intfLog.Infof("Successfully configure network %s", networkName)
 			// Update interface CR via multinicClient
 			if err = d.multinicClient.UpdateNetworkInterfaceStatus(ctx, intfCR); err != nil {
-				return d.errorDuringMultiNICCreation(primaryEp, PutEndpointIDInvalidCode, fmt.Errorf("failed updating interface CR %q for pod %q: %v", intfCR.Name, podID, err))
+				return d.errorWithMultiNICCleanup(primaryEp, PutEndpointIDInvalidCode, fmt.Errorf("failed updating interface CR %q for pod %q: %v", intfCR.Name, podID, err), nil)
 			}
 			intfLog.Debugf("Successfully update interface CR %+v", intfCR)
 		}
