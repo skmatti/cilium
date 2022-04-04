@@ -5,8 +5,8 @@ QUIET := @
 GO_BUILD := go build -mod=vendor
 IMAGE_VERSION ?= latest
 
-TARGET := cilium-agent
-WIN_TARGET := cilium-agent.exe
+TARGET := anet-agent
+WIN_TARGET := anet-agent.exe
 
 all: $(TARGET) $(WIN_TARGET)
 
@@ -30,9 +30,9 @@ clean:
 .PHONY: clean
 
 windows-image:
-	$(QUIET)docker build -t cilium-agent-windows:$(IMAGE_VERSION) -f Dockerfile.windows ..
+	$(QUIET)docker build -t anet-agent-windows:$(IMAGE_VERSION) -f Dockerfile.windows ..
 
 linux-image:
-	$(QUIET)docker build -t cilium-agent:$(IMAGE_VERSION) -f Dockerfile.ubuntu ..
+	$(QUIET)docker build -t anet-agent:$(IMAGE_VERSION) -f Dockerfile.ubuntu ..
 
 .PHONY: windows-image
