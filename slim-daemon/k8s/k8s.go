@@ -145,7 +145,17 @@ func createDefaultClient() (rest.Interface, func(), error) {
 
 	k8sCLI.Interface = createdK8sClient
 
-	createK8sWatcherCli, err := watcher_client.NewForConfig(restConfig)
+	// Use the same http client for all k8s connections. It does not matter that
+	// we are using a restConfig for the HTTP client that differs from each
+	// individual client since the rest.HTTPClientFor only does not use fields
+	// that are specific for each client, for example:
+	// restConfig.ContentConfig.ContentType.
+	httpClient, err := rest.HTTPClientFor(restConfig)
+	if err != nil {
+		return nil, nil, fmt.Errorf("unable to create k8s REST client: %s", err)
+	}
+
+	createK8sWatcherCli, err := watcher_client.NewForConfigAndClient(restConfig, httpClient)
 	if err != nil {
 		return nil, nil, err
 	}
