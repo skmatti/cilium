@@ -9,7 +9,7 @@ import (
 	apiEndpoint "github.com/cilium/cilium/api/v1/server/restapi/endpoint"
 	"github.com/cilium/cilium/pkg/checker"
 	"github.com/cilium/cilium/pkg/option"
-	networkv1alpha1 "gke-internal.googlesource.com/anthos-networking/apis/network/v1alpha1"
+	networkv1alpha1 "gke-internal.googlesource.com/anthos-networking/apis/v2/network/v1alpha1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/pointer"
 

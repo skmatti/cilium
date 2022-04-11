@@ -27,7 +27,7 @@ import (
 	"github.com/containernetworking/plugins/pkg/ns"
 	"github.com/sirupsen/logrus"
 	"github.com/vishvananda/netlink"
-	networkv1alpha1 "gke-internal.googlesource.com/anthos-networking/apis/network/v1alpha1"
+	networkv1alpha1 "gke-internal.googlesource.com/anthos-networking/apis/v2/network/v1alpha1"
 	"golang.org/x/sys/unix"
 	"k8s.io/apimachinery/pkg/types"
 )

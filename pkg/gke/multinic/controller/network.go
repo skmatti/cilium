@@ -14,7 +14,7 @@ import (
 	"github.com/cilium/cilium/pkg/option"
 	"github.com/sirupsen/logrus"
 	"github.com/vishvananda/netlink"
-	networkv1alpha1 "gke-internal.googlesource.com/anthos-networking/apis/network/v1alpha1"
+	networkv1alpha1 "gke-internal.googlesource.com/anthos-networking/apis/v2/network/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
 	k8sErrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/types"

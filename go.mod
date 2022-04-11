@@ -230,7 +230,7 @@ require (
 )
 
 require (
-	gke-internal.googlesource.com/anthos-networking/apis v0.0.0-00010101000000-000000000000
+	gke-internal.googlesource.com/anthos-networking/apis/v2 v2.0.1-gke.0
 	// GKE specific dependencies.
 	gke-internal/gke-node-firewall v0.0.0-00010101000000-000000000000
 	k8s.io/kubelet v0.23.0
@@ -238,7 +238,7 @@ require (
 )
 
 replace (
-	gke-internal.googlesource.com/anthos-networking/apis => gke-internal.googlesource.com/anthos-networking.git/apis v0.0.0-20220301232334-fc89b0fcc868
+	gke-internal.googlesource.com/anthos-networking/apis/v2 => gke-internal.googlesource.com/anthos-networking.git/apis/v2 v2.0.1-gke.0
 	gke-internal/gke-node-firewall => gke-internal.googlesource.com/kubernetes/gke-node-firewall.git v0.0.20
 )
 

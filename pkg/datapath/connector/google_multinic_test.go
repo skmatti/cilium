@@ -31,7 +31,7 @@ import (
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/vishvananda/netlink"
 	"github.com/vishvananda/netns"
-	networkv1alpha1 "gke-internal.googlesource.com/anthos-networking/apis/network/v1alpha1"
+	networkv1alpha1 "gke-internal.googlesource.com/anthos-networking/apis/v2/network/v1alpha1"
 	"golang.org/x/sys/unix"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"

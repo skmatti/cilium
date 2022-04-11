@@ -21,7 +21,7 @@ import (
 	"github.com/cilium/cilium/pkg/maps/multinicdev"
 	"github.com/cilium/cilium/pkg/option"
 	"github.com/sirupsen/logrus"
-	networkv1alpha1 "gke-internal.googlesource.com/anthos-networking/apis/network/v1alpha1"
+	networkv1alpha1 "gke-internal.googlesource.com/anthos-networking/apis/v2/network/v1alpha1"
 	utilpointer "k8s.io/utils/pointer"
 
 	. "github.com/cilium/cilium/api/v1/server/restapi/endpoint"
