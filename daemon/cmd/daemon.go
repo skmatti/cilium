@@ -957,14 +957,6 @@ func NewDaemon(ctx context.Context, cancel context.CancelFunc, epMgr *endpointma
 	mcastManager := mcastmanager.New(option.Config.IPv6MCastDevice)
 	d.endpointManager.RegisterMcastManager(mcastManager)
 
-	if k8s.IsEnabled() {
-		bootstrapStats.k8sInit.Start()
-		// Launch the K8s watchers in parallel as we continue to process other
-		// daemon options.
-		d.k8sCachesSynced = d.k8sWatcher.InitK8sSubsystem(d.ctx)
-		bootstrapStats.k8sInit.End(true)
-	}
-
 	// BPF masquerade depends on BPF NodePort and require host-reachable svc to
 	// be fully enabled in the tunneling mode, so the following checks should
 	// happen after invoking initKubeProxyReplacementOptions().
