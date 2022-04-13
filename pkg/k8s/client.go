@@ -94,7 +94,7 @@ func CreateConfigFromAgentResponse(resp *models.DaemonConfiguration) (*rest.Conf
 // createClient creates a new client to access the Kubernetes API
 func createClient(config *rest.Config, cs kubernetes.Interface) error {
 	stop := make(chan struct{})
-	timeout := time.NewTimer(time.Minute)
+	timeout := time.NewTimer(5 * time.Minute)
 	defer timeout.Stop()
 	var err error
 	wait.Until(func() {
