@@ -127,14 +127,7 @@ func NewCESController(client *k8s.K8sCiliumClient,
 	}
 	cesStore := ciliumEndpointSliceInit(client.CiliumV2alpha1(), wait.NeverStop)
 
-	// List all existing CESs from the api-server and cache it locally.
-	// This sync should happen before starting CEP watcher, because CEP watcher
-	// emits the existing CEPs as newly added CEPs. If we don't have local sync
-	// cesManager would assume those are new CEPs and may create new CESs for those CEPs.
-	// This situation ends up having duplicate CEPs in different CESs. Hence, we need
-	// to sync existing CESs before starting a CEP watcher.
-	syncCESsInLocalCache(cesStore, manager)
-	return &CiliumEndpointSliceController{
+	cesController := CiliumEndpointSliceController{
 		clientV2:                 client.CiliumV2(),
 		clientV2a1:               client.CiliumV2alpha1(),
 		reconciler:               newReconciler(client.CiliumV2alpha1(), manager),
@@ -144,6 +137,15 @@ func NewCESController(client *k8s.K8sCiliumClient,
 		slicingMode:              slicingMode,
 		workerLoopPeriod:         1 * time.Second,
 	}
+
+	// List all existing CESs from the api-server and cache it locally.
+	// This sync should happen before starting CEP watcher, because CEP watcher
+	// emits the existing CEPs as newly added CEPs. If we don't have local sync
+	// cesManager would assume those are new CEPs and may create new CESs for those CEPs.
+	// This situation ends up having duplicate CEPs in different CESs. Hence, we need
+	// to sync existing CESs before starting a CEP watcher.
+	cesController.syncCESsInLocalCache(cesStore, manager)
+	return &cesController
 }
 
 // start the worker thread, reconciles the modified CESs with api-server
@@ -199,7 +201,7 @@ func (c *CiliumEndpointSliceController) removeStaleCEPEntries() {
 
 // Sync all CESs from cesStore to manager cache.
 // Note: CESs are synced locally before CES controller running and this is required.
-func syncCESsInLocalCache(cesStore cache.Store, manager operations) {
+func (c *CiliumEndpointSliceController) syncCESsInLocalCache(cesStore cache.Store, manager operations) {
 	for _, obj := range cesStore.List() {
 		ces := obj.(*v2alpha1.CiliumEndpointSlice)
 		// If CES is already cached locally, do nothing.
@@ -207,14 +209,22 @@ func syncCESsInLocalCache(cesStore cache.Store, manager operations) {
 			continue
 		}
 
-		// Create new CES locally, with the given cesName
-		manager.createCES(ces.GetName())
+		if len(ces.Endpoints) == 0 {
+			// In rare cases, we could end up leaking some empty CES, delete them
+			if err := c.reconciler.reconcileCESDelete(ces.GetName()); err != nil {
+				log.WithError(err).WithFields(logrus.Fields{
+					logfields.CESName: ces.GetName(),
+				}).Error("Error clearing empty CES")
+			}
+		} else {
+			// Create new CES locally, with the given cesName
+			manager.createCES(ces.GetName())
 
-		// Deep copy the ces, we got from api-server to local datastore.
-		manager.updateCESInCache(ces, true)
-
+			// Deep copy the ces, we got from api-server to local datastore.
+			manager.updateCESInCache(ces, true)
+		}
 	}
-	log.Debug("Successfully synced all CESs locally")
+	log.Info("Successfully synced all CESs from apiserver")
 	return
 }
 
