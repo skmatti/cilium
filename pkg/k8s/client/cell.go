@@ -331,7 +331,7 @@ func setConfig(config *rest.Config, userAgent string, qps float32, burst int) {
 
 func (c *compositeClientset) waitForConn(ctx context.Context) error {
 	stop := make(chan struct{})
-	timeout := time.NewTimer(time.Minute)
+	timeout := time.NewTimer(5 * time.Minute)
 	defer timeout.Stop()
 	var err error
 	wait.Until(func() {
