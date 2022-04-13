@@ -21,6 +21,15 @@ set -o pipefail
 SCRIPT_ROOT=$(dirname ${BASH_SOURCE})/..
 CODEGEN_PKG=${CODEGEN_PKG:-$(cd ${SCRIPT_ROOT}; ls -d -1 ../../vendor/k8s.io/code-generator 2>/dev/null || echo ../../../k8s.io/code-generator)}
 
+[[ -z "$GOPATH" ]] && echo "GOPATH environment variable must be set for code-generator to work." && false
+
+echo "Performing code generation for FQDNNetworkPolicy CRD"
+${CODEGEN_PKG}/generate-groups.sh \
+  "deepcopy,client,informer,lister" \
+  github.com/cilium/cilium/pkg/gke/client/fqdnnetworkpolicy github.com/cilium/cilium/pkg/gke/apis \
+  "fqdnnetworkpolicy:v1alpha1" \
+  --go-header-file ${SCRIPT_ROOT}/hack/boilerplate.go.txt
+
 echo "Performing code generation for NetworkLogging CRD"
 ${CODEGEN_PKG}/generate-groups.sh \
   "deepcopy,client,informer,lister" \

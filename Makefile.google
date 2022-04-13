@@ -6,5 +6,5 @@ CRD_OPTIONS ?= "crd:crdVersions=v1"
 gke-manifests: ## Generate K8s manifests e.g. CRD etc.
 	$(eval TMPDIR := $(shell mktemp -d))
 	cd "./vendor/sigs.k8s.io/controller-tools/cmd/controller-gen" && \
-	$(QUIET)$(GO) run ./... $(CRD_OPTIONS) paths="$(PWD)/pkg/gke/apis/trafficsteering/v1alpha1;$(PWD)/pkg/gke/apis/redirectservice/v1alpha1;$(PWD)/pkg/gke/apis/networklogging/v1alpha1" output:crd:artifacts:config="$(TMPDIR)";
+	$(QUIET)$(GO) run ./... $(CRD_OPTIONS) paths="$(PWD)/pkg/gke/apis/trafficsteering/v1alpha1;$(PWD)/pkg/gke/apis/redirectservice/v1alpha1;$(PWD)/pkg/gke/apis/networklogging/v1alpha1;$(PWD)/pkg/gke/apis/fqdnnetworkpolicy/v1alpha1;" output:crd:artifacts:config="$(TMPDIR)";
 	echo "Check result in $(TMPDIR)"
