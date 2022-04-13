@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"github.com/cilium/cilium/pkg/gke/fqdnnetworkpolicy"
 	"github.com/cilium/cilium/pkg/gke/nodefirewall"
 	"github.com/cilium/cilium/pkg/gke/nodefirewall/types"
 	"github.com/cilium/cilium/pkg/gke/subnet"
@@ -21,6 +22,7 @@ var googleCell = cell.Module(
 	nodefirewall.Cell,
 	subnet.Cell,
 	trafficsteering.Cell,
+	fqdnnetworkpolicy.Cell,
 )
 
 // Converts Daemon promise into a PolicyManager promise

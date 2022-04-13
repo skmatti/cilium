@@ -26,4 +26,7 @@ const (
 
 	// EnableGoogleMultiNIC is the name of the option to enable gogole multi nic support.
 	EnableGoogleMultiNIC = "enable-google-multi-nic"
+
+	// EnableFQDNNetworkPolicy enables google fqdn network policy
+	EnableFQDNNetworkPolicy = "enable-fqdn-network-policy"
 )

@@ -34,3 +34,10 @@ ${CODEGEN_PKG}/generate-groups.sh \
   github.com/cilium/cilium/pkg/gke/client/multinic github.com/cilium/cilium/pkg/gke/apis \
   "multinic:v1alpha1" \
   --go-header-file ${SCRIPT_ROOT}/hack/boilerplate.go.txt
+
+echo "Performing code generation for FQDNNetworkPolicy CRD"
+${CODEGEN_PKG}/generate-groups.sh \
+  "deepcopy,client,informer,lister" \
+  github.com/cilium/cilium/pkg/gke/client/fqdnnetworkpolicy github.com/cilium/cilium/pkg/gke/apis \
+  "fqdnnetworkpolicy:v1alpha1" \
+  --go-header-file ${SCRIPT_ROOT}/hack/boilerplate.go.txt
