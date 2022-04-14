@@ -41,7 +41,7 @@ type EndpointManager struct {
 
 type IdentityAllocator interface {
 	// AllocateIdentity allocates an identity described by the specified labels.
-	AllocateIdentity(context.Context, labels.Labels, bool) (*identity.Identity, bool, error)
+	AllocateIdentity(context.Context, labels.Labels, bool, identity.NumericIdentity) (*identity.Identity, bool, error)
 
 	// Release is the reverse operation of AllocateIdentity() and releases the
 	// specified identity.
@@ -405,7 +405,7 @@ func (e *Endpoint) identityLabelsChanged(ctx context.Context, myChangeRev int) (
 	allocateCtx, cancel := context.WithTimeout(ctx, 2*time.Minute) // KVstoreConnectivityTimeout
 	defer cancel()
 
-	allocatedIdentity, _, err := e.allocator.AllocateIdentity(allocateCtx, newLabels, true)
+	allocatedIdentity, _, err := e.allocator.AllocateIdentity(allocateCtx, newLabels, true, identity.InvalidIdentity)
 	if err != nil {
 		err = fmt.Errorf("unable to resolve identity: %s", err)
 		return false, err
