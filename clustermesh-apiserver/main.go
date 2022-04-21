@@ -247,6 +247,10 @@ func runApiserver() error {
 	flags.Int(option.PProfPort, defaults.PprofPortAPIServer, "Port that pprof listens on")
 	option.BindEnv(option.PProfPort)
 
+	flags.Bool(option.DisableCiliumNetworkPolicyCRDName, false, "Disable use of CiliumNetworkPolicy and CiliumClusterwideNetworkPolicy CRD")
+	flags.MarkHidden(option.DisableCiliumNetworkPolicyCRDName)
+	option.BindEnv(option.DisableCiliumNetworkPolicyCRDName)
+
 	flags.Bool(option.EnableGDCILB, false, "Enable google GDC-H ILB Support")
 	option.BindEnv(option.EnableGDCILB)
 	viper.BindPFlags(flags)
