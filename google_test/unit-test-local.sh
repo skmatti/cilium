@@ -25,9 +25,7 @@
 
 set -xe
 
-export GOROOT=/usr/local/go
-export GOPATH=/go
-export PATH=$GOROOT/bin:$GOPATH/bin:$GOPATH/src/github.com/cilium/cilium/bpf:$PATH
+source /etc/profile.d/env.sh
 
 function ch_dir {
   # This contructs the expected dir tree to make Cilium's Makefile happy.
@@ -53,6 +51,9 @@ ch_dir
 
 # Allow non-root docker operations.
 allow_docker_op
+
+# ip6_* modules needed for IPv6 UTs
+sudo modprobe -a ip6_tables ip6table_mangle ip6table_raw ip6table_filter
 
 # Run prechecks, including:
 # - format check

@@ -26,7 +26,7 @@ export 'LIBBPF_GIT'=${LIBBPF_GIT:-https://github.com/cilium/libbpf}
 export GOPATH=/go
 export GOROOT=/usr/local/go
 
-export PATH=$GOROOT/bin:$GOPATH/bin:$GOPATH/src/github.com/cilium/cilium/bpf:$PATH
+export PATH=$GOROOT/bin:$GOPATH/bin:$GOPATH/src/github.com/cilium/cilium/bpf:/sbin:$PATH
 
 export DEBIAN_FRONTEND=noninteractive
 
