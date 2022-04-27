@@ -17,8 +17,7 @@ limitations under the License.
 package v1alpha1
 
 import (
-	v1 "github.com/cilium/cilium/pkg/k8s/slim/k8s/apis/meta/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 // +genclient
@@ -33,8 +32,8 @@ import (
 // Traffic matching either a Kubernetes NetworkPolicy or a FQDNNetworkPolicy
 // will be allowed to egress the workload.
 type FQDNNetworkPolicy struct {
-	metav1.TypeMeta   `json:",inline"`
-	metav1.ObjectMeta `json:"metadata,omitempty"`
+	v1.TypeMeta   `json:",inline"`
+	v1.ObjectMeta `json:"metadata,omitempty"`
 
 	// Spec is the desired configuration for FQDN Network Policy.
 	Spec FQDNNetworkPolicySpec `json:"spec"`
@@ -149,8 +148,8 @@ type FQDNNetworkPolicyPort struct {
 
 // FQDNNetworkPolicyList contains a list of FQDNNetworkPolicy resources.
 type FQDNNetworkPolicyList struct {
-	metav1.TypeMeta `json:",inline"`
-	metav1.ListMeta `json:"metadata,omitempty"`
+	v1.TypeMeta `json:",inline"`
+	v1.ListMeta `json:"metadata,omitempty"`
 
 	// Items is a slice of FQDNNetworkPolicy resources.
 	Items []FQDNNetworkPolicy `json:"items"`
