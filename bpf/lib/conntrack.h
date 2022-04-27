@@ -588,6 +588,13 @@ ct_extract_ports4(struct __ctx_buff *ctx, int off, enum ct_dir dir,
 
 		break;
 
+#ifdef ENABLE_HOST_FIREWALL
+	case IPPROTO_VRRP:
+		tuple->dport = 0;
+		tuple->sport = 0;
+		break;
+#endif /* ENABLE_HOST_FIREWALL */
+
 	default:
 		/* Can't handle extension headers yet */
 		return DROP_CT_UNKNOWN_PROTO;
@@ -707,6 +714,14 @@ static __always_inline int ct_lookup4(const void *map,
 
 		action = ACTION_CREATE;
 		break;
+
+#ifdef ENABLE_HOST_FIREWALL
+	case IPPROTO_VRRP:
+		action = ACTION_CREATE;
+		tuple->sport = 0;
+		tuple->dport = 0;
+		break;
+#endif /* ENABLE_HOST_FIREWALL */
 
 	default:
 		/* Can't handle extension headers yet */

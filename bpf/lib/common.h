@@ -1019,6 +1019,8 @@ struct lpm_val {
 	__u8 flags;
 };
 
+#define IPPROTO_VRRP 112
+
 #include "overloadable.h"
 
 #endif /* __LIB_COMMON_H_ */
