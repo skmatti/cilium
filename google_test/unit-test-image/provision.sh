@@ -96,7 +96,7 @@ sudo ln -s /usr/lib/llvm-11/bin/llvm-readelf /usr/bin/readelf
 
 # go
 
-VERSION=1.17
+VERSION=1.18.1
 OS=linux
 ARCH=amd64
 GO_TAR=go$VERSION.$OS-$ARCH.tar.gz
@@ -104,8 +104,7 @@ GO_TAR=go$VERSION.$OS-$ARCH.tar.gz
 curl -O https://dl.google.com/go/$GO_TAR
 sudo tar -C /usr/local -xzf $GO_TAR
 
-go get -u github.com/gordonklaus/ineffassign
-go get -u github.com/jteeuwen/go-bindata/...
+go install github.com/gordonklaus/ineffassign@latest
 
 # docker
 
