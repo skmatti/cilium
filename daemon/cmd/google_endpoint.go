@@ -74,6 +74,8 @@ func (d *Daemon) createMultiNICEndpoints(ctx context.Context, owner regeneration
 	epTemplate := primaryEpTemplate.DeepCopy()
 	// Reset parameters from the primary endpoint template.
 	epTemplate.ID = 0
+	epTemplate.Addressing.IPV4 = ""
+	epTemplate.Addressing.IPV6 = ""
 	epTemplate.Addressing.IPV4ExpirationUUID = ""
 	epTemplate.Addressing.IPV6ExpirationUUID = ""
 	epTemplate.InterfaceNameInPod = ""
