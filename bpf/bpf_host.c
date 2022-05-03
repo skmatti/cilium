@@ -595,7 +595,7 @@ handle_ipv4(struct __ctx_buff *ctx, __u32 secctx,
 		/* Let through packets to the node-ip so they are processed by
 		 * the local ip stack.
 		 */
-		if (ep->flags & ENDPOINT_F_HOST)
+		if (ep->flags & ENDPOINT_F_HOST || ep->flags & ENDPOINT_F_MULTI_NIC)
 			return CTX_ACT_OK;
 
 		return ipv4_local_delivery(ctx, ETH_HLEN, secctx, ip4, ep,
