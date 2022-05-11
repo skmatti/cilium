@@ -963,6 +963,6 @@ func (dc *fakeDHCPClient) GetDHCPResponse(containerID, podNS, podIface, parentIf
 	return &dc.resp, nil
 }
 
-func (dc *fakeDHCPClient) Release(containerID, podNS, podIface string) error {
+func (dc *fakeDHCPClient) Release(containerID, podNS, podIface string, letLeaseExpire bool) error {
 	return dc.clientErr
 }

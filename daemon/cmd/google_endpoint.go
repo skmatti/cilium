@@ -336,7 +336,7 @@ func (d *Daemon) deleteMultiNICEndpointQuiet(ep *endpoint.Endpoint, conf endpoin
 	}).Info("Revert multinic endpoint setup")
 
 	if ep.ExternalDHCPEnabled() {
-		d.dhcpClient.Release(ep.GetContainerID(), netNS, ifNameInPod)
+		d.dhcpClient.Release(ep.GetContainerID(), netNS, ifNameInPod, true)
 	}
 	var err error
 	switch deviceType {

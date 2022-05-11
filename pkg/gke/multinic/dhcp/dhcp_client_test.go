@@ -50,6 +50,8 @@ type DHCP struct {
 	lis    net.Listener
 	// svcError controls whether the grpc call needs to return error.
 	svcError bool
+	// leaseExpire indicates whether the Release grpc call should have the leaseExpire arg or not
+	leaseExpire bool
 	//allocateResult is the result that will be returned when Allocated is called
 	allocateResult *ipam.Result
 	// expectedMacAddress is the expected mac address that is sent in the CmdArgs
@@ -102,7 +104,9 @@ func (f *DHCP) Release(args *skel.CmdArgs, reply *struct{}) error {
 	if args.IfName != podIfName {
 		f.t.Errorf("incorrect pod inerface. Got %s, expected %s", args.IfName, podIfName)
 	}
-	if args.Args != leaseExpireArgs {
+	if !f.leaseExpire && args.Args != "" {
+		f.t.Errorf("incorrect args. Got %s, expected %s", args.Args, "")
+	} else if f.leaseExpire && args.Args != leaseExpireArgs {
 		f.t.Errorf("incorrect args. Got %s, expected %s", args.Args, leaseExpireArgs)
 	}
 	if f.svcError {
@@ -341,9 +345,10 @@ func TestDHCPRelease(t *testing.T) {
 		}
 	}()
 	testcases := []struct {
-		desc    string
-		rpcErr  bool
-		wantErr string
+		desc                string
+		rpcErr              bool
+		wantErr             string
+		expectLeaseToExpire bool
 	}{
 		{
 			desc: "successful release call",
@@ -353,12 +358,17 @@ func TestDHCPRelease(t *testing.T) {
 			rpcErr:  true,
 			wantErr: "errored in rpc call DHCP.Release",
 		},
+		{
+			desc:                "let lease expire",
+			expectLeaseToExpire: true,
+		},
 	}
 	for _, tc := range testcases {
 		t.Run(tc.desc, func(t *testing.T) {
 			fakeServer.svcError = tc.rpcErr
+			fakeServer.leaseExpire = tc.expectLeaseToExpire
 			dc := newDHCPClientWithSocket(testDHCPSocket)
-			gotErr := dc.Release(containerID, podNS, podIfName)
+			gotErr := dc.Release(containerID, podNS, podIfName, tc.expectLeaseToExpire)
 			if gotErr != nil {
 				if tc.wantErr == "" {
 					t.Fatalf("dc.Release() returns error %v but want nil", gotErr)
@@ -400,7 +410,7 @@ func TestNilRPCClient(t *testing.T) {
 	}
 
 	dc.client = nil
-	gotErr = dc.Release(containerID, podNS, podIfName)
+	gotErr = dc.Release(containerID, podNS, podIfName, false)
 	if gotErr != nil {
 		t.Fatalf("dc.Release() returns error %v but want nil", gotErr)
 	}
