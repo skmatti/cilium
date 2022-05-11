@@ -5,7 +5,7 @@ import (
 	"fmt"
 )
 
-// Annotations on pods.
+// Annotation definitions.
 const (
 	// DisableSourceValidationAnnotationKey is the annotation on pod to disable source IP validation on L2 interfaces.
 	// Useful when you want to assign new IPs onto the interface.
@@ -29,6 +29,12 @@ const (
 	// NetworkInUseAnnotationValTrue is the value to be set for NetworkInUseAnnotationKey to indicate
 	// the Network object is referenced by at least one NetworkInterface/pod object.
 	NetworkInUseAnnotationValTrue = "true"
+	// MultiNetworkAnnotationKey is the network annotation key used to hold network data per node, eg: PodCIDRs.
+	MultiNetworkAnnotationKey = "networking.gke.io/networks"
+	// AutoGenAnnotationKey is to indicate if the object is auto-generated.
+	AutoGenAnnotationKey = "networking.gke.io/auto-generated"
+	// AutoGenAnnotationValTrue is the value to be set for auto-generated objects.
+	AutoGenAnnotationValTrue = "true"
 )
 
 // InterfaceAnnotation is the value of the interface annotation.
@@ -69,16 +75,44 @@ func MarshalAnnotation(a interface{}) (string, error) {
 // +kubebuilder:object:generate:=false
 type NodeNetworkAnnotation []NodeNetworkStatus
 
+// MultiNetworkAnnotation is the value of networks annotation.
+// +kubebuilder:object:generate:=false
+type MultiNetworkAnnotation []NodeNetwork
+
 // NodeNetworkStatus specifies the status of a network.
 // +kubebuilder:object:generate:=false
 type NodeNetworkStatus struct {
 	// Name specifies the name of the network.
 	Name string `json:"name,omitempty"`
+
+	// IPv4Subnet is the Node internal IPv4 subnet for the network.
+	IPv4Subnet string `json:"ipv4-subnet,omitempty"`
+
+	// IPv6Subnet is the Node internal IPv6 subnet for the network.
+	IPv6Subnet string `json:"ipv6-subnet,omitempty"`
+}
+
+// NodeNetwork specifies network data on a node.
+// +kubebuilder:object:generate:=false
+type NodeNetwork struct {
+	// Name specifies the name of the network.
+	Name string `json:"name"`
+	// Cidrs denotes the IPv4/IPv6 ranges of the network.
+	Cidrs []string `json:"cidrs"`
+	// Scope specifies if the network is local to a node or global across a node pool.
+	Scope string `json:"scope"`
 }
 
 // ParseNodeNetworkAnnotation parses the given annotation to NodeNetworkAnnotation.
 func ParseNodeNetworkAnnotation(annotation string) (NodeNetworkAnnotation, error) {
 	ret := &NodeNetworkAnnotation{}
+	err := json.Unmarshal([]byte(annotation), ret)
+	return *ret, err
+}
+
+// ParseMultiNetworkAnnotation parses given annotation to MultiNetworkAnnotation.
+func ParseMultiNetworkAnnotation(annotation string) (MultiNetworkAnnotation, error) {
+	ret := &MultiNetworkAnnotation{}
 	err := json.Unmarshal([]byte(annotation), ret)
 	return *ret, err
 }

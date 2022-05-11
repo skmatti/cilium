@@ -124,6 +124,7 @@ type endpoint interface {
 	GetParentDevIndex() int
 	GetID() uint64
 	IsMultiNIC() bool
+	IsIPVlan() bool
 }
 
 func endpointKey(e endpoint) (*Key, error) {
@@ -137,7 +138,7 @@ func endpointKey(e endpoint) (*Key, error) {
 
 // AddEndpointToMap updates the BPF map with the endpoint information
 func AddEndpointToMap(e endpoint) error {
-	if !e.IsMultiNIC() {
+	if !e.IsMultiNIC() || e.IsIPVlan() {
 		return nil
 	}
 	key, err := endpointKey(e)
@@ -156,7 +157,7 @@ func AddEndpointToMap(e endpoint) error {
 
 // DeleteEndpointFromMap removes the entry from the Map related to the endpoint.
 func DeleteEndpointFromMap(e endpoint) error {
-	if !e.IsMultiNIC() {
+	if !e.IsMultiNIC() || e.IsIPVlan() {
 		return nil
 	}
 	key, err := endpointKey(e)

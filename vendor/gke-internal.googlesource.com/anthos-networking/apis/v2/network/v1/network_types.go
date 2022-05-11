@@ -5,6 +5,10 @@ import metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 const (
 	// DefaultNetworkName is the network used by the VETH interface.
 	DefaultNetworkName = "pod-network"
+	// NetworkResourceKeyPrefix is the prefix for extended resource
+	// name corresponding to the network.
+	// e.g. "networking.gke.io.networks/my-network.IP"
+	NetworkResourceKeyPrefix = "networking.gke.io.networks/"
 )
 
 // NetworkType is the type of network.
@@ -29,6 +33,15 @@ const (
 	// UserManaged indicates that the user will manage the Network
 	// Lifeycle and Anthos will not create or delete the network.
 	UserManagedLifecycle LifecycleType = "UserManaged"
+)
+
+// ProviderType defines provider of the network.
+// +kubebuilder:validation:Enum=GKE
+type ProviderType string
+
+const (
+	// GKE indicates network provider is "GKE"
+	GKE ProviderType = "GKE"
 )
 
 // +genclient
@@ -57,6 +70,9 @@ type NetworkSpec struct {
 	// L3 network type enables L3 connectivity on the network.
 	// +required
 	Type NetworkType `json:"type"`
+
+	// Provider specifies the provider implementing this network, e.g. "GKE".
+	Provider *ProviderType `json:"provider,omitempty"`
 
 	// NodeInterfaceMatcher defines the matcher to discover the corresponding node interface associated with the network.
 	// This field is required for L2 network.
@@ -90,6 +106,28 @@ type NetworkSpec struct {
 	// ExternalDHCP4 indicates whether the IPAM is static or allocation by the external DHCP server
 	// +optional
 	ExternalDHCP4 *bool `json:"externalDHCP4,omitempty"`
+
+	// ParametersRef is a reference to a resource that contains vendor or implementation specific
+	// configurations for the network.
+	// +optional
+	ParametersRef *NetworkParametersReference `json:"parametersRef,omitempty"`
+}
+
+// NetworkParametersReference identifies an API object containing additional parameters for the network.
+type NetworkParametersReference struct {
+	// Group is the API group of k8s resource, e.g. "networking.k8s.io".
+	Group string `json:"group"`
+
+	// Kind is kind of the referent, e.g. "networkpolicy".
+	Kind string `json:"kind"`
+
+	// Name is the name of the resource object.
+	Name string `json:"name"`
+
+	// Namespace is the namespace of the referent. This field is required when referring to a
+	// Namespace-scoped resource and MUST be unset when referring to a Cluster-scoped resource.
+	// +optional
+	Namespace *string `json:"namespace,omitempty"`
 }
 
 // DNSConfig defines the DNS configuration of a network.

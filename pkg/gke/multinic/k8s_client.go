@@ -33,8 +33,14 @@ type K8sClient interface {
 	// GetNetworkInterface returns the specified Network CR
 	GetNetwork(ctx context.Context, name string) (*networkv1.Network, error)
 
-	// UpdateNetworkInterfaceStatus updates the NetworkInterface status with the provided status.
-	UpdateNetworkInterfaceStatus(ctx context.Context, obj *networkv1.NetworkInterface) error
+	// PatchNetworkInterfaceStatus updates the NetworkInterface status with the provided status.
+	PatchNetworkInterfaceStatus(ctx context.Context, obj *networkv1.NetworkInterface) error
+
+	// CreateNetworkInterface creates the network interface object
+	CreateNetworkInterface(ctx context.Context, obj *networkv1.NetworkInterface) error
+
+	// DeleteNetworkInterface deletes the network interface object
+	DeleteNetworkInterface(ctx context.Context, obj *networkv1.NetworkInterface) error
 }
 
 // k8sClientImpl is an implementation of the K8sClient interface
@@ -73,6 +79,21 @@ func (c *k8sClientImpl) GetNetwork(ctx context.Context, name string) (*networkv1
 	return network, nil
 }
 
-func (c *k8sClientImpl) UpdateNetworkInterfaceStatus(ctx context.Context, obj *networkv1.NetworkInterface) error {
-	return c.client.Status().Update(ctx, obj)
+func (c *k8sClientImpl) PatchNetworkInterfaceStatus(ctx context.Context, obj *networkv1.NetworkInterface) error {
+	intf := &networkv1.NetworkInterface{}
+	if err := c.client.Get(ctx, namespacedName(obj.Name, obj.Namespace), intf); err != nil {
+		return err
+	}
+	intfClean := intf.DeepCopy()
+	intf.Status = *obj.Status.DeepCopy()
+	intf.SetAnnotations(obj.Annotations)
+	return c.client.Status().Patch(ctx, intf, client.MergeFrom(intfClean))
+}
+
+func (c *k8sClientImpl) CreateNetworkInterface(ctx context.Context, obj *networkv1.NetworkInterface) error {
+	return c.client.Create(ctx, obj)
+}
+
+func (c *k8sClientImpl) DeleteNetworkInterface(ctx context.Context, obj *networkv1.NetworkInterface) error {
+	return c.client.Delete(ctx, obj)
 }
