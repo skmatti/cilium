@@ -19,3 +19,8 @@ func (ep *epInfoCache) GetParentDevIndex() int {
 	}
 	return ep.parentDevIndex
 }
+
+// IsIPVlan returns if the endpoint is an ipvlan multinic endpoint.
+func (ep *epInfoCache) IsIPVlan() bool {
+	return ep.deviceType == multinicep.EndpointDeviceIPVLAN
+}

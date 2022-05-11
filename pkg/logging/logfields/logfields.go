@@ -210,10 +210,13 @@ const (
 	// InterfaceInPod is a interface name inside the pod namespace
 	InterfaceInPod = "interfaceInPod"
 
+	// Ipvlan is a ipvlan object or ID
+	Ipvlan = "ipvlan"
+
 	// Macvtap is a macvtap object or ID
 	Macvtap = "macvtap"
 
-	// Macvlan is a macvtap object or ID
+	// Macvlan is a macvlan object or ID
 	Macvlan = "macvlan"
 
 	// DeviceType is the name of device type.

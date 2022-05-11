@@ -71,7 +71,7 @@ func getTestInterfaceCRWithStatus(ipStrs []string, macStr *string, statusMacStr 
 	return intfCR
 }
 
-func getTestNetworkCR(parentDevName *string) *networkv1.Network {
+func getTestNetworkCR(parentDevName *string, provider *networkv1.ProviderType) *networkv1.Network {
 	return &networkv1.Network{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "test-network",
@@ -80,6 +80,7 @@ func getTestNetworkCR(parentDevName *string) *networkv1.Network {
 			NodeInterfaceMatcher: networkv1.NodeInterfaceMatcher{
 				InterfaceName: parentDevName,
 			},
+			Provider: provider,
 		},
 	}
 }
@@ -166,66 +167,103 @@ func TestGetInterfaceConfiguration(t *testing.T) {
 	parentDevNameEmpty := ""
 	goodMACStr := "01:02:03:04:05:06"
 	badMACStr := "ff"
+	networkProviderGKE := networkv1.ProviderType("GKE")
 	testcases := []struct {
-		desc    string
-		wantErr string
-		intf    *networkv1.NetworkInterface
-		net     *networkv1.Network
-		want    *interfaceConfiguration
+		desc         string
+		wantErr      string
+		intf         *networkv1.NetworkInterface
+		net          *networkv1.Network
+		podResources map[string][]string
+		want         *interfaceConfiguration
 	}{
 		{
 			desc: "parse successfully",
 			intf: getTestInterfaceCR([]string{goodIPv4Str}, &goodMACStr),
-			net:  getTestNetworkCR(&parentDevName),
+			net:  getTestNetworkCR(&parentDevName, nil),
 			want: &interfaceConfiguration{
 				ParentInterfaceName: parentDevName,
 				IPV4Address: &net.IPNet{
 					IP:   net.IPv4(1, 2, 3, 4),
 					Mask: net.IPv4Mask(255, 255, 255, 0),
 				},
+				Type:       "macvlan",
+				MacAddress: net.HardwareAddr([]byte{1, 2, 3, 4, 5, 6}),
+			},
+		},
+		{
+			desc: "parse successfully ipvlan",
+			intf: getTestInterfaceCR([]string{goodIPv4Str}, &goodMACStr),
+			net:  getTestNetworkCR(&parentDevName, &networkProviderGKE),
+			want: &interfaceConfiguration{
+				ParentInterfaceName: parentDevName,
+				IPV4Address: &net.IPNet{
+					IP:   net.IPv4(1, 2, 3, 4),
+					Mask: net.IPv4Mask(255, 255, 255, 0),
+				},
+				Type:       "ipvlan",
+				MacAddress: net.HardwareAddr([]byte{1, 2, 3, 4, 5, 6}),
+			},
+		},
+		{
+			desc: "parse successfully macvtap",
+			intf: getTestInterfaceCR([]string{goodIPv4Str}, &goodMACStr),
+			net:  getTestNetworkCR(&parentDevName, nil),
+			podResources: map[string][]string{
+				macvtapResourceName(parentDevName): {"dummyMacvtapIntf"},
+			},
+			want: &interfaceConfiguration{
+				ParentInterfaceName: parentDevName,
+				IPV4Address: &net.IPNet{
+					IP:   net.IPv4(1, 2, 3, 4),
+					Mask: net.IPv4Mask(255, 255, 255, 0),
+				},
+				Type:       "macvtap",
 				MacAddress: net.HardwareAddr([]byte{1, 2, 3, 4, 5, 6}),
 			},
 		},
 		{
 			desc:    "two ipv4 address",
 			intf:    getTestInterfaceCR([]string{goodIPv4Str, goodIPv4Str}, &goodMACStr),
-			net:     getTestNetworkCR(&parentDevName),
+			net:     getTestNetworkCR(&parentDevName, nil),
 			wantErr: "Only single IPv4 address is supported for macvlan/macvtap interface",
 		},
 		{
 			desc: "empty ipv4 address list",
 			intf: getTestInterfaceCR([]string{}, &goodMACStr),
-			net:  getTestNetworkCR(&parentDevName),
+			net:  getTestNetworkCR(&parentDevName, nil),
 			want: &interfaceConfiguration{
 				ParentInterfaceName: parentDevName,
 				MacAddress:          net.HardwareAddr([]byte{1, 2, 3, 4, 5, 6}),
+				Type:                "macvlan",
 			},
 		},
 		{
 			desc: "nil ipv4 address list",
 			intf: getTestInterfaceCR(nil, &goodMACStr),
-			net:  getTestNetworkCR(&parentDevName),
+			net:  getTestNetworkCR(&parentDevName, nil),
 			want: &interfaceConfiguration{
 				ParentInterfaceName: parentDevName,
 				MacAddress:          net.HardwareAddr([]byte{1, 2, 3, 4, 5, 6}),
+				Type:                "macvlan",
 			},
 		},
 		{
 			desc: "no mac address in spec and status",
 			intf: getTestInterfaceCR([]string{goodIPv4Str}, nil),
-			net:  getTestNetworkCR(&parentDevName),
+			net:  getTestNetworkCR(&parentDevName, nil),
 			want: &interfaceConfiguration{
 				ParentInterfaceName: parentDevName,
 				IPV4Address: &net.IPNet{
 					IP:   net.IPv4(1, 2, 3, 4),
 					Mask: net.IPv4Mask(255, 255, 255, 0),
 				},
+				Type: "macvlan",
 			},
 		},
 		{
 			desc: "no mac address in spec but in status",
 			intf: getTestInterfaceCRWithStatus([]string{goodIPv4Str}, nil, goodMACStr),
-			net:  getTestNetworkCR(&parentDevName),
+			net:  getTestNetworkCR(&parentDevName, nil),
 			want: &interfaceConfiguration{
 				ParentInterfaceName: parentDevName,
 				IPV4Address: &net.IPNet{
@@ -233,36 +271,37 @@ func TestGetInterfaceConfiguration(t *testing.T) {
 					Mask: net.IPv4Mask(255, 255, 255, 0),
 				},
 				MacAddress: net.HardwareAddr([]byte{1, 2, 3, 4, 5, 6}),
+				Type:       "macvlan",
 			},
 		},
 		{
 			desc:    "invalid ip address",
 			intf:    getTestInterfaceCR([]string{badIPv4Str}, &goodMACStr),
-			net:     getTestNetworkCR(&parentDevName),
+			net:     getTestNetworkCR(&parentDevName, nil),
 			wantErr: "failed to get a valid IP in the interface CR",
 		},
 		{
 			desc:    "unsupported ipv6 address",
 			intf:    getTestInterfaceCR([]string{goodIPv6Str}, &goodMACStr),
-			net:     getTestNetworkCR(&parentDevName),
+			net:     getTestNetworkCR(&parentDevName, nil),
 			wantErr: "failed to get a valid IP in the interface CR",
 		},
 		{
 			desc:    "invalid mac address",
 			intf:    getTestInterfaceCR([]string{goodIPv4Str}, &badMACStr),
-			net:     getTestNetworkCR(&parentDevName),
+			net:     getTestNetworkCR(&parentDevName, nil),
 			wantErr: "unable to parse MAC in the interface CR",
 		},
 		{
 			desc:    "empty parent interface name",
 			intf:    getTestInterfaceCR([]string{goodIPv4Str}, &goodMACStr),
-			net:     getTestNetworkCR(&parentDevNameEmpty),
+			net:     getTestNetworkCR(&parentDevNameEmpty, nil),
 			wantErr: "parent interface name is empty in the network CR",
 		},
 	}
 	for _, tc := range testcases {
 		t.Run(tc.desc, func(t *testing.T) {
-			got, gotErr := getInterfaceConfiguration(tc.intf, tc.net)
+			got, gotErr := getInterfaceConfiguration(tc.intf, tc.net, tc.podResources)
 			if gotErr != nil {
 				if len(tc.wantErr) == 0 {
 					t.Fatalf("getInterfaceConfiguration() returns error %v but want nil", gotErr)

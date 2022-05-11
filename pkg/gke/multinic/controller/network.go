@@ -2,6 +2,7 @@ package controller
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -251,16 +252,19 @@ func (r *NetworkReconciler) updateNodeNetworkAnnotation(ctx context.Context, net
 	}
 	log.Infof("node network status annotation to update %+v", netStatusMap)
 
-	if node.Annotations == nil {
-		node.Annotations = make(map[string]string)
-	}
-	node.Annotations[networkv1.NodeNetworkAnnotationKey], err = marshalNodeNetworkAnnotation(netStatusMap)
+	annotations := make(map[string]string)
+	annotations[networkv1.NodeNetworkAnnotationKey], err = marshalNodeNetworkAnnotation(netStatusMap)
 	if err != nil {
 		return fmt.Errorf("failed to marshal node network annotation %v: %v", netStatusMap, err)
 	}
 
-	if err := r.Update(ctx, node); err != nil {
-		return fmt.Errorf("failed to update k8s node %q: %v", r.NodeName, err)
+	raw, err := json.Marshal(annotations)
+	if err != nil {
+		return fmt.Errorf("failed to marshal node annotations %v: %v", annotations, err)
+	}
+	patch := []byte(fmt.Sprintf(`{"metadata":{"annotations":%s}}`, raw))
+	if err := r.Client.Status().Patch(ctx, node, client.RawPatch(types.StrategicMergePatchType, patch)); err != nil {
+		return fmt.Errorf("failed to patch k8s node %q: %v", r.NodeName, err)
 	}
 
 	log.Info("Updated node network status annotation")

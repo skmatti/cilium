@@ -552,7 +552,7 @@ func TestUpdateNodeNetworkAnnotation(t *testing.T) {
 					Annotations: tc.existingAnnotations,
 				},
 			}
-			k8sClient := fake.NewClientBuilder().WithObjects(&testNode).Build()
+			k8sClient := fake.NewClientBuilder().WithScheme(scheme).WithObjects(&testNode).Build()
 			testReconciler := NetworkReconciler{
 				Client:   k8sClient,
 				NodeName: nodeName,

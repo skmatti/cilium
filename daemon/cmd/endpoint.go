@@ -798,7 +798,7 @@ func (h *deleteEndpointID) Handle(params DeleteEndpointIDParams) middleware.Resp
 	d := h.daemon
 	var nerr int
 	if option.Config.EnableGoogleMultiNIC {
-		nerr, err = d.DeleteEndpoints(params.ID)
+		nerr, err = d.DeleteEndpoints(params.HTTPRequest.Context(), params.ID)
 		if err != nil {
 			r.Error(err)
 			if apierr, ok := err.(*api.APIError); ok {

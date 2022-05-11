@@ -11,4 +11,6 @@ const (
 	EndpointDeviceMACVTAP = "macvtap"
 	// EndpointDeviceMACVLAN is a MACVLAN device.
 	EndpointDeviceMACVLAN = "macvlan"
+	// EndpointDeviceIPVLAN is an IPVLAN device.
+	EndpointDeviceIPVLAN = "ipvlan"
 )
