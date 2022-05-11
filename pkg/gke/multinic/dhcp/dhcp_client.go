@@ -21,6 +21,7 @@ import (
 	"net"
 	"net/rpc"
 	"path/filepath"
+	"strings"
 
 	"github.com/cilium/cilium/pkg/lock"
 	"github.com/cilium/cilium/pkg/logging"
@@ -50,7 +51,7 @@ type DHCPClient interface {
 	// GetDHCPResponse sends a request to the DHCPPlugin for an IP allocation
 	GetDHCPResponse(containerID, netns, ifname, parentInt string, macAddress *string) (*DHCPResponse, error)
 	// Release sends a request to the DHCPPlugin to stop maintaining the lease for the given interface
-	Release(containerID, netns, ifname string) error
+	Release(containerID, netns, ifname string, letLeaseExpire bool) error
 }
 
 // dhcpClient is a rpc Client to query and request DHCP leases from the DHCP plugin
@@ -123,9 +124,11 @@ func (dc *dhcpClient) GetDHCPResponse(containerID, netns, ifname, parentIfName s
 }
 
 // Release calls DHCP.Release on the dhcp plugin
-func (dc *dhcpClient) Release(containerID, netns, ifname string) error {
+func (dc *dhcpClient) Release(containerID, netns, ifname string, letLeaseExpire bool) error {
 	args := generateCmdArgs(containerID, netns, ifname, "", nil)
-	args.Args = leaseExpireArgs
+	if letLeaseExpire {
+		args.Args = leaseExpireArgs
+	}
 	result := struct{}{}
 	if err := dc.rpcCall("DHCP.Release", args, &result); err != nil {
 		return fmt.Errorf("errored in rpc call DHCP.Release: %w", err)
@@ -201,10 +204,18 @@ func generateCmdArgs(containerID, netns, ifname, parentInt string, macAddress *s
 		IfName:      ifname,
 		StdinData:   []byte(dhcpConf),
 	}
-	if macAddress != nil && *macAddress != "" {
-		args.Args = fmt.Sprintf("parentInterface=%s;macAddress=%s", parentInt, *macAddress)
-	} else {
-		args.Args = fmt.Sprintf("parentInterface=%s", parentInt)
+	var argList []string
+
+	if parentInt != "" {
+		argList = append(argList, fmt.Sprintf("parentInterface=%s", parentInt))
 	}
+
+	if macAddress != nil && *macAddress != "" {
+		argList = append(argList, fmt.Sprintf("macAddress=%s", *macAddress))
+	}
+	if len(argList) > 0 {
+		args.Args = strings.Join(argList, ";")
+	}
+
 	return args
 }
