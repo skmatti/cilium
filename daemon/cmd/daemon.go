@@ -44,6 +44,7 @@ import (
 	"github.com/cilium/cilium/pkg/endpointmanager"
 	"github.com/cilium/cilium/pkg/eventqueue"
 	"github.com/cilium/cilium/pkg/fqdn"
+	gkefqdnnetworkpolicy "github.com/cilium/cilium/pkg/gke/fqdnnetworkpolicy/controller"
 	"github.com/cilium/cilium/pkg/gke/multinic"
 	dhcp "github.com/cilium/cilium/pkg/gke/multinic/dhcp"
 	nodefirewall "github.com/cilium/cilium/pkg/gke/nodefirewall/bootstrap"
@@ -1067,6 +1068,16 @@ func NewDaemon(ctx context.Context, cancel context.CancelFunc, epMgr *endpointma
 	if k8s.IsEnabled() && option.Config.EnableRedirectService {
 		if _, err = gkeredirectservice.Init(d.redirectPolicyManager); err != nil {
 			log.WithError(err).Error("Error while starting redirect service controller")
+			return nil, nil, err
+		}
+	}
+
+	if k8s.IsEnabled() && option.Config.EnableFQDNNetworkPolicy {
+		if !option.Config.EnableL7Proxy {
+			log.Fatalf(`FQDN Network Policy requires --%s=true`, option.EnableL7Proxy)
+		}
+		if _, err := gkefqdnnetworkpolicy.Init(&d); err != nil {
+			log.WithError(err).Error("Error while starting FQDN Network Policy controller")
 			return nil, nil, err
 		}
 	}
