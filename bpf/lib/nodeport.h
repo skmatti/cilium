@@ -2182,7 +2182,7 @@ drop_err:
 static __always_inline int nodeport_lb4(struct __ctx_buff *ctx,
 					__u32 src_identity)
 {
-	bool backend_local, l4_ports, has_l4_header;
+	bool l4_ports, has_l4_header;
 	struct ipv4_ct_tuple tuple = {};
 	void *data, *data_end;
 	struct iphdr *ip4;
@@ -2191,6 +2191,7 @@ static __always_inline int nodeport_lb4(struct __ctx_buff *ctx,
 	struct lb4_service *svc;
 	struct lb4_key key = {};
 	struct ct_state ct_state_new = {};
+	const struct endpoint_info *backend_local;
 	__u32 monitor = 0;
 
 	cilium_capture_in(ctx);
@@ -2360,6 +2361,27 @@ redo:
 		ret = neigh_record_ip4(ctx);
 		if (ret < 0)
 			return ret;
+
+		/* NODEPORT_LOCAL_REDIRECT_MAC
+		*
+		* For MACVLAN interfaces, when a frame enters the lower device, if the
+		* destination MAC is not one of the sub-interfaces, the frame is processed
+		* by the host [1]. This breaks isolation, and leads to a strange datapath
+		* where the kernel routes the packet back to the lower device where it's
+		* captured and redirected back to the ingress-side (by
+		* `multinic_redirect_ipv4`) for another attempt at reaching the pod.
+		*
+		* To avoid this, we can set the correct destination MAC after xlating the
+		* destination addr.
+		*
+		* [1]: https://vincent.bernat.ch/en/blog/2017-linux-bridge-isolation#about-macvlan-interfaces
+		*/
+		if (backend_local && backend_local->flags & ENDPOINT_F_MULTI_NIC) {
+			mac_t dmac = backend_local->mac;
+			if (eth_store_daddr(ctx, (__u8 *) &dmac, 0) < 0)
+				return DROP_WRITE_ERROR;
+		}
+
 		if (backend_local) {
 			ctx_set_xfer(ctx, XFER_PKT_NO_SVC);
 			return CTX_ACT_OK;
@@ -2636,6 +2658,11 @@ int tail_rev_nodeport_lb4(struct __ctx_buff *ctx)
 
 	edt_set_aggregate(ctx, 0);
 	cilium_capture_out(ctx);
+
+/* Redirect is not supported for ipvlan/macvlan host interfaces: b/235141939 */
+#ifdef IS_MULTI_NIC_DEVICE
+	return CTX_ACT_OK;
+#endif
 
 	if (ret == CTX_ACT_REDIRECT)
 		return ctx_redirect(ctx, ifindex, 0);
