@@ -50,7 +50,10 @@ func TestDNSProxyRedirect(t *testing.T) {
 	re.InitRegexCompileLRU(defaults.FQDNRegexCompileLRUSize)
 	// This policy only allows egress traffic to kube-dns
 	emptyFQDNPolicy := &v1alpha1.FQDNNetworkPolicy{Spec: v1alpha1.FQDNNetworkPolicySpec{}}
-	rule, _ := parseFQDNNetworkPolicy(emptyFQDNPolicy)
+	rule, err := parseFQDNNetworkPolicy(emptyFQDNPolicy)
+	if err != nil {
+		t.Fatalf("Error parsing FQDN network policy: %v", err)
+	}
 	repo := testNewPolicyRepository()
 	repo.AddList(api.Rules{rule})
 
