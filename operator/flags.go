@@ -285,6 +285,10 @@ func init() {
 	flags.Bool(operatorOption.SyncK8sNodes, true, "Synchronize Kubernetes nodes to kvstore and perform CNP GC")
 	option.BindEnv(operatorOption.SyncK8sNodes)
 
+	flags.Bool(operatorOption.SyncK8sWindowsNodes, false, "")
+	flags.MarkHidden(operatorOption.SyncK8sWindowsNodes)
+	option.BindEnv(operatorOption.SyncK8sWindowsNodes)
+
 	flags.Int(operatorOption.UnmanagedPodWatcherInterval, 15, "Interval to check for unmanaged kube-dns pods (0 to disable)")
 	option.BindEnv(operatorOption.UnmanagedPodWatcherInterval)
 
