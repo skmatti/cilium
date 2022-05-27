@@ -40,15 +40,16 @@ import (
 )
 
 const (
-	networkName   = "my-network"
-	testNamespace = "test-namespace"
-	vlanID100     = 100
-	nodeName      = "test-node"
+	networkName    = "my-network"
+	testNamespace  = "test-namespace"
+	vlanID100      = 100
+	nodeName       = "test-node"
+	parentLinkName = "foo"
 )
 
 var log = logging.DefaultLogger.WithField(logfields.LogSubsys, "test")
 
-func TestEnsureVlanID(t *testing.T) {
+func TestEnsureInterface(t *testing.T) {
 	cr := &networkv1.Network{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      networkName,
@@ -56,7 +57,7 @@ func TestEnsureVlanID(t *testing.T) {
 		},
 		Spec: networkv1.NetworkSpec{
 			NodeInterfaceMatcher: networkv1.NodeInterfaceMatcher{
-				InterfaceName: utilpointer.StringPtr("foo"),
+				InterfaceName: utilpointer.StringPtr(parentLinkName),
 			},
 			L2NetworkConfig: &networkv1.L2NetworkConfig{
 				VlanID: utilpointer.Int32(100),
@@ -76,10 +77,12 @@ func TestEnsureVlanID(t *testing.T) {
 	testcases := []struct {
 		desc      string
 		networkCR *networkv1.Network
-		// Specify whether the tagged interface exists before ensureVlanID
+		// Specify whether the tagged interface exists before ensureInterface
 		intExists bool
-		// Specify whether a tagged interface should exist after ensureVlanID
+		// Specify whether a tagged interface should exist after ensureInterface
 		expectTag bool
+		// Specify whether the parent interface is down before ensureInterface
+		parentIntfDown bool
 	}{
 		{
 			desc:      "network exists, and vlan id is not specified",
@@ -102,13 +105,19 @@ func TestEnsureVlanID(t *testing.T) {
 			networkCR: userManagedCR,
 			expectTag: false,
 		},
+		{
+			desc:           "parent interface is down",
+			networkCR:      cr,
+			expectTag:      true,
+			parentIntfDown: false,
+		},
 	}
 
 	for _, tc := range testcases {
 		testFunc := func() {
-			defer cleanupLinks(t, expectedIntName, "foo")
+			defer cleanupLinks(t, expectedIntName, parentLinkName)
 
-			parentLink := setupParentLink(t, "foo")
+			parentLink := setupParentLink(t, parentLinkName)
 
 			if tc.intExists {
 				vlan := netlink.Vlan{
@@ -124,32 +133,38 @@ func TestEnsureVlanID(t *testing.T) {
 				}
 			}
 
-			err := ensureVlanID(tc.networkCR, log)
+			if tc.parentIntfDown {
+				if err := netlink.LinkSetDown(parentLink); err != nil {
+					t.Fatal("failed bringing down the parent interface")
+				}
+				if !waitForLinkStateChange(t, parentLinkName, netlink.OperDown) {
+					t.Fatal("the parent link is not down after waiting")
+				}
+			}
+
+			err := ensureInterface(tc.networkCR, log)
 			if err != nil {
 				t.Fatalf("ensureVlanID returned an unexpected error: %s", err)
 			}
 
 			var link netlink.Link
-			for i := 0; i < 10; i++ {
-				link, err = netlink.LinkByName(expectedIntName)
-				if !tc.expectTag {
-					if err == nil {
-						t.Fatalf("expected link %s not to exist", expectedIntName)
-					}
-					return
+			link, err = netlink.LinkByName(expectedIntName)
+			if !tc.expectTag {
+				if err == nil {
+					t.Fatalf("expected link %s not to exist", expectedIntName)
 				}
-				if err != nil {
-					t.Fatalf("failed to find tagged interface %s: %s", expectedIntName, err)
-				}
-				if link.Attrs().OperState == netlink.OperUp {
-					break
-				}
-				// Add sleep time for the link's operational state to change.
-				time.Sleep(500 * time.Millisecond)
+				return
 			}
-
-			if link.Attrs().OperState != netlink.OperUp {
+			if err != nil {
+				t.Fatalf("failed to find tagged interface %s: %s", expectedIntName, err)
+			}
+			if !waitForLinkStateChange(t, expectedIntName, netlink.OperUp) {
 				t.Fatalf("the tagged interface is not up: %s", link.Attrs().OperState)
+			}
+			// The parent link doesn't have lower layer access so the operation state
+			// is UNKNOWN.
+			if !waitForLinkStateChange(t, parentLinkName, netlink.OperUnknown) {
+				t.Fatalf("the parent interface is not up: %s", parentLink.Attrs().OperState)
 			}
 
 			vlan, ok := link.(*netlink.Vlan)
@@ -165,7 +180,7 @@ func TestEnsureVlanID(t *testing.T) {
 	}
 }
 
-func TestEnsureVlanIDErrors(t *testing.T) {
+func TestEnsureInterfaceErrors(t *testing.T) {
 	cr := &networkv1.Network{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      networkName,
@@ -173,7 +188,7 @@ func TestEnsureVlanIDErrors(t *testing.T) {
 		},
 		Spec: networkv1.NetworkSpec{
 			NodeInterfaceMatcher: networkv1.NodeInterfaceMatcher{
-				InterfaceName: utilpointer.StringPtr("foo"),
+				InterfaceName: utilpointer.StringPtr(parentLinkName),
 			},
 			L2NetworkConfig: &networkv1.L2NetworkConfig{
 				VlanID: utilpointer.Int32(100),
@@ -201,7 +216,7 @@ func TestEnsureVlanIDErrors(t *testing.T) {
 			desc:      "network exists, tagged interface exists with incorrect tag",
 			networkCR: cr,
 			existingVlan: &vlanDef{
-				parentInterface: "foo",
+				parentInterface: parentLinkName,
 				vlanID:          101,
 			},
 		},
@@ -219,8 +234,8 @@ func TestEnsureVlanIDErrors(t *testing.T) {
 		testFunc := func() {
 
 			if tc.existingVlan != nil {
-				defer cleanupLinks(t, expectedIntName, "foo", "foo1")
-				setupParentLink(t, "foo")
+				defer cleanupLinks(t, expectedIntName, parentLinkName, "foo1")
+				setupParentLink(t, parentLinkName)
 				setupParentLink(t, "foo1")
 
 				parentLink, err := netlink.LinkByName(tc.existingVlan.parentInterface)
@@ -240,7 +255,7 @@ func TestEnsureVlanIDErrors(t *testing.T) {
 				}
 			}
 
-			err := ensureVlanID(tc.networkCR, log)
+			err := ensureInterface(tc.networkCR, log)
 			if err == nil {
 				t.Fatal("ensureVlanID returns nil but want error")
 			}
@@ -257,7 +272,7 @@ func TestDeleteVlanID(t *testing.T) {
 		},
 		Spec: networkv1.NetworkSpec{
 			NodeInterfaceMatcher: networkv1.NodeInterfaceMatcher{
-				InterfaceName: utilpointer.StringPtr("foo"),
+				InterfaceName: utilpointer.StringPtr(parentLinkName),
 			},
 			L2NetworkConfig: &networkv1.L2NetworkConfig{
 				VlanID: utilpointer.Int32(100),
@@ -308,9 +323,9 @@ func TestDeleteVlanID(t *testing.T) {
 
 	for _, tc := range testcases {
 		testFunc := func() {
-			defer cleanupLinks(t, expectedIntName, "foo")
+			defer cleanupLinks(t, expectedIntName, parentLinkName)
 
-			parentLink := setupParentLink(t, "foo")
+			parentLink := setupParentLink(t, parentLinkName)
 
 			if !tc.intAlreadyDeleted {
 				vlan := netlink.Vlan{
@@ -345,6 +360,21 @@ func TestDeleteVlanID(t *testing.T) {
 	}
 }
 
+func waitForLinkStateChange(t *testing.T, name string, expectedState netlink.LinkOperState) bool {
+	for i := 0; i < 10; i++ {
+		link, err := netlink.LinkByName(name)
+		if err != nil {
+			t.Fatalf("unable to check link state as link is not found: %s", name)
+		}
+		if link.Attrs().OperState == expectedState {
+			return true
+		}
+		// Add sleep time for the link's operational state to change.
+		time.Sleep(500 * time.Millisecond)
+	}
+	return false
+}
+
 func runTestInNetNS(t *testing.T, test func()) {
 	// Source:
 	// https://github.com/vishvananda/netlink/blob/c79a4b7b40668c3f7867bf256b80b6b2dc65e58e/netns_test.go#L49
@@ -372,17 +402,13 @@ func setupParentLink(t *testing.T, parentName string) netlink.Link {
 	if err != nil {
 		t.Fatalf("unable to add parent interface: %s", err)
 	}
-	parentLink, err := netlink.LinkByName(parentName)
-	if err != nil {
-		t.Fatalf("unable to find parent interface: %s", err)
-	}
 
-	err = netlink.LinkSetUp(parentLink)
+	err = netlink.LinkSetUp(parent)
 	if err != nil {
 		t.Fatalf("unable to bring up parent interface: %s", err)
 	}
 
-	return parentLink
+	return parent
 }
 
 // cleanupLinks ensures that the provided links do not exist or will delete if they do exist
@@ -458,7 +484,7 @@ func TestUpdateNodeNetworkAnnotation(t *testing.T) {
 				networkv1.NodeNetworkAnnotationKey: `[{"name":"foo"}]`,
 			},
 			nodeName: nodeName,
-			network:  "foo",
+			network:  parentLinkName,
 			isAdd:    true,
 			wantAnnotations: map[string]string{
 				networkv1.NodeNetworkAnnotationKey: `[{"name":"foo"}]`,
@@ -470,7 +496,7 @@ func TestUpdateNodeNetworkAnnotation(t *testing.T) {
 				networkv1.NodeNetworkAnnotationKey: `[{"name":"foo"}]`,
 			},
 			nodeName: nodeName,
-			network:  "foo",
+			network:  parentLinkName,
 			isAdd:    false,
 			wantAnnotations: map[string]string{
 				networkv1.NodeNetworkAnnotationKey: "[]",
@@ -514,7 +540,7 @@ func TestUpdateNodeNetworkAnnotation(t *testing.T) {
 				networkv1.NodeNetworkAnnotationKey: `[{"name":"foo"}]`,
 			},
 			nodeName: "foo-node",
-			network:  "foo",
+			network:  parentLinkName,
 			wantErr:  "failed to get k8s node \"test-node\": nodes \"test-node\" not found",
 		},
 	}

@@ -151,57 +151,42 @@ func (r *NetworkReconciler) unloadEBPFOnParent(ctx context.Context, network *net
 
 // ensureVlanID ensures that an interface named `parentIntName.vlanID` exists with
 // the proper vlan ID
-func ensureVlanID(network *networkv1.Network, log *logrus.Entry) error {
-	if !hasVlanTag(network) {
-		return nil
-	}
-
-	taggedIntName, err := network.InterfaceName()
-	if err != nil {
-		log.Errorf("Errored generating interface name for network %s: %s", network.Name, err)
-		return nil
-	}
-	// InterfaceName() will return an error if Spec.NodeInterfaceMatcher.InterfaceName is nil
-	parentIntName := *network.Spec.NodeInterfaceMatcher.InterfaceName
-	vlanID := int(*network.Spec.L2NetworkConfig.VlanID)
-	parentInt, err := netlink.LinkByName(parentIntName)
-	if err != nil {
-		return fmt.Errorf("failed to find parent interface %s: %q", parentInt, err)
-	}
+func ensureVlanID(vlanIntName string, vlanID int, parentLink netlink.Link, log *logrus.Entry) error {
 	// check if tagged interface already exists
-	link, err := netlink.LinkByName(taggedIntName)
+	link, err := netlink.LinkByName(vlanIntName)
 	if err == nil {
 		origVlan, ok := link.(*netlink.Vlan)
 		if !ok {
-			return fmt.Errorf("interface %s is not a vlan (%+v)", taggedIntName, origVlan)
+			return fmt.Errorf("interface %s is not a vlan (%+v)", vlanIntName, origVlan)
 		}
 
 		if origVlan.VlanId != vlanID {
-			return fmt.Errorf("existing interface %s has vlan id %d, expected %d", taggedIntName, origVlan.VlanId, vlanID)
+			return fmt.Errorf("existing interface %s has vlan id %d, expected %d", vlanIntName, origVlan.VlanId, vlanID)
 		}
-		if parentInt.Attrs().Index != origVlan.Attrs().ParentIndex {
-			return fmt.Errorf("existing interface %s has parent interface %s, expected %s", taggedIntName, origVlan.Attrs().Name, parentIntName)
+		if parentLink.Attrs().Index != origVlan.Attrs().ParentIndex {
+			return fmt.Errorf("existing interface %s has parent interface %s, expected %s", vlanIntName, origVlan.Attrs().Name, parentLink.Attrs().Name)
 		}
 	} else {
 		vlan := netlink.Vlan{
 			LinkAttrs: netlink.LinkAttrs{
-				ParentIndex: parentInt.Attrs().Index,
-				Name:        taggedIntName,
+				ParentIndex: parentLink.Attrs().Index,
+				Name:        vlanIntName,
 			},
 			VlanId: vlanID,
 		}
 
 		if err := netlink.LinkAdd(&vlan); err != nil {
-			return fmt.Errorf("failed to create tagged interface %s : %q", taggedIntName, err)
+			return fmt.Errorf("failed to create tagged interface %s : %q", vlanIntName, err)
 		}
+
 		link = &vlan
 	}
 
 	if err := netlink.LinkSetUp(link); err != nil {
-		return fmt.Errorf("failed to bring up tagged vlan interface %q: %v", taggedIntName, err)
+		return fmt.Errorf("failed to bring up network vlan interface %q: %v", vlanIntName, err)
 	}
 
-	log.WithField("vlan", taggedIntName).Info("Ensured vlan interface")
+	log.WithField("vlan", vlanIntName).Info("Ensured vlan interface")
 	return nil
 }
 
@@ -283,8 +268,8 @@ func (r *NetworkReconciler) updateNodeNetworkAnnotation(ctx context.Context, net
 }
 
 func (r *NetworkReconciler) reconcileNetwork(ctx context.Context, network *networkv1.Network, log *logrus.Entry) (ctrl.Result, error) {
-	if err := ensureVlanID(network, log); err != nil {
-		log.WithError(err).Error("Unable to ensure tagged interface")
+	if err := ensureInterface(network, log); err != nil {
+		log.WithError(err).Error("Unable to ensure network interface")
 		return ctrl.Result{}, err
 	}
 	if err := r.loadEBPFOnParent(ctx, network, log); err != nil {
@@ -362,4 +347,34 @@ func hasVlanTag(network *networkv1.Network) bool {
 	}
 	return true
 
+}
+
+func ensureInterface(network *networkv1.Network, log *logrus.Entry) error {
+	intfName, err := network.InterfaceName()
+	if err != nil {
+		// Log error but return nil here as this is mostly due to misconfiguration
+		// in the network CR object and is unlikely to reconcile.
+		log.Errorf("Errored generating interface name for network %s: %v", network.Name, err)
+		return nil
+	}
+	scopedLog := log.WithField(logfields.Interface, intfName)
+
+	// InterfaceName() will return an error if Spec.NodeInterfaceMatcher.InterfaceName is nil
+	parentIntName := *network.Spec.NodeInterfaceMatcher.InterfaceName
+	link, err := netlink.LinkByName(parentIntName)
+	if err != nil {
+		return fmt.Errorf("failed to find parent interface %s: %q", parentIntName, err)
+	}
+	if err := netlink.LinkSetUp(link); err != nil {
+		return fmt.Errorf("failed to bring up network parent interface %q: %v", parentIntName, err)
+	}
+	scopedLog.WithField("parentInterface", parentIntName).Info("Ensured parent interface")
+
+	if hasVlanTag(network) {
+		if err := ensureVlanID(intfName, int(*network.Spec.L2NetworkConfig.VlanID), link, scopedLog); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
