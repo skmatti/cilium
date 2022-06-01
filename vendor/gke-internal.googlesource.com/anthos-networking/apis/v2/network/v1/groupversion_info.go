@@ -1,7 +1,8 @@
-// Package v1alpha1 contains API Schema definitions for the networking v1alpha1 API group
+// Package v1 contains API Schema definitions for the networking v1 API group
 //+kubebuilder:object:generate=true
 //+groupName=networking.gke.io
-package v1alpha1
+
+package v1
 
 import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -11,7 +12,7 @@ import (
 
 var (
 	// GroupVersion is group version used to register these objects
-	GroupVersion = schema.GroupVersion{Group: "networking.gke.io", Version: "v1alpha1"}
+	GroupVersion = schema.GroupVersion{Group: "networking.gke.io", Version: "v1"}
 
 	schemeBuilder = runtime.NewSchemeBuilder(addKnownTypes)
 	AddToScheme   = schemeBuilder.AddToScheme

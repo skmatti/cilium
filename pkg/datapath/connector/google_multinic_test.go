@@ -31,7 +31,7 @@ import (
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/vishvananda/netlink"
 	"github.com/vishvananda/netns"
-	networkv1alpha1 "gke-internal.googlesource.com/anthos-networking/apis/v2/network/v1alpha1"
+	networkv1 "gke-internal.googlesource.com/anthos-networking/apis/v2/network/v1"
 	"golang.org/x/sys/unix"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -52,32 +52,32 @@ const (
 	remoteNSName      = "test"
 )
 
-func getTestInterfaceCR(ipStrs []string, macStr *string) *networkv1alpha1.NetworkInterface {
-	return &networkv1alpha1.NetworkInterface{
+func getTestInterfaceCR(ipStrs []string, macStr *string) *networkv1.NetworkInterface {
+	return &networkv1.NetworkInterface{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "test-eth0",
 			Namespace: "test-ns",
 		},
-		Spec: networkv1alpha1.NetworkInterfaceSpec{
+		Spec: networkv1.NetworkInterfaceSpec{
 			IpAddresses: ipStrs,
 			MacAddress:  macStr,
 		},
 	}
 }
 
-func getTestInterfaceCRWithStatus(ipStrs []string, macStr *string, statusMacStr string) *networkv1alpha1.NetworkInterface {
+func getTestInterfaceCRWithStatus(ipStrs []string, macStr *string, statusMacStr string) *networkv1.NetworkInterface {
 	intfCR := getTestInterfaceCR(ipStrs, macStr)
 	intfCR.Status.MacAddress = statusMacStr
 	return intfCR
 }
 
-func getTestNetworkCR(parentDevName *string) *networkv1alpha1.Network {
-	return &networkv1alpha1.Network{
+func getTestNetworkCR(parentDevName *string) *networkv1.Network {
+	return &networkv1.Network{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "test-network",
 		},
-		Spec: networkv1alpha1.NetworkSpec{
-			NodeInterfaceMatcher: networkv1alpha1.NodeInterfaceMatcher{
+		Spec: networkv1.NetworkSpec{
+			NodeInterfaceMatcher: networkv1.NodeInterfaceMatcher{
 				InterfaceName: parentDevName,
 			},
 		},
@@ -169,8 +169,8 @@ func TestGetInterfaceConfiguration(t *testing.T) {
 	testcases := []struct {
 		desc    string
 		wantErr string
-		intf    *networkv1alpha1.NetworkInterface
-		net     *networkv1alpha1.Network
+		intf    *networkv1.NetworkInterface
+		net     *networkv1.Network
 		want    *interfaceConfiguration
 	}{
 		{
@@ -347,13 +347,13 @@ func TestParseIPSubnet(t *testing.T) {
 func TestParseIPRoutes(t *testing.T) {
 	testcases := []struct {
 		desc    string
-		routes  []networkv1alpha1.Route
+		routes  []networkv1.Route
 		want    []*net.IPNet
 		wantErr string
 	}{
 		{
 			desc: "good routes",
-			routes: []networkv1alpha1.Route{
+			routes: []networkv1.Route{
 				{To: goodIPv4Str},
 				{To: "10.10.10.1/32"},
 			},
@@ -364,28 +364,28 @@ func TestParseIPRoutes(t *testing.T) {
 		},
 		{
 			desc: "parse cidr fail",
-			routes: []networkv1alpha1.Route{
+			routes: []networkv1.Route{
 				{To: "192.168.0.10.10"},
 			},
 			wantErr: "failed to parse CIDR: invalid CIDR address: 192.168.0.10.10",
 		},
 		{
 			desc: "reject default route",
-			routes: []networkv1alpha1.Route{
+			routes: []networkv1.Route{
 				{To: "0.0.0.0/0"},
 			},
 			wantErr: "CIDR length must be over 0: 0.0.0.0/0",
 		},
 		{
 			desc: "reject route with 0 prefix length",
-			routes: []networkv1alpha1.Route{
+			routes: []networkv1.Route{
 				{To: "10.10.0.0/0"},
 			},
 			wantErr: "CIDR length must be over 0: 10.10.0.0/0",
 		},
 		{
 			desc: "reject ipv6 route",
-			routes: []networkv1alpha1.Route{
+			routes: []networkv1.Route{
 				{To: goodIPv6Str},
 			},
 			wantErr: "ipv6 route \"a:b::/32\" is not supported",
@@ -417,7 +417,7 @@ func TestSetupNetworkRoutes(t *testing.T) {
 	testcases := []struct {
 		desc               string
 		interfaceName      string
-		intf               *networkv1alpha1.NetworkInterface
+		intf               *networkv1.NetworkInterface
 		isDefaultInterface bool
 		routeMTU           int
 		wantRoutes         []netlink.Route
@@ -425,9 +425,9 @@ func TestSetupNetworkRoutes(t *testing.T) {
 	}{
 		{
 			desc: "apply routes with gw to multinic-network",
-			intf: &networkv1alpha1.NetworkInterface{
-				Status: networkv1alpha1.NetworkInterfaceStatus{
-					Routes: []networkv1alpha1.Route{
+			intf: &networkv1.NetworkInterface{
+				Status: networkv1.NetworkInterfaceStatus{
+					Routes: []networkv1.Route{
 						{
 							To: "10.10.10.0/24",
 						},
@@ -445,9 +445,9 @@ func TestSetupNetworkRoutes(t *testing.T) {
 		},
 		{
 			desc: "apply routes without gw to multinic-network",
-			intf: &networkv1alpha1.NetworkInterface{
-				Status: networkv1alpha1.NetworkInterfaceStatus{
-					Routes: []networkv1alpha1.Route{
+			intf: &networkv1.NetworkInterface{
+				Status: networkv1.NetworkInterfaceStatus{
+					Routes: []networkv1.Route{
 						{
 							To: "10.10.10.0/24",
 						},
@@ -464,9 +464,9 @@ func TestSetupNetworkRoutes(t *testing.T) {
 		},
 		{
 			desc: "apply default route with gw to multinic-network",
-			intf: &networkv1alpha1.NetworkInterface{
-				Status: networkv1alpha1.NetworkInterfaceStatus{
-					Routes: []networkv1alpha1.Route{
+			intf: &networkv1.NetworkInterface{
+				Status: networkv1.NetworkInterfaceStatus{
+					Routes: []networkv1.Route{
 						{
 							To: "10.10.10.0/24",
 						},
@@ -486,12 +486,12 @@ func TestSetupNetworkRoutes(t *testing.T) {
 		},
 		{
 			desc: "apply default route with gw to pod-network",
-			intf: &networkv1alpha1.NetworkInterface{
-				Spec: networkv1alpha1.NetworkInterfaceSpec{
-					NetworkName: networkv1alpha1.DefaultNetworkName,
+			intf: &networkv1.NetworkInterface{
+				Spec: networkv1.NetworkInterfaceSpec{
+					NetworkName: networkv1.DefaultNetworkName,
 				},
-				Status: networkv1alpha1.NetworkInterfaceStatus{
-					Routes: []networkv1alpha1.Route{
+				Status: networkv1.NetworkInterfaceStatus{
+					Routes: []networkv1.Route{
 						{
 							To: "10.10.10.0/24",
 						},
@@ -510,9 +510,9 @@ func TestSetupNetworkRoutes(t *testing.T) {
 		},
 		{
 			desc: "apply routes with mtu to multinic-network",
-			intf: &networkv1alpha1.NetworkInterface{
-				Status: networkv1alpha1.NetworkInterfaceStatus{
-					Routes: []networkv1alpha1.Route{
+			intf: &networkv1.NetworkInterface{
+				Status: networkv1.NetworkInterfaceStatus{
+					Routes: []networkv1.Route{
 						{
 							To: "10.10.10.0/24",
 						},
@@ -530,12 +530,12 @@ func TestSetupNetworkRoutes(t *testing.T) {
 		},
 		{
 			desc: "apply routes with mtu to pod-network",
-			intf: &networkv1alpha1.NetworkInterface{
-				Spec: networkv1alpha1.NetworkInterfaceSpec{
-					NetworkName: networkv1alpha1.DefaultNetworkName,
+			intf: &networkv1.NetworkInterface{
+				Spec: networkv1.NetworkInterfaceSpec{
+					NetworkName: networkv1.DefaultNetworkName,
 				},
-				Status: networkv1alpha1.NetworkInterfaceStatus{
-					Routes: []networkv1alpha1.Route{
+				Status: networkv1.NetworkInterfaceStatus{
+					Routes: []networkv1.Route{
 						{
 							To: "10.10.10.0/24",
 						},
@@ -553,14 +553,14 @@ func TestSetupNetworkRoutes(t *testing.T) {
 		},
 		{
 			desc:       "no routes to apply",
-			intf:       &networkv1alpha1.NetworkInterface{Status: networkv1alpha1.NetworkInterfaceStatus{}},
+			intf:       &networkv1.NetworkInterface{Status: networkv1.NetworkInterfaceStatus{}},
 			wantRoutes: []netlink.Route{},
 		},
 		{
 			desc: "invalid routes",
-			intf: &networkv1alpha1.NetworkInterface{
-				Status: networkv1alpha1.NetworkInterfaceStatus{
-					Routes: []networkv1alpha1.Route{
+			intf: &networkv1.NetworkInterface{
+				Status: networkv1.NetworkInterfaceStatus{
+					Routes: []networkv1.Route{
 						{
 							To: "invalid_route",
 						},
@@ -571,8 +571,8 @@ func TestSetupNetworkRoutes(t *testing.T) {
 		},
 		{
 			desc: "invalid gw",
-			intf: &networkv1alpha1.NetworkInterface{
-				Status: networkv1alpha1.NetworkInterfaceStatus{
+			intf: &networkv1.NetworkInterface{
+				Status: networkv1.NetworkInterfaceStatus{
 					Gateway4: &invalidGW,
 				},
 			},
@@ -580,8 +580,8 @@ func TestSetupNetworkRoutes(t *testing.T) {
 		},
 		{
 			desc: "v6 gw",
-			intf: &networkv1alpha1.NetworkInterface{
-				Status: networkv1alpha1.NetworkInterfaceStatus{
+			intf: &networkv1.NetworkInterface{
+				Status: networkv1.NetworkInterfaceStatus{
 					Gateway4: &v6GW,
 				},
 			},
@@ -590,13 +590,13 @@ func TestSetupNetworkRoutes(t *testing.T) {
 		{
 			desc:          "interface not found",
 			interfaceName: "net1",
-			intf:          &networkv1alpha1.NetworkInterface{},
+			intf:          &networkv1.NetworkInterface{},
 			wantErr:       "failed to lookup interface \"net1\": Link not found",
 		},
 		{
 			desc: "default route but without gw address",
-			intf: &networkv1alpha1.NetworkInterface{
-				Status: networkv1alpha1.NetworkInterfaceStatus{
+			intf: &networkv1.NetworkInterface{
+				Status: networkv1.NetworkInterfaceStatus{
 					Gateway4: nil,
 				},
 			},
@@ -662,66 +662,66 @@ func TestSetupNetworkRoutes(t *testing.T) {
 func TestConfigureDHCPInfo(t *testing.T) {
 	trueVal := true
 	parentInt := "vlan100"
-	dhcpNetwork := &networkv1alpha1.Network{
-		Spec: networkv1alpha1.NetworkSpec{
-			NodeInterfaceMatcher: networkv1alpha1.NodeInterfaceMatcher{
+	dhcpNetwork := &networkv1.Network{
+		Spec: networkv1.NetworkSpec{
+			NodeInterfaceMatcher: networkv1.NodeInterfaceMatcher{
 				InterfaceName: &parentInt,
 			},
 			ExternalDHCP4: &trueVal,
 		},
 	}
-	routesNetwork := &networkv1alpha1.Network{
-		Spec: networkv1alpha1.NetworkSpec{
-			NodeInterfaceMatcher: networkv1alpha1.NodeInterfaceMatcher{
+	routesNetwork := &networkv1.Network{
+		Spec: networkv1.NetworkSpec{
+			NodeInterfaceMatcher: networkv1.NodeInterfaceMatcher{
 				InterfaceName: &parentInt,
 			},
 			ExternalDHCP4: &trueVal,
-			Routes:        []networkv1alpha1.Route{{To: "route1"}},
+			Routes:        []networkv1.Route{{To: "route1"}},
 		},
 	}
-	nameServersNetwork := &networkv1alpha1.Network{
-		Spec: networkv1alpha1.NetworkSpec{
-			NodeInterfaceMatcher: networkv1alpha1.NodeInterfaceMatcher{
+	nameServersNetwork := &networkv1.Network{
+		Spec: networkv1.NetworkSpec{
+			NodeInterfaceMatcher: networkv1.NodeInterfaceMatcher{
 				InterfaceName: &parentInt,
 			},
 			ExternalDHCP4: &trueVal,
-			DNSConfig: &networkv1alpha1.DNSConfig{
+			DNSConfig: &networkv1.DNSConfig{
 				Nameservers: []string{"1.1.1.1", "2.2.2.2"},
 			},
 		},
 	}
-	searchesNetwork := &networkv1alpha1.Network{
-		Spec: networkv1alpha1.NetworkSpec{
-			NodeInterfaceMatcher: networkv1alpha1.NodeInterfaceMatcher{
+	searchesNetwork := &networkv1.Network{
+		Spec: networkv1.NetworkSpec{
+			NodeInterfaceMatcher: networkv1.NodeInterfaceMatcher{
 				InterfaceName: &parentInt,
 			},
 			ExternalDHCP4: &trueVal,
-			DNSConfig: &networkv1alpha1.DNSConfig{
+			DNSConfig: &networkv1.DNSConfig{
 				Searches: []string{"example.com", "example.org"},
 			},
 		},
 	}
-	gatewayNetwork := &networkv1alpha1.Network{
-		Spec: networkv1alpha1.NetworkSpec{
-			NodeInterfaceMatcher: networkv1alpha1.NodeInterfaceMatcher{
+	gatewayNetwork := &networkv1.Network{
+		Spec: networkv1.NetworkSpec{
+			NodeInterfaceMatcher: networkv1.NodeInterfaceMatcher{
 				InterfaceName: &parentInt,
 			},
 			ExternalDHCP4: &trueVal,
 			Gateway4:      pointer.StringPtr("3.3.3.3"),
 		},
 	}
-	staticNetwork := &networkv1alpha1.Network{}
-	missingIntNetwork := &networkv1alpha1.Network{
-		Spec: networkv1alpha1.NetworkSpec{
+	staticNetwork := &networkv1.Network{}
+	missingIntNetwork := &networkv1.Network{
+		Spec: networkv1.NetworkSpec{
 			ExternalDHCP4: &trueVal,
 		},
 	}
-	l2Network := &networkv1alpha1.Network{
-		Spec: networkv1alpha1.NetworkSpec{
-			NodeInterfaceMatcher: networkv1alpha1.NodeInterfaceMatcher{
+	l2Network := &networkv1.Network{
+		Spec: networkv1.NetworkSpec{
+			NodeInterfaceMatcher: networkv1.NodeInterfaceMatcher{
 				InterfaceName: &parentInt,
 			},
-			L2NetworkConfig: &networkv1alpha1.L2NetworkConfig{
+			L2NetworkConfig: &networkv1.L2NetworkConfig{
 				VlanID: pointer.Int32(100),
 			},
 			ExternalDHCP4: &trueVal,
@@ -760,10 +760,10 @@ func TestConfigureDHCPInfo(t *testing.T) {
 
 	dhcpResp := dhcp.DHCPResponse{
 		IPAddresses: []*net.IPNet{ipNet2},
-		Routes: []networkv1alpha1.Route{
+		Routes: []networkv1.Route{
 			{To: "route2"},
 		},
-		DNSConfig: &networkv1alpha1.DNSConfig{
+		DNSConfig: &networkv1.DNSConfig{
 			Nameservers: []string{"10.10.10.10"},
 			Searches:    []string{"searchdomain"},
 		},
@@ -771,10 +771,10 @@ func TestConfigureDHCPInfo(t *testing.T) {
 	}
 	emptyMacResponse := dhcp.DHCPResponse{
 		IPAddresses: []*net.IPNet{ipNet2},
-		Routes: []networkv1alpha1.Route{
+		Routes: []networkv1.Route{
 			{To: "route3"},
 		},
-		DNSConfig: &networkv1alpha1.DNSConfig{
+		DNSConfig: &networkv1.DNSConfig{
 			Nameservers: []string{"10.10.10.10"},
 			Searches:    []string{"searchdomain"},
 		},
@@ -788,7 +788,7 @@ func TestConfigureDHCPInfo(t *testing.T) {
 
 	testcases := []struct {
 		desc     string
-		network  *networkv1alpha1.Network
+		network  *networkv1.Network
 		cfg      interfaceConfiguration
 		wantResp *dhcp.DHCPResponse
 		wantErr  string
@@ -939,7 +939,7 @@ type fakeDHCPClient struct {
 	emptyMacResponse dhcp.DHCPResponse
 	resp             dhcp.DHCPResponse
 	clientErr        error
-	network          *networkv1alpha1.Network
+	network          *networkv1.Network
 	t                *testing.T
 }
 

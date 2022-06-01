@@ -35,7 +35,7 @@ import (
 	monitorAPI "github.com/cilium/cilium/pkg/monitor/api"
 	"github.com/cilium/cilium/pkg/option"
 	"github.com/cilium/cilium/pkg/proxy"
-	networkv1alpha1 "gke-internal.googlesource.com/anthos-networking/apis/v2/network/v1alpha1"
+	networkv1 "gke-internal.googlesource.com/anthos-networking/apis/v2/network/v1"
 )
 
 var errEndpointNotFound = errors.New("endpoint not found")
@@ -545,7 +545,7 @@ func (h *putEndpointID) Handle(params PutEndpointIDParams) (resp middleware.Resp
 		log.WithField(logfields.Params, logfields.Repr(params)).Debug("PUT /endpoint/{id} request")
 	}
 	epTemplate := params.Endpoint
-	addNetworkLabelIfMultiNICEnabled(epTemplate, networkv1alpha1.DefaultNetworkName)
+	addNetworkLabelIfMultiNICEnabled(epTemplate, networkv1.DefaultNetworkName)
 
 	r, err := h.d.apiLimiterSet.Wait(params.HTTPRequest.Context(), apiRequestEndpointCreate)
 	if err != nil {

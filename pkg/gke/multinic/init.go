@@ -10,7 +10,7 @@ import (
 	"github.com/cilium/cilium/pkg/k8s"
 	"github.com/cilium/cilium/pkg/logging"
 	"github.com/cilium/cilium/pkg/logging/logfields"
-	networkv1alpha1 "gke-internal.googlesource.com/anthos-networking/apis/v2/network/v1alpha1"
+	networkv1 "gke-internal.googlesource.com/anthos-networking/apis/v2/network/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -31,7 +31,7 @@ func Init(ctx context.Context, endpointManager *endpointmanager.EndpointManager)
 	}
 	scheme := runtime.NewScheme()
 	// The controller runs on every node. Consider performance impact when adding new schemes.
-	if err := networkv1alpha1.AddToScheme(scheme); err != nil {
+	if err := networkv1.AddToScheme(scheme); err != nil {
 		return nil, nil, nil, errors.New("failed to add scheme with network APIs")
 	}
 	if err := corev1.AddToScheme(scheme); err != nil {

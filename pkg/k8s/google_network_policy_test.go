@@ -17,7 +17,7 @@ import (
 	"github.com/cilium/cilium/pkg/option"
 	"github.com/cilium/cilium/pkg/policy"
 	"github.com/cilium/cilium/pkg/policy/api"
-	networkv1alpha1 "gke-internal.googlesource.com/anthos-networking/apis/v2/network/v1alpha1"
+	networkv1 "gke-internal.googlesource.com/anthos-networking/apis/v2/network/v1"
 )
 
 var (
@@ -26,13 +26,13 @@ var (
 			labels.NewLabel(k8sConst.PodNamespaceLabel, slim_metav1.NamespaceDefault, labels.LabelSourceK8s),
 			labels.NewLabel("foo3", "bar3", labels.LabelSourceK8s),
 			labels.NewLabel("foo4", "bar4", labels.LabelSourceK8s),
-			labels.NewLabel(networkv1alpha1.NetworkAnnotationKey, "vlan-network", labels.LabelSourceK8s),
+			labels.NewLabel(networkv1.NetworkAnnotationKey, "vlan-network", labels.LabelSourceK8s),
 		},
 		To: labels.LabelArray{
 			labels.NewLabel(k8sConst.PodNamespaceLabel, slim_metav1.NamespaceDefault, labels.LabelSourceK8s),
 			labels.NewLabel("foo1", "bar1", labels.LabelSourceK8s),
 			labels.NewLabel("foo2", "bar2", labels.LabelSourceK8s),
-			labels.NewLabel(networkv1alpha1.NetworkAnnotationKey, "vlan-network", labels.LabelSourceK8s),
+			labels.NewLabel(networkv1.NetworkAnnotationKey, "vlan-network", labels.LabelSourceK8s),
 		},
 		DPorts: []*models.Port{
 			{
@@ -68,13 +68,13 @@ var (
 			labels.NewLabel(k8sConst.PodNamespaceLabel, slim_metav1.NamespaceDefault, labels.LabelSourceK8s),
 			labels.NewLabel("foo3", "bar3", labels.LabelSourceK8s),
 			labels.NewLabel("foo4", "bar4", labels.LabelSourceK8s),
-			labels.NewLabel(networkv1alpha1.NetworkAnnotationKey, "pod-network", labels.LabelSourceK8s),
+			labels.NewLabel(networkv1.NetworkAnnotationKey, "pod-network", labels.LabelSourceK8s),
 		},
 		To: labels.LabelArray{
 			labels.NewLabel(k8sConst.PodNamespaceLabel, slim_metav1.NamespaceDefault, labels.LabelSourceK8s),
 			labels.NewLabel("foo1", "bar1", labels.LabelSourceK8s),
 			labels.NewLabel("foo2", "bar2", labels.LabelSourceK8s),
-			labels.NewLabel(networkv1alpha1.NetworkAnnotationKey, "pod-network", labels.LabelSourceK8s),
+			labels.NewLabel(networkv1.NetworkAnnotationKey, "pod-network", labels.LabelSourceK8s),
 		},
 		DPorts: []*models.Port{
 			{
@@ -90,13 +90,13 @@ var (
 			labels.NewLabel(k8sConst.PodNamespaceLabel, slim_metav1.NamespaceDefault, labels.LabelSourceK8s),
 			labels.NewLabel("foo1", "bar1", labels.LabelSourceK8s),
 			labels.NewLabel("foo2", "bar2", labels.LabelSourceK8s),
-			labels.NewLabel(networkv1alpha1.NetworkAnnotationKey, "vlan-network", labels.LabelSourceK8s),
+			labels.NewLabel(networkv1.NetworkAnnotationKey, "vlan-network", labels.LabelSourceK8s),
 		},
 		To: labels.LabelArray{
 			labels.NewLabel(k8sConst.PodNamespaceLabel, slim_metav1.NamespaceDefault, labels.LabelSourceK8s),
 			labels.NewLabel("foo3", "bar3", labels.LabelSourceK8s),
 			labels.NewLabel("foo4", "bar4", labels.LabelSourceK8s),
-			labels.NewLabel(networkv1alpha1.NetworkAnnotationKey, "vlan-network", labels.LabelSourceK8s),
+			labels.NewLabel(networkv1.NetworkAnnotationKey, "vlan-network", labels.LabelSourceK8s),
 		},
 		DPorts: []*models.Port{
 			{
@@ -132,13 +132,13 @@ var (
 			labels.NewLabel(k8sConst.PodNamespaceLabel, slim_metav1.NamespaceDefault, labels.LabelSourceK8s),
 			labels.NewLabel("foo1", "bar1", labels.LabelSourceK8s),
 			labels.NewLabel("foo2", "bar2", labels.LabelSourceK8s),
-			labels.NewLabel(networkv1alpha1.NetworkAnnotationKey, "pod-network", labels.LabelSourceK8s),
+			labels.NewLabel(networkv1.NetworkAnnotationKey, "pod-network", labels.LabelSourceK8s),
 		},
 		To: labels.LabelArray{
 			labels.NewLabel(k8sConst.PodNamespaceLabel, slim_metav1.NamespaceDefault, labels.LabelSourceK8s),
 			labels.NewLabel("foo3", "bar3", labels.LabelSourceK8s),
 			labels.NewLabel("foo4", "bar4", labels.LabelSourceK8s),
-			labels.NewLabel(networkv1alpha1.NetworkAnnotationKey, "pod-network", labels.LabelSourceK8s),
+			labels.NewLabel(networkv1.NetworkAnnotationKey, "pod-network", labels.LabelSourceK8s),
 		},
 		DPorts: []*models.Port{
 			{
@@ -152,7 +152,7 @@ var (
 	ingressNetworkPolicyWithNetworkAnnotation = slim_networkingv1.NetworkPolicy{
 		ObjectMeta: slim_metav1.ObjectMeta{
 			Annotations: map[string]string{
-				networkv1alpha1.NetworkAnnotationKey: "pod-network",
+				networkv1.NetworkAnnotationKey: "pod-network",
 			},
 		},
 		Spec: slim_networkingv1.NetworkPolicySpec{
@@ -223,7 +223,7 @@ var (
 	egressNetworkPolicyWithNetworkAnnotation = slim_networkingv1.NetworkPolicy{
 		ObjectMeta: slim_metav1.ObjectMeta{
 			Annotations: map[string]string{
-				networkv1alpha1.NetworkAnnotationKey: "pod-network",
+				networkv1.NetworkAnnotationKey: "pod-network",
 			},
 		},
 		Spec: slim_networkingv1.NetworkPolicySpec{
@@ -520,7 +520,7 @@ func Test_parseNetworkPolicyIngressAllowAllForNetworkSelector(t *testing.T) {
 	allowAllIngressNPOnPodNetwork := &slim_networkingv1.NetworkPolicy{
 		ObjectMeta: slim_metav1.ObjectMeta{
 			Annotations: map[string]string{
-				networkv1alpha1.NetworkAnnotationKey: "pod-network",
+				networkv1.NetworkAnnotationKey: "pod-network",
 			},
 		},
 		Spec: slim_networkingv1.NetworkPolicySpec{
@@ -611,7 +611,7 @@ func Test_parseNetworkPolicyEgressAllowAllForNetworkSelector(t *testing.T) {
 	allowAllEgressNPOnPodNetwork := &slim_networkingv1.NetworkPolicy{
 		ObjectMeta: slim_metav1.ObjectMeta{
 			Annotations: map[string]string{
-				networkv1alpha1.NetworkAnnotationKey: "pod-network",
+				networkv1.NetworkAnnotationKey: "pod-network",
 			},
 		},
 		Spec: slim_networkingv1.NetworkPolicySpec{
@@ -697,7 +697,7 @@ func Test_parseNetworkPolicyIngressDenyAllForNetworkSelector(t *testing.T) {
 	denyAllIngressNPOnPodNetwork := &slim_networkingv1.NetworkPolicy{
 		ObjectMeta: slim_metav1.ObjectMeta{
 			Annotations: map[string]string{
-				networkv1alpha1.NetworkAnnotationKey: "pod-network",
+				networkv1.NetworkAnnotationKey: "pod-network",
 			},
 		},
 		Spec: slim_networkingv1.NetworkPolicySpec{
@@ -778,7 +778,7 @@ func Test_parseNetworkPolicyEgressDenyAllForNetworkSelector(t *testing.T) {
 	denyAllEgressNPOnPodNetwork := &slim_networkingv1.NetworkPolicy{
 		ObjectMeta: slim_metav1.ObjectMeta{
 			Annotations: map[string]string{
-				networkv1alpha1.NetworkAnnotationKey: "pod-network",
+				networkv1.NetworkAnnotationKey: "pod-network",
 			},
 		},
 		Spec: slim_networkingv1.NetworkPolicySpec{

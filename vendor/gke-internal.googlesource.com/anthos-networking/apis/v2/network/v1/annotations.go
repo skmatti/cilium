@@ -1,4 +1,4 @@
-package v1alpha1
+package v1
 
 import (
 	"encoding/json"
@@ -37,7 +37,7 @@ type InterfaceAnnotation []InterfaceRef
 
 // InterfaceRef specifies the reference to network interface.
 // All fields are mutual exclusive.
-// Either Network or Interface field can to be specified.
+// Either Network or Interface field can be specified.
 // +kubebuilder:object:generate:=false
 type InterfaceRef struct {
 	// InterfaceName is the name of the interface in pod network namespace.

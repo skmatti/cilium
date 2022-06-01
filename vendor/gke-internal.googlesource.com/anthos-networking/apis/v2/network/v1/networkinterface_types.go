@@ -1,4 +1,4 @@
-package v1alpha1
+package v1
 
 import metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
@@ -9,6 +9,7 @@ import metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 // +kubebuilder:printcolumn:name="IP",type="string",JSONPath=".status.ipAddresses[0]",description="IP address assigned to this interface"
 // +kubebuilder:printcolumn:name="MAC",type="string",JSONPath=".status.macAddress",description="MAC address assigned to this interface"
 // +kubebuilder:printcolumn:name="NETWORK",type="string",JSONPath=".spec.networkName",description="The Network this interface connects to"
+// +kubebuilder:storageversion
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 // NetworkInterface defines the network interface for a pod to connect to a network.
@@ -55,6 +56,10 @@ type NetworkInterfaceStatus struct {
 	// Specifies the DNS configuration of the network this interface connects to.
 	// +optional
 	DNSConfig *DNSConfig `json:"dnsConfig,omitempty"`
+
+	// PodName specifies the current pod name this interface is connected to
+	// +optional
+	PodName *string `json:"podName,omitempty"`
 
 	//// Conditions include the the conditions associated with this Interface
 	// Conditions []metav1.Condition `json:"conditions,omitempty"`

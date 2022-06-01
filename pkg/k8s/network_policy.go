@@ -17,7 +17,7 @@ import (
 	"github.com/cilium/cilium/pkg/option"
 	"github.com/cilium/cilium/pkg/policy"
 	"github.com/cilium/cilium/pkg/policy/api"
-	networkv1alpha1 "gke-internal.googlesource.com/anthos-networking/apis/v2/network/v1alpha1"
+	networkv1 "gke-internal.googlesource.com/anthos-networking/apis/v2/network/v1"
 )
 
 const (
@@ -122,7 +122,7 @@ func ParseNetworkPolicy(np *slim_networkingv1.NetworkPolicy) (api.Rules, error) 
 		return nil, fmt.Errorf("cannot parse NetworkPolicy because it is nil")
 	}
 
-	networkAnnotationValue, networkAnnotationPresent := np.ObjectMeta.Annotations[networkv1alpha1.NetworkAnnotationKey]
+	networkAnnotationValue, networkAnnotationPresent := np.ObjectMeta.Annotations[networkv1.NetworkAnnotationKey]
 	var networkSelector *slim_metav1.LabelSelector
 
 	if option.Config.EnableGoogleMultiNIC && networkAnnotationPresent {

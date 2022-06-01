@@ -27,7 +27,7 @@ import (
 	"github.com/containernetworking/plugins/pkg/ns"
 	"github.com/sirupsen/logrus"
 	"github.com/vishvananda/netlink"
-	networkv1alpha1 "gke-internal.googlesource.com/anthos-networking/apis/v2/network/v1alpha1"
+	networkv1 "gke-internal.googlesource.com/anthos-networking/apis/v2/network/v1"
 	"golang.org/x/sys/unix"
 	"k8s.io/apimachinery/pkg/types"
 )
@@ -80,7 +80,7 @@ func parseIPSubnet(addr string) (*net.IPNet, error) {
 	}, nil
 }
 
-func parseIPRoutes(routes []networkv1alpha1.Route) ([]*net.IPNet, error) {
+func parseIPRoutes(routes []networkv1.Route) ([]*net.IPNet, error) {
 	var res []*net.IPNet
 	for _, rt := range routes {
 		ip, ipNet, err := net.ParseCIDR(rt.To)
@@ -100,7 +100,7 @@ func parseIPRoutes(routes []networkv1alpha1.Route) ([]*net.IPNet, error) {
 
 // getInterfaceConfiguration returns interfaceConfiguration which is needed to configure the macvlan/macvtap interface.
 // The function also enforces some necessary checks of the configuration and returns a proper error message.
-func getInterfaceConfiguration(intf *networkv1alpha1.NetworkInterface, network *networkv1alpha1.Network) (*interfaceConfiguration, error) {
+func getInterfaceConfiguration(intf *networkv1.NetworkInterface, network *networkv1.Network) (*interfaceConfiguration, error) {
 	intfID := types.NamespacedName{
 		Name:      intf.Name,
 		Namespace: intf.Namespace,
@@ -342,8 +342,8 @@ func createMacvlanChild(ifName string, parentDevIndex int) error {
 // the provided parent interface and sets it up.
 // The set up operations consist moving the interface to the remote network namespace, initializing
 // bpf tail call map on both directions (see setupInterfaceInRemoteNs), and configuring the interface.
-func SetupL2Interface(ifNameInPod string, podResources map[string][]string, network *networkv1alpha1.Network,
-	intf *networkv1alpha1.NetworkInterface, ep *models.EndpointChangeRequest, dc dhcp.DHCPClient) (func(), error) {
+func SetupL2Interface(ifNameInPod string, podResources map[string][]string, network *networkv1.Network,
+	intf *networkv1.NetworkInterface, ep *models.EndpointChangeRequest, dc dhcp.DHCPClient) (func(), error) {
 	cfg, err := getInterfaceConfiguration(intf, network)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get a valid interface configuration: %v", err)
@@ -472,7 +472,7 @@ func DeleteMacvlanInRemoteNs(ifName, nsPath string) error {
 // SetupNetworkRoutes configures custom routes and default route if defined in the provided interface cr
 // status on the interface in the pod namespace.
 // Route mtu is only set for the pod network. Otherwise, pass 0 to ignore the configuration.
-func SetupNetworkRoutes(ifNameInPod string, intf *networkv1alpha1.NetworkInterface, nsPath string,
+func SetupNetworkRoutes(ifNameInPod string, intf *networkv1.NetworkInterface, nsPath string,
 	isDefaultInterface bool, podNetworkMTU int) error {
 	log.WithFields(logrus.Fields{
 		logfields.InterfaceInPod: ifNameInPod,
@@ -489,7 +489,7 @@ func SetupNetworkRoutes(ifNameInPod string, intf *networkv1alpha1.NetworkInterfa
 		mtu       int
 	)
 
-	if intf.Spec.NetworkName == networkv1alpha1.DefaultNetworkName {
+	if intf.Spec.NetworkName == networkv1.DefaultNetworkName {
 		mtu = podNetworkMTU
 	}
 	if len(intf.Status.Routes) != 0 {
@@ -525,7 +525,7 @@ func SetupNetworkRoutes(ifNameInPod string, intf *networkv1alpha1.NetworkInterfa
 			return err
 		}
 		// No need to re-configure the default route for pod-network.
-		if isDefaultInterface && intf.Spec.NetworkName != networkv1alpha1.DefaultNetworkName {
+		if isDefaultInterface && intf.Spec.NetworkName != networkv1.DefaultNetworkName {
 			if err := addDefaultRoute(gw, l); err != nil {
 				return err
 			}
@@ -537,7 +537,7 @@ func SetupNetworkRoutes(ifNameInPod string, intf *networkv1alpha1.NetworkInterfa
 	return nil
 }
 
-func configureDHCPInfo(network *networkv1alpha1.Network, cfg *interfaceConfiguration, dc dhcp.DHCPClient, podNS, podIface, containerID string) (*dhcp.DHCPResponse, error) {
+func configureDHCPInfo(network *networkv1.Network, cfg *interfaceConfiguration, dc dhcp.DHCPClient, podNS, podIface, containerID string) (*dhcp.DHCPResponse, error) {
 	if network.Spec.ExternalDHCP4 == nil || *network.Spec.ExternalDHCP4 == false {
 		// No DHCP is required when externalDHCP4 is false or not set
 		return nil, nil
@@ -578,7 +578,7 @@ func configureDHCPInfo(network *networkv1alpha1.Network, cfg *interfaceConfigura
 	return dhcpInfo, nil
 }
 
-func isDNSConfigured(network *networkv1alpha1.Network) bool {
+func isDNSConfigured(network *networkv1.Network) bool {
 	if network.Spec.DNSConfig == nil {
 		return false
 	}
@@ -590,7 +590,7 @@ func isDNSConfigured(network *networkv1alpha1.Network) bool {
 	return false
 }
 
-func isStaticNetwork(network *networkv1alpha1.Network) bool {
+func isStaticNetwork(network *networkv1.Network) bool {
 	// If Network has any static information, the network is considered static.
 	routesConfigured := len(network.Spec.Routes) > 0
 	gatewayConfigured := network.Spec.Gateway4 != nil && *(network.Spec.Gateway4) != ""
@@ -599,7 +599,7 @@ func isStaticNetwork(network *networkv1alpha1.Network) bool {
 	return routesConfigured || gatewayConfigured || dnsConfigured
 }
 
-func populateInterfaceStatus(intf *networkv1alpha1.NetworkInterface, network *networkv1alpha1.Network, cfg *interfaceConfiguration, dhcpResp *dhcp.DHCPResponse) {
+func populateInterfaceStatus(intf *networkv1.NetworkInterface, network *networkv1.Network, cfg *interfaceConfiguration, dhcpResp *dhcp.DHCPResponse) {
 	// Update the interface status after IP and MAC address are configured successfully.
 	intf.Status.IpAddresses = []string{cfg.IPV4Address.String()}
 	intf.Status.MacAddress = cfg.MacAddress.String()

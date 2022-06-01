@@ -19,7 +19,7 @@ package multinic
 import (
 	"context"
 
-	networkv1alpha1 "gke-internal.googlesource.com/anthos-networking/apis/v2/network/v1alpha1"
+	networkv1 "gke-internal.googlesource.com/anthos-networking/apis/v2/network/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -28,13 +28,13 @@ import (
 // NetworkInterface CRs.
 type K8sClient interface {
 	// GetNetworkInterface returns the specified NetworkInterface CR
-	GetNetworkInterface(ctx context.Context, name, namespace string) (*networkv1alpha1.NetworkInterface, error)
+	GetNetworkInterface(ctx context.Context, name, namespace string) (*networkv1.NetworkInterface, error)
 
 	// GetNetworkInterface returns the specified Network CR
-	GetNetwork(ctx context.Context, name string) (*networkv1alpha1.Network, error)
+	GetNetwork(ctx context.Context, name string) (*networkv1.Network, error)
 
 	// UpdateNetworkInterfaceStatus updates the NetworkInterface status with the provided status.
-	UpdateNetworkInterfaceStatus(ctx context.Context, obj *networkv1alpha1.NetworkInterface) error
+	UpdateNetworkInterfaceStatus(ctx context.Context, obj *networkv1.NetworkInterface) error
 }
 
 // k8sClientImpl is an implementation of the K8sClient interface
@@ -57,22 +57,22 @@ func namespacedName(name, namespace string) types.NamespacedName {
 	}
 }
 
-func (c *k8sClientImpl) GetNetworkInterface(ctx context.Context, name, namespace string) (*networkv1alpha1.NetworkInterface, error) {
-	intf := &networkv1alpha1.NetworkInterface{}
+func (c *k8sClientImpl) GetNetworkInterface(ctx context.Context, name, namespace string) (*networkv1.NetworkInterface, error) {
+	intf := &networkv1.NetworkInterface{}
 	if err := c.client.Get(ctx, namespacedName(name, namespace), intf); err != nil {
 		return nil, err
 	}
 	return intf, nil
 }
 
-func (c *k8sClientImpl) GetNetwork(ctx context.Context, name string) (*networkv1alpha1.Network, error) {
-	network := &networkv1alpha1.Network{}
+func (c *k8sClientImpl) GetNetwork(ctx context.Context, name string) (*networkv1.Network, error) {
+	network := &networkv1.Network{}
 	if err := c.client.Get(ctx, namespacedName(name, ""), network); err != nil {
 		return nil, err
 	}
 	return network, nil
 }
 
-func (c *k8sClientImpl) UpdateNetworkInterfaceStatus(ctx context.Context, obj *networkv1alpha1.NetworkInterface) error {
+func (c *k8sClientImpl) UpdateNetworkInterfaceStatus(ctx context.Context, obj *networkv1.NetworkInterface) error {
 	return c.client.Status().Update(ctx, obj)
 }

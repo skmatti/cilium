@@ -33,7 +33,7 @@ import (
 	cnitypes "github.com/containernetworking/cni/pkg/types"
 	ipam "github.com/containernetworking/cni/pkg/types/100"
 	"github.com/google/go-cmp/cmp"
-	networkv1alpha1 "gke-internal.googlesource.com/anthos-networking/apis/v2/network/v1alpha1"
+	networkv1 "gke-internal.googlesource.com/anthos-networking/apis/v2/network/v1"
 	"k8s.io/utils/pointer"
 )
 
@@ -207,11 +207,11 @@ func TestGetDHCPResponse(t *testing.T) {
 			want: &DHCPResponse{
 				IPAddresses: []*net.IPNet{ipNet},
 				Gateway4:    pointer.StringPtr("2.2.2.2"),
-				Routes: []networkv1alpha1.Route{
+				Routes: []networkv1.Route{
 					{To: cidr1.String()},
 					{To: cidr2.String()},
 				},
-				DNSConfig: &networkv1alpha1.DNSConfig{
+				DNSConfig: &networkv1.DNSConfig{
 					Nameservers: []string{"5.5.5.5", "6.6.6.6"},
 					Searches:    []string{"example.com", "example.org"},
 				},
@@ -222,11 +222,11 @@ func TestGetDHCPResponse(t *testing.T) {
 		{
 			desc: "empty ip",
 			want: &DHCPResponse{
-				Routes: []networkv1alpha1.Route{
+				Routes: []networkv1.Route{
 					{To: cidr1.String()},
 					{To: cidr2.String()},
 				},
-				DNSConfig: &networkv1alpha1.DNSConfig{
+				DNSConfig: &networkv1.DNSConfig{
 					Nameservers: []string{"5.5.5.5", "6.6.6.6"},
 					Searches:    []string{"example.com", "example.org"},
 				},
@@ -239,7 +239,7 @@ func TestGetDHCPResponse(t *testing.T) {
 			want: &DHCPResponse{
 				IPAddresses: []*net.IPNet{ipNet},
 				Gateway4:    pointer.StringPtr("2.2.2.2"),
-				Routes: []networkv1alpha1.Route{
+				Routes: []networkv1.Route{
 					{To: "3.3.3.0/24"},
 					{To: "4.4.4.0/24"},
 				},
@@ -253,7 +253,7 @@ func TestGetDHCPResponse(t *testing.T) {
 			want: &DHCPResponse{
 				IPAddresses: []*net.IPNet{ipNet},
 				Gateway4:    pointer.StringPtr("2.2.2.2"),
-				DNSConfig: &networkv1alpha1.DNSConfig{
+				DNSConfig: &networkv1.DNSConfig{
 					Nameservers: []string{"5.5.5.5", "6.6.6.6"},
 					Searches:    []string{"example.com", "example.org"},
 				},
@@ -272,11 +272,11 @@ func TestGetDHCPResponse(t *testing.T) {
 			want: &DHCPResponse{
 				IPAddresses: []*net.IPNet{ipNet},
 				Gateway4:    pointer.StringPtr("2.2.2.2"),
-				Routes: []networkv1alpha1.Route{
+				Routes: []networkv1.Route{
 					{To: cidr1.String()},
 					{To: cidr2.String()},
 				},
-				DNSConfig: &networkv1alpha1.DNSConfig{
+				DNSConfig: &networkv1.DNSConfig{
 					Nameservers: []string{"5.5.5.5", "6.6.6.6"},
 					Searches:    []string{"example.com", "example.org"},
 				},
@@ -289,11 +289,11 @@ func TestGetDHCPResponse(t *testing.T) {
 			want: &DHCPResponse{
 				IPAddresses: []*net.IPNet{ipNet},
 				Gateway4:    pointer.StringPtr("2.2.2.2"),
-				Routes: []networkv1alpha1.Route{
+				Routes: []networkv1.Route{
 					{To: cidr1.String()},
 					{To: cidr2.String()},
 				},
-				DNSConfig: &networkv1alpha1.DNSConfig{
+				DNSConfig: &networkv1.DNSConfig{
 					Nameservers: []string{"5.5.5.5", "6.6.6.6"},
 					Searches:    []string{"example.com", "example.org"},
 				},

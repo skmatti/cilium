@@ -28,7 +28,7 @@ import (
 	"github.com/containernetworking/cni/pkg/skel"
 	cnitypes "github.com/containernetworking/cni/pkg/types"
 	ipam "github.com/containernetworking/cni/pkg/types/100"
-	networkv1alpha1 "gke-internal.googlesource.com/anthos-networking/apis/v2/network/v1alpha1"
+	networkv1 "gke-internal.googlesource.com/anthos-networking/apis/v2/network/v1"
 	"k8s.io/utils/pointer"
 )
 
@@ -64,9 +64,9 @@ type DHCPResponse struct {
 	//IPAddresses are the ip addresses that have been leased for this interface
 	IPAddresses []*net.IPNet
 	//Routes are the custom routes for the Network this interface connects to
-	Routes []networkv1alpha1.Route
+	Routes []networkv1.Route
 	// DNS Config has the Nameservers and Searches specific to the Network this interface connects to
-	DNSConfig *networkv1alpha1.DNSConfig
+	DNSConfig *networkv1.DNSConfig
 	// Gateway4 is the default gateway for the Network this interface is connecting to
 	Gateway4 *string
 }
@@ -164,21 +164,21 @@ func parseIPAndGateway(cfg []*ipam.IPConfig) ([]*net.IPNet, *string) {
 	return []*net.IPNet{&cfg[0].Address}, gw
 }
 
-func parseRoutes(routes []*cnitypes.Route) []networkv1alpha1.Route {
-	var convertedRoutes []networkv1alpha1.Route
+func parseRoutes(routes []*cnitypes.Route) []networkv1.Route {
+	var convertedRoutes []networkv1.Route
 	for _, route := range routes {
 		if route.Dst.String() != nilDstString {
-			convertedRoutes = append(convertedRoutes, networkv1alpha1.Route{To: route.Dst.String()})
+			convertedRoutes = append(convertedRoutes, networkv1.Route{To: route.Dst.String()})
 		}
 	}
 	return convertedRoutes
 }
 
-func parseDNSConfig(dns cnitypes.DNS) *networkv1alpha1.DNSConfig {
+func parseDNSConfig(dns cnitypes.DNS) *networkv1.DNSConfig {
 	if len(dns.Nameservers) == 0 {
 		return nil
 	}
-	return &networkv1alpha1.DNSConfig{
+	return &networkv1.DNSConfig{
 		Nameservers: dns.Nameservers,
 		Searches:    dns.Search,
 	}

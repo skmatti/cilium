@@ -21,7 +21,7 @@ import (
 	"github.com/cilium/cilium/pkg/maps/multinicdev"
 	"github.com/cilium/cilium/pkg/option"
 	"github.com/sirupsen/logrus"
-	networkv1alpha1 "gke-internal.googlesource.com/anthos-networking/apis/v2/network/v1alpha1"
+	networkv1 "gke-internal.googlesource.com/anthos-networking/apis/v2/network/v1"
 	utilpointer "k8s.io/utils/pointer"
 
 	. "github.com/cilium/cilium/api/v1/server/restapi/endpoint"
@@ -120,14 +120,14 @@ func (d *Daemon) createMultiNICEndpoints(ctx context.Context, owner regeneration
 
 	var disableSourceIPValidation bool
 	if option.Config.AllowDisableSourceIPValidation {
-		disableSourceIPValidation = (annotations[networkv1alpha1.DisableSourceIPValidationAnnotationKey] == networkv1alpha1.DisableSourceIPValidationAnnotationValTrue)
+		disableSourceIPValidation = (annotations[networkv1.DisableSourceIPValidationAnnotationKey] == networkv1.DisableSourceIPValidationAnnotationValTrue)
 	}
 
 	log.WithFields(logrus.Fields{
 		logfields.ContainerID: primaryEp.GetContainerID(),
 		logfields.EndpointID:  primaryEp.StringID(),
 		logfields.K8sPodName:  podID,
-		"interfaceAnnotation": annotations[networkv1alpha1.InterfaceAnnotationKey],
+		"interfaceAnnotation": annotations[networkv1.InterfaceAnnotationKey],
 	}).Info("Create multinic endpoint requests with primary endpoint")
 
 	podResources, err := d.kubeletClient.GetPodResources(ctx, pod)
@@ -168,7 +168,7 @@ func (d *Daemon) createMultiNICEndpoints(ctx context.Context, owner regeneration
 
 		var cleanup func()
 		// Update the interface status of the primary endpoint.
-		if intfCR != nil && intfCR.Spec.NetworkName == networkv1alpha1.DefaultNetworkName {
+		if intfCR != nil && intfCR.Spec.NetworkName == networkv1.DefaultNetworkName {
 			primaryEp.Logger(daemonSubsys).WithField("interfaceCR", intfCR.Name).Debug("Updating interface status")
 			intfCR.Status.IpAddresses = nil
 			if ipv4 := primaryEp.GetIPv4Address(); ipv4 != "" {
@@ -184,7 +184,7 @@ func (d *Daemon) createMultiNICEndpoints(ctx context.Context, owner regeneration
 				intfCR.Status.Gateway4 = netCR.Spec.Gateway4
 			}
 		} else if intfCR != nil && netCR != nil {
-			if netCR.Spec.Type != networkv1alpha1.L2NetworkType {
+			if netCR.Spec.Type != networkv1.L2NetworkType {
 				return d.errorDuringMultiNICCreation(primaryEp, PutEndpointIDInvalidCode, fmt.Errorf("network %q has invalid network type %v of the multinic endpoint for pod %q", netCR.Name, netCR.Spec.Type, podID))
 			}
 
@@ -209,7 +209,7 @@ func (d *Daemon) createMultiNICEndpoints(ctx context.Context, owner regeneration
 		}
 		if intfCR != nil {
 			networkName := intfCR.Spec.NetworkName
-			if networkName == networkv1alpha1.DefaultNetworkName {
+			if networkName == networkv1.DefaultNetworkName {
 				podNetworkConfigured = true
 			}
 			if err := connector.SetupNetworkRoutes(ref.InterfaceName, intfCR, multinicTemplate.NetworkNamespace,
@@ -227,7 +227,7 @@ func (d *Daemon) createMultiNICEndpoints(ctx context.Context, owner regeneration
 	if !podNetworkConfigured {
 		// Pod network is required to set up when the default interface
 		// is not within the pod-network.
-		_, podNetworkCR, err := d.getInterfaceAndNetworkCR(ctx, networkv1alpha1.InterfaceRef{Network: utilpointer.StringPtr(networkv1alpha1.DefaultNetworkName)}, pod.Namespace)
+		_, podNetworkCR, err := d.getInterfaceAndNetworkCR(ctx, networkv1.InterfaceRef{Network: utilpointer.StringPtr(networkv1.DefaultNetworkName)}, pod.Namespace)
 		podInterfaceCR := convertNetworkSpecToInterface(podNetworkCR)
 		if err != nil || podInterfaceCR == nil {
 			return d.errorDuringMultiNICCreation(primaryEp, PutEndpointIDInvalidCode, fmt.Errorf("pod-network CR is required if the default gateway is on multi-nic interface: %v", err))
@@ -282,7 +282,7 @@ func getPrimaryInterfaceVethPeerIfIndex(podID string, primaryEpIfIndex int, nsPa
 }
 
 // getInterfaceAndNetworkCR gets interface and network CR by querying multinicClient object.
-func (d *Daemon) getInterfaceAndNetworkCR(ctx context.Context, ref networkv1alpha1.InterfaceRef, ns string) (*networkv1alpha1.NetworkInterface, *networkv1alpha1.Network, error) {
+func (d *Daemon) getInterfaceAndNetworkCR(ctx context.Context, ref networkv1.InterfaceRef, ns string) (*networkv1.NetworkInterface, *networkv1.Network, error) {
 	if ref.Interface == nil && ref.Network == nil {
 		return nil, nil, fmt.Errorf("both interface and network name are not set for the interface %q", ref.InterfaceName)
 	}
@@ -292,15 +292,15 @@ func (d *Daemon) getInterfaceAndNetworkCR(ctx context.Context, ref networkv1alph
 
 	var networkName string
 	if ref.Network != nil {
-		if *ref.Network != networkv1alpha1.DefaultNetworkName {
+		if *ref.Network != networkv1.DefaultNetworkName {
 			// TODO(yfshen): support non-static case for multinic interface
 			return nil, nil, fmt.Errorf("interface CR needs to be specified for the interface %q, only static configuration is supported for now", ref.InterfaceName)
 		}
-		networkName = networkv1alpha1.DefaultNetworkName
+		networkName = networkv1.DefaultNetworkName
 	}
 
 	var (
-		intfCR *networkv1alpha1.NetworkInterface
+		intfCR *networkv1.NetworkInterface
 		err    error
 	)
 	if ref.Interface != nil {
@@ -314,7 +314,7 @@ func (d *Daemon) getInterfaceAndNetworkCR(ctx context.Context, ref networkv1alph
 	netCR, err := d.multinicClient.GetNetwork(ctx, networkName)
 	if err != nil {
 		// We don't require pod-network CR exists
-		if k8sErrors.IsNotFound(err) && networkName == networkv1alpha1.DefaultNetworkName {
+		if k8sErrors.IsNotFound(err) && networkName == networkv1.DefaultNetworkName {
 			return intfCR, nil, nil
 		}
 		return nil, nil, fmt.Errorf("failed getting network CR %s: %v", networkName, err)
@@ -435,17 +435,17 @@ func cleanupMultiNICDevMap(eps []*endpoint.Endpoint) {
 // fetchMultiNICAnnotation returns the default interface name and interface annotation from the provied
 // annotations. The function also verifies the default interface must be specified and referenced in
 // the interface annotation. Otherwise, an error is returned.
-func fetchMultiNICAnnotation(annotations map[string]string) (string, networkv1alpha1.InterfaceAnnotation, error) {
-	interfaces, ok := annotations[networkv1alpha1.InterfaceAnnotationKey]
+func fetchMultiNICAnnotation(annotations map[string]string) (string, networkv1.InterfaceAnnotation, error) {
+	interfaces, ok := annotations[networkv1.InterfaceAnnotationKey]
 	if !ok {
 		// This is not a multi-nic pod since the interface annotation is not found.
 		return "", nil, nil
 	}
-	defaultInterface, ok := annotations[networkv1alpha1.DefaultInterfaceAnnotationKey]
+	defaultInterface, ok := annotations[networkv1.DefaultInterfaceAnnotationKey]
 	if !ok {
 		return "", nil, errors.New("default interface must be specified for multi-nic pod")
 	}
-	interfaceAnnotation, err := networkv1alpha1.ParseInterfaceAnnotation(interfaces)
+	interfaceAnnotation, err := networkv1.ParseInterfaceAnnotation(interfaces)
 	if err != nil {
 		return "", nil, fmt.Errorf("failed to parse interface annotation: %v", err)
 	}
@@ -457,16 +457,16 @@ func fetchMultiNICAnnotation(annotations map[string]string) (string, networkv1al
 	return "", nil, fmt.Errorf("default interface %q must be referenced in the interface annotation %s", defaultInterface, interfaces)
 }
 
-func convertNetworkSpecToInterface(network *networkv1alpha1.Network) *networkv1alpha1.NetworkInterface {
+func convertNetworkSpecToInterface(network *networkv1.Network) *networkv1.NetworkInterface {
 	if network == nil {
 		return nil
 	}
 
-	return &networkv1alpha1.NetworkInterface{
-		Spec: networkv1alpha1.NetworkInterfaceSpec{
+	return &networkv1.NetworkInterface{
+		Spec: networkv1.NetworkInterfaceSpec{
 			NetworkName: network.Name,
 		},
-		Status: networkv1alpha1.NetworkInterfaceStatus{
+		Status: networkv1.NetworkInterfaceStatus{
 			Routes:   network.Spec.Routes,
 			Gateway4: network.Spec.Gateway4,
 		},
