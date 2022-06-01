@@ -26,7 +26,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/vishvananda/netlink"
 	"github.com/vishvananda/netns"
-	networkv1alpha1 "gke-internal.googlesource.com/anthos-networking/apis/network/v1alpha1"
+	networkv1 "gke-internal.googlesource.com/anthos-networking/apis/v2/network/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	k8sruntime "k8s.io/apimachinery/pkg/runtime"
@@ -49,16 +49,16 @@ var log = logging.DefaultLogger.WithField(logfields.LogSubsys, "test")
 func TestEnsureVlanID(t *testing.T) {
 	testutils.PrivilegedTest(t)
 
-	cr := &networkv1alpha1.Network{
+	cr := &networkv1.Network{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      networkName,
 			Namespace: testNamespace,
 		},
-		Spec: networkv1alpha1.NetworkSpec{
-			NodeInterfaceMatcher: networkv1alpha1.NodeInterfaceMatcher{
+		Spec: networkv1.NetworkSpec{
+			NodeInterfaceMatcher: networkv1.NodeInterfaceMatcher{
 				InterfaceName: utilpointer.StringPtr("foo"),
 			},
-			L2NetworkConfig: &networkv1alpha1.L2NetworkConfig{
+			L2NetworkConfig: &networkv1.L2NetworkConfig{
 				VlanID: utilpointer.Int32(100),
 			},
 		},
@@ -67,7 +67,7 @@ func TestEnsureVlanID(t *testing.T) {
 	noVlanIDCR := cr.DeepCopy()
 	noVlanIDCR.Spec.L2NetworkConfig.VlanID = nil
 
-	userManaged := networkv1alpha1.UserManagedLifecycle
+	userManaged := networkv1.UserManagedLifecycle
 	userManagedCR := cr.DeepCopy()
 	userManagedCR.Spec.NetworkLifecycle = &userManaged
 
@@ -75,7 +75,7 @@ func TestEnsureVlanID(t *testing.T) {
 
 	testcases := []struct {
 		desc      string
-		networkCR *networkv1alpha1.Network
+		networkCR *networkv1.Network
 		// Specify whether the tagged interface exists before ensureVlanID
 		intExists bool
 		// Specify whether a tagged interface should exist after ensureVlanID
@@ -168,16 +168,16 @@ func TestEnsureVlanID(t *testing.T) {
 func TestEnsureVlanIDErrors(t *testing.T) {
 	testutils.PrivilegedTest(t)
 
-	cr := &networkv1alpha1.Network{
+	cr := &networkv1.Network{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      networkName,
 			Namespace: testNamespace,
 		},
-		Spec: networkv1alpha1.NetworkSpec{
-			NodeInterfaceMatcher: networkv1alpha1.NodeInterfaceMatcher{
+		Spec: networkv1.NetworkSpec{
+			NodeInterfaceMatcher: networkv1.NodeInterfaceMatcher{
 				InterfaceName: utilpointer.StringPtr("foo"),
 			},
-			L2NetworkConfig: &networkv1alpha1.L2NetworkConfig{
+			L2NetworkConfig: &networkv1.L2NetworkConfig{
 				VlanID: utilpointer.Int32(100),
 			},
 		},
@@ -192,7 +192,7 @@ func TestEnsureVlanIDErrors(t *testing.T) {
 
 	testcases := []struct {
 		desc         string
-		networkCR    *networkv1alpha1.Network
+		networkCR    *networkv1.Network
 		existingVlan *vlanDef
 	}{
 		{
@@ -254,22 +254,22 @@ func TestEnsureVlanIDErrors(t *testing.T) {
 func TestDeleteVlanID(t *testing.T) {
 	testutils.PrivilegedTest(t)
 
-	cr := &networkv1alpha1.Network{
+	cr := &networkv1.Network{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      networkName,
 			Namespace: testNamespace,
 		},
-		Spec: networkv1alpha1.NetworkSpec{
-			NodeInterfaceMatcher: networkv1alpha1.NodeInterfaceMatcher{
+		Spec: networkv1.NetworkSpec{
+			NodeInterfaceMatcher: networkv1.NodeInterfaceMatcher{
 				InterfaceName: utilpointer.StringPtr("foo"),
 			},
-			L2NetworkConfig: &networkv1alpha1.L2NetworkConfig{
+			L2NetworkConfig: &networkv1.L2NetworkConfig{
 				VlanID: utilpointer.Int32(100),
 			},
 		},
 	}
 
-	userManaged := networkv1alpha1.UserManagedLifecycle
+	userManaged := networkv1.UserManagedLifecycle
 	userManagedCR := cr.DeepCopy()
 	userManagedCR.Spec.NetworkLifecycle = &userManaged
 
@@ -280,7 +280,7 @@ func TestDeleteVlanID(t *testing.T) {
 
 	testcases := []struct {
 		desc      string
-		networkCR *networkv1alpha1.Network
+		networkCR *networkv1.Network
 		// Specify whether the tagged interface was already deleted
 		intAlreadyDeleted bool
 		// Specify whether a tagged interface should be deleted
@@ -417,13 +417,13 @@ func TestUpdateNodeNetworkAnnotation(t *testing.T) {
 		{
 			desc: "add new network to existing annotation",
 			existingAnnotations: map[string]string{
-				networkv1alpha1.NodeNetworkAnnotationKey: `[{"name":"foo"}]`,
+				networkv1.NodeNetworkAnnotationKey: `[{"name":"foo"}]`,
 			},
 			nodeName: nodeName,
 			network:  "bar",
 			isAdd:    true,
 			wantAnnotations: map[string]string{
-				networkv1alpha1.NodeNetworkAnnotationKey: `[{"name":"bar"},{"name":"foo"}]`,
+				networkv1.NodeNetworkAnnotationKey: `[{"name":"bar"},{"name":"foo"}]`,
 			},
 		},
 		{
@@ -433,7 +433,7 @@ func TestUpdateNodeNetworkAnnotation(t *testing.T) {
 			network:             "bar",
 			isAdd:               true,
 			wantAnnotations: map[string]string{
-				networkv1alpha1.NodeNetworkAnnotationKey: `[{"name":"bar"}]`,
+				networkv1.NodeNetworkAnnotationKey: `[{"name":"bar"}]`,
 			},
 		},
 		{
@@ -443,73 +443,73 @@ func TestUpdateNodeNetworkAnnotation(t *testing.T) {
 			network:             "bar",
 			isAdd:               true,
 			wantAnnotations: map[string]string{
-				networkv1alpha1.NodeNetworkAnnotationKey: `[{"name":"bar"}]`,
+				networkv1.NodeNetworkAnnotationKey: `[{"name":"bar"}]`,
 			},
 		},
 		{
 			desc: "add new network to null annotation value",
 			existingAnnotations: map[string]string{
-				networkv1alpha1.NodeNetworkAnnotationKey: "null",
+				networkv1.NodeNetworkAnnotationKey: "null",
 			},
 			nodeName: nodeName,
 			network:  "bar",
 			isAdd:    true,
 			wantAnnotations: map[string]string{
-				networkv1alpha1.NodeNetworkAnnotationKey: `[{"name":"bar"}]`,
+				networkv1.NodeNetworkAnnotationKey: `[{"name":"bar"}]`,
 			},
 		},
 		{
 			desc: "add existing network",
 			existingAnnotations: map[string]string{
-				networkv1alpha1.NodeNetworkAnnotationKey: `[{"name":"foo"}]`,
+				networkv1.NodeNetworkAnnotationKey: `[{"name":"foo"}]`,
 			},
 			nodeName: nodeName,
 			network:  "foo",
 			isAdd:    true,
 			wantAnnotations: map[string]string{
-				networkv1alpha1.NodeNetworkAnnotationKey: `[{"name":"foo"}]`,
+				networkv1.NodeNetworkAnnotationKey: `[{"name":"foo"}]`,
 			},
 		},
 		{
 			desc: "delete last network in existing annotation",
 			existingAnnotations: map[string]string{
-				networkv1alpha1.NodeNetworkAnnotationKey: `[{"name":"foo"}]`,
+				networkv1.NodeNetworkAnnotationKey: `[{"name":"foo"}]`,
 			},
 			nodeName: nodeName,
 			network:  "foo",
 			isAdd:    false,
 			wantAnnotations: map[string]string{
-				networkv1alpha1.NodeNetworkAnnotationKey: "[]",
+				networkv1.NodeNetworkAnnotationKey: "[]",
 			},
 		},
 		{
 			desc: "delete network in existing annotation",
 			existingAnnotations: map[string]string{
-				networkv1alpha1.NodeNetworkAnnotationKey: `[{"name":"foo"},{"name":"bar"}]`,
+				networkv1.NodeNetworkAnnotationKey: `[{"name":"foo"},{"name":"bar"}]`,
 			},
 			nodeName: nodeName,
 			network:  "bar",
 			isAdd:    false,
 			wantAnnotations: map[string]string{
-				networkv1alpha1.NodeNetworkAnnotationKey: `[{"name":"foo"}]`,
+				networkv1.NodeNetworkAnnotationKey: `[{"name":"foo"}]`,
 			},
 		},
 		{
 			desc: "delete network not in existing annotation",
 			existingAnnotations: map[string]string{
-				networkv1alpha1.NodeNetworkAnnotationKey: `[{"name":"foo"}]`,
+				networkv1.NodeNetworkAnnotationKey: `[{"name":"foo"}]`,
 			},
 			nodeName: nodeName,
 			network:  "bar",
 			isAdd:    false,
 			wantAnnotations: map[string]string{
-				networkv1alpha1.NodeNetworkAnnotationKey: `[{"name":"foo"}]`,
+				networkv1.NodeNetworkAnnotationKey: `[{"name":"foo"}]`,
 			},
 		},
 		{
 			desc: "node network annotation parse failure",
 			existingAnnotations: map[string]string{
-				networkv1alpha1.NodeNetworkAnnotationKey: `invalid_annotation`,
+				networkv1.NodeNetworkAnnotationKey: `invalid_annotation`,
 			},
 			nodeName: nodeName,
 			wantErr:  "failed to get network status map from node \"test-node\": invalid character 'i' looking for beginning of value",
@@ -517,7 +517,7 @@ func TestUpdateNodeNetworkAnnotation(t *testing.T) {
 		{
 			desc: "not found node",
 			existingAnnotations: map[string]string{
-				networkv1alpha1.NodeNetworkAnnotationKey: `[{"name":"foo"}]`,
+				networkv1.NodeNetworkAnnotationKey: `[{"name":"foo"}]`,
 			},
 			nodeName: "foo-node",
 			network:  "foo",
