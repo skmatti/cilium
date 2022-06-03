@@ -710,9 +710,6 @@ func (d *Daemon) deleteEndpoint(ep *endpoint.Endpoint) int {
 // Specific users such as the cilium-health EP may choose not to release the IP
 // when deleting the endpoint. Most users should pass true for releaseIP.
 func (d *Daemon) deleteEndpointQuiet(ep *endpoint.Endpoint, conf endpoint.DeleteConfig) []error {
-	if ep.IsMultiNIC() {
-		return d.deleteMultiNICEndpointQuiet(ep, conf)
-	}
 	return d.endpointManager.RemoveEndpoint(ep, conf)
 }
 

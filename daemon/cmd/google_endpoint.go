@@ -183,12 +183,13 @@ func (d *Daemon) createMultiNICEndpoints(ctx context.Context, owner regeneration
 				intfCR.Status.Routes = netCR.Spec.Routes
 				intfCR.Status.Gateway4 = netCR.Spec.Gateway4
 			}
+			intfCR.Status.PodName = utilpointer.StringPtr(primaryEp.GetK8sPodName())
 		} else if intfCR != nil && netCR != nil {
 			if netCR.Spec.Type != networkv1.L2NetworkType {
 				return d.errorDuringMultiNICCreation(primaryEp, PutEndpointIDInvalidCode, fmt.Errorf("network %q has invalid network type %v of the multinic endpoint for pod %q", netCR.Name, netCR.Spec.Type, podID))
 			}
 
-			if cleanup, err = connector.SetupL2Interface(ref.InterfaceName, podResources, netCR, intfCR, multinicTemplate, d.dhcpClient); err != nil {
+			if cleanup, err = connector.SetupL2Interface(ref.InterfaceName, pod.Name, podResources, netCR, intfCR, multinicTemplate, d.dhcpClient); err != nil {
 				return d.errorWithMultiNICCleanup(primaryEp, PutEndpointIDInvalidCode, fmt.Errorf("failed setting up layer2 interface %q for pod %q: %v", intfCR.Name, podID, err), cleanup)
 			}
 			// We don't allow different L2 interfaces share the same parent device.
@@ -304,9 +305,9 @@ func (d *Daemon) getInterfaceAndNetworkCR(ctx context.Context, ref networkv1.Int
 		err    error
 	)
 	if ref.Interface != nil {
-		intfCR, err = d.multinicClient.GetNetworkInterface(ctx, *ref.Interface, ns)
+		intfCR, err = d.getInterfaceCR(ctx, ref, ns)
 		if err != nil {
-			return nil, nil, fmt.Errorf("failed getting interface CR %s/%s: %v", ns, *ref.Interface, err)
+			return nil, nil, err
 		}
 		networkName = intfCR.Spec.NetworkName
 	}
@@ -322,7 +323,36 @@ func (d *Daemon) getInterfaceAndNetworkCR(ctx context.Context, ref networkv1.Int
 	return intfCR, netCR, nil
 }
 
-func (d *Daemon) deleteMultiNICEndpointQuiet(ep *endpoint.Endpoint, conf endpoint.DeleteConfig) []error {
+// getInterfaceCR gets interface by querying multinicClient object.
+func (d *Daemon) getInterfaceCR(ctx context.Context, ref networkv1.InterfaceRef, ns string) (*networkv1.NetworkInterface, error) {
+	if ref.Interface == nil {
+		return nil, fmt.Errorf("interface is not set for the interface %q", ref.InterfaceName)
+	}
+
+	intfCR, err := d.multinicClient.GetNetworkInterface(ctx, *ref.Interface, ns)
+	if err != nil {
+		return nil, fmt.Errorf("failed getting interface CR %s/%s: %v", ns, *ref.Interface, err)
+	}
+	return intfCR, nil
+}
+
+func (d *Daemon) deleteMultiNICEndpoint(ep *endpoint.Endpoint, podChanged bool) int {
+	// Cancel any ongoing endpoint creation
+	d.endpointCreations.CancelCreateRequest(ep)
+
+	scopedLog := log.WithField(logfields.EndpointID, ep.ID)
+
+	errs := d.deleteMultiNICEndpointQuiet(ep, endpoint.DeleteConfig{
+		// Since endpoint is multinic, NoIPRelease is always true
+		NoIPRelease: true,
+	}, podChanged)
+	for _, err := range errs {
+		scopedLog.WithError(err).Warn("Ignoring error while deleting endpoint")
+	}
+	return len(errs)
+}
+
+func (d *Daemon) deleteMultiNICEndpointQuiet(ep *endpoint.Endpoint, conf endpoint.DeleteConfig, podChanged bool) []error {
 	errs := d.endpointManager.RemoveEndpoint(ep, conf)
 	ifName := ep.GetInterfaceName()
 	ifNameInPod := ep.GetInterfaceNameInPod()
@@ -336,7 +366,9 @@ func (d *Daemon) deleteMultiNICEndpointQuiet(ep *endpoint.Endpoint, conf endpoin
 	}).Info("Revert multinic endpoint setup")
 
 	if ep.ExternalDHCPEnabled() {
-		d.dhcpClient.Release(ep.GetContainerID(), netNS, ifNameInPod, true)
+		// If pod changed, then the interface lease is now maintained by a different pod. The lease should
+		// not released and instead should just expire for this pod.
+		d.dhcpClient.Release(ep.GetContainerID(), netNS, ifNameInPod, podChanged)
 	}
 	var err error
 	switch deviceType {
@@ -376,8 +408,46 @@ func (d *Daemon) DeleteEndpoints(id string) (int, error) {
 		return 0, api.New(DeleteEndpointIDNotFoundCode, "multinic endpoints %q not found", id)
 	}
 
-	log.Infof("Deleting %d endpoints for id %s", len(eps), id)
+	podName := eps[0].K8sPodName
+	podNS := eps[0].K8sNamespace
+
+	_, _, _, _, annotations, err := d.fetchK8sLabelsAndAnnotations(podNS, podName)
+	if err != nil {
+		log.WithFields(logrus.Fields{
+			logfields.K8sPodName: podName,
+			"error":              err,
+		}).Error("Failed to fetch annotations from pod when deleting multinic endpoints")
+	}
 	var nerrs int
+	var interfaceAnnotation networkv1.InterfaceAnnotation
+	ifNameToPodName := map[string]string{}
+	if len(annotations) > 0 {
+		_, interfaceAnnotation, err = fetchMultiNICAnnotation(annotations)
+		if err == nil && interfaceAnnotation == nil {
+			log.Debugf("Multinic annotation is not found for pod %s/%s, expect this is not a multinic pod", podNS, podName)
+		}
+		if err != nil {
+			log.Errorf("failed to fetch multi-nic annotations for pod %s/%s: %v", podNS, podName, err)
+			nerrs++
+		} else {
+			for _, ref := range interfaceAnnotation {
+				intfCR, err := d.getInterfaceCR(context.Background(), ref, podNS)
+				if err != nil {
+					log.Warningf("Errored getting interface during endpoint deletion: %q", err)
+					continue
+				}
+				if intfCR.Status.MacAddress == "" {
+					log.Warningf("interface CR %s/%s status does not have mac address set ", intfCR.Namespace, intfCR.Name)
+					continue
+				}
+				if intfCR.Status.PodName != nil {
+					ifNameToPodName[ref.InterfaceName] = *(intfCR.Status.PodName)
+				}
+			}
+		}
+	}
+
+	log.Infof("Deleting %d endpoints for id %s", len(eps), id)
 	for _, ep := range eps {
 		log.WithFields(logrus.Fields{
 			logfields.IPv4:        ep.GetIPv4Address(),
@@ -387,7 +457,19 @@ func (d *Daemon) DeleteEndpoints(id string) (int, error) {
 		if err := endpoint.APICanModify(ep); err != nil {
 			return 0, api.Error(DeleteEndpointIDInvalidCode, err)
 		}
-		nerrs += d.deleteEndpoint(ep)
+		if ep.IsMultiNIC() {
+			// In case we were unable to gather the interface, the map will return an empty string which will not match the podName.
+			// This will result in podChanged=true which will mean that the lease will expire. We rather let the lease expire if
+			// we do not know whether it is a pod shutdown or not
+			podChanged := ifNameToPodName[ep.GetInterfaceNameInPod()] != ep.GetK8sPodName()
+			log.WithFields(logrus.Fields{
+				"previousPod": ep.GetK8sPodName(),
+				"currentPod":  ifNameToPodName[ep.GetInterfaceNameInPod()],
+			}).Info("Deleting multinic endpoint")
+			nerrs += d.deleteMultiNICEndpoint(ep, podChanged)
+		} else {
+			nerrs += d.deleteEndpoint(ep)
+		}
 	}
 	return nerrs, nil
 }

@@ -30,6 +30,7 @@ import (
 	networkv1 "gke-internal.googlesource.com/anthos-networking/apis/v2/network/v1"
 	"golang.org/x/sys/unix"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/utils/pointer"
 )
 
 const (
@@ -342,7 +343,7 @@ func createMacvlanChild(ifName string, parentDevIndex int) error {
 // the provided parent interface and sets it up.
 // The set up operations consist moving the interface to the remote network namespace, initializing
 // bpf tail call map on both directions (see setupInterfaceInRemoteNs), and configuring the interface.
-func SetupL2Interface(ifNameInPod string, podResources map[string][]string, network *networkv1.Network,
+func SetupL2Interface(ifNameInPod, podName string, podResources map[string][]string, network *networkv1.Network,
 	intf *networkv1.NetworkInterface, ep *models.EndpointChangeRequest, dc dhcp.DHCPClient) (func(), error) {
 	cfg, err := getInterfaceConfiguration(intf, network)
 	if err != nil {
@@ -437,7 +438,7 @@ func SetupL2Interface(ifNameInPod string, podResources map[string][]string, netw
 		return cleanup, fmt.Errorf("failed to configure interface: %v", err)
 	}
 
-	populateInterfaceStatus(intf, network, cfg, dhcpResp)
+	populateInterfaceStatus(intf, network, cfg, dhcpResp, podName)
 
 	// Update the endpoint addressing after the macvlan interface is configured.
 	ep.Addressing.IPV4 = cfg.IPV4Address.IP.String()
@@ -599,7 +600,7 @@ func isStaticNetwork(network *networkv1.Network) bool {
 	return routesConfigured || gatewayConfigured || dnsConfigured
 }
 
-func populateInterfaceStatus(intf *networkv1.NetworkInterface, network *networkv1.Network, cfg *interfaceConfiguration, dhcpResp *dhcp.DHCPResponse) {
+func populateInterfaceStatus(intf *networkv1.NetworkInterface, network *networkv1.Network, cfg *interfaceConfiguration, dhcpResp *dhcp.DHCPResponse, podName string) {
 	// Update the interface status after IP and MAC address are configured successfully.
 	intf.Status.IpAddresses = []string{cfg.IPV4Address.String()}
 	intf.Status.MacAddress = cfg.MacAddress.String()
@@ -616,4 +617,5 @@ func populateInterfaceStatus(intf *networkv1.NetworkInterface, network *networkv
 	intf.Status.Routes = dhcpResp.Routes
 	intf.Status.Gateway4 = dhcpResp.Gateway4
 	intf.Status.DNSConfig = dhcpResp.DNSConfig
+	intf.Status.PodName = pointer.StringPtr(podName)
 }
