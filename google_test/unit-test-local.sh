@@ -63,6 +63,9 @@ sudo modprobe -a ip6_tables ip6table_mangle ip6table_raw ip6table_filter
 make precheck
 make postcheck
 
+# Compile windows slim-daemon
+make -C slim-daemon windows
+
 # Run un-priviledged tests first.
 # daemon/cmd tests now require bpftool probes which needs to run as root.
 sudo GOROOT=$GOROOT GOPATH=$GOPATH PATH=$PATH make integration-tests
