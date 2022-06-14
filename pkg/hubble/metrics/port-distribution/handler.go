@@ -61,6 +61,11 @@ func (h *portDistributionHandler) ProcessFlow(ctx context.Context, flow *flowpb.
 		h.portDistribution.WithLabelValues(labels...).Inc()
 	}
 
+	if sctp := flow.GetL4().GetSCTP(); sctp != nil {
+		labels := append([]string{"SCTP", fmt.Sprintf("%d", sctp.DestinationPort)}, h.context.GetLabelValues(flow)...)
+		h.portDistribution.WithLabelValues(labels...).Inc()
+	}
+
 	if flow.GetL4().GetICMPv4() != nil {
 		labels := append([]string{"ICMPv4", "0"}, h.context.GetLabelValues(flow)...)
 		h.portDistribution.WithLabelValues(labels...).Inc()
