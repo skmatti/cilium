@@ -273,6 +273,8 @@ func (k *EgressGatewayTestSuite) TestEgressGatewayManager(c *C) {
 	egressGatewayManager.OnUpdateEndpoint(&ep1)
 
 	assertEgressRules(c, []egressRule{
+		// This rule is not removed because it's used by TrafficSteering
+		{ep1IP, destCIDR, zeroIP4, gatewayNotFoundValue},
 		{ep2IP, destCIDR, zeroIP4, node2IP},
 	})
 	assertIPRules(c, []ipRule{})
