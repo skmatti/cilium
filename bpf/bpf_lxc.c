@@ -1062,16 +1062,24 @@ ct_recreate4:
 		if (identity_is_cluster(*dst_id))
 			goto skip_egress_gateway;
 
+		egress_gw_policy = lookup_ip4_egress_gw_policy(ip4->saddr, ip4->daddr);
+		if (!egress_gw_policy)
+			goto skip_egress_gateway;
+
 		/* If the packet is a reply or is related, it means that outside
 		 * has initiated the connection, and so we should skip egress
 		 * gateway, since an egress policy is only matching connections
 		 * originating from a pod.
+		 *
+		 * The excpetion to the above decision is in the following case:
+		 * For the egress gateway policy installed by TrafficSteering CR,
+		 * egress_ip is always set to 0x0. For the packet which is outside
+		 * initiated, if egress_gw_policy has egress_ip 0x0, we want this
+		 * packet not to skip egress gateway and we want this packet to follow
+		 * the egress gw policy and go back to the ANG/GNG node, before going
+		 * back outside of the cluster.
 		 */
-		if (ct_status == CT_REPLY || ct_status == CT_RELATED)
-			goto skip_egress_gateway;
-
-		egress_gw_policy = lookup_ip4_egress_gw_policy(ip4->saddr, ip4->daddr);
-		if (!egress_gw_policy)
+		if ((ct_status == CT_REPLY || ct_status == CT_RELATED) && egress_gw_policy->egress_ip != 0x0)
 			goto skip_egress_gateway;
 
 #ifdef TUNNEL_MODE

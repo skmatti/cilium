@@ -24,6 +24,7 @@ import (
 	"github.com/cilium/cilium/pkg/maps/egressmap"
 	nodeTypes "github.com/cilium/cilium/pkg/node/types"
 	"github.com/cilium/cilium/pkg/option"
+	ciliumTypes "github.com/cilium/cilium/pkg/types"
 )
 
 var (
@@ -385,6 +386,14 @@ func (manager *Manager) removeUnusedEgressRules() {
 
 nextPolicyKey:
 	for policyKey, policyVal := range egressPolicies {
+		if (policyVal.EgressIP == ciliumTypes.IPv4{}) {
+			// For the egress policy installed by TrafficSteering CR,
+			// EgressIP is always set to 0.0.0.0. OSS is not aware of the
+			// TrafficSteering CR and thereby not aware of policies installed
+			// by it. We explicitly have to skip their deletion by identifying
+			// such policies by checking policyVal.EgressIP value.
+			continue
+		}
 		matchPolicy := func(endpointIP net.IP, dstCIDR *net.IPNet, gwc *gatewayConfig) bool {
 			return policyKey.Match(endpointIP, dstCIDR) && policyVal.Match(gwc.egressIP.IP, gwc.gatewayIP)
 		}
