@@ -15,8 +15,10 @@ limitations under the License.
 */
 
 /*
-This file contains the logic for ILB services running in GDC-H.  It extends the service cache
-logic which is used by both cilium-agent (anetd) and clustermesh-apiserver.
+This file contains the logic for ILB services running in GDC-H. It extends the
+service cache logic which is used by both cilium-agent (anetd) and
+clustermesh-apiserver.
+
 */
 
 package k8s
@@ -24,6 +26,7 @@ package k8s
 import (
 	"fmt"
 	"net"
+	"reflect"
 
 	slimv1 "github.com/cilium/cilium/pkg/k8s/slim/k8s/api/core/v1"
 	"github.com/cilium/cilium/pkg/loadbalancer"
@@ -45,32 +48,69 @@ func generateClusterServiceName(service *serviceStore.ClusterService) string {
 	return fmt.Sprintf("%s-%s", service.Cluster, service.Name)
 }
 
-// ilbExternalUpdate handles add and update events for ILB services
+// ilbExternalUpdate handles add and update events for remote ILB services.
+//
+// ILB services are created with a ServiceID that includes the cluster name.
+// From the perspective of the cluster importing ILB services, each incoming ILB
+// service is a unique mapping of frontend endpoint to backend endpoints, even
+// when they have the same name and namespace. This is unlike the typical
+// cluster mesh implementation where global services that share the same name
+// will share the same pool of backends.
+//
+// In other words, multiple clusters can host ILB services with the same name
+// and namespace combination, but they are independent and each needs to be
+// accessed through its own service IP. There is no load balancing across
+// multiple clusters through this feature.
+//
+// This path is intended to be taken *instead of* the typical service creation
+// path. It updates the local service caches and enqueues an event to update the
+// ebpf maps.
+//
+// Even though this function (and ilbExternalDelete) exists in the same codepath
+// used by the operator and the daemon, it will only ever be called in the
+// daemon, since the operator does not watch remote cluster kvstores. Therefore,
+// external ILBs will not be stored in the local cluster's kvstore.
 func (s *ServiceCache) ilbExternalUpdate(service *serviceStore.ClusterService, swg *lock.StoppableWaitGroup) {
-	action := UpdateService
 	id := ServiceID{Name: generateClusterServiceName(service), Namespace: service.Namespace}
 	scopedLog := log.WithFields(logrus.Fields{
 		logfields.K8sSvcName:   id.Name,
 		logfields.K8sNamespace: id.Namespace,
 		logfields.ClusterName:  service.Cluster,
 	})
-	scopedLog.Debug("Processing service update")
+	scopedLog.Debug("Processing remote ILB service update")
 
 	svc, endpoints := s.ilbConvertService(service)
-	// Check to see if it was previously an ILB service, so we can GC it.
-	// If there are previous backends then we have synced this to the bpf map before.
-	if !isIlbClusterService(service) {
-		if len(endpoints.Backends) == 0 {
-			scopedLog.Debug("Will not process, service is not an ILB and has no Backends")
-			return
-		}
-		action = DeleteService
-		scopedLog.Infof("Removing enpdoints since service is no longer an ILB")
+	scopedLog = scopedLog.WithField("backends", endpoints.Backends)
+	if _, existedBefore := s.services[id]; !existedBefore {
+		scopedLog.Info("Creating new ILB service")
 	}
 
+	if len(endpoints.Backends) == 0 {
+		scopedLog.Warning("ILB service has no backends.")
+	}
+
+	// Update local caches.
+	s.services[id] = svc
+	externalEndpoints, ok := s.externalEndpoints[id]
+	if !ok {
+		s.externalEndpoints[id] = newExternalEndpoints()
+	}
+	if cachedEndpoints := externalEndpoints.endpoints[service.Cluster]; !reflect.DeepEqual(cachedEndpoints, endpoints) {
+		if cachedEndpoints == nil {
+			cachedEndpoints = newEndpoints()
+		}
+		scopedLog.WithField("previousBackends", cachedEndpoints.Backends).Debug("Updating cached backends on ILB service.")
+	} else {
+		scopedLog.Debug("Endpoints on ILB service did not change.")
+	}
+	// The endpoints map here will only ever have one entry in it, since the ID
+	// is unique per cluster.
+	s.externalEndpoints[id].endpoints[service.Cluster] = endpoints
+
+	// Update bpf maps.
 	swg.Add()
 	s.Events <- ServiceEvent{
-		Action:    action,
+		Action:    UpdateService,
 		ID:        id,
 		Service:   svc,
 		Endpoints: endpoints,
@@ -78,26 +118,44 @@ func (s *ServiceCache) ilbExternalUpdate(service *serviceStore.ClusterService, s
 	}
 }
 
-// ilbExternalDelete handles delete events for ILB services
+// ilbExternalDelete handles delete events for remote ILB services.
+//
+// This path is intended to be taken *instead of* the typical service deletion
+// path. It updates the local service caches and enqueues an event to update the
+// ebpf maps.
+//
+//
+// See ilbExternalUpdate for more details.
 func (s *ServiceCache) ilbExternalDelete(service *serviceStore.ClusterService, swg *lock.StoppableWaitGroup) {
 	id := ServiceID{Name: generateClusterServiceName(service), Namespace: service.Namespace}
-	svc, endpoints := s.ilbConvertService(service)
-
-	log.WithFields(logrus.Fields{
+	log := log.WithFields(logrus.Fields{
 		logfields.K8sSvcName:   id.Name,
 		logfields.K8sNamespace: id.Namespace,
 		logfields.ClusterName:  service.Cluster,
-	}).Debug("Processing service delete")
+	})
+	log.Debug("Processing remote ILB service delete")
 
+	// Update local caches.
+	_, existedBefore := s.services[id]
+	delete(s.services, id)
+	svc, endpoints := s.ilbConvertService(service)
+	delete(s.externalEndpoints, id)
+
+	if existedBefore {
+		log.Info("Deleting ILB service")
+	} else {
+		log.Debug("ILB service delete was called for service that does not exist in the local service cache.")
+	}
+
+	// Update bpf maps.
 	swg.Add()
-	event := ServiceEvent{
+	s.Events <- ServiceEvent{
 		Action:    DeleteService,
 		ID:        id,
 		Service:   svc,
 		Endpoints: endpoints,
 		SWG:       swg,
 	}
-	s.Events <- event
 }
 
 // ilbConvertService() converts the external ClusterService to a local Service
@@ -112,7 +170,7 @@ func (s *ServiceCache) ilbConvertService(externalService *serviceStore.ClusterSe
 	// There should not be more than 1 FrontendIP.  If for some reason we get here we will
 	// always pick the first one in the map, which does not have a guaranteed order.
 	if len(externalService.Frontends) != 1 {
-		scopedLog.Warningf("Unexpected number of frontend IPs: %v", externalService.Frontends)
+		scopedLog.Warningf("Unexpected number of frontend IPs in remote ILB service: %v", externalService.Frontends)
 	}
 
 	var ip net.IP
@@ -138,22 +196,15 @@ func (s *ServiceCache) ilbConvertService(externalService *serviceStore.ClusterSe
 	for name, portSpec := range svcport {
 		svc.Ports[loadbalancer.FEPortName(name)] = portSpec
 	}
-	endpoints := newEndpoints()
-	exEndpoints := s.externalEndpoints[id]
 
-	for clusterName, remoteClusterEndpoints := range exEndpoints.endpoints {
-		// There shouldn't be another cluster service with the exact same name + namespace. But,
-		// we want to filter that out just in case.
-		if clusterName == externalService.Cluster {
-			for ip, e := range remoteClusterEndpoints.Backends {
-				endpoints.Backends[ip] = e
-			}
-		} else {
-			scopedLog.Warningf("Duplicate service exists in cluster: %s, endpoint: %v", clusterName, remoteClusterEndpoints)
-		}
+	// Populate from service. We don't need to merge from any other services
+	// because ILB services are considered separate per cluster.
+	endpoints := newEndpoints()
+	for ip, port := range externalService.Backends {
+		endpoints.Backends[ip] = &Backend{Ports: port}
 	}
 
-	scopedLog.Debugf("Service: %+v, Endpoints: %+v", svc, endpoints)
+	scopedLog.Debugf("Converted remote ILB service: %+v, Endpoints: %+v", svc, endpoints)
 	return svc, endpoints
 }
 

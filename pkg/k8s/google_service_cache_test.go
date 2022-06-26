@@ -25,9 +25,11 @@ logic which is used by both cilium-agent (anetd) and clustermesh-apiserver.
 package k8s
 
 import (
+	"context"
 	"net"
 	"reflect"
 	"testing"
+	"time"
 
 	"github.com/cilium/cilium/pkg/cidr"
 	fakeDatapath "github.com/cilium/cilium/pkg/datapath/fake"
@@ -35,8 +37,11 @@ import (
 	metav1 "github.com/cilium/cilium/pkg/k8s/slim/k8s/apis/meta/v1"
 	"github.com/cilium/cilium/pkg/loadbalancer"
 	"github.com/cilium/cilium/pkg/lock"
+	"github.com/cilium/cilium/pkg/option"
 	"github.com/cilium/cilium/pkg/service/store"
+	serviceStore "github.com/cilium/cilium/pkg/service/store"
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 )
 
 func TestIsIlbService(t *testing.T) {
@@ -483,5 +488,137 @@ func TestIlbExternalDelete(t *testing.T) {
 				t.Errorf("want %v, got %v", tc.want, event)
 			}
 		})
+	}
+}
+
+// TestMergeServiceUpdateAndDeleteForILB validates that updating and deleting an
+// ILB service generates the correct update and delete events for both the
+// remote and local service ID.
+//
+// Validations are run against MergeCluster and MergeExternal functions.
+func TestMergeServiceUpdateAndDeleteForILB(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	cache := NewServiceCache(fakeDatapath.NewNodeAddressing())
+
+	enabledBefore := option.Config.EnableGDCILB
+	option.Config.EnableGDCILB = true
+	defer func() { option.Config.EnableGDCILB = enabledBefore }()
+
+	swg := lock.NewStoppableWaitGroup()
+
+	localID := ServiceID{Name: "name", Namespace: "ns"}
+	remoteID := ServiceID{Name: "other-cluster-name", Namespace: "ns"}
+	clusterService := serviceStore.ClusterService{
+		Name:      localID.Name,
+		Namespace: localID.Namespace,
+		Cluster:   "other-cluster",
+		Labels: map[string]string{
+			serviceAnnotationKey: serviceAnnotationValue,
+			serviceTypeKey:       string(slimv1.ServiceTypeLoadBalancer),
+		},
+		Frontends: map[string]serviceStore.PortConfiguration{"1.1.1.1": {}},
+		// Backends provided in test.
+	}
+
+	service := &Service{
+		FrontendIPs:   []net.IP{net.ParseIP("1.1.1.1")},
+		Labels:        clusterService.Labels,
+		TrafficPolicy: loadbalancer.SVCTrafficPolicyCluster,
+		Type:          loadbalancer.SVCTypeClusterIP,
+	}
+
+	opts := cmp.Options{
+		cmpopts.EquateEmpty(),
+		cmp.AllowUnexported(externalEndpoints{}),
+	}
+
+	backendUpdates := []map[string]*Backend{
+		{
+			"1.1.1.1": {Ports: serviceStore.PortConfiguration{}},
+		},
+		{
+			"1.1.1.1": {Ports: serviceStore.PortConfiguration{}},
+			"2.2.2.2": {Ports: serviceStore.PortConfiguration{}},
+		},
+		{
+			"2.2.2.2": {Ports: serviceStore.PortConfiguration{}},
+		},
+	}
+
+	for i, backendUpdate := range backendUpdates {
+		backends := map[string]serviceStore.PortConfiguration{}
+		for ip, be := range backendUpdate {
+			backends[ip] = be.Ports
+		}
+		clusterService.Backends = backends
+		wantExternalEndpoints := map[ServiceID]externalEndpoints{
+			remoteID: {
+				endpoints: map[string]*Endpoints{
+					clusterService.Cluster: {
+						Backends: backendUpdate,
+					},
+				},
+			},
+		}
+		cache.MergeExternalServiceUpdate(&clusterService, swg)
+		if _, ok := cache.services[remoteID]; !ok {
+			t.Errorf("After #%d update, cache's services should have ID %s, but did not", i, remoteID)
+		}
+		if _, ok := cache.services[localID]; ok {
+			t.Errorf("After #%d update, cache's services should not have ID %s, but did", i, localID)
+		}
+		if diff := cmp.Diff(wantExternalEndpoints, cache.externalEndpoints, opts); diff != "" {
+			t.Errorf("After #%d update, cache's external endpoints differed (-want +got):\n%s", i+1, diff)
+		}
+
+		wantEvent := ServiceEvent{
+			Action:    UpdateService,
+			ID:        remoteID,
+			Service:   service,
+			Endpoints: &Endpoints{Backends: backendUpdate},
+		}
+		select {
+		case e := <-cache.Events:
+			if diff := cmp.Diff(wantEvent, e, cmpopts.IgnoreFields(ServiceEvent{}, "SWG"), cmpopts.EquateEmpty()); diff != "" {
+				t.Errorf("Cache event for remote event differed (-want, +got):\n%s", diff)
+			}
+		case <-ctx.Done():
+			t.Fatalf("Timeout while waiting for remote event")
+		}
+	}
+
+	cache.MergeExternalServiceDelete(&clusterService, swg)
+	if len(cache.services) != 0 {
+		t.Errorf("After delete, expected the cache's services to be empty but got %#v", cache.services)
+	}
+	if len(cache.externalEndpoints) != 0 {
+		t.Errorf("After delete, expected the cache's external endpoints to be empty but got %#v", cache.externalEndpoints)
+	}
+
+	lastBackends := backendUpdates[len(backendUpdates)-1]
+	wantEvent := ServiceEvent{
+		Action:    DeleteService,
+		ID:        remoteID,
+		Service:   service,
+		Endpoints: &Endpoints{Backends: lastBackends},
+	}
+	select {
+	case e := <-cache.Events:
+		if diff := cmp.Diff(wantEvent, e, cmpopts.IgnoreFields(ServiceEvent{}, "SWG"), opts); diff != "" {
+			t.Errorf("Delete event differed (-want, +got):\n%s", diff)
+		}
+	case <-ctx.Done():
+		t.Fatalf("Timeout while waiting for delete event")
+	}
+
+	// We should not get any other events.
+	ctx, cancel = context.WithTimeout(context.Background(), 1*time.Second)
+	defer cancel()
+	select {
+	case e := <-cache.Events:
+		t.Fatalf("Received unexpected event at end of test: %#v", e)
+	case <-ctx.Done():
 	}
 }
