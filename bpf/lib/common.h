@@ -627,6 +627,14 @@ static __always_inline __u32 or_encrypt_key(__u8 key)
 #define TC_INDEX_F_SKIP_HOST_FIREWALL	16
 
 /*
+ * Used to mark google self-generated dhcp packets and construct
+ * the program to skip policy enforcement.
+ * tc_index is u32 and set the value to 4096 to
+ * avoid conflicting with cilium OSS code.
+*/
+#define TC_INDEX_F_SKIP_POLICY_GOOGLE_DHCP	4096
+
+/*
  * For use in ctx_{load,store}_meta(), which operates on sk_buff->cb.
  * The verifier only exposes the first 5 slots in cb[], so this enum
  * only contains 5 entries. Aliases are added to the slots to re-use

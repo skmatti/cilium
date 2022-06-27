@@ -1794,6 +1794,13 @@ ipv4_policy(struct __ctx_buff *ctx, int ifindex, __u32 src_label, enum ct_status
 	is_untracked_fragment = ipv4_is_fragment(ip4);
 #endif
 
+#ifdef IS_MULTI_NIC_DEVICE
+	if (ipv4_has_l4_header(ip4)) {
+		int l4_off_tmp = ETH_HLEN + ipv4_hdrlen(ip4);
+		skip_policy_if_dhcp(ctx, ip4->protocol, l4_off_tmp);
+	}
+#endif /* IS_MULTI_NIC_DEVICE */
+
 	ct_buffer = map_lookup_elem(&CT_TAIL_CALL_BUFFER4, &zero);
 	if (!ct_buffer)
 		return DROP_INVALID_TC_BUFFER;
