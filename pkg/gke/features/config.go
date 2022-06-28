@@ -46,6 +46,9 @@ type Config struct {
 	EnableAutoDirectRoutingIPv4 bool `mapstructure:"auto-direct-node-routes-ipv4"`
 	// EnableAutoDirectRoutingIPv6 enables installation of IPv6 direct routes to other nodes when available
 	EnableAutoDirectRoutingIPv6 bool `mapstructure:"auto-direct-node-routes-ipv6"`
+	// K8sInterfaceOnly instructs Cilium to attach bpf_host programs only to the
+	// interface with the k8s IP.
+	K8sInterfaceOnly bool `mapstructure:"k8s-interface-only"`
 }
 
 var defaultConfig = Config{
@@ -57,6 +60,7 @@ var defaultConfig = Config{
 	EnableCiliumClusterWideNetworkPolicy: true,
 	EnableAutoDirectRoutingIPv4:          false,
 	EnableAutoDirectRoutingIPv6:          false,
+	K8sInterfaceOnly:                     false,
 }
 
 func (cfg Config) Flags(flags *pflag.FlagSet) {
@@ -84,4 +88,7 @@ func (cfg Config) Flags(flags *pflag.FlagSet) {
 
 	flags.Bool(option.EnableAutoDirectRoutingIPv6Name, defaultConfig.EnableAutoDirectRoutingIPv6, "Enable installation of IPv6 direct routes to other nodes when available")
 	flags.MarkHidden(option.EnableAutoDirectRoutingIPv6Name)
+
+	flags.Bool(option.K8sInterfaceOnly, defaultConfig.K8sInterfaceOnly, "Only use k8s node interface as host device")
+	flags.MarkHidden(option.K8sInterfaceOnly)
 }

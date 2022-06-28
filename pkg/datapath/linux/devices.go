@@ -20,6 +20,7 @@ import (
 
 	"github.com/cilium/cilium/pkg/datapath/linux/probes"
 	"github.com/cilium/cilium/pkg/defaults"
+	"github.com/cilium/cilium/pkg/gke/features"
 	"github.com/cilium/cilium/pkg/lock"
 	"github.com/cilium/cilium/pkg/logging/logfields"
 	"github.com/cilium/cilium/pkg/mac"
@@ -109,6 +110,16 @@ func (dm *DeviceManager) Detect(k8sEnabled bool) ([]string, error) {
 			return nil, fmt.Errorf("cannot retrieve routes for device detection: %w", err)
 		}
 		dm.updateDevicesFromRoutes(l3DevOK, routes)
+
+		if features.GlobalConfig.K8sInterfaceOnly {
+			// Clear detected devices and use only the k8s node device
+			dm.devices = make(map[string]struct{})
+			k8sNodeLink, err := findK8SNodeIPLink()
+			if err != nil {
+				return nil, fmt.Errorf("cannot retrieve k8s node interface: %v", err)
+			}
+			dm.devices[k8sNodeLink.Attrs().Name] = struct{}{}
+		}
 	} else {
 		for _, dev := range option.Config.GetDevices() {
 			dm.devices[dev] = struct{}{}

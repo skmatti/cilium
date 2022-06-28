@@ -5,9 +5,12 @@ package linux
 
 import (
 	"context"
+	"net"
 	"time"
 
 	"github.com/cilium/cilium/pkg/checker"
+	"github.com/cilium/cilium/pkg/gke/features"
+	"github.com/cilium/cilium/pkg/node"
 	"github.com/cilium/cilium/pkg/option"
 	. "gopkg.in/check.v1"
 )
@@ -54,5 +57,31 @@ func (s *DevicesSuite) TestExcludeDevicesWithUserProvidedPrefixes(c *C) {
 				passed, _ = checker.DeepEqual(devices, []string{"dummy0", "dummy1", "dummy2"})
 			}
 		}
+	})
+}
+
+func (s *DevicesSuite) TestDevicesWithK8sInterfaceOnly(c *C) {
+	s.withFreshNetNS(c, func() {
+		dm, err := NewDeviceManager()
+		c.Assert(err, IsNil)
+
+		currentValue := features.GlobalConfig.K8sInterfaceOnly
+		defer func() {
+			features.GlobalConfig.K8sInterfaceOnly = currentValue
+			option.Config.SetDevices([]string{})
+		}()
+		features.GlobalConfig.K8sInterfaceOnly = true
+		option.Config.EnableHostFirewall = true
+		node.SetIPv4(net.ParseIP("192.168.2.2"))
+
+		// Test that we exclude the specified devices on startup
+		c.Assert(createDummy("ifName0", "192.168.2.2/24", false), IsNil)
+		c.Assert(createDummy("ifName1", "192.90.3.4/24", false), IsNil)
+		c.Assert(createDummy("exclude123", "100.5.100.0/20", false), IsNil)
+
+		// Detect the devices
+		devices, err := dm.Detect(true)
+		c.Assert(err, IsNil)
+		c.Assert(devices, checker.DeepEquals, []string{"ifName0"})
 	})
 }

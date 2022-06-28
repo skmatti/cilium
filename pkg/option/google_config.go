@@ -52,6 +52,10 @@ const (
 	// DisablePodToRemoteNodeTunneling disables tunneling for all traffic to the remote nodes.
 	DisablePodToRemoteNodeTunneling = "disable-pod-to-remote-node-tunneling"
 
+	// K8sInterfaceOnly instructs Cilium to attach bpf_host programs only to the
+	// interface with the k8s IP.
+	K8sInterfaceOnly = "k8s-interface-only"
+
 	// DevicePrefixesToExclude excludes google-managed devices with the provided prefixes.
 	DevicePrefixesToExclude = "device-prefixes-to-exclude"
 
