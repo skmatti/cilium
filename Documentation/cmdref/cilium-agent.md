@@ -202,6 +202,7 @@ cilium-agent [flags]
       --join-cluster                                            Join a Cilium cluster via kvstore registration
       --k8s-api-server string                                   Kubernetes API server URL
       --k8s-heartbeat-timeout duration                          Configures the timeout for api-server heartbeat, set to 0 to disable (default 30s)
+      --k8s-interface-only                                      Only use k8s node interface as host device
       --k8s-kubeconfig-path string                              Absolute path of the kubernetes kubeconfig file
       --k8s-namespace string                                    Name of the Kubernetes namespace in which Cilium is deployed in
       --k8s-require-ipv4-pod-cidr                               Require IPv4 PodCIDR to be specified in node resource

@@ -178,6 +178,18 @@ func (s *DevicesSuite) TestDetect(c *C) {
 		c.Assert(err, IsNil)
 		c.Assert(devices, checker.DeepEquals, []string{"bond0", "cilium_foo", "dummy0", "dummy1", "veth0"})
 		option.Config.SetDevices([]string{})
+
+		// 10. Only use k8s node device
+		option.Config.K8sInterfaceOnly = true
+		option.Config.DirectRoutingDevice = ""
+		option.Config.EnableIPv6 = true
+		option.Config.EnableIPv6NDP = false
+		option.Config.IPv6MCastDevice = ""
+		node.SetK8sNodeIP(net.ParseIP("192.168.0.1"))
+		devices, err = dm.Detect()
+		c.Assert(err, IsNil)
+		c.Assert(devices, checker.DeepEquals, []string{"dummy0"})
+		option.Config.SetDevices([]string{})
 	})
 }
 

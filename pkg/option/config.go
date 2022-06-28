@@ -128,6 +128,10 @@ const (
 	// direct routing mode (only required by BPF NodePort)
 	DirectRoutingDevice = "direct-routing-device"
 
+	// K8sInterfaceOnly instructs Cilium to attach bpf_host programs only to the
+	// interface with the k8s IP.
+	K8sInterfaceOnly = "k8s-interface-only"
+
 	// LBDevInheritIPAddr is device name which IP addr is inherited by devices
 	// running BPF loadbalancer program
 	LBDevInheritIPAddr = "bpf-lb-dev-ip-addr-inherit"
@@ -1908,6 +1912,10 @@ type DaemonConfig struct {
 	// NodePortNat46X64 indicates whether NAT46 / NAT64 can be used.
 	NodePortNat46X64 bool
 
+	// K8sInterfaceOnly instructs Cilium to attach bpf_host programs only to the
+	// interface with the k8s IP.
+	K8sInterfaceOnly bool
+
 	// NodePortMode indicates in which mode NodePort implementation should run
 	// ("snat", "dsr" or "hybrid")
 	NodePortMode string
@@ -3348,6 +3356,8 @@ func (c *DaemonConfig) Populate() {
 	c.BypassIPAvailabilityUponRestore = viper.GetBool(BypassIPAvailabilityUponRestore)
 	c.EnableK8sTerminatingEndpoint = viper.GetBool(EnableK8sTerminatingEndpoint)
 	c.EnableStaleCiliumEndpointCleanup = viper.GetBool(EnableStaleCiliumEndpointCleanup)
+
+	c.K8sInterfaceOnly = viper.GetBool(K8sInterfaceOnly)
 
 	// Disable Envoy version check if L7 proxy is disabled.
 	c.DisableEnvoyVersionCheck = viper.GetBool(DisableEnvoyVersionCheck)

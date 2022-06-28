@@ -108,6 +108,16 @@ func (dm *DeviceManager) Detect() ([]string, error) {
 			return nil, fmt.Errorf("cannot retrieve routes for device detection: %w", err)
 		}
 		dm.updateDevicesFromRoutes(l3DevOK, routes)
+
+		if option.Config.K8sInterfaceOnly {
+			// Clear detected devices and use only the k8s node device
+			dm.devices = make(map[string]struct{})
+			k8sNodeLink, err := findK8SNodeIPLink()
+			if err != nil {
+				return nil, fmt.Errorf("cannot retrieve k8s node interface: %v", err)
+			}
+			dm.devices[k8sNodeLink.Attrs().Name] = struct{}{}
+		}
 	} else {
 		for _, dev := range option.Config.GetDevices() {
 			dm.devices[dev] = struct{}{}
