@@ -74,6 +74,11 @@ type policyID = types.NamespacedName
 // config based on matching labels of config and endpoint.
 func (config *PolicyConfig) selectsEndpoint(endpointInfo *endpointMetadata) bool {
 	labelsToMatch := k8sLabels.Set(endpointInfo.labels)
+	// MultiNIC endpoint doesn't support EgressNATPolicy.
+	// Don't select the endpoint if it's a multi-nic endpoint.
+	if isMultiNICEndpoint(labelsToMatch) {
+		return false
+	}
 	for _, selector := range config.endpointSelectors {
 		if selector.Matches(labelsToMatch) {
 			return true
