@@ -1,6 +1,6 @@
 ARG WINDOWS_VERSION=ltsc2019
 
-FROM golang:1.16 as antrea-build-windows
+FROM golang:1.18 as antrea-build-windows
 
 WORKDIR /cilium
 
