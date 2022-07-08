@@ -1135,7 +1135,7 @@ skip_egress_gateway:
 skip_vtep:
 #endif
 
-#ifdef TUNNEL_MODE
+#if defined(TUNNEL_MODE) && !defined(IS_MULTI_NIC_DEVICE)
 # ifdef ENABLE_WIREGUARD
 	/* In the tunnel mode we encapsulate pod2pod traffic only via Wireguard
 	 * device, i.e. we do not encapsulate twice.
@@ -1163,7 +1163,7 @@ skip_vtep:
 		else
 			return ret;
 	}
-#endif /* TUNNEL_MODE */
+#endif /* TUNNEL_MODE && !IS_MULTI_NIC_DEVICE */
 	if (is_defined(ENABLE_HOST_ROUTING)) {
 		int oif;
 
@@ -1219,7 +1219,7 @@ pass_to_stack:
 #endif
 	}
 
-#if defined(TUNNEL_MODE) || defined(ENABLE_EGRESS_GATEWAY)
+#if (defined(TUNNEL_MODE) || defined(ENABLE_EGRESS_GATEWAY)) && !defined(IS_MULTI_NIC_DEVICE)
 encrypt_to_stack:
 #endif
 	send_trace_notify(ctx, TRACE_TO_STACK, SECLABEL, *dst_id, 0, 0,
