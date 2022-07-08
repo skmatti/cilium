@@ -190,6 +190,9 @@ const (
 	// EnableIPv6NDP is the default value for IPv6 NDP support enablement
 	EnableIPv6NDP = false
 
+	// EnableSCTP is the default value for SCTP support enablement
+	EnableSCTP = false
+
 	// EnableL7Proxy is the default value for L7 proxy enablement
 	EnableL7Proxy = true
 

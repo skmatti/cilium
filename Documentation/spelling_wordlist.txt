@@ -668,6 +668,7 @@ mov
 mul
 multi
 multicore
+multihoming
 multinode
 musl
 mutex
@@ -851,6 +852,7 @@ sandboxing
 scalability
 scalable
 scp
+sctp
 seLinuxOptions
 seccomp
 secretName
