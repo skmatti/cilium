@@ -1163,7 +1163,7 @@ skip_vtep:
 			return ret;
 	}
 #endif /* TUNNEL_MODE && !IS_MULTI_NIC_DEVICE */
-	if (is_defined(ENABLE_HOST_ROUTING)) {
+	if (is_defined(ENABLE_HOST_ROUTING) && !is_defined(IS_MULTI_NIC_DEVICE)) {
 		int oif;
 
 		ret = redirect_direct_v4(ctx, ETH_HLEN, ip4, &oif);
