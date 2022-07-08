@@ -7,5 +7,5 @@ RUN mkdir -Force C:\k\cilium\bin
 
 RUN setx /M PATH "%PATH%;C:\k\cilium\bin"
 
-COPY cilium-agent.exe /k/cilium/bin
+COPY anet-agent.exe /k/cilium/bin
 

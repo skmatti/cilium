@@ -7,4 +7,4 @@ del vendor\github.com\miekg\dns\udp_windows.go
 
 :: Build windows
 cd slim-daemon
-go build -o cilium-agent.exe
+go build -o anet-agent.exe

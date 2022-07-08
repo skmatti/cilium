@@ -7,8 +7,8 @@ def windows_docker_push(base_version):
     container_image(
         name = "cilium-win-%s-image" % (base_version),
         base = ":servercore_%s" % (base_version),
-        cmd = ["c:\\cilium-agent.exe"],
-        files = [":cilium-agent.exe", "THIRD_PARTY_NOTICES"],
+        cmd = ["c:\\anet-agent.exe"],
+        files = [":anet-agent.exe", "THIRD_PARTY_NOTICES"],
         operating_system = "windows",
         workdir = "c:\\",
         tags = ["manual"],

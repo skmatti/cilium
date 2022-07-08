@@ -21,4 +21,4 @@ RUN mkdir -Force C:\k\cilium\bin
 
 RUN setx /M PATH "%PATH%;C:\k\cilium\bin"
 
-COPY --from=antrea-build-windows  /cilium/slim-daemon/cilium-agent.exe /k/cilium/bin
+COPY --from=antrea-build-windows  /cilium/slim-daemon/anet-agent.exe /k/cilium/bin
