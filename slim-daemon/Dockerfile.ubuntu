@@ -13,5 +13,7 @@ RUN make -C /cilium/slim-daemon linux
 
 FROM ubuntu
 
+RUN apt-get update && apt-get upgrade -y
+
 COPY --from=anet-build /cilium/slim-daemon/anet-agent /
 
