@@ -53,6 +53,12 @@ multinic_redirect_ipv4(struct __ctx_buff *ctx __maybe_unused)
 static int BPF_FUNC(clone_redirect, struct __sk_buff *skb, int ifindex,
 		    __u32 flags);
 
+static __always_inline void
+ctx_google_local_redirect_set(struct __sk_buff *ctx)
+{
+	ctx->tc_index |= TC_INDEX_F_GOOGLE_LOCAL_REDIRECT;
+}
+
 /**
  * Redirect ipv4 multinic traffic back to local kernel if needed.
  * L2 broadcast traffic is cloned and redirected too.
@@ -99,6 +105,7 @@ multinic_redirect_ipv4(struct __ctx_buff *ctx)
 to_ingress:
 	send_trace_notify(ctx, TRACE_TO_STACK, 0, 0, 0, NATIVE_DEV_IFINDEX, 0,
 			  0);
+	ctx_google_local_redirect_set(ctx);
 	return redirect(NATIVE_DEV_IFINDEX, BPF_F_INGRESS);
 }
 #endif
@@ -116,7 +123,20 @@ static __always_inline __maybe_unused void skip_policy_if_dhcp(struct __ctx_buff
 	return;
 }
 
+static __always_inline __maybe_unused bool ctx_google_local_redirect(struct __ctx_buff *ctx __maybe_unused)
+{
+	return false;
+}
+
 #else
+
+static __always_inline bool ctx_google_local_redirect(struct __ctx_buff *ctx)
+{
+	volatile __u32 tc_index = ctx->tc_index;
+
+	ctx->tc_index &= ~TC_INDEX_F_GOOGLE_LOCAL_REDIRECT;
+	return tc_index & TC_INDEX_F_GOOGLE_LOCAL_REDIRECT;
+}
 
 static __always_inline void
 ctx_skip_google_dhcp_set(struct __sk_buff *ctx)
