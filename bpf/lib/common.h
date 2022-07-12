@@ -633,6 +633,8 @@ static __always_inline __u32 or_encrypt_key(__u8 key)
  * avoid conflicting with cilium OSS code.
 */
 #define TC_INDEX_F_SKIP_POLICY_GOOGLE_DHCP	4096
+/* Used to mark google multinic local redirect packets */
+#define TC_INDEX_F_GOOGLE_LOCAL_REDIRECT	8192
 
 /*
  * For use in ctx_{load,store}_meta(), which operates on sk_buff->cb.

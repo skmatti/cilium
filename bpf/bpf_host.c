@@ -571,6 +571,15 @@ handle_ipv4(struct __ctx_buff *ctx, __u32 secctx,
 	}
 #endif /* ENABLE_HOST_FIREWALL */
 
+#ifdef ENABLE_GOOGLE_MULTI_NIC
+	// Mark the source IDENTITY to HOST if the packet is local-redirected
+	// for the multinic device before redirection to kernel.
+	// The ingress BPF program of the multinic device can correctly
+	// inherit the source IDENTITY to process the packet.
+	if (unlikely(ctx_google_local_redirect(ctx)))
+		ctx->mark = MARK_MAGIC_HOST;
+#endif /* ENABLE_GOOGLE_MULTI_NIC */
+
 	if (skip_redirect)
 		return CTX_ACT_OK;
 
