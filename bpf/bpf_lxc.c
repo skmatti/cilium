@@ -1037,7 +1037,7 @@ ct_recreate4:
 		}
 	}
 
-#if defined(ENABLE_HOST_FIREWALL) && !defined(ENABLE_ROUTING)
+#if defined(ENABLE_HOST_FIREWALL) && !defined(ENABLE_ROUTING) && !defined(IS_MULTI_NIC_DEVICE)
 	/* If the destination is the local host and per-endpoint routes are
 	 * enabled, jump to the bpf_host program to enforce ingress host policies.
 	 */
@@ -1046,7 +1046,7 @@ ct_recreate4:
 		tail_call_static(ctx, &POLICY_CALL_MAP, HOST_EP_ID);
 		return DROP_MISSED_TAIL_CALL;
 	}
-#endif /* ENABLE_HOST_FIREWALL && !ENABLE_ROUTING */
+#endif /* ENABLE_HOST_FIREWALL && !ENABLE_ROUTING && !IS_MULTI_NIC_DEVICE */
 
 #ifdef ENABLE_EGRESS_GATEWAY
 	{
