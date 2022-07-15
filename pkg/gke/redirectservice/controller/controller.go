@@ -136,12 +136,16 @@ func NewController(kubeClient kubernetes.Interface, redirectServiceClient versio
 // validateRedirect validates the redirect spec.
 func validateRedirect(spec v1alpha1.RedirectSpec) error {
 	if spec.Type == v1alpha1.NodeLocalDNSRedirectServiceType {
-		if spec.Provider == v1alpha1.KubeDNSServiceProviderType {
+		if spec.Provider == v1alpha1.KubeDNSServiceProviderType || spec.Provider == v1alpha1.CloudDNSServiceProviderType {
 			return nil
 		}
 		return fmt.Errorf("unsupported DNS provider %s", spec.Provider)
 	}
 	return fmt.Errorf("unsupported service type %s", spec.Type)
+}
+
+func getRedirectProvider(rs *v1alpha1.RedirectService) v1alpha1.ServiceProviderType {
+	return rs.Spec.Redirect.Provider
 }
 
 // validateObj validates and converts an object to *v1alpha1.RedirectService.
@@ -228,7 +232,18 @@ func (c *Controller) updateHandler(obj interface{}) {
 		c.eventRecorder.Eventf(o, v1.EventTypeWarning, InvalidRedirectService, err.Error())
 		return
 	}
+	provider := getRedirectProvider(o)
 
+	if provider == v1alpha1.KubeDNSServiceProviderType {
+		c.installNodeLocalDNSRedirect(o)
+	}
+
+	if provider == v1alpha1.CloudDNSServiceProviderType {
+		c.clearNodeLocalDNSRedirect(o)
+	}
+}
+
+func (c *Controller) installNodeLocalDNSRedirect(o *v1alpha1.RedirectService) {
 	c.manageNoTrackRules = true
 	lrpConfig, err := c.generateLRPConfig(o, redirectServiceTypeNodeLocalDNS)
 	if err != nil {
@@ -302,6 +317,11 @@ func (c *Controller) delHandler(obj interface{}) {
 		return
 	}
 
+	c.clearNodeLocalDNSRedirect(o)
+}
+
+// clearNodeLocalDNSRedirect clears the LRP and NOTRACK rules for nodelocaldns+kubedns
+func (c *Controller) clearNodeLocalDNSRedirect(o *v1alpha1.RedirectService) {
 	c.manageNoTrackRules = false
 
 	lrpConfig, err := c.generateLRPConfig(o, redirectServiceTypeNodeLocalDNS)
@@ -314,6 +334,7 @@ func (c *Controller) delHandler(obj interface{}) {
 		c.removeNoTrackRules(ip)
 	}
 
+	// DeleteRedirectPolicy will do nothing if lrpConfig does not exist
 	err = c.redirectPolicyManager.DeleteRedirectPolicy(*lrpConfig)
 	if err != nil {
 		log.Errorf("Error deleting LRP %v", err)

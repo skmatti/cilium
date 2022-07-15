@@ -54,7 +54,8 @@ const (
 type ServiceProviderType string
 
 const (
-	KubeDNSServiceProviderType = ServiceProviderType("kube-dns")
+	KubeDNSServiceProviderType  = ServiceProviderType("kube-dns")
+	CloudDNSServiceProviderType = ServiceProviderType("cloud-dns")
 )
 
 // RedirectSpec contains the spec for this redirection service.
