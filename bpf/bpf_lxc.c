@@ -802,6 +802,10 @@ static __always_inline int handle_ipv4_from_lxc(struct __ctx_buff *ctx, __u32 *d
 	ret = redirect_if_dhcp(ctx, ip4->protocol, ETH_HLEN + ipv4_hdrlen(ip4));
 	if (ret != CTX_ACT_OK)
 	        return ret;
+	// Revalidate data after redirect_if_dhcp to avoid verifier
+	// rejecting the previous dereferenced ip4.
+	if (!revalidate_data(ctx, &data, &data_end, &ip4))
+		return DROP_INVALID;
 #endif /* IS_MULTI_NIC_DEVICE */
 
 	if (unlikely(!is_valid_lxc_src_ipv4(ip4)))

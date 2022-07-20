@@ -181,6 +181,9 @@ static __always_inline __maybe_unused int redirect_if_dhcp(struct __ctx_buff *ct
                               REASON_GOOGLE_DHCP_REQ_REDIRECT, TRACE_PAYLOAD_LEN);
             return redirect(POD_STACK_REDIRECT_IFINDEX, BPF_F_INGRESS);
         } else if (unlikely(dport == bpf_htons(DHCP_RESPONSE_UDP_DPORT))) {
+            // DHCP clients don't care if the source mac address is a broadcast mac.
+            const __u8 dhcp_source_mac[6] = { 0xff, 0xff, 0xff, 0xff, 0xff, 0xff } ;
+
             // Redirect, to hairpin back on the same interface
             send_trace_notify(ctx, TRACE_TO_STACK, 0, 0, 0,
                               ctx->ifindex,
@@ -191,6 +194,14 @@ static __always_inline __maybe_unused int redirect_if_dhcp(struct __ctx_buff *ct
             // The tc_index value is extracted on the INGRESS of the same interface and
             // constructs the program to skip policy enforcement.
             ctx_skip_google_dhcp_set(ctx);
+
+            // Due to b/232956565, Windows VMs don't take DHCP responses
+            // if the source mac address is the same as its interface.
+            // Modify the source mac address of DHCP responses to
+            // the broadcast mac here before redirect.
+            if (eth_store_saddr(ctx, dhcp_source_mac, 0) < 0) {
+		        return DROP_WRITE_ERROR;
+            }
             return redirect(ctx->ifindex, BPF_F_INGRESS);
         }
 
