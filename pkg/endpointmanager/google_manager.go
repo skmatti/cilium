@@ -44,7 +44,7 @@ func (mgr *EndpointManager) LookupPrimaryEndpointByContainerID(id string) *endpo
 	mgr.mutex.RLock()
 	defer mgr.mutex.RUnlock()
 	if !option.Config.EnableGoogleMultiNIC {
-		return mgr.LookupContainerID(id)
+		return mgr.lookupContainerID(id)
 	}
 
 	eps := mgr.endpointsMultiNIC[endpointid.NewID(endpointid.ContainerIdPrefix, id)]
@@ -61,7 +61,7 @@ func (mgr *EndpointManager) LookupPrimaryEndpointByPodName(name string) *endpoin
 	mgr.mutex.RLock()
 	defer mgr.mutex.RUnlock()
 	if !option.Config.EnableGoogleMultiNIC {
-		return mgr.LookupPodName(name)
+		return mgr.lookupPodNameLocked(name)
 	}
 
 	eps := mgr.endpointsMultiNIC[endpointid.NewID(endpointid.PodNamePrefix, name)]
