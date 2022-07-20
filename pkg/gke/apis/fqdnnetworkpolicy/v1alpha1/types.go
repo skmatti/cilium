@@ -91,19 +91,13 @@ type FQDNNetworkPolicyMatch struct {
 	// Pattern allows matching FQDNs using wildcard specifiers. If this
 	// is specified, no other match types may be specified in the same
 	// struct.
-	// "*" matches 0 or more DNS valid characters, and may occur anywhere in
-	// the pattern. As a special case a "*" as the leftmost character, without a
-	// following "." matches all subdomains as well as the name to the right.
-	// "*" may also be specified multiple times in a single pattern. For example,
-	// "*.*.google.com" or "*sub*.google.com"
+	// "*" matches 0 or more DNS valid characters (except for "."), and may occur
+	// anywhere in the pattern.
 	//
 	// Examples:
 	// `*.google.com` matches subdomains of google.com at that level
 	//     "www.google.com" and "mail.google.com" match, however "google.com",
 	//     "sub.subdomain.google.com", and "kubernetes.io" do not.
-	// `*google.com` matches google.com and all subdomains 1 level below
-	//     "www.google.com", "mail.google.com" and "google.com" match, however
-	//     "sub.subdomain.google.com" and "kubernetes.io" do not.
 	// `sub*.google.com` matches subdomains of google.com where the subdomain
 	// component begins with "sub"
 	//     "sub.google.com" and "subdomain.google.com" match, however
