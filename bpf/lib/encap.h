@@ -130,6 +130,13 @@ __encap_with_nodeid(struct __ctx_buff *ctx, __u32 tunnel_endpoint,
 	if (seclabel == HOST_ID)
 		seclabel = LOCAL_NODE_ID;
 
+#ifdef ENABLE_EGRESS_GATEWAY
+	/* If seclabel has local scope, set the tunnel ID to zero and let
+	 * the receiver do a source lookup. */
+	if (seclabel >= (1 << 24))
+		seclabel = 0;
+#endif /* ENABLE_EGRESS_GATEWAY */
+
 	node_id = bpf_htonl(tunnel_endpoint);
 #ifdef ENABLE_VTEP
 	if (vni != NOT_VTEP_DST)
