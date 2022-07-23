@@ -172,6 +172,8 @@ func (s *LoaderTestSuite) TestCompileAndLoadDefaultEndpoint(c *C) {
 // TestCompileAndLoadHostEndpoint is the same as
 // TestCompileAndLoadDefaultEndpoint, but for the host endpoint.
 func (s *LoaderTestSuite) TestCompileAndLoadHostEndpoint(c *C) {
+	c.Skip("b/239743853: This test assumes cilium_net to exist now. Fix it.")
+
 	elfMapPrefixes = []string{
 		fmt.Sprintf("test_%s", policymap.MapName),
 		fmt.Sprintf("test_%s", callsmap.MapName),

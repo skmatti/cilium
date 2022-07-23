@@ -90,7 +90,7 @@ type Controller struct {
 }
 
 // NewController returns a new controller for redirect service.
-func NewController(kubeClient kubernetes.Interface, redirectServiceClient versioned.Interface, watcherClient k8s.K8sClient, redirectPolicyManager RedirectPolicyManager) (*Controller, error) {
+func NewController(kubeClient kubernetes.Interface, redirectServiceClient versioned.Interface, watcherClient k8s.K8sSlimClient, redirectPolicyManager RedirectPolicyManager) (*Controller, error) {
 
 	broadcaster := record.NewBroadcaster()
 	broadcaster.StartLogging(klog.Infof)

@@ -423,9 +423,15 @@ func SetupL2Interface(ifNameInPod string, podResources map[string][]string, netw
 	}
 	defer m.Close()
 
-	mapID, err := m.ID()
+	info, err := m.Info()
 	if err != nil {
-		err_ = fmt.Errorf("failed to get map ID: %w", err)
+		err_ = fmt.Errorf("failed to get map info: %w", err)
+		return
+	}
+
+	mapID, exists := info.ID()
+	if !exists {
+		err_ = fmt.Errorf("failed to get map ID")
 		return
 	}
 
