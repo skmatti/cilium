@@ -176,7 +176,7 @@ static __always_inline __maybe_unused int redirect_if_dhcp(struct __ctx_buff *ct
             return DROP_INVALID;
         if (unlikely(dport == bpf_htons(DHCP_REQUEST_UDP_DPORT))) {
             // Redirect to an interface that will release the packet to the pod-namespace stack
-            send_trace_notify(ctx, TRACE_TO_STACK, 0, POD_STACK_REDIRECT_IFINDEX,
+            send_trace_notify(ctx, TRACE_TO_STACK, 0, 0,
                               0, ctx->ifindex,
                               REASON_GOOGLE_DHCP_REQ_REDIRECT, TRACE_PAYLOAD_LEN);
             return redirect(POD_STACK_REDIRECT_IFINDEX, BPF_F_INGRESS);
