@@ -1035,6 +1035,12 @@ func NewDaemon(ctx context.Context, cancel context.CancelFunc, epMgr *endpointma
 		log.WithError(err).Errorf(msg, option.Devices)
 		return nil, nil, fmt.Errorf(msg, option.Devices)
 	}
+	if option.Config.EnableSCTP {
+		if probes.NewProbeManager().GetMisc().HaveLargeInsnLimit {
+			log.WithError(err).Error("SCTP support needs kernel 5.2 or newer")
+			return nil, nil, fmt.Errorf("SCTP support needs kernel 5.2 or newer")
+		}
+	}
 
 	// Some of the k8s watchers rely on option flags set above (specifically
 	// EnableBPFMasquerade), so we should only start them once the flag values
