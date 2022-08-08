@@ -10,6 +10,8 @@ import (
 	"github.com/cilium/cilium/pkg/hive"
 	"github.com/cilium/cilium/pkg/hive/cell"
 	k8sClient "github.com/cilium/cilium/pkg/k8s/client"
+	"github.com/cilium/cilium/pkg/logging"
+	"github.com/cilium/cilium/pkg/logging/logfields"
 	"github.com/cilium/cilium/pkg/option"
 	"github.com/cilium/cilium/pkg/promise"
 	"github.com/spf13/pflag"
@@ -56,7 +58,9 @@ func fqdnClient(clientset k8sClient.Clientset) (versioned.Interface, error) {
 }
 
 func registerFQDNNetPol(params fqdnNetPolParams) {
-	if !params.Config.EnableFQDNNetworkPolicy {
+	// Do not enable FQDN if wireguard is enabled
+	if !params.Config.EnableFQDNNetworkPolicy || option.Config.EnableWireguard {
+		logging.DefaultLogger.WithField(logfields.LogSubsys, "fqdnnetworkpolicy").Info("cannot register FQDN  Network Policy since it is not enabled or wireguard is enabled")
 		return
 	}
 	if !params.DaemonConfig.EnableL7Proxy {

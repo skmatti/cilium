@@ -67,6 +67,9 @@ const (
 	// SubsystemAPILimiter is the subsystem to scope metrics related to the API limiter package.
 	SubsystemAPILimiter = "api_limiter"
 
+	// SubsystemWireguard is the subsystem to scope metrics related to wireguard encryption.
+	SubsystemWireguard = "wireguard"
+
 	// Namespace is used to scope metrics from cilium. It is prepended to metric
 	// names and separated with a '_'
 	Namespace = "cilium"
@@ -521,6 +524,18 @@ var (
 	// APILimiterProcessedRequests is the counter of the number of
 	// processed (successful and failed) requests
 	APILimiterProcessedRequests = NoOpCounterVec
+
+	// WireguardPeersTotal is the total number of Wireguard Peers for this node,
+	// i.e this node sets up a Wireguard tunnel to these many other nodes.
+	WireguardPeersTotal = NoOpGaugeVec
+
+	// WireguardAgentTimeStats is the total time it takes to initialize the Wireguard
+	// interface, create a key pair, start the agent etc.
+	WireguardAgentTimeStats = NoOpObserverVec
+
+	// WireguardTransferBytesTotal is the total bytes sent or received through
+	// a given source node's wireguard interface, to each destination node.
+	WireguardTransferBytesTotal = NoOpGaugeVec
 )
 
 type Configuration struct {
@@ -598,6 +613,9 @@ type Configuration struct {
 	APILimiterRateLimit                     bool
 	APILimiterAdjustmentFactor              bool
 	APILimiterProcessedRequests             bool
+	WireguardPeersTotalEnabled              bool
+	WireguardAgentTimeStatsEnabled          bool
+	WireguardTransferBytesTotalEnabled      bool
 }
 
 func DefaultMetrics() map[string]struct{} {
@@ -663,6 +681,9 @@ func DefaultMetrics() map[string]struct{} {
 		Namespace + "_" + SubsystemAPILimiter + "_rate_limit":                        {},
 		Namespace + "_" + SubsystemAPILimiter + "_adjustment_factor":                 {},
 		Namespace + "_" + SubsystemAPILimiter + "_processed_requests_total":          {},
+		Namespace + "_" + SubsystemWireguard + "_peers_total":                        {},
+		Namespace + "_" + SubsystemWireguard + "_agent_time_stats_seconds":           {},
+		Namespace + "_" + SubsystemWireguard + "_transfer_bytes_total":               {},
 	}
 }
 
@@ -1454,8 +1475,44 @@ func CreateConfiguration(metricsEnabled []string) (Configuration, []prometheus.C
 
 			collectors = append(collectors, NodeConnectivityLatency)
 			c.NodeConnectivityLatencyEnabled = true
-		}
 
+		case Namespace + "_" + SubsystemWireguard + "_transfer_bytes_total":
+			WireguardTransferBytesTotal = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+				Namespace: Namespace,
+				Subsystem: SubsystemWireguard,
+				Name:      "transfer_bytes_total",
+				Help:      "Total number of bytes transferred via the Wireguard interface.",
+			}, []string{
+				LabelSourceNodeName,
+				LabelTargetNodeName,
+				LabelType,
+			})
+			collectors = append(collectors, WireguardTransferBytesTotal)
+			c.WireguardTransferBytesTotalEnabled = true
+
+		case Namespace + "_" + SubsystemWireguard + "_peers_total":
+			WireguardPeersTotal = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+				Namespace: Namespace,
+				Subsystem: SubsystemWireguard,
+				Name:      "peers_total",
+				Help:      "Total number of Wireguard peers.",
+			}, []string{
+				LabelSourceNodeName,
+			})
+
+			collectors = append(collectors, WireguardPeersTotal)
+			c.WireguardPeersTotalEnabled = true
+
+		case Namespace + "_" + SubsystemWireguard + "_agent_time_stats_seconds":
+			WireguardAgentTimeStats = prometheus.NewHistogramVec(prometheus.HistogramOpts{
+				Namespace: Namespace,
+				Name:      "wireguard_agent_time_stats_seconds",
+				Help:      "Duration it takes to perform various wireguard management activities via the agent.",
+			}, []string{LabelSourceNodeName, LabelScope})
+
+			collectors = append(collectors, WireguardAgentTimeStats)
+			c.WireguardAgentTimeStatsEnabled = true
+		}
 	}
 
 	return c, collectors

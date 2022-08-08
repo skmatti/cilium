@@ -9,6 +9,8 @@ import (
 	"github.com/cilium/cilium/pkg/gke/nodefirewall"
 	"github.com/cilium/cilium/pkg/gke/nodefirewall/types"
 	"github.com/cilium/cilium/pkg/gke/redirectservice"
+	"github.com/cilium/cilium/pkg/gke/remotenode"
+	rncontroller "github.com/cilium/cilium/pkg/gke/remotenode/controller"
 	"github.com/cilium/cilium/pkg/gke/subnet"
 	"github.com/cilium/cilium/pkg/gke/trafficsteering"
 	"github.com/cilium/cilium/pkg/gke/trafficsteering/controller"
@@ -32,12 +34,14 @@ var googleCell = cell.Module(
 	cell.Provide(newEgressMapPromise),
 	cell.Provide(newRedirectPolicyManagerPromise),
 	cell.Provide(newEndpointManagerPromise),
+	cell.Provide(newIPCachePromise),
 	nodefirewall.Cell,
 	subnet.Cell,
 	trafficsteering.Cell,
 	fqdnnetworkpolicy.Cell,
 	redirectservice.Cell,
 	localnode.Cell,
+	remotenode.Cell,
 )
 
 // Converts Daemon promise into a PolicyManager promise
@@ -137,4 +141,26 @@ func newEndpointManagerPromise(dp promise.Promise[*Daemon], lc hive.Lifecycle) p
 		},
 	})
 	return emPromise
+}
+
+func newIPCachePromise(dp promise.Promise[*Daemon], lc hive.Lifecycle, config *option.DaemonConfig) promise.Promise[rncontroller.IPCache] {
+	rnResolver, rnPromise := promise.New[rncontroller.IPCache]()
+	if config.EnableWireguard {
+		lc.Append(hive.Hook{
+			OnStart: func(hc hive.HookContext) error {
+				daemon, err := dp.Await(hc)
+				if err != nil {
+					return err
+				}
+				rnResolver.Resolve(daemon.ipcache)
+				return nil
+			},
+			OnStop: func(_ hive.HookContext) error {
+				rnResolver.Reject(fmt.Errorf("failed to initialize ipcache"))
+				return nil
+			},
+		})
+	}
+
+	return rnPromise
 }
