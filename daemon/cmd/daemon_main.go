@@ -14,6 +14,8 @@ import (
 	"strings"
 	"time"
 
+	dpv2e "github.com/cilium/cilium/pkg/gke/dataplanev2encryption"
+
 	"github.com/go-openapi/loads"
 	gops "github.com/google/gops/agent"
 	"github.com/sirupsen/logrus"
@@ -1164,6 +1166,12 @@ func initializeFlags() {
 	option.BindEnv(option.EnableStaleCiliumEndpointCleanup)
 
 	viper.BindPFlags(flags)
+
+	if dpv2e.IsWireguard() {
+		viper.Set(option.EnableWireguard, true)
+		viper.Set(option.EnableL7Proxy, false)
+		log.Info("Enabling Wireguard. Wireguard is not compatible with L7-Proxy, hence disabling L7-Proxy")
+	}
 }
 
 // restoreExecPermissions restores file permissions to 0740 of all files inside

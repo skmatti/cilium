@@ -50,3 +50,10 @@ ${CODEGEN_PKG}/generate-groups.sh \
   github.com/cilium/cilium/pkg/gke/client/trafficsteering github.com/cilium/cilium/pkg/gke/apis \
   "trafficsteering:v1alpha1" \
   --go-header-file ${SCRIPT_ROOT}/hack/boilerplate.go.txt
+
+echo "Performing code generation for DataplaneV2Encryption CRD"
+${CODEGEN_PKG}/generate-groups.sh \
+  "deepcopy" \
+  github.com/cilium/cilium/pkg/gke/client/dataplanev2encryption github.com/cilium/cilium/pkg/gke/apis \
+  "dataplanev2encryption:v1alpha1" \
+  --go-header-file ${SCRIPT_ROOT}/hack/boilerplate.go.txt
