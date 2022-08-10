@@ -35,9 +35,10 @@ date=$(TZ=":America/Los_Angeles" date '+%Y-%m-%d-%H-%M-%S')
 PROJECT="${GCP_PROJECT:-gke-anthos-datapath-presubmits}"
 VM_NAME="prow-unit-$date-$(git rev-parse --short=5 HEAD)-ttl1d"
 ZONE="us-west1-b"
+MACHINE_TYPE="c2-standard-4"
 HOST_NAME="$VM_NAME.$ZONE.$PROJECT"
 tarball=gob_cilium.tar.gz
-TESTING_IMAGE=cilium-unit-test-20220427
+TESTING_IMAGE=cilium-unit-test-20220810
 
 function log {
   echo "`date +'%b %d %T.000'`: INFO: $@"
@@ -52,7 +53,7 @@ function auth {
 
 function provision_GCE_VM {
   log "Provisioning GCE VM " $VM_NAME
-  gcloud compute instances create ${VM_NAME} --project=${PROJECT} --image $TESTING_IMAGE --zone=$ZONE --metadata-from-file=startup-script=./google_test/countdown-and-self-destruct.sh --scopes=compute-rw || exit 1
+  gcloud compute instances create ${VM_NAME} --project=${PROJECT} --image $TESTING_IMAGE --zone=$ZONE --machine-type=$MACHINE_TYPE --metadata-from-file=startup-script=./google_test/countdown-and-self-destruct.sh --scopes=compute-rw || exit 1
 }
 
 function clean_up {
