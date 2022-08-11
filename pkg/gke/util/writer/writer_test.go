@@ -44,7 +44,7 @@ func TestNewFileWriter(t *testing.T) {
 	existsWithContent(logPath+"/"+logFile, b, t)
 }
 
-//existsWithContent verifies the given file has the given content.
+// existsWithContent verifies the given file has the given content.
 func existsWithContent(path string, content []byte, t *testing.T) {
 	if _, err := os.Stat(path); err != nil {
 		t.Errorf("Stat(%s) = (_, %v), wants (_, nil)", path, err)

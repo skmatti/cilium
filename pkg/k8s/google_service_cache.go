@@ -124,7 +124,6 @@ func (s *ServiceCache) ilbExternalUpdate(service *serviceStore.ClusterService, s
 // path. It updates the local service caches and enqueues an event to update the
 // ebpf maps.
 //
-//
 // See ilbExternalUpdate for more details.
 func (s *ServiceCache) ilbExternalDelete(service *serviceStore.ClusterService, swg *lock.StoppableWaitGroup) {
 	id := ServiceID{Name: generateClusterServiceName(service), Namespace: service.Namespace}

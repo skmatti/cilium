@@ -13,7 +13,8 @@ const (
 // from := Labels{Label{key2, value2, source2}, Label{MultinicNetwork, value3, source3}}
 // to.MergeMultiNICLabels(from)
 // to will be
-//   Labels{Label{MultinicNetwork, value3, source3}}
+//
+//	Labels{Label{MultinicNetwork, value3, source3}}
 func (l Labels) MergeMultiNICLabels(from Labels) {
 	if v, ok := from[MultinicNetwork]; ok {
 		l[MultinicNetwork] = v
