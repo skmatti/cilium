@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
 	"os"
 	"path"
 	"sort"
@@ -220,7 +221,7 @@ func marshalNodeNetworkAnnotation(statusMap map[string]networkv1.NodeNetworkStat
 	return networkv1.MarshalNodeNetworkAnnotation(ann)
 }
 
-func (r *NetworkReconciler) updateNodeNetworkAnnotation(ctx context.Context, networkName string, log *logrus.Entry, isAdd bool) error {
+func (r *NetworkReconciler) updateNodeNetworkAnnotation(ctx context.Context, networkName string, ipv4, ipv6 string, log *logrus.Entry, isAdd bool) error {
 	node := &corev1.Node{}
 	if err := r.Get(ctx, types.NamespacedName{Name: r.NodeName}, node); err != nil {
 		return fmt.Errorf("failed to get k8s node %q: %v", r.NodeName, err)
@@ -236,13 +237,13 @@ func (r *NetworkReconciler) updateNodeNetworkAnnotation(ctx context.Context, net
 	}
 	log.Infof("existing node network status annotation %+v", netStatusMap)
 
-	_, exist := netStatusMap[networkName]
+	oldNetAnnotation, exist := netStatusMap[networkName]
 	if isAdd {
-		if exist {
+		if exist && oldNetAnnotation.IPv4Subnet == ipv4 && oldNetAnnotation.IPv6Subnet == ipv6 {
 			log.Infof("network %q already exists on the node %q", networkName, r.NodeName)
 			return nil
 		}
-		netStatusMap[networkName] = networkv1.NodeNetworkStatus{Name: networkName}
+		netStatusMap[networkName] = networkv1.NodeNetworkStatus{Name: networkName, IPv4Subnet: ipv4, IPv6Subnet: ipv6}
 	} else {
 		if !exist {
 			log.Infof("network %q doesn't exist on the node %q", networkName, r.NodeName)
@@ -280,7 +281,13 @@ func (r *NetworkReconciler) reconcileNetwork(ctx context.Context, network *netwo
 		log.WithError(err).Error("Unable to load ebpf on parent interface")
 		return ctrl.Result{}, err
 	}
-	if err := r.updateNodeNetworkAnnotation(ctx, network.Name, log, true); err != nil {
+
+	// Obtain ip/subnet for node network
+	ipv4, ipv6, err := obtainSubnet(network, log)
+	if err != nil {
+		log.WithError(err).Error("Unable to read interface for subnets")
+	}
+	if err := r.updateNodeNetworkAnnotation(ctx, network.Name, ipv4, ipv6, log, true); err != nil {
 		log.WithError(err).Error("Failed to update node network status annotation")
 		return ctrl.Result{}, err
 	}
@@ -302,7 +309,7 @@ func (r *NetworkReconciler) reconcileNetworkDelete(ctx context.Context, network 
 		log.WithError(err).Errorf("Unable to delete tagged interface")
 		return ctrl.Result{}, err
 	}
-	if err := r.updateNodeNetworkAnnotation(ctx, network.Name, log, false); err != nil {
+	if err := r.updateNodeNetworkAnnotation(ctx, network.Name, "", "", log, false); err != nil {
 		log.WithError(err).Error("Failed to update node network status annotation")
 		return ctrl.Result{}, err
 	}
@@ -381,4 +388,71 @@ func ensureInterface(network *networkv1.Network, log *logrus.Entry) error {
 	}
 
 	return nil
+}
+
+// bestAddrMatch scans the given list of IP addresses and returns the one that
+// "best" fits the match of what we consider the nodes IP address on the
+// network. An IP that has the global attribute, along with the largest subnet
+// range is considered the best match. We do this to filter out IPs such as ANG
+// floating IPs which have a /32 cidr range and local IP addresses.
+//
+// e.g 10.0.0.1/28 > 10.0.0.2/30
+func bestAddrMatch(addrs []netlink.Addr) *net.IPNet {
+	var ipNet *net.IPNet
+	for _, addr := range addrs {
+		if netlink.Scope(addr.Scope) == netlink.SCOPE_UNIVERSE {
+			if ipNet == nil {
+				ipNet = addr.IPNet
+				continue
+			}
+
+			// Check and replace if the cidr is larger to remove addresses added
+			// to the interface by ANG and to get the largest subnet supported
+			// by that network.
+			ipNetPrefixSize, _ := ipNet.Mask.Size()
+			addrPrefixSize, _ := addr.IPNet.Mask.Size()
+			if ipNetPrefixSize > addrPrefixSize {
+				ipNet = addr.IPNet
+			}
+		}
+	}
+	return ipNet
+}
+
+func obtainSubnet(network *networkv1.Network, log *logrus.Entry) (string, string, error) {
+	_, err := network.InterfaceName()
+	if err != nil {
+		// Log error but return nil here as this is mostly due to misconfiguration
+		// in the network CR object and is unlikely to reconcile.
+		log.Errorf("Errored generating interface name for network %s: %v", network.Name, err)
+		return "", "", nil
+	}
+
+	// InterfaceName() will return an error if Spec.NodeInterfaceMatcher.InterfaceName is nil
+	parentIntName := *network.Spec.NodeInterfaceMatcher.InterfaceName
+	link, err := netlink.LinkByName(parentIntName)
+	if err != nil {
+		return "", "", fmt.Errorf("failed to find parent interface %s: %q", parentIntName, err)
+	}
+	addrs, err := netlink.AddrList(link, netlink.FAMILY_V4)
+	if err != nil {
+		return "", "", fmt.Errorf("failed to list IPv4 addresses on interface")
+	}
+	bestIPv4Net := bestAddrMatch(addrs)
+
+	addrs, err = netlink.AddrList(link, netlink.FAMILY_V6)
+	if err != nil {
+		return "", "", fmt.Errorf("failed to list IPv6 addresses on interface")
+	}
+	bestIPv6Net := bestAddrMatch(addrs)
+
+	var ipv4, ipv6 string
+	if bestIPv4Net != nil {
+		ipv4 = bestIPv4Net.String()
+	}
+	if bestIPv6Net != nil {
+		ipv6 = bestIPv6Net.String()
+	}
+
+	return ipv4, ipv6, nil
 }

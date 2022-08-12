@@ -19,6 +19,7 @@ package controller
 
 import (
 	"context"
+	"net"
 	"runtime"
 	"testing"
 	"time"
@@ -430,6 +431,8 @@ func TestUpdateNodeNetworkAnnotation(t *testing.T) {
 		existingAnnotations map[string]string
 		nodeName            string
 		network             string
+		ipv4Subnet          string
+		ipv6Subnet          string
 		isAdd               bool
 		wantErr             string
 		wantAnnotations     map[string]string
@@ -476,6 +479,43 @@ func TestUpdateNodeNetworkAnnotation(t *testing.T) {
 			isAdd:    true,
 			wantAnnotations: map[string]string{
 				networkv1.NodeNetworkAnnotationKey: `[{"name":"bar"}]`,
+			},
+		},
+		{
+			desc:                "add new network with ipv4 subnet",
+			existingAnnotations: map[string]string{},
+			nodeName:            nodeName,
+			network:             "bar",
+			ipv4Subnet:          "10.0.0.1/21",
+			isAdd:               true,
+			wantAnnotations: map[string]string{
+				networkv1.NodeNetworkAnnotationKey: `[{"name":"bar","ipv4-subnet":"10.0.0.1/21"}]`,
+			},
+		},
+		{
+			desc:                "add new network with ipv4/v6 subnets",
+			existingAnnotations: map[string]string{},
+			nodeName:            nodeName,
+			network:             "bar",
+			ipv4Subnet:          "10.0.0.1/21",
+			ipv6Subnet:          "2001:db8:a0b:12f0::1/64",
+			isAdd:               true,
+			wantAnnotations: map[string]string{
+				networkv1.NodeNetworkAnnotationKey: `[{"name":"bar","ipv4-subnet":"10.0.0.1/21","ipv6-subnet":"2001:db8:a0b:12f0::1/64"}]`,
+			},
+		},
+		{
+			desc: "add subnets to existing network",
+			existingAnnotations: map[string]string{
+				networkv1.NodeNetworkAnnotationKey: `[{"name":"bar"}]`,
+			},
+			nodeName:   nodeName,
+			network:    "bar",
+			ipv4Subnet: "10.0.0.1/21",
+			ipv6Subnet: "2001:db8:a0b:12f0::1/64",
+			isAdd:      true,
+			wantAnnotations: map[string]string{
+				networkv1.NodeNetworkAnnotationKey: `[{"name":"bar","ipv4-subnet":"10.0.0.1/21","ipv6-subnet":"2001:db8:a0b:12f0::1/64"}]`,
 			},
 		},
 		{
@@ -557,7 +597,7 @@ func TestUpdateNodeNetworkAnnotation(t *testing.T) {
 				Client:   k8sClient,
 				NodeName: nodeName,
 			}
-			gotErr := testReconciler.updateNodeNetworkAnnotation(ctx, tc.network, logger, tc.isAdd)
+			gotErr := testReconciler.updateNodeNetworkAnnotation(ctx, tc.network, tc.ipv4Subnet, tc.ipv6Subnet, logger, tc.isAdd)
 			if gotErr != nil {
 				if tc.wantErr == "" {
 					t.Fatalf("updateNodeNetworkAnnotation() return error %v but want nil", gotErr)
@@ -575,6 +615,78 @@ func TestUpdateNodeNetworkAnnotation(t *testing.T) {
 
 			if diff := cmp.Diff(gotNode.Annotations, tc.wantAnnotations); diff != "" {
 				t.Fatalf("updateNodeNetworkAnnotation() return unexpected output (-got, +want):\n%s", diff)
+			}
+		})
+	}
+}
+
+func ipNetUnsafe(ipStr string) *net.IPNet {
+	ip, netIP, _ := net.ParseCIDR(ipStr)
+	netIP.IP = ip
+	return netIP
+}
+
+func TestBestAddrMatch(t *testing.T) {
+	testcases := []struct {
+		desc     string
+		addrs    []netlink.Addr
+		wantAddr *net.IPNet
+	}{
+		{
+			desc:     "with one IP",
+			addrs:    []netlink.Addr{{IPNet: ipNetUnsafe("10.0.0.1/28"), Scope: int(netlink.SCOPE_UNIVERSE)}},
+			wantAddr: ipNetUnsafe("10.0.0.1/28"),
+		},
+		{
+			desc: "with multiple IPs and subnet sizes",
+			addrs: []netlink.Addr{
+				{IPNet: ipNetUnsafe("10.0.0.1/28"), Scope: int(netlink.SCOPE_UNIVERSE)},
+				{IPNet: ipNetUnsafe("10.0.0.2/27"), Scope: int(netlink.SCOPE_UNIVERSE)},
+				{IPNet: ipNetUnsafe("10.0.0.3/24"), Scope: int(netlink.SCOPE_UNIVERSE)},
+				{IPNet: ipNetUnsafe("10.0.0.4/26"), Scope: int(netlink.SCOPE_UNIVERSE)},
+			},
+			wantAddr: ipNetUnsafe("10.0.0.3/24"),
+		},
+		{
+			desc: "with different scopes",
+			addrs: []netlink.Addr{
+				{IPNet: ipNetUnsafe("10.0.0.1/16"), Scope: int(netlink.SCOPE_NOWHERE)},
+				{IPNet: ipNetUnsafe("10.0.0.2/24"), Scope: int(netlink.SCOPE_LINK)},
+				{IPNet: ipNetUnsafe("10.0.0.3/26"), Scope: int(netlink.SCOPE_HOST)},
+				{IPNet: ipNetUnsafe("10.0.0.4/28"), Scope: int(netlink.SCOPE_UNIVERSE)},
+			},
+			wantAddr: ipNetUnsafe("10.0.0.4/28"),
+		},
+		{
+			desc:     "with no IPs",
+			addrs:    []netlink.Addr{},
+			wantAddr: nil,
+		},
+		{
+			desc: "with no valid IP",
+			addrs: []netlink.Addr{
+				{IPNet: ipNetUnsafe("10.0.0.1/28"), Scope: int(netlink.SCOPE_NOWHERE)},
+				{IPNet: ipNetUnsafe("10.0.0.2/28"), Scope: int(netlink.SCOPE_LINK)},
+				{IPNet: ipNetUnsafe("10.0.0.3/28"), Scope: int(netlink.SCOPE_HOST)},
+			},
+			wantAddr: nil,
+		},
+	}
+
+	for _, tc := range testcases {
+		t.Run(tc.desc, func(t *testing.T) {
+			got := bestAddrMatch(tc.addrs)
+			if got == nil {
+				if tc.wantAddr != nil {
+					t.Fatalf("Didn't get correct IP net, got nil when %s was expected", tc.wantAddr.String())
+				}
+				return
+			}
+			if got.IP.String() != tc.wantAddr.IP.String() {
+				t.Fatalf("Didn't get the correct IP, got: %s, wanted: %s", got.IP.String(), tc.wantAddr.IP.String())
+			}
+			if got.Mask.String() != tc.wantAddr.Mask.String() {
+				t.Fatalf("Didn't get the correct IP Mask, got: %s, wanted: %s", got.Mask.String(), tc.wantAddr.Mask.String())
 			}
 		})
 	}
