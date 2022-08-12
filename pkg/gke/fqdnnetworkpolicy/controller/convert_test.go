@@ -46,7 +46,7 @@ func testNewPolicyRepository() *policy.Repository {
 	return repo
 }
 
-func TestDNSProxyRedirect(t *testing.T) {
+func TestDNSProxyRedirectKubeDNS(t *testing.T) {
 	re.InitRegexCompileLRU(defaults.FQDNRegexCompileLRUSize)
 	// This policy only allows egress traffic to kube-dns
 	emptyFQDNPolicy := &v1alpha1.FQDNNetworkPolicy{Spec: v1alpha1.FQDNNetworkPolicySpec{}}
@@ -88,11 +88,75 @@ func TestDNSProxyRedirect(t *testing.T) {
 		t.Fatalf("AllowsEgressRLocked(ctx=%+v)=%v, want %v", ctx, verdict, api.Allowed)
 	}
 
+	ctx.DPorts = []*ciliumModels.Port{{Port: 80, Protocol: ciliumModels.PortProtocolTCP}}
+	// Port 80, TCP traffic is denied
+	if verdict := repo.AllowsEgressRLocked(&ctx); verdict != api.Denied {
+		t.Fatalf("AllowsEgressRLocked(ctx=%+v)=%v, want %v", ctx, verdict, api.Denied)
+	}
+
 	ctx.To = ciliumLbls.LabelArray{
 		ciliumLbls.NewLabel(ciliumConst.PodNamespaceLabel, "default", ciliumLbls.LabelSourceK8s),
 		ciliumLbls.NewLabel("app", "be", ciliumLbls.LabelSourceK8s),
 	}
 	// Port 53, TCP traffic to an endpoint that is not kube-dns is denied.
+	if verdict := repo.AllowsEgressRLocked(&ctx); verdict != api.Denied {
+		t.Fatalf("AllowsEgressRLocked(ctx=%+v)=%v, want %v", ctx, verdict, api.Denied)
+	}
+}
+
+func TestDNSProxyRedirectNodeLocalDNS(t *testing.T) {
+	re.InitRegexCompileLRU(defaults.FQDNRegexCompileLRUSize)
+	// This policy only allows egress traffic to kube-dns
+	emptyFQDNPolicy := &v1alpha1.FQDNNetworkPolicy{Spec: v1alpha1.FQDNNetworkPolicySpec{}}
+	rule, err := parseFQDNNetworkPolicy(emptyFQDNPolicy)
+	if err != nil {
+		t.Fatalf("Error parsing FQDN network policy: %v", err)
+	}
+	repo := testNewPolicyRepository()
+	repo.AddList(api.Rules{rule})
+
+	// Note: The policy.SearchContext construct is also used by
+	// pkg/k8s/network_policy_test.go to validate Kubernetes Network Policy
+	// parsing.
+	ctx := policy.SearchContext{
+		From: ciliumLbls.LabelArray{
+			ciliumLbls.NewLabel(ciliumConst.PodNamespaceLabel, "default", ciliumLbls.LabelSourceK8s),
+			ciliumLbls.NewLabel("app", "client", ciliumLbls.LabelSourceK8s),
+		},
+		To: ciliumLbls.LabelArray{
+			ciliumLbls.NewLabel(ciliumConst.PodNamespaceLabel, "kube-system", ciliumLbls.LabelSourceK8s),
+			ciliumLbls.NewLabel("k8s-app", "node-local-dns", ciliumLbls.LabelSourceK8s),
+		},
+		Trace: policy.TRACE_VERBOSE,
+	}
+	// Without specifying a port, traffic to node-local-dns is denied.
+	if verdict := repo.AllowsEgressRLocked(&ctx); verdict != api.Denied {
+		t.Fatalf("AllowsEgressRLocked(ctx=%+v)=%v, want %v", ctx, verdict, api.Denied)
+	}
+
+	ctx.DPorts = []*ciliumModels.Port{{Port: 53, Protocol: ciliumModels.PortProtocolUDP}}
+	// Port 53, UDP traffic is allowed
+	if verdict := repo.AllowsEgressRLocked(&ctx); verdict != api.Allowed {
+		t.Fatalf("AllowsEgressRLocked(ctx=%+v)=%v, want %v", ctx, verdict, api.Allowed)
+	}
+
+	ctx.DPorts = []*ciliumModels.Port{{Port: 53, Protocol: ciliumModels.PortProtocolTCP}}
+	// Port 53, TCP traffic is allowed
+	if verdict := repo.AllowsEgressRLocked(&ctx); verdict != api.Allowed {
+		t.Fatalf("AllowsEgressRLocked(ctx=%+v)=%v, want %v", ctx, verdict, api.Allowed)
+	}
+
+	ctx.DPorts = []*ciliumModels.Port{{Port: 80, Protocol: ciliumModels.PortProtocolTCP}}
+	// Port 80, TCP traffic is denied
+	if verdict := repo.AllowsEgressRLocked(&ctx); verdict != api.Denied {
+		t.Fatalf("AllowsEgressRLocked(ctx=%+v)=%v, want %v", ctx, verdict, api.Denied)
+	}
+
+	ctx.To = ciliumLbls.LabelArray{
+		ciliumLbls.NewLabel(ciliumConst.PodNamespaceLabel, "default", ciliumLbls.LabelSourceK8s),
+		ciliumLbls.NewLabel("app", "be", ciliumLbls.LabelSourceK8s),
+	}
+	// Port 53, TCP traffic to an endpoint that is not node-local-dns is denied.
 	if verdict := repo.AllowsEgressRLocked(&ctx); verdict != api.Denied {
 		t.Fatalf("AllowsEgressRLocked(ctx=%+v)=%v, want %v", ctx, verdict, api.Denied)
 	}

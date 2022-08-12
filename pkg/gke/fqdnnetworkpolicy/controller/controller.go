@@ -130,7 +130,7 @@ func (c *Controller) updatePolicyManager(fqdn *v1alpha1.FQDNNetworkPolicy) {
 	scopedLog = scopedLog.WithField(fqdnNetPolName, fqdn.Name)
 	rule, err := parseFQDNNetworkPolicy(fqdn)
 	if err != nil {
-		scopedLog.Errorf("Error parsing FQDN Network Policy: %v", err)
+		scopedLog.Errorf("Error converting FQDN Network Policy: %v", err)
 		return
 	}
 	_, err = c.pm.PolicyAdd(api.Rules{rule}, &policy.AddOptions{Replace: true, Source: metrics.LabelEventSourceK8s})
@@ -168,7 +168,7 @@ func Init(pm policyManager) (*Controller, error) {
 
 	fqdnClient, err := versioned.NewForConfig(kubeConfig)
 	if err != nil {
-		return nil, fmt.Errorf("Failed to create redirect service client: %v", err)
+		return nil, fmt.Errorf("failed to create redirect service client: %v", err)
 	}
 
 	c := NewController(fqdnClient, pm)

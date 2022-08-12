@@ -33,7 +33,7 @@ const (
 )
 
 // dnsProxyRedirect adds an egress rule to proxy traffic sent
-// to kube-dns on port 53 through the DNS Proxy.
+// to kube-dns or node-local-dns on port 53 through the DNS Proxy.
 func dnsProxyRedirect() api.EgressRule {
 	kubeDNSSelector := &slim_metav1.LabelSelector{
 		MatchLabels: map[string]string{
@@ -41,10 +41,17 @@ func dnsProxyRedirect() api.EgressRule {
 			"k8s-app":                   "kube-dns",
 		},
 	}
+	nodeLocalDNSSelector := &slim_metav1.LabelSelector{
+		MatchLabels: map[string]string{
+			k8sCilium.PodNamespaceLabel: "kube-system",
+			"k8s-app":                   "node-local-dns",
+		},
+	}
 	return api.EgressRule{
 		EgressCommonRule: api.EgressCommonRule{
 			ToEndpoints: []api.EndpointSelector{
 				api.NewESFromK8sLabelSelector(labels.LabelSourceK8sKeyPrefix, kubeDNSSelector),
+				api.NewESFromK8sLabelSelector(labels.LabelSourceK8sKeyPrefix, nodeLocalDNSSelector),
 			},
 		},
 		ToPorts: []api.PortRule{
