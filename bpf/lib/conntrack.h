@@ -715,13 +715,13 @@ static __always_inline int ct_lookup4(const void *map,
 		action = ACTION_CREATE;
 		break;
 
-#ifdef ENABLE_HOST_FIREWALL
+#if defined(ENABLE_HOST_FIREWALL) || defined(IS_MULTI_NIC_DEVICE)
 	case IPPROTO_VRRP:
 		action = ACTION_CREATE;
 		tuple->sport = 0;
 		tuple->dport = 0;
 		break;
-#endif /* ENABLE_HOST_FIREWALL */
+#endif /* ENABLE_HOST_FIREWALL || IS_MULTI_NIC_DEVICE */
 
 	default:
 		/* Can't handle extension headers yet */
