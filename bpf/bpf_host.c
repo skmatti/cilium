@@ -491,6 +491,7 @@ handle_ipv4(struct __ctx_buff *ctx, __u32 secctx,
 		return DROP_FRAG_NOSUPPORT;
 #endif
 
+#ifdef ENABLE_EGRESS_GATEWAY
         {
           // If this is a packet destined for the egress gateway and there is a local
           // GNG pod, send it to the GNG pod instead of the host routing stack.
@@ -512,6 +513,7 @@ handle_ipv4(struct __ctx_buff *ctx, __u32 secctx,
             }
           }
         }
+#endif
 
 #ifdef ENABLE_NODEPORT
 	if (!from_host) {

@@ -84,6 +84,7 @@ out:
         if (validate_ethertype(ctx, &proto))
           ret = do_decrypt(ctx, proto);
 
+#ifdef ENABLE_EGRESS_GATEWAY
         { // If this is a packet destined for the egress gateway and there is a local
           // GNG pod, send it to the GNG pod instead of the host routing stack.
           void *data, *data_end;
@@ -114,6 +115,7 @@ out:
             }
           }
         }
+#endif
         ret = CTX_ACT_OK;
 	send_trace_notify(ctx, obs_point_from, 0, 0, 0,
 			  ctx->ingress_ifindex, reason, TRACE_PAYLOAD_LEN);

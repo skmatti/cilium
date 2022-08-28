@@ -770,6 +770,7 @@ static __always_inline int handle_ipv4_from_lxc(struct __ctx_buff *ctx, __u32 *d
 	if (!revalidate_data(ctx, &data, &data_end, &ip4))
 		return DROP_INVALID;
 
+#ifdef ENABLE_EGRESS_GATEWAY
         {
           // If this is a packet destined for the egress gateway and there is a local
           // GNG pod, send it to the GNG pod instead of the host routing stack.
@@ -794,6 +795,7 @@ static __always_inline int handle_ipv4_from_lxc(struct __ctx_buff *ctx, __u32 *d
             }
           }
         }
+#endif
 
 	has_l4_header = ipv4_has_l4_header(ip4);
 
