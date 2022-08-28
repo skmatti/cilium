@@ -1119,6 +1119,19 @@ func (n *linuxNodeHandler) nodeUpdate(oldNode, newNode *nodeTypes.Node, firstAdd
 		return nil
 	}
 
+	// EnableAutoDirectRoutingIPv6 is used to enable auto direct routing for IPv6
+	// only.
+	if n.nodeConfig.EnableAutoDirectRoutingIPv6 {
+		n.updateDirectRoutes(oldAllIP6AllocCidrs, newAllIP6AllocCidrs, oldIP6, newIP6, firstAddition, n.nodeConfig.EnableIPv6)
+	}
+
+	// EnableAutoDirectRoutingIPv4 is used to enable auto direct routing for IPv4
+	// only.
+	if n.nodeConfig.EnableAutoDirectRoutingIPv4 {
+		n.updateDirectRoutes(oldAllIP4AllocCidrs, newAllIP4AllocCidrs, oldIP4, newIP4, firstAddition, n.nodeConfig.EnableIPv4)
+		return nil
+	}
+
 	if n.nodeConfig.EnableEncapsulation {
 		nodeID := n.allocateIDForNode(newNode)
 
@@ -1185,8 +1198,11 @@ func (n *linuxNodeHandler) nodeDelete(oldNode *nodeTypes.Node) error {
 	oldIP4 := oldNode.GetNodeIP(false)
 	oldIP6 := oldNode.GetNodeIP(true)
 
-	if n.nodeConfig.EnableAutoDirectRouting {
+	if n.nodeConfig.EnableAutoDirectRouting || n.nodeConfig.EnableAutoDirectRoutingIPv4 {
 		n.deleteDirectRoute(oldNode.IPv4AllocCIDR, oldIP4)
+	}
+
+	if n.nodeConfig.EnableAutoDirectRouting || n.nodeConfig.EnableAutoDirectRoutingIPv6 {
 		n.deleteDirectRoute(oldNode.IPv6AllocCIDR, oldIP6)
 	}
 

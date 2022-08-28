@@ -729,6 +729,12 @@ const (
 	// EnableAutoDirectRoutingName is the name for the EnableAutoDirectRouting option
 	EnableAutoDirectRoutingName = "auto-direct-node-routes"
 
+	// EnableAutoDirectRoutingIPv4Name is the name for the EnableAutoDirectRoutingIPv4 option.
+	EnableAutoDirectRoutingIPv4Name = "auto-direct-node-routes-ipv4"
+
+	// EnableAutoDirectRoutingIPv6Name is the name for the EnableAutoDirectRoutingIPv6 option.
+	EnableAutoDirectRoutingIPv6Name = "auto-direct-node-routes-ipv6"
+
 	// EnableIPSecName is the name of the option to enable IPSec
 	EnableIPSecName = "enable-ipsec"
 
@@ -1756,6 +1762,14 @@ type DaemonConfig struct {
 	// EnableAutoDirectRouting enables installation of direct routes to
 	// other nodes when available
 	EnableAutoDirectRouting bool
+
+	// EnableAutoDirectRoutingIPv4 enables installation of IPv4 direct routes to
+	// other nodes when available.
+	EnableAutoDirectRoutingIPv4 bool
+
+	// EnableAutoDirectRoutingIPv6 enables installation of IPv6 direct routes to
+	// other nodes when available.
+	EnableAutoDirectRoutingIPv6 bool
 
 	// EnableLocalNodeRoute controls installation of the route which points
 	// the allocation prefix of the local node.
@@ -2895,6 +2909,8 @@ func (c *DaemonConfig) Populate() {
 	c.EnableBPFTProxy = viper.GetBool(EnableBPFTProxy)
 	c.EnableXTSocketFallback = viper.GetBool(EnableXTSocketFallbackName)
 	c.EnableAutoDirectRouting = viper.GetBool(EnableAutoDirectRoutingName)
+	c.EnableAutoDirectRoutingIPv4 = vp.GetBool(EnableAutoDirectRoutingIPv4Name)
+	c.EnableAutoDirectRoutingIPv6 = vp.GetBool(EnableAutoDirectRoutingIPv6Name)
 	c.EnableEndpointRoutes = viper.GetBool(EnableEndpointRoutes)
 	c.EnableHealthChecking = viper.GetBool(EnableHealthChecking)
 	c.EnableEndpointHealthChecking = viper.GetBool(EnableEndpointHealthChecking)

@@ -381,6 +381,12 @@ func initializeFlags() {
 	flags.Bool(option.EnableAutoDirectRoutingName, defaults.EnableAutoDirectRouting, "Enable automatic L2 routing between nodes")
 	option.BindEnv(option.EnableAutoDirectRoutingName)
 
+	flags.Bool(option.EnableAutoDirectRoutingIPv4Name, defaults.EnableAutoDirectRoutingIPv4, "Enable automatic L2 routing between nodes for IPv4")
+	option.BindEnv(Vp, option.EnableAutoDirectRoutingIPv4Name)
+
+	flags.Bool(option.EnableAutoDirectRoutingIPv6Name, defaults.EnableAutoDirectRoutingIPv6, "Enable automatic L2 routing between nodes for IPv6")
+	option.BindEnv(Vp, option.EnableAutoDirectRoutingIPv6Name)
+
 	flags.Bool(option.EnableBPFTProxy, defaults.EnableBPFTProxy, "Enable BPF-based proxy redirection, if support available")
 	option.BindEnv(option.EnableBPFTProxy)
 
@@ -1446,6 +1452,14 @@ func initEnv(cmd *cobra.Command) {
 
 	if option.Config.TunnelingEnabled() && option.Config.EnableAutoDirectRouting {
 		log.Fatalf("%s cannot be used with tunneling. Packets must be routed through the tunnel device.", option.EnableAutoDirectRoutingName)
+	}
+
+	if option.Config.TunnelingEnabled() && option.Config.EnableAutoDirectRoutingIPv4 {
+		log.Fatalf("%s cannot be used with tunneling. Packets must be routed through the tunnel device.", option.EnableAutoDirectRoutingIPv4Name)
+	}
+
+	if option.Config.EnableAutoDirectRouting && (option.Config.EnableAutoDirectRoutingIPv4 || option.Config.EnableAutoDirectRoutingIPv6) {
+		log.Fatalf("%s cannot be enabled with %s or %s.", option.EnableAutoDirectRoutingName, option.EnableAutoDirectRoutingIPv4Name, option.EnableAutoDirectRoutingIPv6Name)
 	}
 
 	initClockSourceOption()

@@ -246,6 +246,12 @@ const (
 	// EnableAutoDirectRouting is the default value for EnableAutoDirectRouting
 	EnableAutoDirectRouting = false
 
+	// EnableAutoDirectRoutingIPv4 is the default value for EnableAutoDirectRoutingIPv4
+	EnableAutoDirectRoutingIPv4 = false
+
+	// EnableAutoDirectRoutingIPv6 is the default value for EnableAutoDirectRoutingIPv6
+	EnableAutoDirectRoutingIPv6 = false
+
 	// EnableHealthChecking is the default value for EnableHealthChecking
 	EnableHealthChecking = true
 

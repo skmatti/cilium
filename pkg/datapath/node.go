@@ -76,6 +76,22 @@ type LocalNodeConfiguration struct {
 	// subsequent calls to NodeConfigurationChanged().
 	EnableAutoDirectRouting bool
 
+	// EnableAutoDirectRoutingIPv4 enables the use of direct routes for IPv4
+	// communication between nodes if two nodes have direct L2
+	// connectivity. This field takes effect only when EnableAutoDirectRouting=false.
+	//
+	// This field is immutable at runtime. The value will not change in
+	// subsequent calls to NodeConfigurationChanged().
+	EnableAutoDirectRoutingIPv4 bool
+
+	// EnableAutoDirectRoutingIPv6 enables the use of direct routes for IPv4
+	// communication between nodes if two nodes have direct L2
+	// connectivity. This field takes effect only when EnableAutoDirectRouting=false.
+	//
+	// This field is immutable at runtime. The value will not change in
+	// subsequent calls to NodeConfigurationChanged().
+	EnableAutoDirectRoutingIPv6 bool
+
 	// EnableLocalNodeRoute enables installation of the route which points
 	// the allocation prefix of the local node. Disabling this option is
 	// useful when another component is responsible for the routing of the
