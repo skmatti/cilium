@@ -42,6 +42,10 @@ type Config struct {
 	EnableCiliumNetworkPolicy bool
 	// EnableCiliumCluterWideNetworkPolicy instructs Cilium to allow CCNP installation
 	EnableCiliumClusterWideNetworkPolicy bool
+	// EnableAutoDirectRoutingIPv4 enables installation of IPv4 direct routes to other nodes when available
+	EnableAutoDirectRoutingIPv4 bool `mapstructure:"auto-direct-node-routes-ipv4"`
+	// EnableAutoDirectRoutingIPv6 enables installation of IPv6 direct routes to other nodes when available
+	EnableAutoDirectRoutingIPv6 bool `mapstructure:"auto-direct-node-routes-ipv6"`
 }
 
 var defaultConfig = Config{
@@ -51,6 +55,8 @@ var defaultConfig = Config{
 	DisableNetworkPolicyCRD:              false,
 	EnableCiliumNetworkPolicy:            true,
 	EnableCiliumClusterWideNetworkPolicy: true,
+	EnableAutoDirectRoutingIPv4:          false,
+	EnableAutoDirectRoutingIPv6:          false,
 }
 
 func (cfg Config) Flags(flags *pflag.FlagSet) {
@@ -72,4 +78,10 @@ func (cfg Config) Flags(flags *pflag.FlagSet) {
 
 	flags.Bool(option.EnableCiliumClusterWideNetworkPolicyName, defaultConfig.EnableCiliumClusterWideNetworkPolicy, "Enable use of CiliumClusterwideNetworkPolicy CRD")
 	flags.MarkHidden(option.EnableCiliumClusterWideNetworkPolicyName)
+
+	flags.Bool(option.EnableAutoDirectRoutingIPv4Name, defaultConfig.EnableAutoDirectRoutingIPv4, "Enable installation of IPv4 direct routes to other nodes when available")
+	flags.MarkHidden(option.EnableAutoDirectRoutingIPv4Name)
+
+	flags.Bool(option.EnableAutoDirectRoutingIPv6Name, defaultConfig.EnableAutoDirectRoutingIPv6, "Enable installation of IPv6 direct routes to other nodes when available")
+	flags.MarkHidden(option.EnableAutoDirectRoutingIPv6Name)
 }

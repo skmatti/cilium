@@ -16,6 +16,7 @@ import (
 	"time"
 
 	dpv2e "github.com/cilium/cilium/pkg/gke/dataplanev2encryption"
+	"github.com/cilium/cilium/pkg/gke/features"
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/asm"
 	"github.com/cilium/ebpf/rlimit"
@@ -1438,6 +1439,14 @@ func initEnv() {
 
 	if option.Config.TunnelingEnabled() && option.Config.EnableAutoDirectRouting {
 		log.Fatalf("%s cannot be used with tunneling. Packets must be routed through the tunnel device.", option.EnableAutoDirectRoutingName)
+	}
+
+	if option.Config.TunnelingEnabled() && features.GlobalConfig.EnableAutoDirectRoutingIPv4 {
+		log.Fatalf("%s cannot be used with tunneling. Packets must be routed through the tunnel device.", option.EnableAutoDirectRoutingIPv4Name)
+	}
+
+	if option.Config.EnableAutoDirectRouting && (features.GlobalConfig.EnableAutoDirectRoutingIPv4 || features.GlobalConfig.EnableAutoDirectRoutingIPv6) {
+		log.Fatalf("%s cannot be enabled with %s or %s.", option.EnableAutoDirectRoutingName, option.EnableAutoDirectRoutingIPv4Name, option.EnableAutoDirectRoutingIPv6Name)
 	}
 
 	initClockSourceOption()

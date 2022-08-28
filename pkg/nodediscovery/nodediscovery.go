@@ -26,6 +26,7 @@ import (
 	"github.com/cilium/cilium/pkg/controller"
 	"github.com/cilium/cilium/pkg/datapath"
 	"github.com/cilium/cilium/pkg/defaults"
+	"github.com/cilium/cilium/pkg/gke/features"
 	"github.com/cilium/cilium/pkg/identity"
 	"github.com/cilium/cilium/pkg/ipam"
 	ipamOption "github.com/cilium/cilium/pkg/ipam/option"
@@ -109,19 +110,21 @@ func NewNodeDiscovery(manager *nodemanager.Manager, clientset client.Clientset, 
 	return &NodeDiscovery{
 		Manager: manager,
 		LocalConfig: datapath.LocalNodeConfiguration{
-			MtuConfig:               mtuConfig,
-			UseSingleClusterRoute:   option.Config.UseSingleClusterRoute,
-			EnableIPv4:              option.Config.EnableIPv4,
-			EnableIPv6:              option.Config.EnableIPv6,
-			EnableEncapsulation:     option.Config.Tunnel != option.TunnelDisabled,
-			EnableAutoDirectRouting: option.Config.EnableAutoDirectRouting,
-			EnableLocalNodeRoute:    enableLocalNodeRoute(),
-			AuxiliaryPrefixes:       auxPrefixes,
-			EnableIPSec:             option.Config.EnableIPSec,
-			EncryptNode:             option.Config.EncryptNode,
-			DisableIPv6Tunnel:       option.Config.DisableIPv6Tunnel,
-			IPv4PodSubnets:          option.Config.IPv4PodSubnets,
-			IPv6PodSubnets:          option.Config.IPv6PodSubnets,
+			MtuConfig:                   mtuConfig,
+			UseSingleClusterRoute:       option.Config.UseSingleClusterRoute,
+			EnableIPv4:                  option.Config.EnableIPv4,
+			EnableIPv6:                  option.Config.EnableIPv6,
+			EnableEncapsulation:         option.Config.Tunnel != option.TunnelDisabled,
+			EnableAutoDirectRouting:     option.Config.EnableAutoDirectRouting,
+			EnableAutoDirectRoutingIPv4: features.GlobalConfig.EnableAutoDirectRoutingIPv4,
+			EnableAutoDirectRoutingIPv6: features.GlobalConfig.EnableAutoDirectRoutingIPv6,
+			EnableLocalNodeRoute:        enableLocalNodeRoute(),
+			AuxiliaryPrefixes:           auxPrefixes,
+			EnableIPSec:                 option.Config.EnableIPSec,
+			EncryptNode:                 option.Config.EncryptNode,
+			DisableIPv6Tunnel:           option.Config.DisableIPv6Tunnel,
+			IPv4PodSubnets:              option.Config.IPv4PodSubnets,
+			IPv6PodSubnets:              option.Config.IPv6PodSubnets,
 		},
 		localNode: nodeTypes.Node{
 			Source: source.Local,

@@ -83,6 +83,12 @@ const (
 	// EnableCiliumCluterWideNetworkPolicyName is the name of the option to enable
 	// use of the CCNP CRD
 	EnableCiliumClusterWideNetworkPolicyName = "enable-cilium-clusterwide-network-policy"
+
+	// EnableAutoDirectRoutingIPv4Name is the name for the EnableAutoDirectRoutingIPv4 option.
+	EnableAutoDirectRoutingIPv4Name = "auto-direct-node-routes-ipv4"
+
+	// EnableAutoDirectRoutingIPv6Name is the name for the EnableAutoDirectRoutingIPv6 option.
+	EnableAutoDirectRoutingIPv6Name = "auto-direct-node-routes-ipv6"
 )
 
 func (c *DaemonConfig) SyncPredicate() func(string) bool {
