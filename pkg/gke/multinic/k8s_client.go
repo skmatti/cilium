@@ -18,8 +18,13 @@ package multinic
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 
+	v1 "github.com/cilium/cilium/pkg/k8s/slim/k8s/api/core/v1"
 	networkv1 "gke-internal.googlesource.com/anthos-networking/apis/v2/network/v1"
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -41,6 +46,9 @@ type K8sClient interface {
 
 	// DeleteNetworkInterface deletes the network interface object
 	DeleteNetworkInterface(ctx context.Context, obj *networkv1.NetworkInterface) error
+
+	// SetPodIPsAnnotation sets the pod annotation for additional pod IPs assigned to the pod
+	SetPodIPsAnnotation(ctx context.Context, pod *v1.Pod, podIPs *networkv1.PodIPsAnnotation) error
 }
 
 // k8sClientImpl is an implementation of the K8sClient interface
@@ -96,4 +104,26 @@ func (c *k8sClientImpl) CreateNetworkInterface(ctx context.Context, obj *network
 
 func (c *k8sClientImpl) DeleteNetworkInterface(ctx context.Context, obj *networkv1.NetworkInterface) error {
 	return c.client.Delete(ctx, obj)
+}
+
+func (c *k8sClientImpl) SetPodIPsAnnotation(ctx context.Context, obj *v1.Pod, podIPs *networkv1.PodIPsAnnotation) error {
+	pod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      obj.Name,
+			Namespace: obj.Namespace,
+		},
+	}
+	podIPsValue, err := json.Marshal(podIPs)
+	if err != nil {
+		return fmt.Errorf("failed to marshal pod IPs annotation %v: %v", podIPs, err)
+	}
+	raw, err := json.Marshal(map[string]string{
+		networkv1.PodIPsAnnotationKey: string(podIPsValue),
+	})
+	if err != nil {
+		return fmt.Errorf("failed to marshal pod annotations: %v", err)
+	}
+	patch := fmt.Sprintf(`{"metadata":{"annotations":%s}}`, raw)
+	log.Infof("applying patch %s to pod %s", patch, pod.Name)
+	return c.client.Status().Patch(ctx, pod, client.RawPatch(types.StrategicMergePatchType, []byte(patch)))
 }

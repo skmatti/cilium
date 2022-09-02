@@ -151,6 +151,7 @@ func (d *Daemon) createMultiNICEndpoints(ctx context.Context, owner regeneration
 	}
 
 	var eps []*endpoint.Endpoint
+	var podIPs networkv1.PodIPsAnnotation
 	var podNetworkConfigured bool
 	podNetworkMTU := d.mtuConfig.GetRouteMTU()
 	// parentDevInUse tracks the use of parent device for the L2 interface.
@@ -213,6 +214,10 @@ func (d *Daemon) createMultiNICEndpoints(ctx context.Context, owner regeneration
 
 			intfLog.WithField(logfields.EndpointID, multinicEndpoint.StringID()).Info("Successful multinic endpoint request")
 
+			for _, ip := range multinicEndpoint.IPs() {
+				podIP := networkv1.PodIP{IP: ip.String(), NetworkName: netCR.Name}
+				podIPs = append(podIPs, podIP)
+			}
 			eps = append(eps, multinicEndpoint)
 		}
 		if intfCR != nil {
@@ -248,6 +253,10 @@ func (d *Daemon) createMultiNICEndpoints(ctx context.Context, owner regeneration
 			return d.errorDuringMultiNICCreation(primaryEp, PutEndpointIDInvalidCode, fmt.Errorf("failed setting up pod-network %q for pod %q: %v", podNetworkCR.Name, podID, err))
 		}
 		primaryEp.Logger(daemonSubsys).Info("Pod network is configured")
+	}
+
+	if err = d.multinicClient.SetPodIPsAnnotation(ctx, pod, &podIPs); err != nil {
+		return d.errorDuringMultiNICCreation(primaryEp, PutEndpointIDInvalidCode, fmt.Errorf("failed to set pod IPs annotation for pod %q: %v", podID, err))
 	}
 
 	return eps, PutEndpointIDCreatedCode, nil

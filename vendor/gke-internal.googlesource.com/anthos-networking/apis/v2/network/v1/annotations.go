@@ -20,6 +20,8 @@ const (
 	// NodeNetworkAnnotationKey is the key of the annotation which indicates the status of
 	// networks on the node.
 	NodeNetworkAnnotationKey = "networking.gke.io/network-status"
+	// PodIPsAnnotationKey is the key of the annotation which indicates additional pod IPs assigned to the pod.
+	PodIPsAnnotationKey = "networking.gke.io/pod-ips"
 	// NetworkAnnotationKey is the network annotation on NetworkPolicy object.
 	// Value for this key will be the network on which network policy should be enforced.
 	NetworkAnnotationKey = "networking.gke.io/network"
@@ -75,6 +77,10 @@ func MarshalAnnotation(a interface{}) (string, error) {
 // +kubebuilder:object:generate:=false
 type NodeNetworkAnnotation []NodeNetworkStatus
 
+// PodIPsAnnotation is the value of the pod IPs annotation.
+// +kubebuilder:object:generate:=false
+type PodIPsAnnotation []PodIP
+
 // MultiNetworkAnnotation is the value of networks annotation.
 // +kubebuilder:object:generate:=false
 type MultiNetworkAnnotation []NodeNetwork
@@ -92,6 +98,17 @@ type NodeNetworkStatus struct {
 	IPv6Subnet string `json:"ipv6-subnet,omitempty"`
 }
 
+// PodIP specifies the additional pod IPs assigned to the pod.
+// This will eventually be merged into the `podIPs` field in PodStatus, so the fields must remain compatible.
+// +kubebuilder:object:generate:=false
+type PodIP struct {
+	// NetworkName refers to the network object associated with this IP.
+	NetworkName string `json:"networkName"`
+
+	// IP is an IP address (IPv4 or IPv6) assigned to the pod.
+	IP string `json:"ip"`
+}
+
 // NodeNetwork specifies network data on a node.
 // +kubebuilder:object:generate:=false
 type NodeNetwork struct {
@@ -106,6 +123,13 @@ type NodeNetwork struct {
 // ParseNodeNetworkAnnotation parses the given annotation to NodeNetworkAnnotation.
 func ParseNodeNetworkAnnotation(annotation string) (NodeNetworkAnnotation, error) {
 	ret := &NodeNetworkAnnotation{}
+	err := json.Unmarshal([]byte(annotation), ret)
+	return *ret, err
+}
+
+// ParsePodIPsAnnotation parses the given annotation to PodIPsAnnotation.
+func ParsePodIPsAnnotation(annotation string) (PodIPsAnnotation, error) {
+	ret := &PodIPsAnnotation{}
 	err := json.Unmarshal([]byte(annotation), ret)
 	return *ret, err
 }
