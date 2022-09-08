@@ -40,6 +40,8 @@ const (
 	// purpose. It uses "reserved:kube-apiserver" label if it's present in the identity label list.
 	// Otherwise, it uses the first label in the identity label list with "reserved:" prefix.
 	ContextReservedIdentity
+	// ContextWorkloadName uses the pod's workload name for identification.
+	ContextWorkloadName
 )
 
 // ContextOptionsHelp is the help text for context options
@@ -50,7 +52,7 @@ const ContextOptionsHelp = `
  sourceIngressContext      ::= identifier , { "|", identifier }
  destinationEgressContext  ::= identifier , { "|", identifier }
  destinationIngressContext ::= identifier , { "|", identifier }
- identifier                ::= identity | namespace | pod | pod-short | dns | ip | reserved-identity
+ identifier                ::= identity | namespace | pod | pod-short | dns | ip | reserved-identity | workload-name
 `
 
 var (
@@ -77,7 +79,8 @@ func (c ContextIdentifier) String() string {
 		return "ip"
 	case ContextReservedIdentity:
 		return "reserved-identity"
-
+	case ContextWorkloadName:
+		return "workload-name"
 	}
 	return fmt.Sprintf("%d", c)
 }
@@ -130,6 +133,8 @@ func parseContextIdentifier(s string) (ContextIdentifier, error) {
 		return ContextIP, nil
 	case "reserved-identity":
 		return ContextReservedIdentity, nil
+	case "workload-name":
+		return ContextWorkloadName, nil
 	default:
 		return ContextDisabled, fmt.Errorf("unknown context '%s'", s)
 	}
@@ -352,6 +357,12 @@ func (o *ContextOptions) GetLabelValues(flow *pb.Flow) (labels []string) {
 				context = sourceIPContext(flow)
 			case ContextReservedIdentity:
 				context = sourceReservedIdentityContext(flow)
+			case ContextWorkloadName:
+				if id := flow.GetSource(); id != nil {
+					if workloads := id.GetWorkloads(); len(workloads) != 0 {
+						context = workloads[0].Name
+					}
+				}
 			}
 			// always use first non-empty context
 			if context != "" {
@@ -385,6 +396,12 @@ func (o *ContextOptions) GetLabelValues(flow *pb.Flow) (labels []string) {
 				context = destinationIPContext(flow)
 			case ContextReservedIdentity:
 				context = destinationReservedIdentityContext(flow)
+			case ContextWorkloadName:
+				if id := flow.GetDestination(); id != nil {
+					if workloads := id.GetWorkloads(); len(workloads) != 0 {
+						context = workloads[0].Name
+					}
+				}
 			}
 			// always use first non-empty context
 			if context != "" {
