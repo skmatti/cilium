@@ -328,6 +328,18 @@ static __always_inline int handle_ipv6_from_lxc(struct __ctx_buff *ctx, __u32 *d
 		goto skip_policy_enforcement;
 	}
 
+        /* Always allow ICMPv6 NDP packets to go through without policy enforcement */
+        if (unlikely(ip6->nexthdr == IPPROTO_ICMPV6)) {
+          __u8 type = icmp6_load_type(ctx, ETH_HLEN);
+          switch (type) {
+            case ICMP6_ROUTER_SOLICIT_TYPE:
+            case ICMP6_ROUTER_ADV_TYPE:
+            case ICMP6_NS_MSG_TYPE:
+            case ICMP6_NA_MSG_TYPE:
+              goto skip_policy_enforcement;
+          }
+        }
+
 	/* If the packet is in the establishing direction and it's destined
 	 * within the cluster, it must match policy or be dropped. If it's
 	 * bound for the host/outside, perform the CIDR policy check.
