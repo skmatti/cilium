@@ -193,23 +193,28 @@ func toProto(derivedFrom labels.LabelArrayList, rev uint64) (policies []*Policy)
 
 		policy := &Policy{}
 
-		var ns, name string
+		var kind, ns, name string
 		for _, l := range lbl {
-			if l.Source == string(source.Kubernetes) {
-				switch l.Key {
-				case k8sConst.PolicyLabelName:
-					name = l.Value
-				case k8sConst.PolicyLabelNamespace:
-					ns = l.Value
-				}
+			if l.Source != string(source.Kubernetes) {
+				continue
+			}
+			switch l.Key {
+			case k8sConst.PolicyLabelName:
+				name = l.Value
+			case k8sConst.PolicyLabelNamespace:
+				ns = l.Value
+			case k8sConst.PolicyLabelDerivedFrom:
+				kind = l.Value
 			}
 
-			if name != "" && ns != "" {
-				policy.Name = name
-				policy.Namespace = ns
+			if kind != "" && name != "" && ns != "" {
 				break
 			}
 		}
+
+		policy.Kind = kind
+		policy.Name = name
+		policy.Namespace = ns
 
 		policies = append(policies, policy)
 	}

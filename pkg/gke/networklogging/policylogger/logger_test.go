@@ -30,10 +30,16 @@ import (
 	"github.com/cilium/cilium/api/v1/flow"
 	"github.com/cilium/cilium/pkg/gke/apis/networklogging/v1alpha1"
 	"github.com/cilium/cilium/pkg/gke/dispatcher"
+	"github.com/cilium/cilium/pkg/k8s"
+	v2 "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2"
 	slim_corev1 "github.com/cilium/cilium/pkg/k8s/slim/k8s/api/core/v1"
 	slim_networkingv1 "github.com/cilium/cilium/pkg/k8s/slim/k8s/api/networking/v1"
+	v1 "github.com/cilium/cilium/pkg/k8s/slim/k8s/apis/meta/v1"
+	"github.com/cilium/cilium/pkg/k8s/types"
 	"github.com/cilium/cilium/pkg/monitor/api"
 	"github.com/golang/protobuf/ptypes/timestamp"
+	"github.com/google/go-cmp/cmp"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/cache"
 )
 
@@ -42,7 +48,7 @@ const (
 	maxRetry = 5
 
 	// allowLog is the expected policy log for the allowFlow
-	allowLog = `{"connection":{"src_ip":"10.84.1.7","dest_ip":"10.84.0.11","src_port":55644,"dest_port":8080,"protocol":"tcp","direction":"ingress"},"disposition":"allow","policies":[{"name":"allow-all","namespace":"default"}],"src":{"pod_name":"client-allow-7b78d7c957-zkn54","workload_kind":"ReplicaSet","workload_name":"client-allow-7b78d7c957","pod_namespace":"default","namespace":"default"},"dest":{"pod_name":"test-service-745c798fc9-hzpxt","workload_kind":"ReplicaSet","workload_name":"test-service-745c798fc9","pod_namespace":"default","namespace":"default"},"count":1,"timestamp":"2020-06-13T21:29:31.445836587Z"}`
+	allowLog = `{"connection":{"src_ip":"10.84.1.7","dest_ip":"10.84.0.11","src_port":55644,"dest_port":8080,"protocol":"tcp","direction":"ingress"},"disposition":"allow","policies":[{"kind":"NetworkPolicy","name":"allow-all","namespace":"default"}],"src":{"pod_name":"client-allow-7b78d7c957-zkn54","workload_kind":"ReplicaSet","workload_name":"client-allow-7b78d7c957","pod_namespace":"default","namespace":"default"},"dest":{"pod_name":"test-service-745c798fc9-hzpxt","workload_kind":"ReplicaSet","workload_name":"test-service-745c798fc9","pod_namespace":"default","namespace":"default"},"count":1,"timestamp":"2020-06-13T21:29:31.445836587Z"}`
 
 	// denyLog is the expected policy log for the denyFlow
 	denyLog = `{"connection":{"src_ip":"10.84.1.8","dest_ip":"10.84.0.11","src_port":45084,"dest_port":8080,"protocol":"tcp","direction":"ingress"},"disposition":"deny","src":{"pod_name":"client-deny-5689846f5b-cqqsj","workload_kind":"ReplicaSet","workload_name":"client-deny-5689846f5b","pod_namespace":"default","namespace":"default"},"dest":{"pod_name":"test-service-745c798fc9-hzpxt","workload_kind":"ReplicaSet","workload_name":"test-service-745c798fc9","pod_namespace":"default","namespace":"default"},"count":1,"timestamp":"2020-06-13T21:30:22.292379064Z"}`
@@ -185,6 +191,24 @@ var (
 		PolicyMatchType:       api.PolicyMatchNone,
 		TraceObservationPoint: flow.TraceObservationPoint_UNKNOWN_POINT,
 	}
+
+	npPolicy = &Policy{
+		Kind:      "NetworkPolicy",
+		Name:      "np",
+		Namespace: "default",
+	}
+
+	cnpPolicy = &Policy{
+		Kind:      "CiliumNetworkPolicy",
+		Name:      "cnp",
+		Namespace: "default",
+	}
+
+	ccnpPolicy = &Policy{
+		Kind:      "CiliumClusterwideNetworkPolicy",
+		Name:      "ccnp",
+		Namespace: "default",
+	}
 )
 
 type testPolicyCorrelator struct{}
@@ -197,6 +221,7 @@ func (c *testPolicyCorrelator) correlatePolicy(f *flow.Flow) ([]*Policy, error) 
 
 	return []*Policy{
 		{
+			Kind:      "NetworkPolicy",
 			Name:      "allow-all",
 			Namespace: "default",
 		},
@@ -204,18 +229,28 @@ func (c *testPolicyCorrelator) correlatePolicy(f *flow.Flow) ([]*Policy, error) 
 }
 
 type testStoreGetter struct {
-	policyStore    cache.Store
+	npStore        cache.Store
+	cnpStore       cache.Store
+	ccnpStore      cache.Store
 	namespaceStore cache.Store
 }
 
 func (c *testStoreGetter) Init() {
-	c.policyStore = cache.NewStore(cache.DeletionHandlingMetaNamespaceKeyFunc)
+	c.npStore = cache.NewStore(cache.DeletionHandlingMetaNamespaceKeyFunc)
+	c.cnpStore = cache.NewStore(cache.DeletionHandlingMetaNamespaceKeyFunc)
+	c.ccnpStore = cache.NewStore(cache.DeletionHandlingMetaNamespaceKeyFunc)
 	c.namespaceStore = cache.NewStore(cache.DeletionHandlingMetaNamespaceKeyFunc)
 }
 
 func (c *testStoreGetter) GetK8sStore(name string) cache.Store {
-	if name == "networkpolicy" {
-		return c.policyStore
+	if name == "NetworkPolicy" {
+		return c.npStore
+	}
+	if name == "CiliumNetworkPolicy" {
+		return c.cnpStore
+	}
+	if name == "CiliumClusterwideNetworkPolicy" {
+		return c.ccnpStore
 	}
 	if name == "namespace" {
 		return c.namespaceStore
@@ -454,7 +489,7 @@ func TestLogDelegate(t *testing.T) {
 	policy.ObjectMeta.Name = "allow-all"
 	policy.ObjectMeta.Namespace = "default"
 	policy.ObjectMeta.Annotations = map[string]string{AnnotationEnableAllowLogging: "true"}
-	s.policyStore.Add(policy)
+	s.npStore.Add(policy)
 
 	ns := &slim_corev1.Namespace{}
 	ns.ObjectMeta.Name = "default"
@@ -478,7 +513,7 @@ func TestLogDelegate(t *testing.T) {
 
 	// Modify the annotation to false, no new log will be output now.
 	policy.ObjectMeta.Annotations = map[string]string{AnnotationEnableAllowLogging: "false"}
-	s.policyStore.Update(policy)
+	s.npStore.Update(policy)
 	ns.ObjectMeta.Annotations = map[string]string{AnnotationEnableDenyLogging: "false"}
 	s.namespaceStore.Update(ns)
 	observer.OnDecodedFlow(context.Background(), allowFlow)
@@ -487,4 +522,143 @@ func TestLogDelegate(t *testing.T) {
 	time.Sleep(3 * time.Second)
 	retryCheckFileContent(t, path, want, maxRetry)
 	os.RemoveAll(testCfg.logFilePath)
+}
+
+func TestNetworkPolicyLogger_allowedPoliciesForDelegate(t *testing.T) {
+	setupConfig(t)
+
+	getter := &testStoreGetter{}
+	getter.Init()
+	seedStores(t, getter)
+
+	logger := &networkPolicyLogger{
+		dispatcher:  dispatcher.NewDispatcher(),
+		storeGetter: getter,
+		spec:        getLogSpec(nil),
+	}
+	logger.UpdateLoggingSpec(&v1alpha1.NetworkLoggingSpec{})
+
+	npNotAnnotated := &Policy{
+		Kind:      "NetworkPolicy",
+		Name:      "not-annotated",
+		Namespace: npPolicy.Namespace,
+	}
+	cnpNotAnnotated := &Policy{
+		Kind:      "CiliumNetworkPolicy",
+		Name:      "not-annotated",
+		Namespace: cnpPolicy.Namespace,
+	}
+	ccnpNotAnnotated := &Policy{
+		Kind:      "CiliumClusterwideNetworkPolicy",
+		Name:      "not-annotated",
+		Namespace: ccnpPolicy.Namespace,
+	}
+
+	testCases := []struct {
+		name     string
+		policies []*Policy
+		want     []*Policy
+	}{
+		{
+			name: "no input policies",
+		},
+		{
+			name:     "np",
+			policies: []*Policy{npPolicy, npNotAnnotated},
+			want:     []*Policy{npPolicy},
+		},
+		{
+			name:     "cnp",
+			policies: []*Policy{cnpPolicy, cnpNotAnnotated},
+			want:     []*Policy{cnpPolicy},
+		},
+		{
+			name:     "ccnp",
+			policies: []*Policy{ccnpPolicy, ccnpNotAnnotated},
+			want:     []*Policy{ccnpPolicy},
+		},
+		{
+			name:     "all",
+			policies: []*Policy{npPolicy, npNotAnnotated, cnpPolicy, cnpNotAnnotated, ccnpPolicy, ccnpNotAnnotated},
+			want:     []*Policy{npPolicy, cnpPolicy, ccnpPolicy},
+		},
+	}
+	for _, tc := range testCases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			got := logger.allowedPoliciesForDelegate(tc.policies)
+			if diff := cmp.Diff(tc.want, got); diff != "" {
+				t.Errorf("allowedPoliciesForDelegate(_) diff (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
+
+func seedStores(t testing.TB, getter *testStoreGetter) {
+	if err := getter.npStore.Add(&slim_networkingv1.NetworkPolicy{
+		ObjectMeta: v1.ObjectMeta{
+			Name:      npPolicy.Name,
+			Namespace: npPolicy.Namespace,
+			Annotations: map[string]string{
+				AnnotationEnableAllowLogging: "true",
+			},
+		},
+	}); err != nil {
+		t.Fatalf("Unable to initialize network policy store: %v", err)
+	}
+
+	if err := getter.npStore.Add(&slim_networkingv1.NetworkPolicy{
+		ObjectMeta: v1.ObjectMeta{
+			Name:      "not-annotated",
+			Namespace: npPolicy.Namespace,
+		},
+	}); err != nil {
+		t.Fatalf("Unable to initialize network policy store: %v", err)
+	}
+
+	if err := getter.cnpStore.Add(&types.SlimCNP{
+		CiliumNetworkPolicy: &v2.CiliumNetworkPolicy{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      cnpPolicy.Name,
+				Namespace: cnpPolicy.Namespace,
+				Annotations: map[string]string{
+					AnnotationEnableAllowLogging: "true",
+				},
+			},
+		},
+	}); err != nil {
+		t.Fatalf("Unable to initialize network policy store: %v", err)
+	}
+
+	if err := getter.cnpStore.Add(&types.SlimCNP{
+		CiliumNetworkPolicy: &v2.CiliumNetworkPolicy{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "not-annotated",
+				Namespace: cnpPolicy.Namespace,
+			},
+		},
+	}); err != nil {
+		t.Fatalf("Unable to initialize network policy store: %v", err)
+	}
+
+	if err := getter.ccnpStore.Add(k8s.ConvertToCCNP(&v2.CiliumClusterwideNetworkPolicy{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      ccnpPolicy.Name,
+			Namespace: ccnpPolicy.Namespace,
+			Annotations: map[string]string{
+				AnnotationEnableAllowLogging: "true",
+			},
+		},
+	})); err != nil {
+		t.Fatalf("Unable to initialize network policy store: %v", err)
+	}
+
+	if err := getter.ccnpStore.Add(k8s.ConvertToCCNP(&v2.CiliumClusterwideNetworkPolicy{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "not-annotated",
+			Namespace: ccnpPolicy.Namespace,
+		},
+	})); err != nil {
+		t.Fatalf("Unable to initialize network policy store: %v", err)
+	}
 }

@@ -30,6 +30,7 @@ import (
 	"github.com/cilium/cilium/pkg/hubble/parser/getters"
 	"github.com/cilium/cilium/pkg/k8s"
 	"github.com/cilium/cilium/pkg/lock"
+	"github.com/cilium/cilium/pkg/logging/logfields"
 	"github.com/cilium/cilium/pkg/monitor/api"
 	"github.com/sirupsen/logrus"
 )
@@ -215,29 +216,64 @@ func (n *networkPolicyLogger) run() {
 	}
 }
 
-func (n *networkPolicyLogger) loggingPolicies(policies []*Policy) []*Policy {
-	policyStore := n.storeGetter.GetK8sStore("networkpolicy")
-	if policyStore == nil {
-		log.Error("Cannot find the policy store")
-		policyLoggingErrorCount.WithLabelValues(errorReasonGetPolicy).Add(1)
-		return policies
-	}
+func (n *networkPolicyLogger) allowedPoliciesForDelegate(policies []*Policy) []*Policy {
 	var ret []*Policy
+	var key string
+	var annotations map[string]string
 	for _, p := range policies {
-		key := p.Namespace + "/" + p.Name
+		if p.Kind == "" {
+			log.WithField("policy", logfields.Repr(p)).Error("Policy kind is empty")
+			policyLoggingErrorCount.WithLabelValues(errorReasonGetPolicy).Inc()
+			continue
+		}
+		policyStore := n.storeGetter.GetK8sStore(p.Kind)
+		if policyStore == nil {
+			log.Errorf("Cannot find %s policy store", p.Kind)
+			policyLoggingErrorCount.WithLabelValues(errorReasonGetPolicy).Inc()
+			continue
+		}
+
+		if p.Namespace == "" {
+			key = p.Name
+		} else {
+			key = p.Namespace + "/" + p.Name
+		}
 		obj, exist, err := policyStore.GetByKey(key)
 		if err != nil {
-			log.Errorf("Fail to fetch policy %q: %v", key, err)
-			policyLoggingErrorCount.WithLabelValues(errorReasonGetPolicy).Add(1)
+			log.WithField("policy", logfields.Repr(p)).WithField("key", key).Errorf("Failed to fetch policy: %v", err)
+			policyLoggingErrorCount.WithLabelValues(errorReasonGetPolicy).Inc()
 			continue
 		}
 		// Maybe the policy is already deleted.
 		if !exist {
-			policyLoggingErrorCount.WithLabelValues(errorReasonGetPolicy).Add(1)
+			log.WithField("kind", p.Kind).WithField("key", key).Debug("object not found")
+			policyLoggingErrorCount.WithLabelValues(errorReasonGetPolicy).Inc()
 			continue
 		}
-		policy := k8s.ObjToV1NetworkPolicy(obj)
-		if policy.Annotations[AnnotationEnableAllowLogging] == "true" {
+
+		switch p.Kind {
+		case "NetworkPolicy":
+			np := k8s.ObjToV1NetworkPolicy(obj)
+			if np == nil {
+				log.WithField("kind", p.Kind).WithField("key", key).Error("Unable to convert object to network policy")
+				policyLoggingErrorCount.WithLabelValues(errorReasonObjectConversion).Inc()
+				continue
+			}
+			annotations = np.GetAnnotations()
+		case "CiliumNetworkPolicy", "CiliumClusterwideNetworkPolicy":
+			cnp := k8s.ObjToSlimCNP(obj)
+			if cnp == nil {
+				log.WithField("kind", p.Kind).WithField("key", key).Error("Unable to convert object to cilium network policy")
+				policyLoggingErrorCount.WithLabelValues(errorReasonObjectConversion).Inc()
+				continue
+			}
+			annotations = cnp.GetAnnotations()
+		default:
+			log.WithField("kind", p.Kind).WithField("key", key).Errorf("Unsupported policy kind %s", p.Kind)
+			policyLoggingErrorCount.WithLabelValues(errorReasonObjectConversion).Inc()
+			continue
+		}
+		if annotations[AnnotationEnableAllowLogging] == "true" {
 			ret = append(ret, p)
 		}
 	}
@@ -304,9 +340,9 @@ func (n *networkPolicyLogger) processFlow(f *flow.Flow) {
 
 	if action.delegate {
 		if allow {
-			logPolicies := n.loggingPolicies(e.Policies)
+			logPolicies := n.allowedPoliciesForDelegate(e.Policies)
 			if len(logPolicies) == 0 {
-				log.Debugf("No log for policies %v", e.Policies)
+				log.WithField("policies", e.Policies).Debug("No matching policy")
 				return
 			}
 			e.Policies = logPolicies

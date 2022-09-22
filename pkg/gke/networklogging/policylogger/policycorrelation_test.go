@@ -18,14 +18,71 @@
 package policylogger
 
 import (
+	"fmt"
+	"net"
 	"testing"
 
+	"github.com/cilium/cilium/api/v1/flow"
+	v1 "github.com/cilium/cilium/pkg/hubble/api/v1"
 	"github.com/cilium/cilium/pkg/hubble/testutils"
+	k8sConst "github.com/cilium/cilium/pkg/k8s/apis/cilium.io"
 	"github.com/cilium/cilium/pkg/labels"
+	"github.com/cilium/cilium/pkg/monitor/api"
 	"github.com/cilium/cilium/pkg/policy"
 	"github.com/cilium/cilium/pkg/policy/trafficdirection"
 	"github.com/cilium/cilium/pkg/u8proto"
+	"github.com/golang/protobuf/ptypes/timestamp"
 	"github.com/google/go-cmp/cmp"
+)
+
+var (
+	testFlow = &flow.Flow{
+		Time:    &timestamp.Timestamp{Seconds: 1592083771, Nanos: 445836587},
+		Verdict: flow.Verdict_FORWARDED,
+		IP: &flow.IP{
+			Source:      "10.84.1.7",
+			Destination: "10.84.0.11",
+			IpVersion:   flow.IPVersion_IPv4,
+		},
+		L4: &flow.Layer4{Protocol: &flow.Layer4_TCP{
+			TCP: &flow.TCP{
+				SourcePort:      55644,
+				DestinationPort: 8080,
+				Flags:           &flow.TCPFlags{SYN: true},
+			},
+		}},
+		Source: &flow.Endpoint{
+			Identity:  24583,
+			Namespace: "default",
+		},
+		Destination: &flow.Endpoint{
+			ID:       1072,
+			Identity: 15292,
+		},
+		Type:                  flow.FlowType_L3_L4,
+		Reply:                 false,
+		EventType:             &flow.CiliumEventType{Type: int32(api.MessageTypePolicyVerdict)},
+		TrafficDirection:      flow.TrafficDirection_INGRESS,
+		PolicyMatchType:       api.PolicyMatchL3L4,
+		TraceObservationPoint: flow.TraceObservationPoint_UNKNOWN_POINT,
+	}
+
+	endpointMap = map[string]v1.EndpointInfo{
+		"10.84.0.11": &testutils.FakeEndpointInfo{
+			ID:             1072,
+			Identity:       15292,
+			PodName:        "pod-10.84.0.11",
+			PodNamespace:   "default",
+			PolicyRevision: 1,
+			PolicyMap: map[policy.Key]labels.LabelArrayList{
+				{Identity: 24583, DestPort: 0, Nexthdr: 0, TrafficDirection: trafficdirection.Ingress.Uint8()}: {labels.ParseLabelArray(
+					fmt.Sprintf("k8s:%s=allow-all", k8sConst.PolicyLabelName),
+					fmt.Sprintf("k8s:%s=default", k8sConst.PolicyLabelNamespace),
+					fmt.Sprintf("k8s:%s=NetworkPolicy", k8sConst.PolicyLabelDerivedFrom),
+				)},
+			},
+		},
+	}
 )
 
 func TestLookUpPolicyForKey(t *testing.T) {
@@ -232,4 +289,46 @@ func TestLookUpPolicyForKey(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestPolicyCorrelation_correlatePolicy(t *testing.T) {
+	correlator := &policyCorrelation{
+		endpointGetter: &testutils.FakeEndpointGetter{
+			OnGetEndpointInfo: func(ip net.IP) (endpoint v1.EndpointInfo, ok bool) {
+				endpoint, ok = endpointMap[ip.String()]
+				return endpoint, ok
+			},
+		},
+	}
+
+	testCases := []struct {
+		desc   string
+		f      *flow.Flow
+		expect []*Policy
+	}{
+		{
+			desc: "test",
+			f:    testFlow,
+			expect: []*Policy{
+				{
+					Kind:      "NetworkPolicy",
+					Name:      "allow-all",
+					Namespace: "default",
+				},
+			},
+		},
+	}
+	for _, tc := range testCases {
+		tc := tc
+		t.Run(tc.desc, func(t *testing.T) {
+			got, err := correlator.correlatePolicy(tc.f)
+			if err != nil {
+				t.Fatalf("Unexpected error for correlatePolicy(): %v", err)
+			}
+			if diff := cmp.Diff(tc.expect, got); diff != "" {
+				t.Errorf("Got mismatch for policies for correlatePolicy() (-want +got):\n%s", diff)
+			}
+		})
+	}
+
 }

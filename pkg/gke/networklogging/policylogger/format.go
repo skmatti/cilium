@@ -37,6 +37,7 @@ type Connection struct {
 
 // Policy stores the name and namespace of a network policy.
 type Policy struct {
+	Kind      string `json:"kind"`
 	Name      string `json:"name"`
 	Namespace string `json:"namespace,omitempty"`
 }

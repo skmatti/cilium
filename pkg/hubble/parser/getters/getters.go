@@ -59,7 +59,6 @@ type ServiceGetter interface {
 // StoreGetter ...
 type StoreGetter interface {
 	// GetK8sStore return the k8s watcher cache store for the given resource name.
-	// Currently only resource networkpolicy and namespace are supported.
 	// WARNING: the objects returned by these stores can't be used to create
 	// update objects into k8s as well as the objects returned by these stores
 	// should only be used for reading.
