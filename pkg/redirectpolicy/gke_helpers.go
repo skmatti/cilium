@@ -18,11 +18,12 @@ type dnsPort struct {
 }
 
 const (
-	dnsSvcName        = "kube-dns"
-	dnsSvcNamespace   = "kube-system"
-	KeyNodeLocalDNS   = "k8s-app"
-	LabelNodeLocalDNS = "node-local-dns"
-	PortNodeLocalDNS  = uint16(53)
+	dnsSvcName            = "kube-dns"
+	dnsSvcNamespace       = "kube-system"
+	KeyNodeLocalDNS       = "k8s-app"
+	LabelNodeLocalDNS     = "node-local-dns"
+	LabelNodeLocalDNSDPv2 = "node-local-dns-dpv2"
+	PortNodeLocalDNS      = uint16(53)
 )
 
 var (

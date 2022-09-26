@@ -186,7 +186,7 @@ func (c *Controller) addNoTrackHandler(old, curr interface{}) {
 	if oldPod := k8s.ObjTov1Pod(old); oldPod != nil {
 		if newPod := k8s.ObjTov1Pod(curr); newPod != nil {
 			labels := newPod.ObjectMeta.Labels
-			if val, found := labels[redirectpolicy.KeyNodeLocalDNS]; found && val == redirectpolicy.LabelNodeLocalDNS {
+			if val, found := labels[redirectpolicy.KeyNodeLocalDNS]; found && (val == redirectpolicy.LabelNodeLocalDNS || val == redirectpolicy.LabelNodeLocalDNSDPv2) {
 				// pod.Status.PodIPs are supposed to be very short slices
 				// add rules for newly assigned IPs
 				for _, ip := range newPod.Status.PodIPs {
@@ -273,7 +273,7 @@ func (c *Controller) delNoTrackHandler(obj interface{}) {
 	if pod := k8s.ObjTov1Pod(obj); pod != nil {
 		labels := pod.ObjectMeta.Labels
 		val, found := labels[redirectpolicy.KeyNodeLocalDNS]
-		if found && val == redirectpolicy.LabelNodeLocalDNS {
+		if found && (val == redirectpolicy.LabelNodeLocalDNS || val == redirectpolicy.LabelNodeLocalDNSDPv2) {
 			for _, ip := range pod.Status.PodIPs {
 				c.removeNoTrackRules(ip.IP)
 			}
