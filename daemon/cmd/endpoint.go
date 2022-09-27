@@ -394,12 +394,14 @@ func (d *Daemon) createEndpoint(ctx context.Context, owner regeneration.Owner, e
 	ctx, cancel = context.WithCancel(ctx)
 	d.endpointCreations.NewCreateRequest(ep, cancel)
 	defer d.endpointCreations.EndCreateRequest(ep)
+	var multinicPod bool
 
 	if ep.K8sNamespaceAndPodNameIsSet() && k8s.IsEnabled() {
 		pod, cp, identityLabels, info, annotations, err := d.fetchK8sLabelsAndAnnotations(ep.K8sNamespace, ep.K8sPodName)
 		if err != nil {
 			ep.Logger("api").WithError(err).Warning("Unable to fetch kubernetes labels")
 		} else {
+			multinicPod = isMultiNICPod(annotations)
 			ep.SetPod(pod)
 			if err := ep.SetK8sMetadata(cp); err != nil {
 				return invalidDataError(ep, fmt.Errorf("Invalid ContainerPorts %v: %s", cp, err))
@@ -510,7 +512,9 @@ func (d *Daemon) createEndpoint(ctx context.Context, owner regeneration.Owner, e
 		}
 	}
 
-	if epTemplate.SyncBuildEndpoint {
+	// If the pod has multinic interfaces, the first generation operations
+	// for all endpoints are synchronized at the end of createMultiNICEndpoints.
+	if epTemplate.SyncBuildEndpoint && !multinicPod {
 		if err := ep.WaitForFirstRegeneration(ctx); err != nil {
 			return d.errorDuringCreation(ep, err)
 		}

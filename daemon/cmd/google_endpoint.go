@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"hash/crc32"
+	"sync"
 
 	v1 "github.com/cilium/cilium/pkg/k8s/slim/k8s/api/core/v1"
 	"github.com/containernetworking/plugins/pkg/ns"
@@ -93,7 +94,6 @@ func (d *Daemon) createMultiNICEndpoints(ctx context.Context, owner regeneration
 		// Set ExternalIpam to true will skip the IP releasing when deleting the endpoint.
 		ExternalIpam: true,
 	}
-	epTemplate.SyncBuildEndpoint = true
 
 	if !primaryEp.K8sNamespaceAndPodNameIsSet() {
 		return d.errorDuringMultiNICCreation(primaryEp, PutEndpointIDInvalidCode, errors.New("k8s namespace and pod name are required to create multinic endpoints"))
@@ -257,6 +257,13 @@ func (d *Daemon) createMultiNICEndpoints(ctx context.Context, owner regeneration
 
 	if err = d.multinicClient.SetPodIPsAnnotation(ctx, pod, &podIPs); err != nil {
 		return d.errorDuringMultiNICCreation(primaryEp, PutEndpointIDInvalidCode, fmt.Errorf("failed to set pod IPs annotation for pod %q: %v", podID, err))
+	}
+
+	if epTemplate.SyncBuildEndpoint {
+		if err := waitForEndpointsFirstRegeneration(ctx,
+			d.endpointManager.LookupEndpointsByContainerID(primaryEp.GetContainerID())); err != nil {
+			return d.errorDuringMultiNICCreation(primaryEp, PutEndpointIDInvalidCode, err)
+		}
 	}
 
 	return eps, PutEndpointIDCreatedCode, nil
@@ -631,4 +638,32 @@ func convertNetworkSpecToInterface(network *networkv1.Network) *networkv1.Networ
 			Gateway4: network.Spec.Gateway4,
 		},
 	}
+}
+
+func isMultiNICPod(annotations map[string]string) bool {
+	_, ok := annotations[networkv1.InterfaceAnnotationKey]
+	return ok && option.Config.EnableGoogleMultiNIC
+}
+
+func waitForEndpointsFirstRegeneration(ctx context.Context, eps []*endpoint.Endpoint) error {
+	var (
+		wg   sync.WaitGroup
+		merr []error
+	)
+	for _, e := range eps {
+		ep := e
+		wg.Add(1)
+		go func() {
+			if err := ep.WaitForFirstRegeneration(ctx); err != nil {
+				ep.Logger(daemonSubsys).WithError(err).Warning("WaitForFirstRegeneration failed")
+				merr = append(merr, err)
+			}
+			wg.Done()
+		}()
+	}
+	wg.Wait()
+	if len(merr) != 0 {
+		return fmt.Errorf("there are %d endpoints failed WaitForFirstRegeneration", len(merr))
+	}
+	return nil
 }

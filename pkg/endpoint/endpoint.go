@@ -2244,6 +2244,13 @@ func (e *Endpoint) Delete(conf DeleteConfig) []error {
 		if errs2 := e.deleteMaps(); errs2 != nil {
 			errs = append(errs, errs2...)
 		}
+
+		// It is common that multinic holds the same IP for new endpoint creation.
+		// Cleaning up the IPs in contrack table on endpoint deletion could
+		// optimize the creation duration.
+		if e.IsMultiNIC() {
+			e.scrubIPsInConntrackTable()
+		}
 	}
 
 	if option.Config.IPAM == ipamOption.IPAMENI || option.Config.IPAM == ipamOption.IPAMAzure || option.Config.IPAM == ipamOption.IPAMAlibabaCloud {
