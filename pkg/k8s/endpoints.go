@@ -224,6 +224,8 @@ func parseEndpointPortV1Beta1(port slim_discovery_v1beta1.EndpointPort) (string,
 			proto = loadbalancer.TCP
 		case slim_corev1.ProtocolUDP:
 			proto = loadbalancer.UDP
+		case slim_corev1.ProtocolSCTP:
+			proto = loadbalancer.SCTP
 		default:
 			return "", nil
 		}
@@ -317,6 +319,8 @@ func parseEndpointPortV1(port slim_discovery_v1.EndpointPort) (string, *loadbala
 			proto = loadbalancer.TCP
 		case slim_corev1.ProtocolUDP:
 			proto = loadbalancer.UDP
+		case slim_corev1.ProtocolSCTP:
+			proto = loadbalancer.SCTP
 		default:
 			return "", nil
 		}
