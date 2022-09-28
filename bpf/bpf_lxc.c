@@ -1390,6 +1390,10 @@ int cil_from_container(struct __ctx_buff *ctx)
 		ep_tail_call(ctx, CILIUM_CALL_IPV6_FROM_LXC);
 		ret = DROP_MISSED_TAIL_CALL;
 		break;
+#else
+	case bpf_htons(ETH_P_IPV6):
+          ret = CTX_ACT_OK;
+          break;
 #endif /* ENABLE_IPV6 */
 #ifdef ENABLE_IPV4
 	case bpf_htons(ETH_P_IP):
@@ -2339,6 +2343,10 @@ int cil_to_container(struct __ctx_buff *ctx)
 		ep_tail_call(ctx, CILIUM_CALL_IPV6_CT_INGRESS);
 		ret = DROP_MISSED_TAIL_CALL;
 		break;
+#else
+          case bpf_htons(ETH_P_IPV6):
+            ret = CTX_ACT_OK;
+            break;
 #endif /* ENABLE_IPV6 */
 #ifdef ENABLE_IPV4
 	case bpf_htons(ETH_P_IP):
