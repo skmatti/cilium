@@ -29,7 +29,7 @@ int is_valid_lxc_src_ip(struct ipv6hdr *ip6 __maybe_unused)
 
 	return !ipv6_addrcmp((union v6addr *) &ip6->saddr, &valid);
 #else
-	return 0;
+	return 1;
 #endif
 }
 
