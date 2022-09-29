@@ -1,0 +1,29 @@
+apiVersion: sut.tailorbird.io/v1alpha1
+kind: Rookery
+metadata:
+  name: gke-advanced-datapath-k8s-conformance-test-rookery
+  namespace: tailorbird-users
+spec:
+  ttlSeconds: 172800 # 2 days
+  knests:
+  - apiVersion: sut.tailorbird.io/v1alpha1
+    kind: Knest
+    metadata:
+      name: gke-advanced-datapath-k8s-conformance-test-knest
+    spec:
+      clusters:
+      - apiVersion: sut.tailorbird.io/v1alpha1
+        kind: Cluster
+        metadata:
+          name: gke-anthos-datapath-kind-cluster
+          namespace: tailorbird-users
+        spec:
+          provider: gcp
+          distribution: kind
+          provisionerArgs:
+            machineType: n2-standard-8
+            dockerVersion: 5:24.0.4-1~ubuntu.20.04~focal
+            numNodes: "3"
+            version: v0.20.0 # This is what is used in https://github.com/cilium/cilium/blob/87cda2dd94e2a08e25fe3691ec66c61c03452de8/.github/workflows/conformance-k8s-kind.yaml#L25
+            username: prowuser
+            transport: proxy

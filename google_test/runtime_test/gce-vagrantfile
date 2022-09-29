@@ -1,0 +1,85 @@
+# -*- mode: ruby -*-
+# vi: set ft=ruby
+
+# Copyright 2020 Google LLC
+
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# This Vagrantfile launches a GCE instance, provisions it, and prepares
+# it for Runtime Tests. It will be consumed by cilium/test/helpers/vagrant.go
+# when the environment variable VAGRANT_VAGRANTFILE=PATH_TO_THIS_FILE.
+
+$PROJ_ID = ENV['PROJ_ID']
+$SERVICE_ACCT_KEY = ENV['SERVICE_ACCT_KEY']
+$IMAGE = ENV['IMAGE']
+$INSTANCE_NAME = ENV['INSTANCE_NAME']
+$ZONE = ENV['ZONE']
+$METADATA_KEY1 = ENV['METADATA_KEY1']
+$METADATA_VAL1 = ENV['METADATA_VAL1']
+$SCOPES_VAL1 = ENV['SCOPES_VAL1']
+$VAGRANT_SSH_KEY = ENV['VAGRANT_SSH_KEY']
+
+$bootstrap = <<SCRIPT
+set -o errexit
+set -o nounset
+set -o pipefail
+if [ -x /home/vagrant/go/src/github.com/cilium/cilium/.devvmrc ] ; then
+   echo "----------------------------------------------------------------"
+   echo "Executing .devvmrc"
+   /home/vagrant/go/src/github.com/cilium/cilium/.devvmrc || true
+fi
+echo "----------------------------------------------------------------"
+sudo sed -i 's/^mesg n$/tty -s \\&\\& mesg n/g' /root/.profile
+echo 'export GOPATH=$(go env GOPATH)' >> /home/vagrant/.bashrc
+SCRIPT
+
+Vagrant.configure("2") do |config|
+
+    config.vm.define "runtime" do |server|
+        server.vm.box = "google/gce"
+
+        server.vm.provider :google do |google, override|
+            google.google_project_id = $PROJ_ID
+            google.google_json_key_location = $SERVICE_ACCT_KEY
+
+            google.image = $IMAGE
+            google.disk_size = 40
+            google.name = $INSTANCE_NAME
+            google.zone = $ZONE
+            google.metadata = {$METADATA_KEY1 => $METADATA_VAL1}
+            google.scopes = [$SCOPES_VAL1]
+
+            override.ssh.username = "vagrant"
+            override.ssh.private_key_path = $VAGRANT_SSH_KEY
+        end
+
+        # assumes pwd = cilium/test
+        server.vm.synced_folder "../", "/home/vagrant/go/src/github.com/cilium/cilium", type: "rsync"
+
+        # Provision section
+        server.vm.provision "bootstrap", type: "shell", inline: $bootstrap
+        # resolves 'sudo: unable to resolve host xxx' error
+        server.vm.provision "shell",
+            :inline => "sudo hostnamectl set-hostname runtime && (echo \"127.0.0.1 runtime\" | sudo tee -a /etc/hosts)"
+        server.vm.provision "file", source: "../test/provision/", destination: "/tmp/"
+        # adds virtualbox's default ip (10.0.2.15) to host
+        server.vm.provision "shell",
+            :inline => "sudo ip addr add 10.0.2.15/24 dev ens4"
+        server.vm.provision "shell" do |sh|
+            sh.path = "../test/provision/runtime_install.sh"
+            sh.env = {
+              "PROVISION_EXTERNAL_WORKLOAD" => "false"
+            }
+        end
+    end
+end

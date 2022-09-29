@@ -1,0 +1,31 @@
+{
+  "variables": {
+    "PROJ_ID": "{{env `PROJ_ID`}}",
+    "SERVICE_ACCT_KEY": "{{env `SERVICE_ACCT_KEY`}}",
+    "SSH_USERNAME": "{{env `SSH_USERNAME`}}",
+    "IMAGE_NAME": "{{env `IMAGE_NAME`}}"
+  },
+  "builders": [
+    {
+      "type": "googlecompute",
+      "account_file": "{{user `SERVICE_ACCT_KEY`}}",
+      "project_id": "{{user `PROJ_ID`}}",
+      "source_image_family": "debian-10",
+      "ssh_username": "{{user `SSH_USERNAME`}}",
+      "zone": "us-west2-a",
+      "disk_size": "20",
+      "image_name": "{{user `IMAGE_NAME`}}"
+    }
+  ],
+  "provisioners": [
+    {
+      "type": "file",
+      "source": "./provision.sh",
+      "destination": "/home/prow/provision.sh"
+    },
+    {
+      "type":  "shell",
+      "inline": ["bash /home/prow/provision.sh"]
+    }
+  ]
+}
