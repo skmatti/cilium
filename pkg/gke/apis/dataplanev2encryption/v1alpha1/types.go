@@ -36,7 +36,7 @@ type DataplaneV2Encryption struct {
 type DataplaneV2EncryptionType string
 
 const (
-	WireguardDataplaneV2EncryptionType = DataplaneV2EncryptionType("wireguard")
+	WireguardDataplaneV2EncryptionType = DataplaneV2EncryptionType("Wireguard")
 )
 
 // DataplaneV2EncryptionSpec provides specification for Dataplanev2 Encryption.
