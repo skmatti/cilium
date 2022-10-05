@@ -3101,6 +3101,8 @@ skip_service_lookup:
 #endif
 #endif /* ENABLE_DSR */
 
+
+#ifndef ENABLE_EGRESS_GATEWAY
 #ifndef ENABLE_MASQUERADE_IPV4
 		/* When BPF-Masquerading is off, we can skip the revSNAT path via
 		 * CILIUM_CALL_IPV4_NODEPORT_NAT_INGRESS if:
@@ -3111,6 +3113,7 @@ skip_service_lookup:
 		if (!is_svc_proto || nodeport_uses_dsr4(&tuple))
 			return CTX_ACT_OK;
 #endif /* ENABLE_MASQUERADE_IPV4 */
+#endif /* ENABLE_EGRESS_GATEWAY */
 
 		ctx_store_meta(ctx, CB_SRC_LABEL, src_sec_identity);
 		/* For NAT64 we might see an IPv4 reply from the backend to

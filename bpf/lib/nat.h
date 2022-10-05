@@ -524,7 +524,7 @@ snat_v4_needs_masquerade(struct __ctx_buff *ctx __maybe_unused,
 			 int l4_off __maybe_unused,
 			 struct ipv4_nat_target *target __maybe_unused)
 {
-	struct endpoint_info *local_ep __maybe_unused;
+	struct endpoint_info *local_ep __maybe_unused = NULL;
 	struct remote_endpoint_info *remote_ep __maybe_unused;
 	struct egress_gw_policy_entry *egress_gw_policy __maybe_unused;
 	bool is_reply __maybe_unused = false;
@@ -599,6 +599,16 @@ snat_v4_needs_masquerade(struct __ctx_buff *ctx __maybe_unused,
 			return err;
 		}
 	}
+#endif /* defined(ENABLE_MASQUERADE_IPV4) && defined(IS_BPF_HOST) */
+#if defined(ENABLE_MASQUERADE_IPV4) || defined(ENABLE_FLAT_IPV4)
+# ifdef IS_BPF_OVERLAY
+	/* Do not MASQ when this function is executed from bpf_overlay
+	 * (IS_BPF_OVERLAY denotes this fact). Otherwise, a packet will
+	 * be SNAT'd to cilium_host IP addr.
+	 */
+	return NAT_PUNT_TO_STACK;
+# endif
+#endif /* ENABLE_MASQUERADE_IPV4 || ENABLE_FLAT_IPV4 */
 
 /* Check if the packet matches an egress NAT policy and so needs to be SNAT'ed.
  *
@@ -606,7 +616,7 @@ snat_v4_needs_masquerade(struct __ctx_buff *ctx __maybe_unused,
  * the destination may be in the SNAT exclusion CIDR but regardless of that we
  * always want to SNAT a packet if it's matched by an egress NAT policy.
  */
-#if defined(ENABLE_EGRESS_GATEWAY_COMMON)
+#if defined(ENABLE_EGRESS_GATEWAY_COMMON) && defined(IS_BPF_HOST)
 	/* If the packet is a reply it means that outside has initiated the
 	 * connection, so no need to SNAT the reply.
 	 */
@@ -625,8 +635,9 @@ snat_v4_needs_masquerade(struct __ctx_buff *ctx __maybe_unused,
 		return NAT_NEEDED;
 	}
 skip_egress_gateway:
-#endif
+#endif /*defined(ENABLE_EGRESS_GATEWAY_COMMON) && defined(IS_BPF_HOST)*/
 
+#if defined(ENABLE_MASQUERADE_IPV4) && defined(IS_BPF_HOST)
 #ifdef IPV4_SNAT_EXCLUSION_DST_CIDR
 	/* Do not MASQ if a dst IP belongs to a pods CIDR
 	 * (ipv4-native-routing-cidr if specified, otherwise local pod CIDR).
