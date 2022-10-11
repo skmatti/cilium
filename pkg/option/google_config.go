@@ -27,6 +27,9 @@ const (
 	// EnableGoogleMultiNIC is the name of the option to enable gogole multi nic support.
 	EnableGoogleMultiNIC = "enable-google-multi-nic"
 
+	// EnableGoogleServiceSteering is the name of the option to enable google service steering support.
+	EnableGoogleServiceSteering = "enable-google-service-steering"
+
 	// EnableFQDNNetworkPolicy enables google fqdn network policy
 	EnableFQDNNetworkPolicy = "enable-fqdn-network-policy"
 

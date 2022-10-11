@@ -2340,6 +2340,9 @@ type DaemonConfig struct {
 	// EnableGoogleMultiNIC is a feature flag for google multi nic support, default is false.
 	EnableGoogleMultiNIC bool
 
+	// EnableGoogleServiceSteering is a feature flag for google service steering support, default is false.
+	EnableGoogleServiceSteering bool
+
 	// DevicePrefixesToExclude is a list of google devices to exclude from being managed by Cilium
 	DevicePrefixesToExclude []string
 
@@ -3014,6 +3017,7 @@ func (c *DaemonConfig) Populate(vp *viper.Viper) {
 	c.DisablePolicyEventCountMetric = vp.GetBool(DisablePolicyEventCountMetric)
 	c.EnableLocalRedirectPolicy = vp.GetBool(EnableLocalRedirectPolicy)
 	c.EnableGoogleMultiNIC = vp.GetBool(EnableGoogleMultiNIC)
+	c.EnableGoogleServiceSteering = vp.GetBool(EnableGoogleServiceSteering)
 	c.PopulateGCENICInfo = vp.GetBool(PopulateGCENICInfo)
 	c.AllowDisableSourceIPValidation = vp.GetBool(AllowDisableSourceIPValidation)
 	c.EncryptInterface = vp.GetStringSlice(EncryptInterface)

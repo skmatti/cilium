@@ -1118,6 +1118,8 @@ func newDaemon(ctx context.Context, cleaner *daemonCleanup,
 		bootstrapStats.k8sInit.End(true)
 	}
 
+	d.initGoogleModulesBeforeEndpointRestore(ctx)
+
 	bootstrapStats.cleanup.Start()
 	err = clearCiliumVeths()
 	bootstrapStats.cleanup.EndError(err)
@@ -1183,8 +1185,6 @@ func newDaemon(ctx context.Context, cleaner *daemonCleanup,
 	if option.Config.EnableIPv6 {
 		d.restoreCiliumHostIPs(true, router6FromK8s)
 	}
-
-	d.initGoogleControllers(ctx, restoredEndpoints.restored)
 
 	// restore endpoints before any IPs are allocated to avoid eventual IP
 	// conflicts later on, otherwise any IP conflict will result in the
@@ -1313,6 +1313,8 @@ func newDaemon(ctx context.Context, cleaner *daemonCleanup,
 	if err := <-syncErrs; err != nil {
 		return nil, nil, err
 	}
+
+	d.initGoogleControllers(ctx, restoredEndpoints.restored)
 
 	if err := loader.RestoreTemplates(option.Config.StateDir); err != nil {
 		log.WithError(err).Error("Unable to restore previous BPF templates")

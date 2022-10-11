@@ -1015,6 +1015,10 @@ func initializeFlags() {
 	flags.MarkHidden(option.EnableGoogleMultiNIC)
 	option.BindEnv(Vp, option.EnableGoogleMultiNIC)
 
+	flags.Bool(option.EnableGoogleServiceSteering, false, "Enable google service steering support")
+	flags.MarkHidden(option.EnableGoogleServiceSteering)
+	option.BindEnv(Vp, option.EnableGoogleServiceSteering)
+
 	flags.StringSlice(option.DevicePrefixesToExclude, []string{}, "(Google-internal) List of prefixes of devices for Cilium to exclude")
 	flags.MarkHidden(option.DevicePrefixesToExclude)
 	option.BindEnv(Vp, option.DevicePrefixesToExclude)

@@ -9,11 +9,13 @@ import (
 	"github.com/cilium/cilium/pkg/gke/multinic"
 	multinicctrl "github.com/cilium/cilium/pkg/gke/multinic/controller"
 	dhcp "github.com/cilium/cilium/pkg/gke/multinic/dhcp"
+	"github.com/cilium/cilium/pkg/gke/servicesteering"
 	"github.com/cilium/cilium/pkg/logging"
 	"github.com/cilium/cilium/pkg/logging/logfields"
 	"github.com/cilium/cilium/pkg/node"
 	nodeTypes "github.com/cilium/cilium/pkg/node/types"
 	"github.com/cilium/cilium/pkg/option"
+	ssv1 "gke-internal.googlesource.com/anthos-networking/apis/v2/service-steering/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
@@ -39,14 +41,22 @@ func init() {
 	utilruntime.Must(networkv1.AddToScheme(scheme))
 }
 
+func (d *Daemon) initGoogleModulesBeforeEndpointRestore(ctx context.Context) {
+	if option.Config.EnableGoogleServiceSteering {
+		if err := servicesteering.InitDataPathOption(ctx); err != nil {
+			log.WithError(err).Fatal("Error while initializing service steering data path flag")
+		}
+	}
+}
+
 func (d *Daemon) initGoogleControllers(ctx context.Context, endpoints []*endpoint.Endpoint) {
-	if !option.Config.EnableGoogleMultiNIC { // Add an OR clause here, to check other feature toggles.
+	if !option.Config.EnableGoogleMultiNIC && !option.Config.EnableGoogleServiceSteering { // Add an OR clause here, to check other feature toggles.
 		return
 	}
 
 	if !d.clientset.IsEnabled() {
-		if option.Config.EnableGoogleMultiNIC { // Add an OR clause here, to check other feature toggles.
-			log.Fatal("K8s needs to be enabled for multinic support")
+		if option.Config.EnableGoogleMultiNIC || option.Config.EnableGoogleServiceSteering { // Add an OR clause here, to check other feature toggles.
+			log.Fatal("K8s needs to be enabled for multinic and service-steering support")
 		}
 		return
 	}
@@ -63,7 +73,14 @@ func (d *Daemon) initGoogleControllers(ctx context.Context, endpoints []*endpoin
 		}
 	}
 
-	if enableCtrlManager := option.Config.EnableGoogleMultiNIC; enableCtrlManager { // Add an OR clause here, to check other feature toggles.
+	// Initialize service steering controllers
+	if option.Config.EnableGoogleServiceSteering {
+		if err := d.initServiceSteering(ctx, mgr); err != nil {
+			log.WithError(err).Fatal("Unable to init service steering")
+		}
+	}
+
+	if enableCtrlManager := option.Config.EnableGoogleMultiNIC || option.Config.EnableGoogleServiceSteering; enableCtrlManager { // Add an OR clause here, to check other feature toggles.
 		// At least one controller is enabled, so start controller manager
 		log.Info("Starting google controller manager")
 		go func() {
@@ -131,6 +148,18 @@ func (d *Daemon) initMultiNIC(ctx context.Context, mgr manager.Manager, endpoint
 	return nil
 }
 
+func (d *Daemon) initServiceSteering(ctx context.Context, mgr manager.Manager) error {
+	if err := (&servicesteering.ServiceSteeringReconciler{
+		Client:          mgr.GetClient(),
+		Scheme:          mgr.GetScheme(),
+		EndpointManager: d.endpointManager,
+	}).SetupWithManager(mgr); err != nil {
+		return fmt.Errorf("failed to setup service steering controller: %v", err)
+	}
+	sslog.Info("Created service steering controller")
+	return nil
+}
+
 // setupMultiNetworkingIPAMAllocators performs the following actions:
 // 1. Initialises the IPAM allocators for the networks present on the node that is derived from the node annotations.
 // 2. Allocates the IPs associated with the given endpoints inside the allocators created in step 1.
@@ -155,6 +184,9 @@ func filteredCache() cache.NewCacheFunc {
 			&corev1.Node{}: {
 				Field: fields.SelectorFromSet(fields.Set{"metadata.name": nodeTypes.GetName()}),
 			},
+			&corev1.Service{}:            servicesteering.FilteredSvcSelector(),
+			&ssv1.TrafficSelector{}:      {},
+			&ssv1.ServiceFunctionChain{}: {},
 		},
 	})
 }
