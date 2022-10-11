@@ -611,6 +611,10 @@ func (h *HeaderfileWriter) WriteNodeConfig(w io.Writer, cfg *datapath.LocalNodeC
 		cDefinesMap["NODEPORT_IPV4_BY_IFINDEX(IFINDEX)"] = nodePortIPv4ByIfIndex
 	}
 
+	if option.Config.EnableGoogleServiceSteering {
+		cDefinesMap["ENABLE_GOOGLE_SERVICE_STEERING"] = "1"
+	}
+
 	if option.Config.DisableIPv6Tunnel {
 		cDefinesMap["DISABLE_IPV6_TUNNEL"] = "1"
 	}

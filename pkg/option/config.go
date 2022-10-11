@@ -1099,6 +1099,9 @@ const (
 	// EnableGoogleMultiNIC is the name of the option to enable gogole multi NIC support.
 	EnableGoogleMultiNIC = "enable-google-multi-nic"
 
+	// EnableGoogleServiceSteering is the name of the option to enable google service steering support.
+	EnableGoogleServiceSteering = "enable-google-service-steering"
+
 	// EnableGDCILB is the name of the option to enable google GDC-H ILB Support
 	EnableGDCILB = "enable-gdc-ilb"
 
@@ -2327,6 +2330,9 @@ type DaemonConfig struct {
 	// EnableGoogleMultiNIC is a feature flag for google multi NIC support, default is false.
 	EnableGoogleMultiNIC bool
 
+	// EnableGoogleServiceSteering is a feature flag for google service steering support, default is false.
+	EnableGoogleServiceSteering bool
+
 	// EnableGDCILB is a feature flag for google GDC-H ILB Support, default is false
 	EnableGDCILB bool
 
@@ -2996,6 +3002,7 @@ func (c *DaemonConfig) Populate() {
 	c.EnableTrafficSteering = viper.GetBool(EnableTrafficSteering)
 	c.EnableLocalRedirectPolicy = viper.GetBool(EnableLocalRedirectPolicy)
 	c.EnableGoogleMultiNIC = viper.GetBool(EnableGoogleMultiNIC)
+	c.EnableGoogleServiceSteering = viper.GetBool(EnableGoogleServiceSteering)
 	c.EnableGDCILB = viper.GetBool(EnableGDCILB)
 	c.AllowDisableSourceIPValidation = viper.GetBool(AllowDisableSourceIPValidation)
 	c.EncryptInterface = viper.GetStringSlice(EncryptInterface)

@@ -98,6 +98,7 @@ cilium-agent [flags]
       --enable-external-ips                                     Enable k8s service externalIPs feature (requires enabling enable-node-port) (default true)
       --enable-gdc-ilb                                          Enable google GDC-H ILB Support
       --enable-google-multi-nic                                 Enable google multi NIC support
+      --enable-google-service-steering                          Enable google service steering support
       --enable-health-check-nodeport                            Enables a healthcheck nodePort server for NodePort services with 'healthCheckNodePort' being set (default true)
       --enable-health-checking                                  Enable connectivity health checking (default true)
       --enable-host-firewall                                    Enable host network policies

@@ -1074,6 +1074,9 @@ func initializeFlags() {
 	flags.Bool(option.EnableGoogleMultiNIC, false, "Enable google multi NIC support")
 	option.BindEnv(option.EnableGoogleMultiNIC)
 
+	flags.Bool(option.EnableGoogleServiceSteering, false, "Enable google service steering support")
+	option.BindEnv(option.EnableGoogleServiceSteering)
+
 	flags.Bool(option.EnableGDCILB, false, "Enable google GDC-H ILB Support")
 	option.BindEnv(option.EnableGDCILB)
 
