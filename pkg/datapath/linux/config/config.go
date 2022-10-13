@@ -576,6 +576,10 @@ func (h *HeaderfileWriter) WriteNodeConfig(w io.Writer, cfg *datapath.LocalNodeC
 		cDefinesMap["ENABLE_L7_PROXY"] = "1"
 	}
 
+	if option.Config.EnableGNG {
+		cDefinesMap["ENABLE_GNG"] = "1"
+	}
+
 	if option.Config.EnableFlatIPv4 {
 		cDefinesMap["ENABLE_FLAT_IPV4"] = "1"
 	}
@@ -876,11 +880,9 @@ func (h *HeaderfileWriter) writeTemplateConfig(fw *bufio.Writer, e datapath.Endp
 		fmt.Fprintf(fw, "#define ENABLE_ROUTING 1\n")
 	}
 
-	if e.DisableSIPVerification() {
+	if e.DisableSIPVerification() || option.Config.EnableGNG {
 		fmt.Fprintf(fw, "#define DISABLE_SIP_VERIFICATION 1\n")
 	}
-
-	fmt.Fprintf(fw, "#define DISABLE_SIP_VERIFICATION 1\n")
 
 	if !option.Config.EnableHostLegacyRouting && option.Config.DirectRoutingDevice != "" {
 		directRoutingIface := option.Config.DirectRoutingDevice

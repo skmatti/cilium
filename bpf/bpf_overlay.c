@@ -325,6 +325,7 @@ not_esp:
 		return ipv4_local_delivery(ctx, ETH_HLEN, *identity, ip4, ep,
 					   METRIC_INGRESS, false, false);
 	}
+#ifdef ENABLE_GNG
 	else {
 		struct local_redirect_key redirect_key;
 		struct local_redirect_info *redirect_value;
@@ -341,6 +342,7 @@ not_esp:
 			return ctx_redirect(ctx, redirect_value->ifindex, 0);
 		}
 	}
+#endif /* ENABLE_GNG */
 
 	/* A packet entering the node from the tunnel and not going to a local
 	 * endpoint has to be going to the local host.

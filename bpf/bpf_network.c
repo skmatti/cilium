@@ -10,9 +10,11 @@
 #include "lib/common.h"
 #include "lib/trace.h"
 #include "lib/encrypt.h"
+#ifdef ENABLE_GNG
 #include "lib/eps.h"
 #include "lib/drop.h"
 #include "lib/egress_policies.h"
+#endif /* ENABLE_GNG */
 
 __section("from-network")
 int from_network(struct __ctx_buff *ctx)
@@ -84,12 +86,12 @@ out:
         if (validate_ethertype(ctx, &proto))
           ret = do_decrypt(ctx, proto);
 
-#ifdef ENABLE_EGRESS_GATEWAY
-        { // If this is a packet destined for the egress gateway and there is a local
-          // GNG pod, send it to the GNG pod instead of the host routing stack.
-          void *data, *data_end;
-          struct iphdr *ip4;
-          struct egress_gw_policy_entry *info;
+#ifdef ENABLE_GNG
+	{ // If this is a packet destined for the egress gateway and there is a local
+		// GNG pod, send it to the GNG pod instead of the host routing stack.
+		void *data, *data_end;
+		struct iphdr *ip4;
+		struct egress_gw_policy_entry *info;
 
           if (!revalidate_data(ctx, &data, &data_end, &ip4))
 		return DROP_INVALID;
@@ -115,14 +117,13 @@ out:
             }
           }
         }
-#endif
+#endif /* ENABLE_GNG */
         ret = CTX_ACT_OK;
 	send_trace_notify(ctx, obs_point_from, 0, 0, 0,
 			  ctx->ingress_ifindex, reason, TRACE_PAYLOAD_LEN);
 
 	send_trace_notify(ctx, obs_point_to, 0, 0, 0,
 			  ctx->ingress_ifindex, reason, TRACE_PAYLOAD_LEN);
-
 	return ret;
 }
 

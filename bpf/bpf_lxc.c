@@ -770,32 +770,32 @@ static __always_inline int handle_ipv4_from_lxc(struct __ctx_buff *ctx, __u32 *d
 	if (!revalidate_data(ctx, &data, &data_end, &ip4))
 		return DROP_INVALID;
 
-#ifdef ENABLE_EGRESS_GATEWAY
-        {
-          // If this is a packet destined for the egress gateway and there is a local
-          // GNG pod, send it to the GNG pod instead of the host routing stack.
-          struct egress_gw_policy_entry *info;
-          info = lookup_ip4_egress_gw_policy(ip4->saddr, ip4->daddr);
+#ifdef ENABLE_GNG
+	{
+		// If this is a packet destined for the egress gateway and there is a local
+		// GNG pod, send it to the GNG pod instead of the host routing stack.
+		struct egress_gw_policy_entry *info;
+		info = lookup_ip4_egress_gw_policy(ip4->saddr, ip4->daddr);
 
-          if (info) {
-            struct local_redirect_key redirect_key;
-            struct local_redirect_info *redirect_value;
-            redirect_key.id = 42;
-            redirect_value = map_lookup_elem(&LOCAL_REDIRECT_MAP, &redirect_key);
-            if (redirect_value) {
-              union macaddr destmac;
-              // apparently sizeof(destmac) evaluates to 8 instead of 6 for some reason,
-              // and the verifier kicks us out. Just fix the size at 6.
-              memcpy(&destmac.addr, redirect_value->ifmac, 6);
-              /* Rewrite to destination MAC */
-              if (eth_store_daddr(ctx, (__u8 *) &destmac.addr, 0) < 0)
-		return send_drop_notify_error(ctx, SECLABEL, DROP_WRITE_ERROR,
-					      CTX_ACT_OK, METRIC_EGRESS);
-              return ctx_redirect(ctx, redirect_value->ifindex, 0);
-            }
-          }
-        }
-#endif
+		if (info) {
+			struct local_redirect_key redirect_key;
+			struct local_redirect_info *redirect_value;
+			redirect_key.id = 42;
+			redirect_value = map_lookup_elem(&LOCAL_REDIRECT_MAP, &redirect_key);
+			if (redirect_value) {
+				union macaddr destmac;
+				// apparently sizeof(destmac) evaluates to 8 instead of 6 for some reason,
+				// and the verifier kicks us out. Just fix the size at 6.
+				memcpy(&destmac.addr, redirect_value->ifmac, 6);
+				/* Rewrite to destination MAC */
+				if (eth_store_daddr(ctx, (__u8 *) &destmac.addr, 0) < 0)
+					return send_drop_notify_error(ctx, SECLABEL, DROP_WRITE_ERROR,
+							CTX_ACT_OK, METRIC_EGRESS);
+				return ctx_redirect(ctx, redirect_value->ifindex, 0);
+			}
+		}
+	}
+#endif /* ENABLE_GNG */
 
 	has_l4_header = ipv4_has_l4_header(ip4);
 

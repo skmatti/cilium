@@ -395,6 +395,10 @@ const (
 	// EnvoyConfigTimeout determines how long to wait Envoy to N/ACK resources
 	EnvoyConfigTimeout = "envoy-config-timeout"
 
+	// EnableGNG internal flag to enable GNG's eBPF code paths. This should be
+	// replaced with the ServiceChaining enablement.
+	EnableGNG = "enable-gng"
+
 	// IPMasqAgentConfigPath is the configuration file path
 	IPMasqAgentConfigPath = "ip-masq-agent-config-path"
 
@@ -1684,6 +1688,7 @@ type DaemonConfig struct {
 	EnableEnvoyConfig          bool
 	EnableIngressController    bool
 	EnvoyConfigTimeout         time.Duration
+	EnableGNG                  bool
 	IPMasqAgentConfigPath      string
 	InstallIptRules            bool
 	MonitorAggregation         string
@@ -2917,8 +2922,8 @@ func (c *DaemonConfig) Populate() {
 	c.EnableBPFTProxy = viper.GetBool(EnableBPFTProxy)
 	c.EnableXTSocketFallback = viper.GetBool(EnableXTSocketFallbackName)
 	c.EnableAutoDirectRouting = viper.GetBool(EnableAutoDirectRoutingName)
-	c.EnableAutoDirectRoutingIPv4 = vp.GetBool(EnableAutoDirectRoutingIPv4Name)
-	c.EnableAutoDirectRoutingIPv6 = vp.GetBool(EnableAutoDirectRoutingIPv6Name)
+	c.EnableAutoDirectRoutingIPv4 = viper.GetBool(EnableAutoDirectRoutingIPv4Name)
+	c.EnableAutoDirectRoutingIPv6 = viper.GetBool(EnableAutoDirectRoutingIPv6Name)
 	c.EnableEndpointRoutes = viper.GetBool(EnableEndpointRoutes)
 	c.EnableHealthChecking = viper.GetBool(EnableHealthChecking)
 	c.EnableEndpointHealthChecking = viper.GetBool(EnableEndpointHealthChecking)
@@ -2951,7 +2956,7 @@ func (c *DaemonConfig) Populate() {
 	c.EnableTrafficSteering = viper.GetBool(EnableTrafficSteering)
 	c.EnableLocalRedirectPolicy = viper.GetBool(EnableLocalRedirectPolicy)
 	c.EnableGoogleMultiNIC = viper.GetBool(EnableGoogleMultiNIC)
-	c.EnableGDCILB = vp.GetBool(EnableGDCILB)
+	c.EnableGDCILB = viper.GetBool(EnableGDCILB)
 	c.AllowDisableSourceIPValidation = viper.GetBool(AllowDisableSourceIPValidation)
 	c.EncryptInterface = viper.GetStringSlice(EncryptInterface)
 	c.EncryptNode = viper.GetBool(EncryptNode)
@@ -3007,6 +3012,7 @@ func (c *DaemonConfig) Populate() {
 	c.EnableBPFClockProbe = viper.GetBool(EnableBPFClockProbe)
 	c.EnableIPMasqAgent = viper.GetBool(EnableIPMasqAgent)
 	c.EnableIPv4EgressGateway = viper.GetBool(EnableIPv4EgressGateway)
+	c.EnableGNG = viper.GetBool(EnableGNG)
 	c.InstallEgressGatewayRoutes = viper.GetBool(InstallEgressGatewayRoutes)
 	c.EnableEnvoyConfig = viper.GetBool(EnableEnvoyConfig)
 	c.EnableIngressController = viper.GetBool(EnableIngressController)
