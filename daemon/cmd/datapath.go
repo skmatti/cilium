@@ -42,6 +42,7 @@ import (
 	"github.com/cilium/cilium/pkg/maps/neighborsmap"
 	"github.com/cilium/cilium/pkg/maps/nodemap"
 	"github.com/cilium/cilium/pkg/maps/policymap"
+	"github.com/cilium/cilium/pkg/maps/sfc"
 	"github.com/cilium/cilium/pkg/maps/signalmap"
 	"github.com/cilium/cilium/pkg/maps/tunnel"
 	"github.com/cilium/cilium/pkg/maps/vtep"
@@ -359,6 +360,18 @@ func (d *Daemon) initMaps() error {
 
 	if option.Config.EnableGoogleMultiNIC {
 		if _, err := multinicdev.Map.OpenOrCreate(); err != nil {
+			return err
+		}
+	}
+
+	if option.Config.EnableGoogleServiceSteering {
+		if _, err := sfc.PathMap.OpenOrCreate(); err != nil {
+			return err
+		}
+		if _, err := sfc.CIDRMap.OpenOrCreate(); err != nil {
+			return err
+		}
+		if _, err := sfc.SelectMap.OpenOrCreate(); err != nil {
 			return err
 		}
 	}

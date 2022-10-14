@@ -52,6 +52,7 @@
 #include "lib/nodeport.h"
 #include "lib/policy_log.h"
 #include "lib/google_multinic.h"
+#include "lib/google_sfc.h"
 
 /* Per-packet LB is needed if all LB cases can not be handled in bpf_sock.
  * Most services with L7 LB flag can not be redirected to their proxy port
@@ -983,6 +984,19 @@ ct_recreate4:
 	if (!revalidate_data(ctx, &data, &data_end, &ip4))
 		return DROP_INVALID;
 
+#ifdef ENABLE_GOOGLE_SERVICE_STEERING
+{
+	struct sfc_path_key path;
+	if (sfc_select(ctx, ip4, true, &path)) {
+		ret = sfc_encap(ctx, ip4, &path);
+		if (IS_ERR(ret))
+			return ret;
+		if (!revalidate_data(ctx, &data, &data_end, &ip4))
+			return DROP_INVALID;
+	}
+}
+#endif /* ENABLE_GOOGLE_SERVICE_STEERING */
+
 	/* Allow a hairpin packet to be redirected even if ENABLE_ROUTING is
 	 * disabled. Otherwise, the packet will be dropped by the kernel if
 	 * it is going to be routed via an interface it came from after it has
@@ -1852,6 +1866,19 @@ ipv4_policy(struct __ctx_buff *ctx, int ifindex, __u32 src_label, enum ct_status
 
 	if (!revalidate_data(ctx, &data, &data_end, &ip4))
 		return DROP_INVALID;
+
+#ifdef ENABLE_GOOGLE_SERVICE_STEERING
+{
+	if (is_sfc_encapped(ctx, ip4)) {
+		struct encaphdr h_outer = {};
+		ret = sfc_decap(ctx, &h_outer);
+		if (IS_ERR(ret))
+			return ret;
+		if (!revalidate_data_pull(ctx, &data, &data_end, &ip4))
+			return DROP_INVALID;
+	}
+}
+#endif /* ENABLE_GOOGLE_SERVICE_STEERING */
 
 	policy_clear_mark(ctx);
 

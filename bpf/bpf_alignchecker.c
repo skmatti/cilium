@@ -95,6 +95,11 @@ int main(void)
 	DECLARE(struct local_redirect_info);
 	DECLARE(struct multi_nic_dev_key);
 	DECLARE(struct multi_nic_dev_info);
+	DECLARE(struct sfc_cidr_key);
+	DECLARE(struct sfc_cidr_entry);
+	DECLARE(struct sfc_select_key);
+	DECLARE(struct sfc_path_key);
+	DECLARE(struct sfc_path_entry);
 	DECLARE(struct capture4_wcard);
 	DECLARE(struct capture6_wcard);
 	DECLARE(struct capture_rule);

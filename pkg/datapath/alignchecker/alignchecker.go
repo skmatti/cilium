@@ -23,6 +23,7 @@ import (
 	"github.com/cilium/cilium/pkg/maps/neighborsmap"
 	"github.com/cilium/cilium/pkg/maps/policymap"
 	"github.com/cilium/cilium/pkg/maps/recorder"
+	"github.com/cilium/cilium/pkg/maps/sfc"
 	"github.com/cilium/cilium/pkg/maps/signalmap"
 	"github.com/cilium/cilium/pkg/maps/sockmap"
 	"github.com/cilium/cilium/pkg/maps/tunnel"
@@ -96,6 +97,11 @@ func CheckStructAlignments(path string) error {
 		"local_redirect_info":    {reflect.TypeOf(localredirect.LocalRedirectInfo{})},
 		"multi_nic_dev_key":      {reflect.TypeOf(multinicdev.Key{})},
 		"multi_nic_dev_info":     {reflect.TypeOf(multinicdev.MultiNICDevInfo{})},
+		"sfc_cidr_key":           {reflect.TypeOf(sfc.CIDRKey{})},
+		"sfc_cidr_entry":         {reflect.TypeOf(sfc.CIDREntry{})},
+		"sfc_select_key":         {reflect.TypeOf(sfc.SelectKey{})},
+		"sfc_path_key":           {reflect.TypeOf(sfc.PathKey{})},
+		"sfc_path_entry":         {reflect.TypeOf(sfc.PathEntry{})},
 	}
 	if err := check.CheckStructAlignments(path, toCheck, true); err != nil {
 		return err

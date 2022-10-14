@@ -12,6 +12,7 @@ import (
 	"io"
 	"net"
 	"sort"
+	"strconv"
 	"text/template"
 
 	"github.com/sirupsen/logrus"
@@ -49,6 +50,7 @@ import (
 	"github.com/cilium/cilium/pkg/maps/nodemap"
 	"github.com/cilium/cilium/pkg/maps/policymap"
 	"github.com/cilium/cilium/pkg/maps/recorder"
+	"github.com/cilium/cilium/pkg/maps/sfc"
 	"github.com/cilium/cilium/pkg/maps/signalmap"
 	"github.com/cilium/cilium/pkg/maps/sockmap"
 	"github.com/cilium/cilium/pkg/maps/tunnel"
@@ -613,6 +615,12 @@ func (h *HeaderfileWriter) WriteNodeConfig(w io.Writer, cfg *datapath.LocalNodeC
 
 	if option.Config.EnableGoogleServiceSteering {
 		cDefinesMap["ENABLE_GOOGLE_SERVICE_STEERING"] = "1"
+		cDefinesMap["SFC_PATH_MAP"] = sfc.PathMapName
+		cDefinesMap["SFC_PATH_MAP_SIZE"] = strconv.Itoa(sfc.PathMaxEntries)
+		cDefinesMap["SFC_CIDR_MAP"] = sfc.CIDRMapName
+		cDefinesMap["SFC_CIDR_MAP_SIZE"] = strconv.Itoa(sfc.CIDRMaxEntries)
+		cDefinesMap["SFC_SELECT_MAP"] = sfc.SelectMapName
+		cDefinesMap["SFC_SELECT_MAP_SIZE"] = strconv.Itoa(sfc.SelectMaxEntries)
 	}
 
 	if option.Config.DisableIPv6Tunnel {
