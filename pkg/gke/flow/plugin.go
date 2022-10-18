@@ -26,9 +26,9 @@ import (
 	me "github.com/cilium/cilium/pkg/gke/networkpolicy/metrics"
 	"github.com/cilium/cilium/pkg/hubble/observer/observeroption"
 	"github.com/cilium/cilium/pkg/hubble/parser/getters"
+	client "github.com/cilium/cilium/pkg/k8s/client"
 	"github.com/cilium/cilium/pkg/logging"
 	"github.com/cilium/cilium/pkg/logging/logfields"
-	"k8s.io/client-go/rest"
 )
 
 var (
@@ -102,7 +102,7 @@ func (p *gkeFlowPlugin) OnServerInit(srv observeroption.Server) error {
 
 	p.dispatcher = dispatcher.NewDispatcher()
 	p.observer = p.dispatcher.(dispatcher.Observer)
-	kubeConfig, err := rest.InClusterConfig()
+	kubeConfig, err := client.CreateDefaultConfig()
 	if err != nil {
 		log.Errorf("Failed to create kubernetes config: %v", err)
 		return err
