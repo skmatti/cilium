@@ -686,16 +686,18 @@ func (legacy *legacyOnLeader) onStart(_ hive.HookContext) error {
 			}
 		}
 
-		err = enableCNPWatcher(legacy.ctx, &legacy.wg, legacy.clientset)
-		if err != nil {
-			log.WithError(err).WithField(logfields.LogSubsys, "CNPWatcher").Fatal(
-				"Cannot connect to Kubernetes apiserver ")
-		}
+		if !option.Config.DisableCiliumNetworkPolicyCRD {
+			err = enableCNPWatcher(legacy.ctx, &legacy.wg, legacy.clientset)
+			if err != nil {
+				log.WithError(err).WithField(logfields.LogSubsys, "CNPWatcher").Fatal(
+					"Cannot connect to Kubernetes apiserver ")
+			}
 
-		err = enableCCNPWatcher(legacy.ctx, &legacy.wg, legacy.clientset)
-		if err != nil {
-			log.WithError(err).WithField(logfields.LogSubsys, "CCNPWatcher").Fatal(
-				"Cannot connect to Kubernetes apiserver ")
+			err = enableCCNPWatcher(legacy.ctx, &legacy.wg, legacy.clientset)
+			if err != nil {
+				log.WithError(err).WithField(logfields.LogSubsys, "CCNPWatcher").Fatal(
+					"Cannot connect to Kubernetes apiserver ")
+			}
 		}
 	}
 

@@ -300,6 +300,10 @@ func initializeFlags() {
 	flags.Bool(option.DisableCiliumEndpointCRDName, false, "Disable use of CiliumEndpoint CRD")
 	option.BindEnv(Vp, option.DisableCiliumEndpointCRDName)
 
+	flags.Bool(option.DisableCiliumNetworkPolicyCRDName, false, "Disable use of CiliumNetworkPolicy and CiliumClusterwideNetworkPolicy CRD")
+	flags.MarkHidden(option.DisableCiliumNetworkPolicyCRDName)
+	option.BindEnv(Vp, option.DisableCiliumNetworkPolicyCRDName)
+
 	flags.String(option.EgressMasqueradeInterfaces, "", "Limit egress masquerading to interface selector")
 	option.BindEnv(Vp, option.EgressMasqueradeInterfaces)
 

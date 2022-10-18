@@ -102,6 +102,10 @@ func init() {
 	flags.MarkHidden(option.EnableSRv6)
 	option.BindEnv(Vp, option.EnableSRv6)
 
+	flags.Bool(option.DisableCiliumNetworkPolicyCRDName, false, "Disable use of CiliumNetworkPolicy and CiliumClusterwideNetworkPolicy CRD")
+	flags.MarkHidden(option.DisableCiliumNetworkPolicyCRDName)
+	option.BindEnv(Vp, option.DisableCiliumNetworkPolicyCRDName)
+
 	flags.Duration(operatorOption.EndpointGCInterval, operatorOption.EndpointGCIntervalDefault, "GC interval for cilium endpoints")
 	option.BindEnv(Vp, operatorOption.EndpointGCInterval)
 

@@ -1060,6 +1060,10 @@ const (
 	// Otherwise, it will use the old scheme.
 	EgressMultiHomeIPRuleCompat = "egress-multi-home-ip-rule-compat"
 
+	// DisableCiliumNetworkPolicyCRDName is the name of the option to disable
+	// use of the CNP and CCNP CRD
+	DisableCiliumNetworkPolicyCRDName = "disable-network-policy-crd"
+
 	// EnableCustomCallsName is the name of the option to enable tail calls
 	// for user-defined custom eBPF programs.
 	EnableCustomCallsName = "enable-custom-calls"
@@ -2268,6 +2272,9 @@ type DaemonConfig struct {
 	// BGPAnnouncePodCIDR announces the node's pod CIDR via BGP.
 	BGPAnnouncePodCIDR bool
 
+	// DisableCiliumNetworkPolicyCRD instructs Cilium to ignore CNP and CCNP.
+	DisableCiliumNetworkPolicyCRD bool
+
 	// BGPConfigPath is the file path to the BGP configuration. It is
 	// compatible with MetalLB's configuration.
 	BGPConfigPath string
@@ -2909,6 +2916,7 @@ func (c *DaemonConfig) Populate(vp *viper.Viper) {
 	c.EnableWellKnownIdentities = vp.GetBool(EnableWellKnownIdentities)
 	c.EnableXDPPrefilter = vp.GetBool(EnableXDPPrefilter)
 	c.DisableCiliumEndpointCRD = vp.GetBool(DisableCiliumEndpointCRDName)
+	c.DisableCiliumNetworkPolicyCRD = vp.GetBool(DisableCiliumNetworkPolicyCRDName)
 	c.EgressMasqueradeInterfaces = vp.GetString(EgressMasqueradeInterfaces)
 	c.BPFSocketLBHostnsOnly = vp.GetBool(BPFSocketLBHostnsOnly)
 	c.EnableSocketLB = vp.GetBool(EnableSocketLB)
