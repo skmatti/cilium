@@ -290,7 +290,7 @@ func initializeFlags() {
 	option.BindEnv(option.EnableRuntimeDeviceDetection)
 
 	flags.Bool(option.K8sInterfaceOnly, false, "Only use k8s node interface as host device")
-	option.BindEnv(Vp, option.K8sInterfaceOnly)
+	option.BindEnv(option.K8sInterfaceOnly)
 
 	flags.String(option.LBDevInheritIPAddr, "", fmt.Sprintf("Device name which IP addr is inherited by devices running LB BPF program (--%s)", option.Devices))
 	option.BindEnv(option.LBDevInheritIPAddr)
@@ -388,10 +388,10 @@ func initializeFlags() {
 	option.BindEnv(option.EnableAutoDirectRoutingName)
 
 	flags.Bool(option.EnableAutoDirectRoutingIPv4Name, defaults.EnableAutoDirectRoutingIPv4, "Enable automatic L2 routing between nodes for IPv4")
-	option.BindEnv(Vp, option.EnableAutoDirectRoutingIPv4Name)
+	option.BindEnv(option.EnableAutoDirectRoutingIPv4Name)
 
 	flags.Bool(option.EnableAutoDirectRoutingIPv6Name, defaults.EnableAutoDirectRoutingIPv6, "Enable automatic L2 routing between nodes for IPv6")
-	option.BindEnv(Vp, option.EnableAutoDirectRoutingIPv6Name)
+	option.BindEnv(option.EnableAutoDirectRoutingIPv6Name)
 
 	flags.Bool(option.EnableBPFTProxy, defaults.EnableBPFTProxy, "Enable BPF-based proxy redirection, if support available")
 	option.BindEnv(option.EnableBPFTProxy)
@@ -764,7 +764,7 @@ func initializeFlags() {
 	option.BindEnv(option.EnvoyConfigTimeout)
 
 	flags.Bool(option.EnableGNG, false, "Enable GNG redirection")
-	option.BindEnv(Vp, option.EnableGNG)
+	option.BindEnv(option.EnableGNG)
 	flags.MarkHidden(option.EnableGNG)
 
 	flags.String(option.IPMasqAgentConfigPath, "/etc/config/ip-masq-agent", "ip-masq-agent configuration file path")
@@ -1067,7 +1067,7 @@ func initializeFlags() {
 	option.BindEnv(option.EnableGoogleMultiNIC)
 
 	flags.Bool(option.EnableGDCILB, false, "Enable google GDC-H ILB Support")
-	option.BindEnv(Vp, option.EnableGDCILB)
+	option.BindEnv(option.EnableGDCILB)
 
 	flags.Bool(option.AllowDisableSourceIPValidation, false, "Allow disabling source IP validation on multi-nic endpoints")
 	option.BindEnv(option.AllowDisableSourceIPValidation)

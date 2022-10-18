@@ -61,7 +61,7 @@ type Controller struct {
 }
 
 // NewController returns a new controller for traffic steering.
-func NewController(kubeClient kubernetes.Interface, tsClient versioned.Interface, watcherClient *k8s.K8sSlimClient) (*Controller, error) {
+func NewController(kubeClient kubernetes.Interface, tsClient versioned.Interface, watcherClient *k8s.K8sClient) (*Controller, error) {
 
 	broadcaster := record.NewBroadcaster()
 	broadcaster.StartLogging(klog.Infof)

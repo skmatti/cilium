@@ -75,7 +75,7 @@ func ReloadParentDevDatapath(ctx context.Context, device, objDir string, ep data
 	}
 
 	for i, symbol := range symbols {
-		finalize, err := replaceDatapath(ctx, device, parentDevObjPath, symbol, directions[i], "")
+		finalize, err := replaceDatapath(ctx, device, parentDevObjPath, symbol, directions[i], false, "")
 		if err != nil {
 			// Don't log an error here if the context was canceled or timed out;
 			// this log message should only represent failures with respect to

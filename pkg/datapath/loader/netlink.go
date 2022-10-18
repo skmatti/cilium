@@ -124,67 +124,16 @@ func replaceDatapath(ctx context.Context, ifName, objPath, progSec, progDirectio
 	return finalize, nil
 }
 
-// attachProgram attaches prog to link.
-// If xdpFlags is non-zero, attaches prog to XDP.
-func attachProgram(link netlink.Link, prog *ebpf.Program, qdiscParent uint32, xdpFlags uint32) error {
-	if prog == nil {
-		return errors.New("cannot attach a nil program")
-	}
-
-	if xdpFlags != 0 {
-		// Omitting XDP_FLAGS_UPDATE_IF_NOEXIST equals running 'ip' with -force,
-		// and will clobber any existing XDP attachment to the interface.
-		if err := netlink.LinkSetXdpFdWithFlags(link, prog.FD(), int(xdpFlags)); err != nil {
-			return fmt.Errorf("attaching XDP program to interface %s: %w", link.Attrs().Name, err)
-		}
-
-		return nil
-	}
-
-	if err := replaceQdisc(link); err != nil {
-		return fmt.Errorf("replacing clsact qdisc for interface %s: %w", link.Attrs().Name, err)
-	}
-
-	filter := &netlink.BpfFilter{
-		FilterAttrs: netlink.FilterAttrs{
-			LinkIndex: link.Attrs().Index,
-			Parent:    qdiscParent,
-			Handle:    1,
-			Protocol:  unix.ETH_P_ALL,
-			Priority:  option.Config.TCFilterPriority,
-		},
-		Fd:           prog.FD(),
-		Name:         fmt.Sprintf("cilium-%s", link.Attrs().Name),
-		DirectAction: true,
-	}
-
-	if err := netlink.FilterReplace(filter); err != nil {
-		return fmt.Errorf("replacing tc filter: %w", err)
-	}
-
-	return nil
-}
-
 // graftDatapath replaces obj in tail call map
 func graftDatapath(ctx context.Context, mapPath, objPath, progSec string, key int) error {
-	scopedLog := log.WithField("mapPath", mapPath).WithField("objPath", objPath).
-		WithField("progSection", progSec).WithField("direction", key)
-
-	scopedLog.Debug("Loading CollectionSpec from ELF")
-	spec, err := bpf.LoadCollectionSpec(objPath)
-	if err != nil {
-		return fmt.Errorf("loading eBPF ELF: %w", err)
-	}
-	scopedLog.Debug("Starting bpffs map migration")
-	if err := bpf.StartBPFFSMigration(bpf.MapPrefixPath(), spec); err != nil {
+	if err := bpf.StartBPFFSMigration(bpf.MapPrefixPath(), objPath); err != nil {
 		return fmt.Errorf("Failed to start bpffs map migration: %w", err)
 	}
 
 	var revert bool
 	defer func() {
-		scopedLog.Debug("Finalizing bpffs map migration")
-		if err := bpf.FinalizeBPFFSMigration(bpf.MapPrefixPath(), spec, revert); err != nil {
-			scopedLog.WithError(err).WithFields(logrus.Fields{logfields.BPFMapPath: mapPath, "objPath": objPath}).
+		if err := bpf.FinalizeBPFFSMigration(bpf.MapPrefixPath(), objPath, revert); err != nil {
+			log.WithError(err).WithFields(logrus.Fields{logfields.BPFMapPath: mapPath, "objPath": objPath}).
 				Error("Could not finalize bpffs map migration")
 		}
 	}()
@@ -194,7 +143,6 @@ func graftDatapath(ctx context.Context, mapPath, objPath, progSec string, key in
 	args := []string{"exec", "bpf", "graft", mapPath, "key", strconv.Itoa(key),
 		"obj", objPath, "sec", progSec,
 	}
-	scopedLog.Info("Grafting program")
 	cmd := exec.CommandContext(ctx, "tc", args...).WithFilters(libbpfFixupMsg)
 	if _, err := cmd.CombinedOutput(log, true); err != nil {
 		revert = true

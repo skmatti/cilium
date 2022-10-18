@@ -38,7 +38,8 @@ ZONE="us-west1-b"
 MACHINE_TYPE="c2-standard-4"
 HOST_NAME="$VM_NAME.$ZONE.$PROJECT"
 tarball=gob_cilium.tar.gz
-TESTING_IMAGE=cilium-unit-test-20220810
+TESTING_IMAGE=cilium-unit-test-20220427
+
 
 function log {
   echo "`date +'%b %d %T.000'`: INFO: $@"

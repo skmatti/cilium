@@ -27,7 +27,6 @@ import (
 	"github.com/cilium/cilium/pkg/gke/apis/redirectservice/v1alpha1"
 	fakeRedirectService "github.com/cilium/cilium/pkg/gke/client/redirectservice/clientset/versioned/fake"
 	"github.com/cilium/cilium/pkg/k8s"
-	slimfake "github.com/cilium/cilium/pkg/k8s/slim/k8s/client/clientset/versioned/fake"
 	"github.com/cilium/cilium/pkg/redirectpolicy"
 	"k8s.io/client-go/kubernetes/fake"
 )
@@ -95,8 +94,8 @@ func TestValidation(t *testing.T) {
 		},
 	} {
 		t.Run(tc.desc, func(t *testing.T) {
-			fakeWatcherClient := k8s.K8sSlimClient{
-				Interface: slimfake.NewSimpleClientset(),
+			fakeWatcherClient := k8s.K8sClient{
+				Interface: fake.NewSimpleClientset(),
 			}
 			controller, err := NewController(fake.NewSimpleClientset(), fakeRedirectService.NewSimpleClientset(), fakeWatcherClient, &fakeRedirectPolicyManager{})
 			if err != nil {
