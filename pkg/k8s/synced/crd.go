@@ -44,6 +44,17 @@ func agentCRDResourceNames() []string {
 		CRDResourceName(v2.CIDName),
 	}
 
+	if option.Config.DisableCiliumNetworkPolicyCRD {
+		result2 := []string{}
+		for _, r := range result {
+			if r == CRDResourceName(v2.CNPName) || r == CRDResourceName(v2.CCNPName) {
+				continue
+			}
+			result2 = append(result2, r)
+		}
+		result = result2
+	}
+
 	if !option.Config.DisableCiliumEndpointCRD {
 		result = append(result, CRDResourceName(v2.CEPName))
 		if option.Config.EnableCiliumEndpointSlice {

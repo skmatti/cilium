@@ -500,6 +500,18 @@ func (k *K8sWatcher) enableK8sWatchers(ctx context.Context, resourceNames []stri
 		return fmt.Errorf("error creating service list option modifier: %w", err)
 	}
 
+	// Google: Remove CNP and CCNP from resources list
+	if option.Config.DisableCiliumNetworkPolicyCRD {
+		resources2 := []string{}
+		for _, r := range resourceNames {
+			if r == k8sAPIGroupCiliumNetworkPolicyV2 || r == k8sAPIGroupCiliumClusterwideNetworkPolicyV2 {
+				continue
+			}
+			resources2 = append(resources2, r)
+		}
+		resourceNames = resources2
+	}
+
 	for _, r := range resourceNames {
 		switch r {
 		// Core Cilium

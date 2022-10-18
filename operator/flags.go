@@ -99,6 +99,10 @@ func init() {
 	flags.MarkHidden(option.EnableLocalRedirectPolicy)
 	option.BindEnv(option.EnableLocalRedirectPolicy)
 
+	flags.Bool(option.DisableCiliumNetworkPolicyCRDName, false, "Disable use of CiliumNetworkPolicy and CiliumClusterwideNetworkPolicy CRD")
+	flags.MarkHidden(option.DisableCiliumNetworkPolicyCRDName)
+	option.BindEnv(option.DisableCiliumNetworkPolicyCRDName)
+
 	flags.Duration(operatorOption.EndpointGCInterval, operatorOption.EndpointGCIntervalDefault, "GC interval for cilium endpoints")
 	option.BindEnv(operatorOption.EndpointGCInterval)
 

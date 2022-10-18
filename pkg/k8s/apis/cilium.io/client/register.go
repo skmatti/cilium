@@ -27,6 +27,7 @@ import (
 	k8sversion "github.com/cilium/cilium/pkg/k8s/version"
 	"github.com/cilium/cilium/pkg/logging"
 	"github.com/cilium/cilium/pkg/logging/logfields"
+	"github.com/cilium/cilium/pkg/option"
 	"github.com/cilium/cilium/pkg/versioncheck"
 )
 
@@ -106,6 +107,10 @@ func CreateCustomResourceDefinitions(clientset apiextensionsclient.Interface) er
 		synced.CRDResourceName(k8sconstv2.CECName):           createCECCRD,
 		synced.CRDResourceName(k8sconstv2alpha1.BGPPName):    createBGPPCRD,
 		synced.CRDResourceName(k8sconstv2alpha1.BGPPoolName): createBGPPoolCRD,
+	}
+	if option.Config.DisableCiliumNetworkPolicyCRD {
+		delete(resourceToCreateFnMapping, synced.CRDResourceName(k8sconstv2.CNPName))
+		delete(resourceToCreateFnMapping, synced.CRDResourceName(k8sconstv2.CCNPName))
 	}
 	for _, r := range synced.AllCRDResourceNames() {
 		fn, ok := resourceToCreateFnMapping[r]

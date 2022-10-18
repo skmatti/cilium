@@ -525,7 +525,7 @@ func onOperatorStartLeading(ctx context.Context) {
 		)
 	}
 
-	if operatorOption.Config.CNPNodeStatusGCInterval != 0 {
+	if !option.Config.DisableCiliumNetworkPolicyCRD && operatorOption.Config.CNPNodeStatusGCInterval != 0 {
 		RunCNPNodeStatusGC(ciliumNodeStore)
 	}
 
@@ -583,16 +583,18 @@ func onOperatorStartLeading(ctx context.Context) {
 		enableCiliumEndpointSyncGC(true)
 	}
 
-	err = enableCNPWatcher()
-	if err != nil {
-		log.WithError(err).WithField(logfields.LogSubsys, "CNPWatcher").Fatal(
-			"Cannot connect to Kubernetes apiserver ")
-	}
+	if !option.Config.DisableCiliumNetworkPolicyCRD {
+		err = enableCNPWatcher()
+		if err != nil {
+			log.WithError(err).WithField(logfields.LogSubsys, "CNPWatcher").Fatal(
+				"Cannot connect to Kubernetes apiserver ")
+		}
 
-	err = enableCCNPWatcher()
-	if err != nil {
-		log.WithError(err).WithField(logfields.LogSubsys, "CCNPWatcher").Fatal(
-			"Cannot connect to Kubernetes apiserver ")
+		err = enableCCNPWatcher()
+		if err != nil {
+			log.WithError(err).WithField(logfields.LogSubsys, "CCNPWatcher").Fatal(
+				"Cannot connect to Kubernetes apiserver ")
+		}
 	}
 
 	if operatorOption.Config.EnableIngressController {
