@@ -1181,6 +1181,9 @@ func initializeFlags() {
 	flags.MarkHidden(option.EnableStaleCiliumEndpointCleanup)
 	option.BindEnv(option.EnableStaleCiliumEndpointCleanup)
 
+	flags.Bool(option.EnablePMTUDiscovery, false, "Enable path MTU discovery to send ICMP fragmentation-needed replies to the client")
+	option.BindEnv(option.EnablePMTUDiscovery)
+
 	viper.BindPFlags(flags)
 
 	if dpv2e.IsWireguard() {
@@ -1420,8 +1423,9 @@ func initEnv(cmd *cobra.Command) {
 		}
 	case datapathOption.DatapathModeLBOnly:
 		log.Info("Running in LB-only mode")
-		option.Config.LoadBalancerPMTUDiscovery =
-			option.Config.NodePortAcceleration != option.NodePortAccelerationDisabled
+		if option.Config.NodePortAcceleration != option.NodePortAccelerationDisabled {
+			option.Config.EnablePMTUDiscovery = true
+		}
 		option.Config.KubeProxyReplacement = option.KubeProxyReplacementPartial
 		option.Config.EnableSocketLB = true
 		option.Config.EnableHostPort = false

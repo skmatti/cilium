@@ -125,6 +125,7 @@ cilium-agent [flags]
       --enable-local-redirect-policy                            Enable Local Redirect Policy
       --enable-monitor                                          Enable the monitor unix domain socket server (default true)
       --enable-node-port                                        Enable NodePort type services by Cilium
+      --enable-pmtu-discovery                                   Enable path MTU discovery to send ICMP fragmentation-needed replies to the client
       --enable-policy string                                    Enable policy enforcement (default "default")
       --enable-recorder                                         Enable BPF datapath pcap recorder
       --enable-redirect-service                                 Enable google redirect service (beta)
