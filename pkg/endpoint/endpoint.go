@@ -2249,7 +2249,7 @@ func (e *Endpoint) Delete(conf DeleteConfig) []error {
 		// Cleaning up the IPs in contrack table on endpoint deletion could
 		// optimize the creation duration.
 		if e.IsMultiNIC() {
-			e.scrubIPsInConntrackTable()
+			e.scrubIPsInConntrackTableLocked()
 		}
 	}
 
