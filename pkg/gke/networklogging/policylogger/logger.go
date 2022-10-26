@@ -75,6 +75,7 @@ type networkPolicyLogger struct {
 	aggregator       *aggregator.Aggregator
 	aggregatorCh     chan *aggregator.AggregatorEntry
 	cfg              *policyLoggerConfig
+	configFilePath   string
 
 	lock lock.Mutex
 	spec *logSpec
@@ -147,7 +148,7 @@ func (n *networkPolicyLogger) UpdateLoggingSpec(spec *v1alpha1.NetworkLoggingSpe
 // Start the network policy logger. It returns a callback function to set the policy_logging_ready.
 // state to be true after the caller is ready when error is nil.
 func (n *networkPolicyLogger) Start() (error, func()) {
-	n.cfg = loadInternalConfig(configFile)
+	n.cfg = loadInternalConfig(n.configFilePath)
 	w, err := writer.NewFileWriter(n.cfg.logFilePath, n.cfg.logFileName,
 		int(n.cfg.logFileMaxSize), int(n.cfg.logFileMaxBackups))
 	if err != nil {

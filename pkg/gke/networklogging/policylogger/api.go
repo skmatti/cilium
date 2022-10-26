@@ -49,6 +49,7 @@ func NewLogger(dispatcher dispatcher.Dispatcher, endpointGetter getters.Endpoint
 		storeGetter:      storeGetter,
 		cfg:              &defaultConfig,
 		spec:             getLogSpec(nil),
+		configFilePath:   configFile,
 	}
 	metrics.MustRegister(metricsCollectors()...)
 	policyLoggingReady.Set(0)

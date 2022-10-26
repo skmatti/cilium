@@ -105,13 +105,13 @@ func loadInternalConfig(file string) *policyLoggerConfig {
 	cfg := defaultConfig
 
 	if _, err := os.Stat(file); err != nil {
-		log.Infof("File %s doesn't exist. Use default configuration instead.", configFile)
+		log.Infof("File %s doesn't exist. Use default configuration instead.", file)
 		return &cfg
 	}
 
 	var userConfig PolicyLoggerConfiguration
 	if b, err := ioutil.ReadFile(file); err != nil {
-		log.Errorf("Readfile(%s) failed: = %v", configFile, err)
+		log.Errorf("Readfile(%s) failed: = %v", file, err)
 		return &cfg
 	} else {
 		err = yaml.Unmarshal(b, &userConfig)
