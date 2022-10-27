@@ -676,6 +676,16 @@ static __always_inline bool snat_v4_prepare_state(struct __ctx_buff *ctx,
 			     ipv4_hdrlen(ip4), &tuple, &is_reply);
 	}
 
+#if defined(ENABLE_MASQUERADE) || defined(ENABLE_FLAT_IPV4)
+# ifdef IS_BPF_OVERLAY
+        /* Do not MASQ when this function is executed from bpf_overlay
+         * (IS_BPF_OVERLAY denotes this fact). Otherwise, a packet will
+         * be SNAT'd to cilium_host IP addr.
+         */
+        return false;
+# endif
+#endif /* ENABLE_MASQUERADE || ENABLE_FLAT_IPV4 */
+
 /* Check if the packet matches an egress NAT policy and so needs to be SNAT'ed.
  *
  * This check must happen before the IPV4_SNAT_EXCLUSION_DST_CIDR check below as
@@ -705,15 +715,7 @@ static __always_inline bool snat_v4_prepare_state(struct __ctx_buff *ctx,
 skip_egress_gateway:
 #endif
 
-#if defined(ENABLE_MASQUERADE) || defined(ENABLE_FLAT_IPV4)
-# ifdef IS_BPF_OVERLAY
-        /* Do not MASQ when this function is executed from bpf_overlay
-         * (IS_BPF_OVERLAY denotes this fact). Otherwise, a packet will
-         * be SNAT'd to cilium_host IP addr.
-         */
-        return false;
-# endif /* ENABLE_MASQUERADE || ENABLE_FLAT_IPV4 */
-
+#ifdef ENABLE_MASQUERADE /* SNAT local pod to world packets */
 #ifdef IPV4_SNAT_EXCLUSION_DST_CIDR
 	/* Do not MASQ if a dst IP belongs to a pods CIDR
 	 * (ipv4-native-routing-cidr if specified, otherwise local pod CIDR).
