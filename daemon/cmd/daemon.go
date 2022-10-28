@@ -1114,17 +1114,6 @@ func newDaemon(ctx context.Context, cleaner *daemonCleanup,
 		bootstrapStats.k8sInit.End(true)
 	}
 
-	// Initialize and wait for multinic client cache to sync
-	if option.Config.EnableGoogleMultiNIC {
-		if !clientset.IsEnabled() {
-			log.Fatal("K8s needs to be enabled for multi nic support")
-		}
-		d.multinicClient, d.kubeletClient, d.dhcpClient, err = multinic.Init(d.ctx, d.endpointManager, clientset.RestConfig())
-		if err != nil {
-			log.WithError(err).Fatal("Unable to init multinic")
-		}
-	}
-
 	bootstrapStats.cleanup.Start()
 	err = clearCiliumVeths()
 	bootstrapStats.cleanup.EndError(err)
@@ -1189,6 +1178,17 @@ func newDaemon(ctx context.Context, cleaner *daemonCleanup,
 	}
 	if option.Config.EnableIPv6 {
 		d.restoreCiliumHostIPs(true, router6FromK8s)
+	}
+
+	// Initialize and wait for multinic client cache to sync
+	if option.Config.EnableGoogleMultiNIC {
+		if !clientset.IsEnabled() {
+			log.Fatal("K8s needs to be enabled for multi nic support")
+		}
+		d.multinicClient, d.kubeletClient, d.dhcpClient, err = multinic.Init(d.ctx, d.endpointManager, clientset.RestConfig(), &d)
+		if err != nil {
+			log.WithError(err).Fatal("Unable to init multinic")
+		}
 	}
 
 	// restore endpoints before any IPs are allocated to avoid eventual IP

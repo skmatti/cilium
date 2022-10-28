@@ -15,7 +15,7 @@ import (
 	"github.com/cilium/cilium/pkg/policy"
 	"github.com/cilium/cilium/pkg/policy/api"
 	"github.com/cilium/cilium/pkg/testutils"
-	networkv1 "gke-internal.googlesource.com/anthos-networking/apis/v2/network/v1"
+	networkv1 "k8s.io/cloud-provider-gcp/crd/apis/network/v1"
 )
 
 var (

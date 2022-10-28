@@ -16,14 +16,20 @@ import (
 	"github.com/cilium/cilium/pkg/option"
 	"github.com/sirupsen/logrus"
 	"github.com/vishvananda/netlink"
-	networkv1 "gke-internal.googlesource.com/anthos-networking/apis/v2/network/v1"
 	corev1 "k8s.io/api/core/v1"
 	k8sErrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/types"
+	networkv1 "k8s.io/cloud-provider-gcp/crd/apis/network/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/event"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
+	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	"github.com/cilium/cilium/pkg/endpointmanager"
+	multinictypes "github.com/cilium/cilium/pkg/gke/multinic/types"
 )
 
 var (
@@ -35,6 +41,11 @@ type NetworkReconciler struct {
 	client.Client
 	EndpointManager *endpointmanager.EndpointManager
 	NodeName        string
+	IPAMMgr         ipamManager
+}
+
+type ipamManager interface {
+	UpdateMultiNetworkIPAMAllocators(annotations map[string]string) error
 }
 
 const (
@@ -43,6 +54,9 @@ const (
 )
 
 func (r *NetworkReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+	if !option.Config.EnableGoogleMultiNIC {
+		return ctrl.Result{}, nil
+	}
 	log := logger.WithField("namespacedName", req.NamespacedName)
 
 	log.Info("Reconciling")
@@ -69,7 +83,34 @@ func (r *NetworkReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		return err
 	}
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&networkv1.Network{}).Complete(r)
+		For(&networkv1.Network{}).
+		Watches(&source.Kind{Type: &corev1.Node{}},
+			handler.EnqueueRequestsFromMapFunc(r.mapNodeToNetwork),
+			builder.WithPredicates(
+				predicate.Funcs{
+					UpdateFunc: func(e event.UpdateEvent) bool {
+						if e.ObjectOld.GetAnnotations()[networkv1.MultiNetworkAnnotationKey] != e.ObjectNew.GetAnnotations()[networkv1.MultiNetworkAnnotationKey] {
+							return true
+						}
+						return false
+					},
+				})).
+		Complete(r)
+}
+
+func (r *NetworkReconciler) mapNodeToNetwork(obj client.Object) []ctrl.Request {
+	node := obj.(*corev1.Node)
+	log := ctrl.Log.WithValues("name", client.ObjectKeyFromObject(node))
+	log.Info("mapNodeToNetwork")
+	// The default pod-network is always expected to be present. Hence, we reconcile on the default pod-network
+	// whenever multi-network annotation changes. Note that the default pod-network is not a part of multi-network
+	// annotation. The reconcilation flow parses through the multi-network annotation and builds the allocators
+	// accordingly.
+	return []ctrl.Request{
+		{
+			NamespacedName: types.NamespacedName{Name: networkv1.DefaultNetworkName},
+		},
+	}
 }
 
 func isCiliumManaged(dev string) bool {
@@ -91,7 +132,7 @@ func (r *NetworkReconciler) loadEBPFOnParent(ctx context.Context, network *netwo
 		log.Infof("No need to load ebpf for network type %q", network.Spec.Type)
 		return nil
 	}
-	devToLoad, err := network.InterfaceName()
+	devToLoad, err := multinictypes.InterfaceName(network)
 	if err != nil {
 		log.Infof("errored generating interface name for network %s: %s", network.Name, err)
 		return nil
@@ -126,7 +167,7 @@ func (r *NetworkReconciler) loadEBPFOnParent(ctx context.Context, network *netwo
 }
 
 func (r *NetworkReconciler) unloadEBPFOnParent(ctx context.Context, network *networkv1.Network, log *logrus.Entry) error {
-	devToUnload, err := network.InterfaceName()
+	devToUnload, err := multinictypes.InterfaceName(network)
 	if err != nil {
 		log.Infof("errored generating interface name for network %s: %s", network.Name, err)
 		return nil
@@ -272,6 +313,22 @@ func (r *NetworkReconciler) updateNodeNetworkAnnotation(ctx context.Context, net
 	return nil
 }
 
+func (r *NetworkReconciler) updateMultiNetworkIPAM(ctx context.Context, network *networkv1.Network, log *logrus.Entry) error {
+	if network.Spec.ExternalDHCP4 != nil && *network.Spec.ExternalDHCP4 {
+		log.Info("external DHCP enabled for network, no need to update IPAM maps")
+		return nil
+	}
+	node := &corev1.Node{}
+	if err := r.Get(ctx, types.NamespacedName{Name: r.NodeName}, node); err != nil {
+		return err
+	}
+	if err := r.IPAMMgr.UpdateMultiNetworkIPAMAllocators(node.Annotations); err != nil {
+		return err
+	}
+	log.Info("multi-net IPAM map is updated successfully")
+	return nil
+}
+
 func (r *NetworkReconciler) reconcileNetwork(ctx context.Context, network *networkv1.Network, log *logrus.Entry) (ctrl.Result, error) {
 	if err := ensureInterface(network, log); err != nil {
 		log.WithError(err).Error("Unable to ensure network interface")
@@ -289,6 +346,10 @@ func (r *NetworkReconciler) reconcileNetwork(ctx context.Context, network *netwo
 	}
 	if err := r.updateNodeNetworkAnnotation(ctx, network.Name, ipv4, ipv6, log, true); err != nil {
 		log.WithError(err).Error("Failed to update node network status annotation")
+		return ctrl.Result{}, err
+	}
+	if err := r.updateMultiNetworkIPAM(ctx, network, log); err != nil {
+		log.WithError(err).Error("Failed to update node multi-network IPAM")
 		return ctrl.Result{}, err
 	}
 	log.Info("Reconciled successfully")
@@ -324,7 +385,7 @@ func deleteVlanID(network *networkv1.Network, log *logrus.Entry) error {
 		return nil
 	}
 
-	taggedIntName, err := network.InterfaceName()
+	taggedIntName, err := multinictypes.InterfaceName(network)
 	if err != nil {
 		log.Errorf("Errored generating interface name for network %s: %s", network.Name, err)
 		return nil
@@ -361,7 +422,7 @@ func hasVlanTag(network *networkv1.Network) bool {
 }
 
 func ensureInterface(network *networkv1.Network, log *logrus.Entry) error {
-	intfName, err := network.InterfaceName()
+	intfName, err := multinictypes.InterfaceName(network)
 	if err != nil {
 		// Log error but return nil here as this is mostly due to misconfiguration
 		// in the network CR object and is unlikely to reconcile.
@@ -420,7 +481,7 @@ func bestAddrMatch(addrs []netlink.Addr) *net.IPNet {
 }
 
 func obtainSubnet(network *networkv1.Network, log *logrus.Entry) (string, string, error) {
-	_, err := network.InterfaceName()
+	_, err := multinictypes.InterfaceName(network)
 	if err != nil {
 		// Log error but return nil here as this is mostly due to misconfiguration
 		// in the network CR object and is unlikely to reconcile.

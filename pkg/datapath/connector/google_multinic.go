@@ -22,14 +22,16 @@ import (
 	"github.com/cilium/cilium/api/v1/models"
 	dhcp "github.com/cilium/cilium/pkg/gke/multinic/dhcp"
 	multinicep "github.com/cilium/cilium/pkg/gke/multinic/endpoint"
+	multinictypes "github.com/cilium/cilium/pkg/gke/multinic/types"
+	"github.com/cilium/cilium/pkg/ipam"
 	"github.com/cilium/cilium/pkg/logging/logfields"
 	"github.com/cilium/cilium/pkg/netns"
 	"github.com/containernetworking/plugins/pkg/ns"
 	"github.com/sirupsen/logrus"
 	"github.com/vishvananda/netlink"
-	networkv1 "gke-internal.googlesource.com/anthos-networking/apis/v2/network/v1"
 	"golang.org/x/sys/unix"
 	"k8s.io/apimachinery/pkg/types"
+	networkv1 "k8s.io/cloud-provider-gcp/crd/apis/network/v1"
 	"k8s.io/utils/pointer"
 )
 
@@ -108,7 +110,7 @@ func getInterfaceConfiguration(intf *networkv1.NetworkInterface, network *networ
 		Namespace: intf.Namespace,
 	}
 	if len(intf.Spec.IpAddresses) > 1 {
-		return nil, fmt.Errorf("found %d IP addresses in the interface CR %q. Only single IPv4 address is supported for macvlan/macvtap interface.", len(intf.Spec.IpAddresses), intfID.String())
+		return nil, fmt.Errorf("found %d IP addresses in the interface CR %q. Only single IPv4 address is supported for L2 interface", len(intf.Spec.IpAddresses), intfID.String())
 	}
 
 	var (
@@ -135,7 +137,7 @@ func getInterfaceConfiguration(intf *networkv1.NetworkInterface, network *networ
 		}
 	}
 
-	cfg.ParentInterfaceName, err = network.InterfaceName()
+	cfg.ParentInterfaceName, err = multinictypes.InterfaceName(network)
 	if err != nil {
 		return nil, fmt.Errorf("parent interface name is empty in the network CR %q: %s", network.Name, err)
 	}
@@ -378,8 +380,7 @@ func createIPvlanChild(ifName string, parentDevIndex int) error {
 // the provided parent interface and sets it up.
 // The set up operations consist moving the interface to the remote network namespace, initializing
 // bpf tail call map on both directions (see setupInterfaceInRemoteNs), and configuring the interface.
-func SetupL2Interface(ifNameInPod, podName string, podResources map[string][]string, network *networkv1.Network,
-	intf *networkv1.NetworkInterface, ep *models.EndpointChangeRequest, dc dhcp.DHCPClient) (func(), error) {
+func SetupL2Interface(ifNameInPod, podName string, podResources map[string][]string, network *networkv1.Network, intf *networkv1.NetworkInterface, ep *models.EndpointChangeRequest, dc dhcp.DHCPClient, ipam *ipam.IPAM) (func(), error) {
 	cfg, err := getInterfaceConfiguration(intf, network, podResources)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get a valid interface configuration: %v", err)
@@ -406,6 +407,7 @@ func SetupL2Interface(ifNameInPod, podName string, podResources map[string][]str
 			if err = DeleteL2InterfaceInRemoteNs(ifNameInPod, ep.NetworkNamespace); err != nil {
 				log.WithError(err).WithField(logfields.Macvlan, srcIfName).Warn("failed to clean up macvlan")
 			}
+			releaseIP(network, cfg, ipam)
 		}
 	case multinicep.EndpointDeviceIPVLAN:
 		srcIfName = Endpoint2TempRandIfName()
@@ -417,6 +419,7 @@ func SetupL2Interface(ifNameInPod, podName string, podResources map[string][]str
 			if err = DeleteL2InterfaceInRemoteNs(ifNameInPod, ep.NetworkNamespace); err != nil {
 				log.WithError(err).WithField(logfields.Ipvlan, srcIfName).Warn("failed to clean up ipvlan")
 			}
+			releaseIP(network, cfg, ipam)
 		}
 	case multinicep.EndpointDeviceMACVTAP:
 		macvtapIfNames := podResources[macvtapResourceName(cfg.ParentInterfaceName)]
@@ -428,6 +431,7 @@ func SetupL2Interface(ifNameInPod, podName string, podResources map[string][]str
 			if err = RevertMacvtapSetup(ifNameInPod, srcIfName, ep.NetworkNamespace); err != nil {
 				log.WithError(err).WithField(logfields.Macvtap, srcIfName).Warn("failed to revert macvtap")
 			}
+			releaseIP(network, cfg, ipam)
 		}
 	default:
 		return nil, fmt.Errorf("unknown interface type: %v", cfg.Type)
@@ -482,8 +486,8 @@ func SetupL2Interface(ifNameInPod, podName string, podResources map[string][]str
 		return cleanup, fmt.Errorf("failed to query DHCP information: %v", err)
 	}
 
-	if err := configureIPAMInfo(network, cfg, ep.NetworkNamespace, ifNameInPod, ep.ContainerID); err != nil {
-		return nil, fmt.Errorf("failed to query IPAM information: %v", err)
+	if err := configureIPAMInfo(network, cfg, ifNameInPod, ipam); err != nil {
+		return cleanup, fmt.Errorf("failed to query IPAM information: %v", err)
 	}
 
 	if err := configureInterface(cfg, netNs, ifNameInPod); err != nil {
@@ -596,7 +600,7 @@ func configureDHCPInfo(network *networkv1.Network, cfg *interfaceConfiguration, 
 		return nil, nil
 	}
 
-	parentInterface, err := network.InterfaceName()
+	parentInterface, err := multinictypes.InterfaceName(network)
 	if err != nil {
 		return nil, fmt.Errorf("failed to configure dhcp info for %s: %s", network.Name, err)
 	}
@@ -631,9 +635,70 @@ func configureDHCPInfo(network *networkv1.Network, cfg *interfaceConfiguration, 
 	return dhcpInfo, nil
 }
 
-func configureIPAMInfo(network *networkv1.Network, cfg *interfaceConfiguration, podNS, podIface, containerID string) error {
-	// TODO: place holder for IPAM implementation, currently this is no-op.
+func configureIPAMInfo(network *networkv1.Network, cfg *interfaceConfiguration, podIface string, ipam *ipam.IPAM) error {
+	// no IPAM required when external DHCP is true.
+	if network.Spec.ExternalDHCP4 != nil && *network.Spec.ExternalDHCP4 == true {
+		return nil
+	}
+	if cfg.IPV4Address != nil {
+		if !isStaticNetwork(network) {
+			return errors.New("static IP requested when static information is not provided in network")
+		}
+		// TODO - Reserve the static IP in the allocator once kubevirt has the
+		// CCC changes and network object changes in place with respect to the provider field.
+		return nil
+	}
+	ipam.MultiNetworkAllocatorMutex.Lock()
+	defer ipam.MultiNetworkAllocatorMutex.Unlock()
+	ipa := ipam.MultiNetworkAllocators[network.Name]
+	if ipa == nil {
+		return fmt.Errorf("ipam allocator not found for network %s", network.Name)
+	}
+	result, err := ipa.AllocateNext(podIface)
+	if err != nil {
+		return err
+	}
+	var mask []byte
+	if network.Spec.Type == networkv1.L3NetworkType {
+		mask = net.CIDRMask(32, 8*net.IPv4len)
+	} else {
+		// TODO - Remove this check and add logic to read the mask from
+		// node interface when PrefixLength4 is not set.
+		if network.Spec.L2NetworkConfig == nil || network.Spec.L2NetworkConfig.PrefixLength4 == nil {
+			return fmt.Errorf("prefixLengthV4 field not set for L2 network %s", network.Name)
+		}
+		prefixLen := int(*network.Spec.L2NetworkConfig.PrefixLength4)
+		mask = net.CIDRMask(prefixLen, 8*net.IPv4len)
+	}
+	cfg.IPV4Address = &net.IPNet{
+		IP:   result.IP,
+		Mask: mask,
+	}
+	log.Infof("Reserved ip address %s with mask %s", cfg.IPV4Address.IP.String(), cfg.IPV4Address.Mask.String())
 	return nil
+}
+
+func releaseIP(network *networkv1.Network, cfg *interfaceConfiguration, ipam *ipam.IPAM) {
+	if network.Spec.ExternalDHCP4 != nil && *network.Spec.ExternalDHCP4 {
+		return
+	}
+	if cfg.IPV4Address == nil {
+		return
+	}
+	if isStaticNetwork(network) {
+		return
+	}
+	ipam.MultiNetworkAllocatorMutex.Lock()
+	defer ipam.MultiNetworkAllocatorMutex.Unlock()
+	ipa, ok := ipam.MultiNetworkAllocators[network.Name]
+	if !ok {
+		return
+	}
+	if err := ipa.Release(cfg.IPV4Address.IP); err != nil {
+		log.WithError(err).Warningf("Unable to release IP %s in network %s", cfg.IPV4Address.IP.String(), network.Name)
+	} else {
+		log.Infof("Released IP %s that was reserved", cfg.IPV4Address.IP.String())
+	}
 }
 
 func isDNSConfigured(network *networkv1.Network) bool {

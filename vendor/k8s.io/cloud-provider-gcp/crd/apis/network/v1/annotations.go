@@ -12,6 +12,11 @@ const (
 	DisableSourceIPValidationAnnotationKey = "networking.gke.io/disable-source-ip-validation"
 	// DisableSourceValidationAnnotationValTrue is the value to disable source IP validation for the pod.
 	DisableSourceIPValidationAnnotationValTrue = "true"
+	// EnableMulticastAnnotationKey is the annotation on pod to enable multicast on L2 interfaces.
+	// It's also used to enable IGMP protocol for L2 interfaces.
+	EnableMulticastAnnotationKey = "networking.gke.io/enable-multicast"
+	// EnableMulticastAnnotationValTrue is the value to enable multicast for the pod.
+	EnableMulticastAnnotationValTrue = "true"
 	// DefaultInterfaceAnnotationKey specifies the default route interface with interface name in pod.
 	// The IP of the gateway comes from network CRs.
 	DefaultInterfaceAnnotationKey = "networking.gke.io/default-interface"
@@ -20,6 +25,8 @@ const (
 	// NodeNetworkAnnotationKey is the key of the annotation which indicates the status of
 	// networks on the node.
 	NodeNetworkAnnotationKey = "networking.gke.io/network-status"
+	// PodIPsAnnotationKey is the key of the annotation which indicates additional pod IPs assigned to the pod.
+	PodIPsAnnotationKey = "networking.gke.io/pod-ips"
 	// NetworkAnnotationKey is the network annotation on NetworkPolicy object.
 	// Value for this key will be the network on which network policy should be enforced.
 	NetworkAnnotationKey = "networking.gke.io/network"
@@ -35,6 +42,8 @@ const (
 	AutoGenAnnotationKey = "networking.gke.io/auto-generated"
 	// AutoGenAnnotationValTrue is the value to be set for auto-generated objects.
 	AutoGenAnnotationValTrue = "true"
+	// NorthInterfacesAnnotationKey is the annotation key used to hold interfaces data per node.
+	NorthInterfacesAnnotationKey = "networking.gke.io/north-interfaces"
 )
 
 // InterfaceAnnotation is the value of the interface annotation.
@@ -75,9 +84,17 @@ func MarshalAnnotation(a interface{}) (string, error) {
 // +kubebuilder:object:generate:=false
 type NodeNetworkAnnotation []NodeNetworkStatus
 
+// PodIPsAnnotation is the value of the pod IPs annotation.
+// +kubebuilder:object:generate:=false
+type PodIPsAnnotation []PodIP
+
 // MultiNetworkAnnotation is the value of networks annotation.
 // +kubebuilder:object:generate:=false
 type MultiNetworkAnnotation []NodeNetwork
+
+// NorthInterfacesAnnotation is the value of north-interfaces annotation.
+// +kubebuilder:object:generate:=false
+type NorthInterfacesAnnotation []NorthInterface
 
 // NodeNetworkStatus specifies the status of a network.
 // +kubebuilder:object:generate:=false
@@ -92,6 +109,17 @@ type NodeNetworkStatus struct {
 	IPv6Subnet string `json:"ipv6-subnet,omitempty"`
 }
 
+// PodIP specifies the additional pod IPs assigned to the pod.
+// This will eventually be merged into the `podIPs` field in PodStatus, so the fields must remain compatible.
+// +kubebuilder:object:generate:=false
+type PodIP struct {
+	// NetworkName refers to the network object associated with this IP.
+	NetworkName string `json:"networkName"`
+
+	// IP is an IP address (IPv4 or IPv6) assigned to the pod.
+	IP string `json:"ip"`
+}
+
 // NodeNetwork specifies network data on a node.
 // +kubebuilder:object:generate:=false
 type NodeNetwork struct {
@@ -103,9 +131,25 @@ type NodeNetwork struct {
 	Scope string `json:"scope"`
 }
 
+// NorthInterface specifies interface data on a node.
+// +kubebuilder:object:generate:=false
+type NorthInterface struct {
+	// Name of the network an interface on node is connected to.
+	Network string `json:"network"`
+	// IP address of the interface.
+	IpAddress string `json:"ipAddress"`
+}
+
 // ParseNodeNetworkAnnotation parses the given annotation to NodeNetworkAnnotation.
 func ParseNodeNetworkAnnotation(annotation string) (NodeNetworkAnnotation, error) {
 	ret := &NodeNetworkAnnotation{}
+	err := json.Unmarshal([]byte(annotation), ret)
+	return *ret, err
+}
+
+// ParsePodIPsAnnotation parses the given annotation to PodIPsAnnotation.
+func ParsePodIPsAnnotation(annotation string) (PodIPsAnnotation, error) {
+	ret := &PodIPsAnnotation{}
 	err := json.Unmarshal([]byte(annotation), ret)
 	return *ret, err
 }
@@ -117,7 +161,19 @@ func ParseMultiNetworkAnnotation(annotation string) (MultiNetworkAnnotation, err
 	return *ret, err
 }
 
+// ParseNorthInterfacesAnnotation parses given annotation to NorthInterfacesAnnotation.
+func ParseNorthInterfacesAnnotation(annotation string) (NorthInterfacesAnnotation, error) {
+	ret := &NorthInterfacesAnnotation{}
+	err := json.Unmarshal([]byte(annotation), ret)
+	return *ret, err
+}
+
 // MarshalNodeNetworkAnnotation marshals a NodeNetworkAnnotation into string.
 func MarshalNodeNetworkAnnotation(a NodeNetworkAnnotation) (string, error) {
+	return MarshalAnnotation(a)
+}
+
+// MarshalNorthInterfacesAnnotation marshals a NorthInterfacesAnnotation into string.
+func MarshalNorthInterfacesAnnotation(a NorthInterfacesAnnotation) (string, error) {
 	return MarshalAnnotation(a)
 }
