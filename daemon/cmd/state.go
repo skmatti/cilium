@@ -95,6 +95,9 @@ func (d *Daemon) validateEndpoint(ep *endpoint.Endpoint) (valid bool, err error)
 		}
 	}
 
+	if err := d.allocateIPsIfMultiNICEndpoint(ep); err != nil {
+		return false, fmt.Errorf("Failed to re-allocate IP of endpoint: %s", err)
+	}
 	return true, nil
 }
 

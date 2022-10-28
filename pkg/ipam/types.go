@@ -89,6 +89,12 @@ type IPAM struct {
 	IPv6Allocator Allocator
 	IPv4Allocator Allocator
 
+	// MultiNetworkAllocators represents a map of network names and their respective allocators.
+	MultiNetworkAllocators map[string]Allocator
+
+	// MultiNetworkAllocatorMutex covers access to the MultiNetworkAllocators map above.
+	MultiNetworkAllocatorMutex lock.Mutex
+
 	// owner maps an IP to the owner
 	owner map[string]string
 

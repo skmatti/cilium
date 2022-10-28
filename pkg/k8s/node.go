@@ -12,6 +12,7 @@ import (
 	"github.com/cilium/cilium/pkg/cidr"
 	slim_corev1 "github.com/cilium/cilium/pkg/k8s/slim/k8s/api/core/v1"
 	"github.com/cilium/cilium/pkg/logging/logfields"
+	"github.com/cilium/cilium/pkg/node"
 	"github.com/cilium/cilium/pkg/node/addressing"
 	nodeTypes "github.com/cilium/cilium/pkg/node/types"
 	"github.com/cilium/cilium/pkg/option"
@@ -214,5 +215,7 @@ func ParseNode(k8sNode *slim_corev1.Node, source source.Source) *nodeTypes.Node 
 		}
 	}
 
+	newNode.Labels = k8sNode.GetLabels()
+	node.SetAnnotations(k8sNode.Annotations)
 	return newNode
 }

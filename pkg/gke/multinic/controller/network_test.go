@@ -26,6 +26,8 @@ import (
 
 	"github.com/cilium/cilium/pkg/logging"
 	"github.com/cilium/cilium/pkg/logging/logfields"
+	"github.com/cilium/cilium/pkg/node"
+	"github.com/cilium/cilium/pkg/option"
 	"github.com/google/go-cmp/cmp"
 	"github.com/vishvananda/netlink"
 	"github.com/vishvananda/netns"
@@ -49,6 +51,17 @@ const (
 )
 
 var log = logging.DefaultLogger.WithField(logfields.LogSubsys, "test")
+
+type testIPAMMgr struct{}
+
+func (t testIPAMMgr) UpdateMultiNetworkIPAMAllocators(annotations map[string]string) error {
+	_, ok := annotations[networkv1.MultiNetworkAnnotationKey]
+	if !ok {
+		return nil
+	}
+	node.SetAnnotations(annotations)
+	return nil
+}
 
 func TestEnsureInterface(t *testing.T) {
 	cr := &networkv1.Network{
@@ -596,6 +609,7 @@ func TestUpdateNodeNetworkAnnotation(t *testing.T) {
 			testReconciler := NetworkReconciler{
 				Client:   k8sClient,
 				NodeName: nodeName,
+				IPAMMgr:  testIPAMMgr{},
 			}
 			gotErr := testReconciler.updateNodeNetworkAnnotation(ctx, tc.network, tc.ipv4Subnet, tc.ipv6Subnet, logger, tc.isAdd)
 			if gotErr != nil {
@@ -687,6 +701,83 @@ func TestBestAddrMatch(t *testing.T) {
 			}
 			if got.Mask.String() != tc.wantAddr.Mask.String() {
 				t.Fatalf("Didn't get the correct IP Mask, got: %s, wanted: %s", got.Mask.String(), tc.wantAddr.Mask.String())
+			}
+		})
+	}
+}
+
+func TestUpdateNodeMultiNetworkIPAM(t *testing.T) {
+	scheme := k8sruntime.NewScheme()
+	corev1.AddToScheme(scheme)
+	ctx := context.Background()
+	option.Config.EnableGoogleMultiNIC = true
+	testNw := networkv1.Network{ObjectMeta: metav1.ObjectMeta{Name: networkName}, Spec: networkv1.NetworkSpec{Type: networkv1.L2NetworkType}}
+	testcases := []struct {
+		desc                string
+		existingAnnotations map[string]string
+		nodeName            string
+		wantErr             string
+		network             *networkv1.Network
+	}{
+		{
+			desc: "node not found",
+			existingAnnotations: map[string]string{
+				networkv1.MultiNetworkAnnotationKey: `[{"name":"foo", "cidrs":["10.0.0.0/21"],"scope":"host-local"}]`,
+			},
+			nodeName: "foo-node",
+			wantErr:  "nodes \"test-node\" not found",
+			network:  &testNw,
+		},
+		{
+			desc: "single network IPAM - add",
+			existingAnnotations: map[string]string{
+				networkv1.MultiNetworkAnnotationKey: `[{"name":"my-network", "cidrs":["10.0.0.0/21"],"scope":"host-local"}]`,
+			},
+			nodeName: nodeName,
+			network:  &testNw,
+		},
+		{
+			desc: "multi network IPAM - add",
+			existingAnnotations: map[string]string{
+				networkv1.MultiNetworkAnnotationKey: `[{"name":"my-network", "cidrs":["10.0.0.0/21"],"scope":"host-local"}, {"name":"bar", "cidrs":["20.0.0.0/21"],"scope":"host-local"}]`,
+			},
+			nodeName: nodeName,
+			network:  &testNw,
+		},
+		{
+			desc:     "externalDHCP enabled network - no IPAM",
+			nodeName: nodeName,
+			network:  &networkv1.Network{ObjectMeta: metav1.ObjectMeta{Name: networkName}, Spec: networkv1.NetworkSpec{Type: networkv1.L2NetworkType, ExternalDHCP4: utilpointer.Bool(true)}},
+		},
+	}
+	for _, tc := range testcases {
+		t.Run(tc.desc, func(t *testing.T) {
+			node.SetAnnotations(nil)
+			testNode := corev1.Node{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:        tc.nodeName,
+					Annotations: tc.existingAnnotations,
+				},
+			}
+			k8sClient := fake.NewClientBuilder().WithObjects(&testNode).Build()
+			testReconciler := NetworkReconciler{
+				Client:   k8sClient,
+				NodeName: nodeName,
+				IPAMMgr:  testIPAMMgr{},
+			}
+			gotErr := testReconciler.updateMultiNetworkIPAM(ctx, tc.network, log)
+			if gotErr != nil {
+				if tc.wantErr == "" {
+					t.Fatalf("updateMultiNetworkIPAM() returns error %v but want nil", gotErr)
+				}
+				if gotErr.Error() != tc.wantErr {
+					t.Fatalf("updateMultiNetworkIPAM() returns error %v but want %v", gotErr, tc.wantErr)
+				}
+				return
+			}
+			gotAnnotations := node.GetAnnotations()
+			if diff := cmp.Diff(gotAnnotations, tc.existingAnnotations); diff != "" {
+				t.Fatalf("updateMultiNetworkIPAM() returns unexpected output (-got, +want):\n%s", diff)
 			}
 		})
 	}

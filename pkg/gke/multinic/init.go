@@ -7,9 +7,11 @@ import (
 
 	"github.com/cilium/cilium/pkg/gke/multinic/controller"
 	"github.com/cilium/cilium/pkg/gke/multinic/dhcp"
+	"github.com/cilium/cilium/pkg/gke/multinic/types"
 	"github.com/cilium/cilium/pkg/k8s"
 	"github.com/cilium/cilium/pkg/logging"
 	"github.com/cilium/cilium/pkg/logging/logfields"
+	"github.com/cilium/cilium/pkg/node"
 	networkv1 "gke-internal.googlesource.com/anthos-networking/apis/v2/network/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -24,7 +26,7 @@ var (
 )
 
 // Init sets up the controller manager and reconcilers for multinic.
-func Init(ctx context.Context, endpointManager *endpointmanager.EndpointManager) (K8sClient, *KubeletClient, dhcp.DHCPClient, error) {
+func Init(ctx context.Context, endpointManager *endpointmanager.EndpointManager, mnwIPAMMgr types.MultiNetworkIPAMManager) (K8sClient, *KubeletClient, dhcp.DHCPClient, error) {
 	kubeConfig, err := k8s.CreateConfig()
 	if err != nil {
 		return nil, nil, nil, err
@@ -50,6 +52,7 @@ func Init(ctx context.Context, endpointManager *endpointmanager.EndpointManager)
 		Client:          mgr.GetClient(),
 		EndpointManager: endpointManager,
 		NodeName:        nodeTypes.GetName(),
+		IPAMMgr:         mnwIPAMMgr,
 	}).SetupWithManager(mgr); err != nil {
 		return nil, nil, nil, fmt.Errorf("failed to setup network controller: %v", err)
 	}
@@ -66,5 +69,8 @@ func Init(ctx context.Context, endpointManager *endpointmanager.EndpointManager)
 		return nil, nil, nil, fmt.Errorf("failed to create kubelet client: %v", err)
 	}
 
+	if err := mnwIPAMMgr.UpdateMultiNetworkIPAMAllocators(node.GetAnnotations()); err != nil {
+		return nil, nil, nil, fmt.Errorf("failed to initialize multi-network allocators: %v", err)
+	}
 	return NewK8sClient(mgr.GetClient()), kubeletClient, dhcp.NewDHCPClient(), nil
 }

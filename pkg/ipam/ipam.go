@@ -111,6 +111,7 @@ func NewIPAM(nodeAddressing types.NodeAddressing, c Configuration, owner Owner, 
 		blacklist: IPBlacklist{
 			ips: map[string]string{},
 		},
+		MultiNetworkAllocators: map[string]Allocator{},
 	}
 
 	switch c.IPAMMode() {

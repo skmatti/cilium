@@ -196,8 +196,7 @@ func (d *Daemon) createMultiNICEndpoints(ctx context.Context, owner regeneration
 			if netCR.Spec.Type != networkv1.L2NetworkType {
 				return d.errorDuringMultiNICCreation(primaryEp, PutEndpointIDInvalidCode, fmt.Errorf("network %q has invalid network type %v of the multinic endpoint for pod %q", netCR.Name, netCR.Spec.Type, podID))
 			}
-
-			if cleanup, err = connector.SetupL2Interface(ref.InterfaceName, pod.Name, podResources, netCR, intfCR, multinicTemplate, d.dhcpClient); err != nil {
+			if cleanup, err = connector.SetupL2Interface(ref.InterfaceName, pod.Name, podResources, netCR, intfCR, multinicTemplate, d.dhcpClient, d.ipam); err != nil {
 				return d.errorWithMultiNICCleanup(primaryEp, PutEndpointIDInvalidCode, fmt.Errorf("failed setting up layer2 interface %q for pod %q: %v", intfCR.Name, podID, err), cleanup)
 			}
 			// We don't allow different L2 interfaces share the same parent device.
@@ -452,6 +451,15 @@ func (d *Daemon) deleteMultiNICEndpointQuiet(ep *endpoint.Endpoint, conf endpoin
 		// If pod changed, then the interface lease is now maintained by a different pod. The lease should
 		// not released and instead should just expire for this pod.
 		d.dhcpClient.Release(ep.GetContainerID(), netNS, ifNameInPod, podChanged)
+	} else {
+		d.ipam.MultiNetworkAllocatorMutex.Lock()
+		for _, allocator := range d.ipam.MultiNetworkAllocators {
+			err := allocator.Release(ep.IPv4.IP())
+			if err != nil {
+				errs = append(errs, err)
+			}
+		}
+		d.ipam.MultiNetworkAllocatorMutex.Unlock()
 	}
 	var err error
 	switch deviceType {
@@ -599,7 +607,7 @@ func cleanupMultiNICDevMap(eps []*endpoint.Endpoint) {
 	return
 }
 
-// fetchMultiNICAnnotation returns the default interface name and interface annotation from the provied
+// fetchMultiNICAnnotation returns the default interface name and interface annotation from the provided
 // annotations. The function also verifies the default interface must be specified and referenced in
 // the interface annotation. Otherwise, an error is returned.
 func fetchMultiNICAnnotation(annotations map[string]string) (string, networkv1.InterfaceAnnotation, error) {

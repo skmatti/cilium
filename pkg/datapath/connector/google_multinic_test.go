@@ -26,6 +26,7 @@ import (
 	"testing"
 
 	"github.com/cilium/cilium/pkg/gke/multinic/dhcp"
+	"github.com/cilium/cilium/pkg/ipam"
 	"github.com/containernetworking/plugins/pkg/ns"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
@@ -225,7 +226,7 @@ func TestGetInterfaceConfiguration(t *testing.T) {
 			desc:    "two ipv4 address",
 			intf:    getTestInterfaceCR([]string{goodIPv4Str, goodIPv4Str}, &goodMACStr),
 			net:     getTestNetworkCR(&parentDevName, nil),
-			wantErr: "Only single IPv4 address is supported for macvlan/macvtap interface",
+			wantErr: "Only single IPv4 address is supported for L2 interface",
 		},
 		{
 			desc: "empty ipv4 address list",
@@ -969,6 +970,117 @@ func TestConfigureDHCPInfo(t *testing.T) {
 			}
 			if diff := cmp.Diff(testCfg, tc.wantCfg); diff != "" {
 				t.Errorf("configureDHCPInfo() has incorrect interfaceConfiguration (-got, +want): %s\n", diff)
+			}
+		})
+	}
+}
+
+func TestConfigureIPAMInfo(t *testing.T) {
+	testNw := "test-nw"
+	l3NwInfo := networkv1.Network{
+		ObjectMeta: metav1.ObjectMeta{Name: testNw},
+		Spec: networkv1.NetworkSpec{
+			Type:   networkv1.L3NetworkType,
+			Routes: []networkv1.Route{{To: "10.0.0.0/21"}},
+		},
+	}
+	l2NwInfo := networkv1.Network{
+		ObjectMeta: metav1.ObjectMeta{Name: testNw},
+		Spec: networkv1.NetworkSpec{
+			Type:   networkv1.L2NetworkType,
+			Routes: []networkv1.Route{{To: "10.0.0.0/21"}},
+		},
+	}
+	staticInfCfg := interfaceConfiguration{
+		IPV4Address: &net.IPNet{
+			IP:   net.ParseIP("10.0.0.2"),
+			Mask: net.IPv4Mask(255, 255, 248, 0),
+		},
+	}
+	ipamCidr := net.IPNet{
+		IP:   net.ParseIP("20.0.0.2"),
+		Mask: net.IPv4Mask(255, 255, 248, 0),
+	}
+	allocator := ipam.NewHostScopeAllocator(&ipamCidr)
+	ipa := &ipam.IPAM{
+		MultiNetworkAllocators: map[string]ipam.Allocator{testNw: allocator},
+	}
+	testcases := []struct {
+		desc     string
+		network  *networkv1.Network
+		infCfg   interfaceConfiguration
+		wantErr  string
+		wantMask int
+	}{
+		{
+			desc: "static IP without static network information",
+			network: &networkv1.Network{
+				ObjectMeta: metav1.ObjectMeta{Name: testNw},
+				Spec:       networkv1.NetworkSpec{},
+			},
+			infCfg:  staticInfCfg,
+			wantErr: "static IP requested when static information is not provided in network",
+		},
+		{
+			desc: "l3 network dynamic IP but missing allocator",
+			network: &networkv1.Network{
+				ObjectMeta: metav1.ObjectMeta{Name: "missing-allocator-nw"},
+			},
+			wantErr: "ipam allocator not found for network missing-allocator-nw",
+		},
+		{
+			desc:    "l3 network static IP",
+			network: &l3NwInfo,
+			infCfg:  staticInfCfg,
+		},
+		{
+			desc:     "l3 network dynamic IP",
+			network:  &l3NwInfo,
+			wantMask: 32,
+		},
+		{
+			desc:    "l2 network without netmask",
+			network: &l2NwInfo,
+			wantErr: "prefixLengthV4 field not set for L2 network test-nw",
+		},
+		{
+			desc: "l2 network dynamic IP",
+			network: &networkv1.Network{
+				ObjectMeta: metav1.ObjectMeta{Name: testNw},
+				Spec: networkv1.NetworkSpec{
+					Type:            networkv1.L2NetworkType,
+					L2NetworkConfig: &networkv1.L2NetworkConfig{PrefixLength4: pointer.Int32(24)},
+				},
+			},
+			wantMask: 24,
+		},
+	}
+
+	for _, tc := range testcases {
+		t.Run(tc.desc, func(t *testing.T) {
+			infCfg := tc.infCfg
+			gotErr := configureIPAMInfo(tc.network, &infCfg, "podIface", ipa)
+			if tc.wantErr != "" {
+				if gotErr == nil {
+					t.Fatalf("configureIPAMInfo() should have returned an error")
+					return
+				}
+				if gotErr.Error() != tc.wantErr {
+					t.Fatalf("configureIPAMInfo() returned incorrect error, got: %s but want: %s", gotErr.Error(), tc.wantErr)
+					return
+				}
+				return
+			}
+			if tc.infCfg.IPV4Address != nil && tc.infCfg.IPV4Address != infCfg.IPV4Address {
+				t.Fatalf("configureIPAMInfo() returned interface configuration with ipv4 address different from provided static IP")
+			} else if infCfg.IPV4Address == nil {
+				t.Fatalf("configureIPAMInfo() returned interface configuration with nil ipv4 address")
+			}
+			if tc.infCfg.IPV4Address == nil {
+				ones, _ := infCfg.IPV4Address.Mask.Size()
+				if ones != tc.wantMask {
+					t.Fatalf("configureIPAMInfo() returned interface configuration with ipv4 address with incorrect netmask, got %d, want %d", ones, tc.wantMask)
+				}
 			}
 		})
 	}
