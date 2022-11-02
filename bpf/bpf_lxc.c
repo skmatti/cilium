@@ -994,6 +994,9 @@ ct_recreate4:
 		if (!revalidate_data(ctx, &data, &data_end, &ip4))
 			return DROP_INVALID;
 	}
+
+	if (unlikely(!is_valid_lxc_src_ipv4(ip4)))
+		return DROP_INVALID_SIP;
 }
 #endif /* ENABLE_GOOGLE_SERVICE_STEERING */
 
@@ -1356,8 +1359,11 @@ static __always_inline int __tail_handle_ipv4(struct __ctx_buff *ctx)
 		return DROP_INVALID;
 #endif /* MULTI_NIC_DEVICE_TYPE */
 
+/* Do source IP validation after SFC encap. */
+#ifndef ENABLE_GOOGLE_SERVICE_STEERING
 	if (unlikely(!is_valid_lxc_src_ipv4(ip4)))
 		return DROP_INVALID_SIP;
+#endif
 
 #if defined(ENABLE_PER_PACKET_LB) && !defined(MULTI_NIC_DEVICE_TYPE)
 	{
