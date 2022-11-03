@@ -70,11 +70,12 @@ func NewKey(m MAC) Key {
 type MultiNICDevInfo struct {
 	IfIndex    uint32 `align:"ifindex"`
 	EndpointID uint16 `align:"ep_id"`
+	NetworkID  uint32 `align:"net_id"`
 }
 
 // String pretty print the egress information.
 func (v *MultiNICDevInfo) String() string {
-	return fmt.Sprintf("ep_id=%-5d ifindex=%-3d", v.EndpointID, v.IfIndex)
+	return fmt.Sprintf("ep_id=%-5d ifindex=%-3d network_id=%-5d", v.EndpointID, v.IfIndex, v.NetworkID)
 }
 
 // GetValuePtr returns the unsafe pointer to the BPF value.
@@ -125,6 +126,7 @@ type endpoint interface {
 	GetID() uint64
 	IsMultiNIC() bool
 	IsIPVlan() bool
+	GetNetworkID() uint32
 }
 
 func endpointKey(e endpoint) (*Key, error) {
@@ -148,6 +150,7 @@ func AddEndpointToMap(e endpoint) error {
 	value := &MultiNICDevInfo{
 		EndpointID: uint16(e.GetID()),
 		IfIndex:    uint32(e.GetParentDevIndex()),
+		NetworkID:  e.GetNetworkID(),
 	}
 	if err := Map.Update(key, value); err != nil {
 		return fmt.Errorf("error updating multinicdev map: %v", err)

@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"path/filepath"
 
 	cniTypes "github.com/containernetworking/cni/pkg/types"
 	cniTypesVer "github.com/containernetworking/cni/pkg/types/100"
@@ -152,6 +153,7 @@ func (f *GenericVethChainer) Add(ctx context.Context, pluginCtx chainingapi.Plug
 		K8sPodName:        string(pluginCtx.CniArgs.K8S_POD_NAME),
 		K8sNamespace:      string(pluginCtx.CniArgs.K8S_POD_NAMESPACE),
 		SyncBuildEndpoint: true,
+		NetworkNamespace:  filepath.Join("/host", pluginCtx.Args.Netns),
 		DatapathConfiguration: &models.EndpointDatapathConfiguration{
 			// aws-cni requires ARP passthrough between Linux and
 			// the pod

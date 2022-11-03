@@ -2,11 +2,11 @@ package endpoint
 
 import (
 	"fmt"
-
 	"hash/crc32"
 
 	"github.com/cilium/cilium/pkg/bpf"
 	multinicep "github.com/cilium/cilium/pkg/gke/multinic/endpoint"
+	"github.com/cilium/cilium/pkg/mac"
 	"github.com/cilium/cilium/pkg/option"
 )
 
@@ -17,14 +17,32 @@ const (
 	maxNameLength = 253
 )
 
-// IsMultiNIC returns if the endpoint is a non veth endpoint.
+// IsMultiNIC returns if the endpoint is a multi-networking endpoint.
 func (e *Endpoint) IsMultiNIC() bool {
-	return option.Config.EnableGoogleMultiNIC && e.deviceType != multinicep.EndpointDeviceVETH
+	return e.deviceType != multinicep.EndpointDeviceVETH
 }
 
 // GetDeviceType returns the device type of the endpoint.
 func (e *Endpoint) GetDeviceType() multinicep.EndpointDeviceType {
 	return e.deviceType
+}
+
+// GetDeviceTypeIndex returns multinic endpoint type as int.
+func (e *Endpoint) GetDeviceTypeIndex() int {
+	switch e.deviceType {
+	case multinicep.EndpointDeviceVETH:
+		return multinicep.EndpointDeviceIndexVETH
+	case multinicep.EndpointDeviceMultinicVETH:
+		return multinicep.EndpointDeviceIndexMultinicVETH
+	case multinicep.EndpointDeviceMACVTAP:
+		return multinicep.EndpointDeviceIndexMACVTAP
+	case multinicep.EndpointDeviceMACVLAN:
+		return multinicep.EndpointDeviceIndexMACVLAN
+	case multinicep.EndpointDeviceIPVLAN:
+		return multinicep.EndpointDeviceIndexIPVLAN
+	default:
+		return multinicep.EndpointDeviceIndexVETH
+	}
 }
 
 // SetDeviceTypeForTest sets the device type of the endpoint.
@@ -81,6 +99,16 @@ func (ep *Endpoint) GetParentDevIndex() int {
 	return ep.parentDevIndex
 }
 
+// GetParentDevMac returns the mac of the parent device.
+// Currently, enabled only for EndpointDeviceMultinicVETH, and returns 00 MAC
+// for others.
+func (ep *Endpoint) GetParentDevMac() mac.MAC {
+	if ep.deviceType != multinicep.EndpointDeviceMultinicVETH {
+		return mac.MAC([]byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00})
+	}
+	return ep.parentDevMac
+}
+
 // GetEpInfoCacheForCurrentDir returns endpoint info cache for the current directory.
 func (e *Endpoint) GetEpInfoCacheForCurrentDir() (*epInfoCache, error) {
 	if err := e.lockAlive(); err != nil {
@@ -110,4 +138,14 @@ func (e *Endpoint) IsIPVlan() bool {
 // EnableMulticast returns true if the endpoint allows multicast traffic.
 func (e *Endpoint) EnableMulticast() bool {
 	return e.DatapathConfiguration.EnableMulticast
+}
+
+// GetNetworkID returns the network ID of the multinic endpoint.
+// Currently, enabled only for EndpointDeviceMultinicVETH, and returns 0
+// for others.
+func (e *Endpoint) GetNetworkID() uint32 {
+	if e.deviceType != multinicep.EndpointDeviceMultinicVETH {
+		return 0
+	}
+	return e.DatapathConfiguration.NetworkID
 }

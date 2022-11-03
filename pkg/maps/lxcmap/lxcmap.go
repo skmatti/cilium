@@ -11,6 +11,7 @@ import (
 	"unsafe"
 
 	"github.com/cilium/cilium/pkg/bpf"
+	multinicep "github.com/cilium/cilium/pkg/gke/multinic/endpoint"
 	"github.com/cilium/cilium/pkg/mac"
 	"github.com/cilium/cilium/pkg/option"
 )
@@ -51,8 +52,14 @@ func LXCMap() *bpf.Map {
 const (
 	// EndpointFlagHost indicates that this endpoint represents the host
 	EndpointFlagHost = 1
-	// EndpointFlagMultiNIC indicates that this endpoint represents the multi nic
-	EndpointFlagMultiNIC = 2
+	// EndpointFlagMultiNICL2 indicates that this endpoint represents the L2 multinic
+	// devices such as macvtap/macvlan.
+	// It corresponds to ENDPOINT_F_MULTI_NIC_L2 in the datapath
+	EndpointFlagMultiNICL2 = 2
+	// EndpointFlagMultiNICVETH indicates that this endpoint represents L3 multinic
+	// veth type device.
+	// It corresponds to ENDPOINT_F_MULTI_NIC_VETH in the datapath
+	EndpointFlagMultiNICVETH = 4
 )
 
 // EndpointFrontend is the interface to implement for an object to synchronize
@@ -65,6 +72,7 @@ type EndpointFrontend interface {
 	IPv4Address() netip.Addr
 	IPv6Address() netip.Addr
 	IsMultiNIC() bool
+	GetDeviceTypeIndex() int
 }
 
 // GetBPFKeys returns all keys which should represent this endpoint in the BPF
@@ -86,7 +94,7 @@ func GetBPFKeys(e EndpointFrontend) []*EndpointKey {
 // BPF endpoints map
 // Must only be called if init() succeeded.
 func GetBPFValue(e EndpointFrontend) (*EndpointInfo, error) {
-	mac, err := e.LXCMac().Uint64()
+	macAddr, err := e.LXCMac().Uint64()
 	if err != nil {
 		return nil, fmt.Errorf("invalid LXC MAC: %v", err)
 	}
@@ -102,15 +110,22 @@ func GetBPFValue(e EndpointFrontend) (*EndpointInfo, error) {
 		// written into the packet without an additional byte order
 		// conversion.
 		LxcID:   uint16(e.GetID()),
-		MAC:     mac,
+		MAC:     macAddr,
 		NodeMAC: nodeMAC,
 	}
-	if e.IsMultiNIC() {
-		info.Flags |= EndpointFlagMultiNIC
+
+	switch e.GetDeviceTypeIndex() {
+	case multinicep.EndpointDeviceIndexMultinicVETH:
+		// veth
+		info.Flags |= EndpointFlagMultiNICVETH
+	case multinicep.EndpointDeviceIndexIPVLAN,
+		multinicep.EndpointDeviceIndexMACVLAN,
+		multinicep.EndpointDeviceIndexMACVTAP:
+		// l2
+		info.Flags |= EndpointFlagMultiNICL2
 	}
 
 	return info, nil
-
 }
 
 type pad4uint32 [4]uint32

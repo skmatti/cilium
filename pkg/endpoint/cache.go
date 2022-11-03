@@ -56,7 +56,9 @@ type epInfoCache struct {
 	endpoint *Endpoint
 
 	deviceType              multinicep.EndpointDeviceType
+	deviceTypeIndex         int
 	parentDevIndex          int
+	parentDevMac            mac.MAC
 	podStackRedirectIfindex int
 }
 
@@ -91,7 +93,9 @@ func (e *Endpoint) createEpInfoCache(epdir string) *epInfoCache {
 		endpoint: e,
 
 		deviceType:              e.GetDeviceType(),
+		deviceTypeIndex:         e.GetDeviceTypeIndex(),
 		parentDevIndex:          e.parentDevIndex,
+		parentDevMac:            e.parentDevMac,
 		podStackRedirectIfindex: e.podStackRedirectIfindex,
 	}
 	return ep

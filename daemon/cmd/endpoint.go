@@ -329,6 +329,8 @@ func (d *Daemon) createEndpoint(ctx context.Context, owner regeneration.Owner, e
 		epTemplate.DatapathConfiguration.RequireRouting = &disabled
 	}
 
+	setDataPathConfigurationForMultiNIC(epTemplate)
+
 	log.WithFields(logrus.Fields{
 		"addressing":            epTemplate.Addressing,
 		logfields.ContainerID:   epTemplate.ContainerID,
