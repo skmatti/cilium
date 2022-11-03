@@ -20,9 +20,10 @@ func (d *Daemon) allocateIPsIfMultiNICEndpoint(ep *endpoint.Endpoint) error {
 		return nil
 	}
 	reserved := false
+	var err error
 	for _, alloc := range d.ipam.MultiNetworkAllocators {
 		// TODO - Add support for IPv6 in future.
-		_, err := alloc.Allocate(ep.IPv4.IP(), ep.K8sPodName)
+		_, err = alloc.Allocate(ep.IPv4.IP(), ep.K8sPodName)
 		if err == nil {
 			reserved = true
 			ep.Logger(daemonSubsys).Info("successfully restored multi-nic endpoint IP")
@@ -30,7 +31,7 @@ func (d *Daemon) allocateIPsIfMultiNICEndpoint(ep *endpoint.Endpoint) error {
 		}
 	}
 	if !reserved {
-		return fmt.Errorf("could not find an allocator to allocate the IP of the multi-nic endpoint")
+		return fmt.Errorf("could not find an allocator to allocate the IP of the multi-nic endpoint: %s", err)
 	}
 	return nil
 }

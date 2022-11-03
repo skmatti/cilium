@@ -680,8 +680,8 @@ skip_egress_gateway:
 	if (local_ep && (local_ep->flags & ENDPOINT_F_HOST))
 		return false;
 
-	/* If ENDPOINT_F_MULTI_NIC flag is set, no SNAT is needed */
-	if (local_ep && (local_ep->flags & ENDPOINT_F_MULTI_NIC))
+	/* If ENDPOINT_F_MULTI_NIC_L2 flag is set, no SNAT is needed */
+	if (local_ep && (local_ep->flags & ENDPOINT_F_MULTI_NIC_L2))
 		return false;
 
 	if (remote_ep) {

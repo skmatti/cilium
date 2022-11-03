@@ -71,6 +71,13 @@ func (e *TestEndpoint) GetOptions() *option.IntOptions              { return e.O
 func (e *TestEndpoint) IsHost() bool                                { return e.isHost }
 func (e *TestEndpoint) IsMultiNIC() bool                            { return e.MultiNic }
 func (e *TestEndpoint) EnableMulticast() bool                       { return false }
+func (e *TestEndpoint) GetDeviceTypeIndex() int                     { return 0 }
+func (e *TestEndpoint) GetParentDevIndex() int                      { return 0 }
+func (e *TestEndpoint) GetNetworkID() uint32                        { return 0 }
+
+func (e *TestEndpoint) GetParentDevMac() mac.MAC {
+	return mac.MAC([]byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00})
+}
 
 func (e *TestEndpoint) IPv4Address() addressing.CiliumIPv4 {
 	addr, _ := addressing.NewCiliumIPv4("192.0.2.3")

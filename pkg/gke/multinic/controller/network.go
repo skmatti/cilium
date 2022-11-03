@@ -142,8 +142,8 @@ func (r *NetworkReconciler) loadEBPFOnParent(ctx context.Context, network *netwo
 		log.Info("EndpointManager is nil. Please make sure the reconciler is initialized successfully")
 		return nil
 	}
-	if network.Spec.Type != networkv1.L2NetworkType {
-		log.Infof("No need to load ebpf for network type %q", network.Spec.Type)
+	if network.Name == networkv1.DefaultNetworkName {
+		log.Infof("No need to load ebpf for default network: %v", network.Name)
 		return nil
 	}
 	devToLoad, err := multinictypes.InterfaceName(network)
@@ -158,7 +158,7 @@ func (r *NetworkReconciler) loadEBPFOnParent(ctx context.Context, network *netwo
 		return nil
 	}
 
-	scopedLog.Info("Loading ebpf")
+	scopedLog.WithField("network", network.Name).Infof("Loading ebpf for network")
 	objDir := path.Join(multinicObjDir, devToLoad)
 	if err := os.MkdirAll(objDir, os.ModePerm); err != nil {
 		return fmt.Errorf("failed to create multinic object dir: %v", err)
@@ -434,7 +434,7 @@ func deleteVlanID(network *networkv1.Network, log *logrus.Entry) error {
 
 	taggedIntName, err := multinictypes.InterfaceName(network)
 	if err != nil {
-		log.Errorf("Errored generating interface name for network %s: %s", network.Name, err)
+		log.Errorf("deleteVlanID: Errored generating interface name for network %s: %s", network.Name, err)
 		return nil
 	}
 
@@ -473,7 +473,7 @@ func ensureInterface(network *networkv1.Network, log *logrus.Entry) error {
 	if err != nil {
 		// Log error but return nil here as this is mostly due to misconfiguration
 		// in the network CR object and is unlikely to reconcile.
-		log.Errorf("Errored generating interface name for network %s: %v", network.Name, err)
+		log.Errorf("ensureInterface: Errored generating interface name for network %s: %v", network.Name, err)
 		return nil
 	}
 	scopedLog := log.WithField(logfields.Interface, intfName)
@@ -532,7 +532,7 @@ func obtainSubnet(network *networkv1.Network, log *logrus.Entry) (string, string
 	if err != nil {
 		// Log error but return nil here as this is mostly due to misconfiguration
 		// in the network CR object and is unlikely to reconcile.
-		log.Errorf("Errored generating interface name for network %s: %v", network.Name, err)
+		log.Errorf("obtainSubnet: Errored generating interface name for network %s: %v", network.Name, err)
 		return "", "", nil
 	}
 

@@ -731,21 +731,21 @@ static __always_inline int ct_lookup4(const void *map,
 		action = ACTION_CREATE;
 		break;
 
-#if defined(IS_MULTI_NIC_DEVICE) && defined(ENABLE_MULTICAST)
+#if defined(MULTI_NIC_DEVICE_TYPE) && defined(ENABLE_MULTICAST)
     case IPPROTO_IGMP:
 		action = ACTION_CREATE;
 		tuple->sport = 0;
 		tuple->dport = 0;
 		break;
-#endif /* IS_MULTI_NIC_DEVICE || ENABLE_MULTICAST */
+#endif /* MULTI_NIC_DEVICE_TYPE || ENABLE_MULTICAST */
 
-#if defined(ENABLE_HOST_FIREWALL) || defined(IS_MULTI_NIC_DEVICE)
+#if defined(ENABLE_HOST_FIREWALL) || defined(MULTI_NIC_DEVICE_TYPE)
 	case IPPROTO_VRRP:
 		action = ACTION_CREATE;
 		tuple->sport = 0;
 		tuple->dport = 0;
 		break;
-#endif /* ENABLE_HOST_FIREWALL || IS_MULTI_NIC_DEVICE */
+#endif /* ENABLE_HOST_FIREWALL || MULTI_NIC_DEVICE_TYPE */
 
 	default:
 		/* Can't handle extension headers yet */

@@ -187,7 +187,6 @@ func TestGetInterfaceConfiguration(t *testing.T) {
 	parentDevNameEmpty := ""
 	goodMACStr := "01:02:03:04:05:06"
 	badMACStr := "ff"
-	networkProviderGKE := networkv1.ProviderType("GKE")
 	testcases := []struct {
 		desc         string
 		wantErr      string
@@ -207,20 +206,6 @@ func TestGetInterfaceConfiguration(t *testing.T) {
 					Mask: net.IPv4Mask(255, 255, 255, 0),
 				},
 				Type:       "macvlan",
-				MacAddress: net.HardwareAddr([]byte{1, 2, 3, 4, 5, 6}),
-			},
-		},
-		{
-			desc: "parse successfully ipvlan",
-			intf: getTestInterfaceCR([]string{goodIPv4Str}, &goodMACStr),
-			net:  getTestNetworkCR(&parentDevName, &networkProviderGKE),
-			want: &interfaceConfiguration{
-				ParentInterfaceName: parentDevName,
-				IPV4Address: &net.IPNet{
-					IP:   net.IPv4(1, 2, 3, 4),
-					Mask: net.IPv4Mask(255, 255, 255, 0),
-				},
-				Type:       "ipvlan",
 				MacAddress: net.HardwareAddr([]byte{1, 2, 3, 4, 5, 6}),
 			},
 		},
@@ -477,6 +462,7 @@ func TestSetupNetworkRoutes(t *testing.T) {
 		desc               string
 		interfaceName      string
 		intf               *networkv1.NetworkInterface
+		net                *networkv1.Network
 		isDefaultInterface bool
 		routeMTU           int
 		wantRoutes         []netlink.Route
@@ -662,6 +648,34 @@ func TestSetupNetworkRoutes(t *testing.T) {
 			isDefaultInterface: true,
 			wantErr:            "default route must have a valid gateway address",
 		},
+		{
+			desc: "default route but without gw address",
+			intf: &networkv1.NetworkInterface{
+				Status: networkv1.NetworkInterfaceStatus{
+					Routes: []networkv1.Route{
+						{
+							To: "10.10.10.0/24",
+						},
+						{
+							To: "20.20.20.0/24",
+						},
+					},
+					Gateway4: &v4GW,
+				},
+			},
+			net: &networkv1.Network{
+				Spec: networkv1.NetworkSpec{
+					Type: networkv1.L3NetworkType,
+				},
+			},
+			isDefaultInterface: true,
+			wantRoutes: []netlink.Route{
+				v4Route("10.10.10.0", v4GW, 24, 0, netlink.SCOPE_UNIVERSE),
+				v4Route("20.20.20.0", v4GW, 24, 0, netlink.SCOPE_UNIVERSE),
+				v4Route(v4GW, "", 32, 0, netlink.SCOPE_LINK),
+				v4DefaultRoute(v4GW),
+			},
+		},
 	}
 
 	for _, tc := range testcases {
@@ -686,7 +700,7 @@ func TestSetupNetworkRoutes(t *testing.T) {
 			}
 
 			// Run the test in the root ns.
-			gotErr := SetupNetworkRoutes(interfaceNameInPod, tc.intf, testNS.Path(), tc.isDefaultInterface, tc.routeMTU)
+			gotErr := SetupNetworkRoutes(interfaceNameInPod, tc.intf, tc.net, testNS.Path(), tc.isDefaultInterface, tc.routeMTU)
 			if gotErr != nil {
 				if tc.wantErr == "" {
 					t.Fatalf("SetupNetworkRoutes() return error %v but want nil", gotErr)

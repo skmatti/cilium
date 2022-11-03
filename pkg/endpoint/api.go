@@ -73,6 +73,12 @@ func NewEndpointFromChangeModel(ctx context.Context, owner regeneration.Owner, p
 		ep.ifNameInPod = base.InterfaceNameInPod
 		ep.podStackRedirectIfindex = int(base.PodStackRedirectIfindex)
 		ep.externalDHCP4 = base.ExternalDHCP4
+
+		m, err := mac.ParseMAC(base.ParentDeviceMac)
+		if err != nil {
+			return nil, err
+		}
+		ep.parentDevMac = m
 	}
 
 	if base.Mac != "" {

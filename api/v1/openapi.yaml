@@ -1213,6 +1213,9 @@ definitions:
       parent-device-index:
         description: Index of the parent interface for a macvtap/macvlan endpoint
         type: integer
+      parent-device-mac:
+        description: MAC address of the parent interface for a multinic veth endpoint.
+        type: string
       interface-name-in-pod:
         description: Name of the interface inside the pod namespace
         type: string

@@ -1,6 +1,9 @@
 package endpoint
 
-import multinicep "github.com/cilium/cilium/pkg/gke/multinic/endpoint"
+import (
+	multinicep "github.com/cilium/cilium/pkg/gke/multinic/endpoint"
+	"github.com/cilium/cilium/pkg/mac"
+)
 
 func (e *epInfoCache) GetPodStackRedirectIfindex() int {
 	return e.podStackRedirectIfindex
@@ -11,6 +14,11 @@ func (ep *epInfoCache) IsMultiNIC() bool {
 	return ep.deviceType != multinicep.EndpointDeviceVETH
 }
 
+// GetDeviceTypeIndex returns multinic endpoint type as int.
+func (ep *epInfoCache) GetDeviceTypeIndex() int {
+	return ep.deviceTypeIndex
+}
+
 // GetParentDevIndex returns the parent device ifindex.
 // Returns 0 if it's not multinic endpoint.
 func (ep *epInfoCache) GetParentDevIndex() int {
@@ -18,6 +26,26 @@ func (ep *epInfoCache) GetParentDevIndex() int {
 		return 0
 	}
 	return ep.parentDevIndex
+}
+
+// GetParentDevMac returns the mac of the parent device.
+// Currently, enabled only for EndpointDeviceMultinicVETH, and returns 00 MAC
+// for others.
+func (ep *epInfoCache) GetParentDevMac() mac.MAC {
+	if ep.deviceType != multinicep.EndpointDeviceMultinicVETH {
+		return mac.MAC([]byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00})
+	}
+	return ep.parentDevMac
+}
+
+// GetNetworkID returns the network ID of the multinic endpoint.
+// Currently, enabled only for EndpointDeviceMultinicVETH, and returns 0
+// for others.
+func (ep *epInfoCache) GetNetworkID() uint32 {
+	if ep.deviceType != multinicep.EndpointDeviceMultinicVETH {
+		return 0
+	}
+	return ep.endpoint.DatapathConfiguration.NetworkID
 }
 
 // IsIPVlan returns if the endpoint is an ipvlan multinic endpoint.

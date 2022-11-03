@@ -22,6 +22,7 @@ import (
 	"github.com/cilium/cilium/pkg/datapath/loader/metrics"
 	"github.com/cilium/cilium/pkg/defaults"
 	"github.com/cilium/cilium/pkg/elf"
+	multinicep "github.com/cilium/cilium/pkg/gke/multinic/endpoint"
 	"github.com/cilium/cilium/pkg/logging"
 	"github.com/cilium/cilium/pkg/logging/logfields"
 	"github.com/cilium/cilium/pkg/maps/callsmap"
@@ -281,7 +282,7 @@ func (l *Loader) reloadDatapath(ctx context.Context, ep datapath.Endpoint, dirs 
 		if err := l.reloadHostDatapath(ctx, ep, objPath); err != nil {
 			return err
 		}
-	} else if ep.IsMultiNIC() {
+	} else if ep.GetDeviceTypeIndex() == multinicep.EndpointDeviceIndexMACVLAN || ep.GetDeviceTypeIndex() == multinicep.EndpointDeviceIndexMACVTAP {
 		return setupMultiNICDataPath(ctx, ep, objPath)
 	} else {
 		finalize, err := replaceDatapath(ctx, ep.InterfaceName(), objPath, symbolFromEndpoint, dirIngress, false, "")

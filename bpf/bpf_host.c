@@ -574,12 +574,23 @@ handle_ipv4(struct __ctx_buff *ctx, __u32 secctx,
 #endif /* ENABLE_HOST_FIREWALL */
 
 #ifdef ENABLE_GOOGLE_MULTI_NIC
+{
 	// Mark the source IDENTITY to HOST if the packet is local-redirected
 	// for the multinic device before redirection to kernel.
 	// The ingress BPF program of the multinic device can correctly
 	// inherit the source IDENTITY to process the packet.
 	if (unlikely(ctx_google_local_redirect(ctx)))
 		ctx->mark = MARK_MAGIC_HOST;
+	// Here we enable the rediret datapath to deliver traffic
+	// from netdev to local L3 multi-nic endpoints, for which
+	// we either drop the packet if wrong device, or allow it to
+	// be redirected via ipv4_local_delivery below.
+	ret = google_needs_L3_fast_redirect(ip4);
+	if (unlikely(ret == DROP_UNROUTABLE))
+		return DROP_UNROUTABLE;
+	if (unlikely(ret == CTX_ACT_REDIRECT))
+		skip_redirect = false;
+}
 #endif /* ENABLE_GOOGLE_MULTI_NIC */
 
 	if (skip_redirect)
@@ -606,7 +617,7 @@ handle_ipv4(struct __ctx_buff *ctx, __u32 secctx,
 		/* Let through packets to the node-ip so they are processed by
 		 * the local ip stack.
 		 */
-		if (ep->flags & ENDPOINT_F_HOST || ep->flags & ENDPOINT_F_MULTI_NIC)
+		if (ep->flags & ENDPOINT_F_HOST || ep->flags & ENDPOINT_F_MULTI_NIC_L2)
 			return CTX_ACT_OK;
 
 		return ipv4_local_delivery(ctx, ETH_HLEN, secctx, ip4, ep,

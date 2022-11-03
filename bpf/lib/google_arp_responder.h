@@ -19,7 +19,7 @@ handle_google_arp(struct __ctx_buff *ctx __maybe_unused, const bool from_host __
         /* Lookup if tip address is in list of local endpoints and host IPs */
         ep = __lookup_ip4_endpoint(tip);
         /* Exclude Host and MultiNIC endpoints */
-        if (ep && !(ep->flags & ENDPOINT_F_HOST) && !(ep->flags & ENDPOINT_F_MULTI_NIC)) {
+        if (ep && !(ep->flags & ENDPOINT_F_HOST) && !(ep->flags & ENDPOINT_F_MULTI_NIC_L2)) {
           return arp_respond(ctx, &mac, tip, &smac, sip, 0);
         }
       }

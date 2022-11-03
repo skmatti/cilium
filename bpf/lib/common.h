@@ -258,7 +258,8 @@ struct tunnel_value {
 } __packed;
 
 #define ENDPOINT_F_HOST		1 /* Special endpoint representing local host */
-#define ENDPOINT_F_MULTI_NIC 2 /* Special endpoint representing multi nic */
+#define ENDPOINT_F_MULTI_NIC_L2 2	/* Special endpoint representing multi nic that is not a veth */
+#define ENDPOINT_F_MULTI_NIC_VETH 4 /* Special endpoint representing multi nic of type veth */
 
 /* Value of endpoint map */
 struct endpoint_info {

@@ -27,6 +27,7 @@ import (
 	"github.com/cilium/cilium/pkg/datapath/loader"
 	"github.com/cilium/cilium/pkg/endpoint/regeneration"
 	"github.com/cilium/cilium/pkg/fqdn/restore"
+	"github.com/cilium/cilium/pkg/gke/multinic/endpoint"
 	"github.com/cilium/cilium/pkg/loadinfo"
 	"github.com/cilium/cilium/pkg/logging/logfields"
 	"github.com/cilium/cilium/pkg/maps/bwmap"
@@ -1500,7 +1501,7 @@ type linkCheckerFunc func(string) error
 
 // ValidateConnectorPlumbing checks whether the endpoint is correctly plumbed.
 func (e *Endpoint) ValidateConnectorPlumbing(linkChecker linkCheckerFunc) error {
-	if e.IsMultiNIC() {
+	if e.deviceType == endpoint.EndpointDeviceMACVLAN || e.deviceType == endpoint.EndpointDeviceMACVTAP {
 		// FIXME: We cannot check whether macvlan/macvtap slave netdev exists,
 		// because it requires entering container netns which is not
 		// always accessible (e.g. in k8s case "/proc" has to be bind

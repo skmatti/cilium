@@ -47,6 +47,9 @@ type LoadTimeConfiguration interface {
 	IPv6Address() addressing.CiliumIPv6
 	GetNodeMAC() mac.MAC
 	GetPodStackRedirectIfindex() int
+	GetParentDevIndex() int
+	GetNetworkID() uint32
+	GetParentDevMac() mac.MAC
 }
 
 // CompileTimeConfiguration provides datapath implementations a clean interface
@@ -87,6 +90,9 @@ type CompileTimeConfiguration interface {
 
 	// EnableMulticast returns true if the endpoint allows multicast traffic.
 	EnableMulticast() bool
+
+	// GetDeviceTypeIndex returns deviec type encoded as int, 0 for veth.
+	GetDeviceTypeIndex() int
 
 	// DisableSIPVerification returns true if the endpoint wishes to skip
 	// source IP verification

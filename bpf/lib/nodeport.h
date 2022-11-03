@@ -888,7 +888,7 @@ redo:
 	}
 
 	/* See comment NODEPORT_LOCAL_REDIRECT_MAC. */
-	if (backend_local && backend_local->flags & ENDPOINT_F_MULTI_NIC) {
+	if (backend_local && backend_local->flags & ENDPOINT_F_MULTI_NIC_L2) {
 		mac_t dmac = backend_local->mac;
 		if (eth_store_daddr(ctx, (__u8 *) &dmac, 0) < 0)
 			return DROP_WRITE_ERROR;
@@ -1903,7 +1903,7 @@ redo:
 	 *
 	 * [1]: https://vincent.bernat.ch/en/blog/2017-linux-bridge-isolation#about-macvlan-interfaces
 	 */
-	if (backend_local && backend_local->flags & ENDPOINT_F_MULTI_NIC) {
+	if (backend_local && backend_local->flags & ENDPOINT_F_MULTI_NIC_L2) {
 		mac_t dmac = backend_local->mac;
 		if (eth_store_daddr(ctx, (__u8 *) &dmac, 0) < 0)
 			return DROP_WRITE_ERROR;
@@ -2150,7 +2150,8 @@ int tail_rev_nodeport_lb4(struct __ctx_buff *ctx)
 	cilium_capture_out(ctx);
 
 /* Redirect is not supported for ipvlan/macvlan host interfaces: b/235141939 */
-#ifdef IS_MULTI_NIC_DEVICE
+#if defined(MULTI_NIC_DEVICE_TYPE) && MULTI_NIC_DEVICE_TYPE != EP_DEV_TYPE_INDEX_MULTI_NIC_VETH
+	// non-veth type: ipvlan/macvlan
 	return CTX_ACT_OK;
 #endif
 	return ctx_redirect(ctx, ifindex, 0);

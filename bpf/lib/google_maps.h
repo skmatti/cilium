@@ -12,6 +12,7 @@ struct multi_nic_dev_key {
 struct multi_nic_dev_info {
 	__u32 ifindex;
 	__u16 ep_id;
+	__u32 net_id;
 };
 
 #ifdef ENABLE_GOOGLE_MULTI_NIC

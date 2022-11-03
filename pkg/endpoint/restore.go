@@ -407,6 +407,7 @@ func (e *Endpoint) toSerializedEndpoint() *serializableEndpoint {
 		DeviceType:              e.deviceType,
 		ParentDevName:           e.parentDevName,
 		ParentDevIndex:          e.parentDevIndex,
+		ParentDevMac:            e.parentDevMac,
 		PodStackRedirectIfindex: e.podStackRedirectIfindex,
 		ExternalDHCP4:           e.externalDHCP4,
 	}
@@ -516,11 +517,14 @@ type serializableEndpoint struct {
 	// Device type of the endpoint. If it's unset (empty), it's the normal veth endpoint.
 	DeviceType multinicep.EndpointDeviceType
 
-	// parentDevName is the name of the parent interface for a macvtap/macvlan endpoint.
+	// parentDevName is the name of the parent interface for a multinic L2/L3 endpoint.
 	ParentDevName string
 
-	// parentDevIndex is the index of the parent interface for a macvtap/macvlan endpoint.
+	// parentDevIndex is the index of the parent interface for a multinic (L2/L3) endpoint.
 	ParentDevIndex int
+
+	// parentDevMac is the MAC address of the parent interface for a multinic L3 (veth) endpoint.
+	ParentDevMac mac.MAC
 
 	// pod stack redirect can be used to send traffic to the pod-ns
 	// kernel stack. The primary use if from a macvtap interface to redirect
@@ -584,6 +588,7 @@ func (ep *Endpoint) fromSerializedEndpoint(r *serializableEndpoint) {
 	ep.deviceType = r.DeviceType
 	ep.parentDevName = r.ParentDevName
 	ep.parentDevIndex = r.ParentDevIndex
+	ep.parentDevMac = r.ParentDevMac
 	ep.podStackRedirectIfindex = r.PodStackRedirectIfindex
 	ep.externalDHCP4 = r.ExternalDHCP4
 }

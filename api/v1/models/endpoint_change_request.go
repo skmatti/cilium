@@ -81,6 +81,9 @@ type EndpointChangeRequest struct {
 	// Index of the parent interface for a macvtap/macvlan endpoint
 	ParentDeviceIndex int64 `json:"parent-device-index,omitempty"`
 
+	// MAC address of the parent interface for a multinic veth endpoint.
+	ParentDeviceMac string `json:"parent-device-mac,omitempty"`
+
 	// Name of the parent interface for a macvtap/macvlan endpoint
 	ParentDeviceName string `json:"parent-device-name,omitempty"`
 

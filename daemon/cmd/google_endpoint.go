@@ -26,6 +26,7 @@ import (
 	"github.com/sirupsen/logrus"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	networkv1 "k8s.io/cloud-provider-gcp/crd/apis/network/v1"
+	"k8s.io/utils/pointer"
 	utilpointer "k8s.io/utils/pointer"
 
 	. "github.com/cilium/cilium/api/v1/server/restapi/endpoint"
@@ -88,9 +89,6 @@ func (d *Daemon) createMultiNICEndpoints(ctx context.Context, owner regeneration
 	epTemplate.Addressing.IPV6ExpirationUUID = ""
 	epTemplate.InterfaceNameInPod = ""
 	epTemplate.DatapathConfiguration = &models.EndpointDatapathConfiguration{
-		// Disable routing and enable arp passthrough for L2 support.
-		RequireArpPassthrough: true,
-		RequireRouting:        utilpointer.BoolPtr(false),
 		// Set ExternalIpam to true will skip the IP releasing when deleting the endpoint.
 		ExternalIpam: true,
 	}
@@ -196,17 +194,23 @@ func (d *Daemon) createMultiNICEndpoints(ctx context.Context, owner regeneration
 			}
 			intfCR.Status.PodName = utilpointer.StringPtr(primaryEp.GetK8sPodName())
 		} else if intfCR != nil && netCR != nil {
-			if netCR.Spec.Type != networkv1.L2NetworkType {
+			if netCR.Spec.Type == networkv1.L2NetworkType {
+				if cleanup, err = connector.SetupL2Interface(ref.InterfaceName, pod.Name, podResources, netCR, intfCR, multinicTemplate, d.dhcpClient, d.ipam); err != nil {
+					return d.errorWithMultiNICCleanup(primaryEp, PutEndpointIDInvalidCode, fmt.Errorf("failed setting up layer2 interface %q for pod %q: %v", intfCR.Name, podID, err), cleanup)
+				}
+				// We don't allow different L2 interfaces share the same parent device.
+				if name, ok := parentDevInUse[multinicTemplate.ParentDeviceName]; ok {
+					return d.errorWithMultiNICCleanup(primaryEp, PutEndpointIDInvalidCode, fmt.Errorf("same parent interface in use by %s and %s for pod %q", ref.InterfaceName, name, podID), cleanup)
+				}
+				parentDevInUse[multinicTemplate.ParentDeviceName] = ref.InterfaceName
+
+			} else if netCR.Spec.Type == networkv1.L3NetworkType {
+				if cleanup, err = connector.SetupL3Interface(ref.InterfaceName, pod.Name, podResources, netCR, intfCR, multinicTemplate, d.ipam); err != nil {
+					return d.errorWithMultiNICCleanup(primaryEp, PutEndpointIDInvalidCode, fmt.Errorf("failed setting up layer3 interface %q for pod %q: %v", intfCR.Name, podID, err), cleanup)
+				}
+			} else {
 				return d.errorDuringMultiNICCreation(primaryEp, PutEndpointIDInvalidCode, fmt.Errorf("network %q has invalid network type %v of the multinic endpoint for pod %q", netCR.Name, netCR.Spec.Type, podID))
 			}
-			if cleanup, err = connector.SetupL2Interface(ref.InterfaceName, pod.Name, podResources, netCR, intfCR, multinicTemplate, d.dhcpClient, d.ipam); err != nil {
-				return d.errorWithMultiNICCleanup(primaryEp, PutEndpointIDInvalidCode, fmt.Errorf("failed setting up layer2 interface %q for pod %q: %v", intfCR.Name, podID, err), cleanup)
-			}
-			// We don't allow different L2 interfaces share the same parent device.
-			if name, ok := parentDevInUse[multinicTemplate.ParentDeviceName]; ok {
-				return d.errorWithMultiNICCleanup(primaryEp, PutEndpointIDInvalidCode, fmt.Errorf("same parent interface in use by %s and %s for pod %q", ref.InterfaceName, name, podID), cleanup)
-			}
-			parentDevInUse[multinicTemplate.ParentDeviceName] = ref.InterfaceName
 
 			addNetworkLabelIfMultiNICEnabled(multinicTemplate, intfCR.Spec.NetworkName)
 			multinicEndpoint, code, err := d.createEndpoint(ctx, owner, multinicTemplate)
@@ -227,7 +231,7 @@ func (d *Daemon) createMultiNICEndpoints(ctx context.Context, owner regeneration
 			if networkName == networkv1.DefaultNetworkName {
 				podNetworkConfigured = true
 			}
-			if err := connector.SetupNetworkRoutes(ref.InterfaceName, intfCR, multinicTemplate.NetworkNamespace,
+			if err := connector.SetupNetworkRoutes(ref.InterfaceName, intfCR, netCR, multinicTemplate.NetworkNamespace,
 				isDefaultInterface, podNetworkMTU); err != nil {
 				return d.errorWithMultiNICCleanup(primaryEp, PutEndpointIDInvalidCode, fmt.Errorf("failed setting up network %q for pod %q: %v", networkName, podID, err), nil)
 			}
@@ -250,7 +254,7 @@ func (d *Daemon) createMultiNICEndpoints(ctx context.Context, owner regeneration
 			return d.errorDuringMultiNICCreation(primaryEp, PutEndpointIDInvalidCode, fmt.Errorf("pod-network CR is required if the default gateway is on multi-nic interface: %v", err))
 		}
 		// We only require the pod network CR exists instead of custom routes inside the object
-		if err := connector.SetupNetworkRoutes(primaryVethNameInPod, podInterfaceCR, epTemplate.NetworkNamespace,
+		if err := connector.SetupNetworkRoutes(primaryVethNameInPod, podInterfaceCR, nil, epTemplate.NetworkNamespace,
 			false, podNetworkMTU); err != nil {
 			return d.errorDuringMultiNICCreation(primaryEp, PutEndpointIDInvalidCode, fmt.Errorf("failed setting up pod-network %q for pod %q: %v", podNetworkCR.Name, podID, err))
 		}
@@ -469,9 +473,11 @@ func (d *Daemon) deleteMultiNICEndpointQuiet(ep *endpoint.Endpoint, conf endpoin
 	case multinicep.EndpointDeviceMACVTAP:
 		err = connector.RevertMacvtapSetup(ifNameInPod, ifName, netNS)
 	case multinicep.EndpointDeviceMACVLAN:
-		err = connector.DeleteL2InterfaceInRemoteNs(ifNameInPod, netNS)
+		err = connector.DeleteInterfaceInRemoteNs(ifNameInPod, netNS)
 	case multinicep.EndpointDeviceIPVLAN:
-		err = connector.DeleteL2InterfaceInRemoteNs(ifNameInPod, netNS)
+		err = connector.DeleteInterfaceInRemoteNs(ifNameInPod, netNS)
+	case multinicep.EndpointDeviceMultinicVETH:
+		err = connector.DeleteInterfaceInRemoteNs(ifNameInPod, netNS)
 	default:
 		err = fmt.Errorf("unsupported device type %q", deviceType)
 	}
@@ -677,4 +683,22 @@ func waitForEndpointsFirstRegeneration(ctx context.Context, eps []*endpoint.Endp
 		return fmt.Errorf("there are %d endpoints failed WaitForFirstRegeneration", len(merr))
 	}
 	return nil
+}
+
+func setDataPathConfigurationForMultiNIC(ep *models.EndpointChangeRequest) {
+	if !option.Config.EnableGoogleMultiNIC {
+		return
+	}
+	switch ep.DeviceType {
+	case multinicep.EndpointDeviceMultinicVETH:
+		// L3 multinic endpoint
+		ep.DatapathConfiguration.RequireRouting = pointer.BoolPtr(true)
+		ep.DatapathConfiguration.RequireArpPassthrough = false
+		ep.DatapathConfiguration.InstallEndpointRoute = false
+	case multinicep.EndpointDeviceMACVLAN, multinicep.EndpointDeviceMACVTAP:
+		// L2 multinic endpoint
+		// Disable routing and enable arp passthrough for L2 support.
+		ep.DatapathConfiguration.RequireArpPassthrough = true
+		ep.DatapathConfiguration.RequireRouting = pointer.BoolPtr(false)
+	}
 }

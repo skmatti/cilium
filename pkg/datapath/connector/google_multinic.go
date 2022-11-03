@@ -17,9 +17,11 @@ package connector
 import (
 	"errors"
 	"fmt"
+	"hash/crc32"
 	"net"
 
 	"github.com/cilium/cilium/api/v1/models"
+	"github.com/cilium/cilium/pkg/defaults"
 	dhcp "github.com/cilium/cilium/pkg/gke/multinic/dhcp"
 	multinicep "github.com/cilium/cilium/pkg/gke/multinic/endpoint"
 	multinictypes "github.com/cilium/cilium/pkg/gke/multinic/types"
@@ -50,6 +52,10 @@ type interfaceConfiguration struct {
 	Type                string
 	// When true, IFF_ALLMULTI is enabled for the interface.
 	EnableMulticast bool
+	// IP of the parent interface in root ns. This is the back up gw for the pod interface, configured for L3 multinic devices only
+	ParentIP *net.IP
+	// Network id in the google multinic context, configured for L3 multinic devices only
+	NetworkID uint32
 }
 
 func isIPV6(ip net.IP) bool {
@@ -145,13 +151,18 @@ func getInterfaceConfiguration(intf *networkv1.NetworkInterface, network *networ
 	}
 	if _, isMacvtap := podResources[macvtapResourceName(cfg.ParentInterfaceName)]; isMacvtap {
 		cfg.Type = multinicep.EndpointDeviceMACVTAP
-	} else if network.Spec.Provider != nil && *network.Spec.Provider == networkv1.GKE {
-		cfg.Type = multinicep.EndpointDeviceIPVLAN
+	} else if network.Spec.Type == networkv1.L3NetworkType {
+		cfg.Type = multinicep.EndpointDeviceMultinicVETH
+		cfg.NetworkID = generateNetworkID(network)
 	} else {
 		cfg.Type = multinicep.EndpointDeviceMACVLAN
 	}
 
 	return &cfg, nil
+}
+
+func generateNetworkID(network *networkv1.Network) uint32 {
+	return crc32.ChecksumIEEE([]byte(network.UID))
 }
 
 func applyIPToLink(ipAddr *net.IPNet, l netlink.Link) error {
@@ -183,7 +194,6 @@ func applyMACToLink(macAddr net.HardwareAddr, l netlink.Link) error {
 
 func addRoutes(dstRanges []*net.IPNet, gwAddr *net.IP, l netlink.Link, routeMTU int) error {
 	for _, r := range dstRanges {
-		log.WithField("route", logfields.Repr(r)).Debug("Adding route")
 		rt := &netlink.Route{
 			LinkIndex: l.Attrs().Index,
 			Scope:     netlink.SCOPE_UNIVERSE,
@@ -195,6 +205,7 @@ func addRoutes(dstRanges []*net.IPNet, gwAddr *net.IP, l netlink.Link, routeMTU 
 		} else {
 			rt.Gw = *gwAddr
 		}
+		log.WithField("route", logfields.Repr(rt)).Debug("Adding route")
 		if err := netlink.RouteAdd(rt); err != nil {
 			return fmt.Errorf("failed to add route '%s via dev %s': %v",
 				r.String(), l.Attrs().Name, err)
@@ -413,7 +424,7 @@ func SetupL2Interface(ifNameInPod, podName string, podResources map[string][]str
 			return nil, err
 		}
 		cleanup = func() {
-			if err = DeleteL2InterfaceInRemoteNs(ifNameInPod, ep.NetworkNamespace); err != nil {
+			if err = DeleteInterfaceInRemoteNs(ifNameInPod, ep.NetworkNamespace); err != nil {
 				log.WithError(err).WithField(logfields.Macvlan, srcIfName).Warn("failed to clean up macvlan")
 			}
 			releaseIP(network, cfg, ipam)
@@ -425,7 +436,7 @@ func SetupL2Interface(ifNameInPod, podName string, podResources map[string][]str
 			return nil, err
 		}
 		cleanup = func() {
-			if err = DeleteL2InterfaceInRemoteNs(ifNameInPod, ep.NetworkNamespace); err != nil {
+			if err = DeleteInterfaceInRemoteNs(ifNameInPod, ep.NetworkNamespace); err != nil {
 				log.WithError(err).WithField(logfields.Ipvlan, srcIfName).Warn("failed to clean up ipvlan")
 			}
 			releaseIP(network, cfg, ipam)
@@ -514,14 +525,105 @@ func SetupL2Interface(ifNameInPod, podName string, podResources map[string][]str
 	ep.InterfaceNameInPod = ifNameInPod
 	ep.ParentDeviceIndex = int64(parentDevLink.Attrs().Index)
 	ep.ParentDeviceName = parentDevLink.Attrs().Name
+	ep.ParentDeviceMac = parentDevLink.Attrs().HardwareAddr.String()
 	ep.DatapathMapID = int64(mapID)
 	ep.ExternalDHCP4 = dhcpResp != nil
 
 	return cleanup, nil
 }
 
-// DeleteL2InterfaceInRemoteNs deletes the L2 interface (macvlan/ipvlan) in the remote network namespace.
-func DeleteL2InterfaceInRemoteNs(ifName, nsPath string) error {
+func SetupL3Interface(ifNameInPod, podName string, podResources map[string][]string, network *networkv1.Network, intf *networkv1.NetworkInterface, ep *models.EndpointChangeRequest, ipam *ipam.IPAM) (func(), error) {
+	cfg, err := getInterfaceConfiguration(intf, network, podResources)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get a valid interface configuration: %v", err)
+	}
+	log.Debugf("L3 interface configuration: %+v", cfg)
+	parentDevLink, err := netlink.LinkByName(cfg.ParentInterfaceName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to lookup parent interface %q: %v", cfg.ParentInterfaceName, err)
+	}
+	// TODO(yfshen): get MTU information from interface CR.
+	cfg.MTU = parentDevLink.Attrs().MTU
+
+	ips, _ := netlink.AddrList(parentDevLink, netlink.FAMILY_V4)
+	cfg.ParentIP = &ips[0].IP
+
+	var peerIfName string
+	var peer netlink.Link
+	var veth *netlink.Veth
+	var cleanup func()
+	ep.DeviceType = cfg.Type
+	switch cfg.Type {
+	case multinicep.EndpointDeviceMultinicVETH:
+		// We cannot use ep.ContainerID here as it's already used by the default interface.
+		// Hence we use "ep.ContainerID-network" to differetiate & ensure consistency.
+		// Here we use peerIfName as handle to setup link in remote ns. However the ep.InterfaceName
+		// should be veth.Name used for loading bpf_lxc during datapath reload, rather than peerIfName
+		// for other L2 device types.
+		veth, peer, peerIfName, err = SetupVeth(ep.ContainerID+network.Name, int(cfg.MTU), ep)
+		if err != nil {
+			return nil, fmt.Errorf("unable to set up veth on host side: %s", err)
+		}
+		cleanup = func() {
+			if err != nil {
+				if err2 := netlink.LinkDel(veth); err2 != nil {
+					log.WithError(err2).WithField(logfields.Veth, veth.Name).Warn("failed to clean up and delete veth")
+				}
+			}
+		}
+	default:
+		return nil, fmt.Errorf("unknown interface type: %v", cfg.Type)
+	}
+
+	log.WithFields(logrus.Fields{
+		logfields.DeviceType:     ep.DeviceType,
+		logfields.InterfaceInPod: ifNameInPod,
+		logfields.NetNSName:      ep.NetworkNamespace,
+		"sourceInterface":        peerIfName,
+		"parentInterface":        cfg.ParentInterfaceName,
+		"parentIP":               cfg.ParentIP,
+	}).Info("Set up L3 interface")
+
+	netNs, err := ns.GetNS(ep.NetworkNamespace)
+	if err != nil {
+		return cleanup, fmt.Errorf("failed to open netns %q: %v", ep.NetworkNamespace, err)
+	}
+	defer netNs.Close()
+
+	// Move the link to the target network namespace.
+	if err = netlink.LinkSetNsFd(peer, int(netNs.Fd())); err != nil {
+		return cleanup, fmt.Errorf("failed to move link %q to netns %q: %v", peer.Attrs().Name, netNs.Path(), err)
+	}
+
+	_, _, err = SetupVethRemoteNs(netNs, peerIfName, ifNameInPod)
+	if err != nil {
+		return cleanup, fmt.Errorf("unable to setup veth %q in remote netns: %v", peer.Attrs().Name, err)
+	}
+
+	if err := configureIPAMInfo(network, cfg, ifNameInPod, ipam); err != nil {
+		return cleanup, fmt.Errorf("failed to query IPAM information: %v", err)
+	}
+
+	if err := configureInterface(cfg, netNs, ifNameInPod); err != nil {
+		return cleanup, fmt.Errorf("failed to configure interface: %v", err)
+	}
+
+	populateInterfaceStatus(intf, network, cfg, nil, podName)
+
+	// Update the endpoint addressing after the veth interface is configured.
+	ep.Addressing.IPV4 = cfg.IPV4Address.IP.String()
+	ep.ParentDeviceMac = parentDevLink.Attrs().HardwareAddr.String()
+	ep.InterfaceName = veth.Name
+	ep.InterfaceNameInPod = ifNameInPod
+	ep.ParentDeviceIndex = int64(parentDevLink.Attrs().Index)
+	ep.ParentDeviceName = parentDevLink.Attrs().Name
+	ep.DatapathConfiguration.NetworkID = cfg.NetworkID
+
+	return cleanup, nil
+}
+
+// DeleteInterfaceInRemoteNs deletes the L2 interface (macvlan/ipvlan) in the remote network namespace.
+func DeleteInterfaceInRemoteNs(ifName, nsPath string) error {
 	netNs, err := ns.GetNS(nsPath)
 	if err != nil {
 		return fmt.Errorf("failed to open netns %q: %v", nsPath, err)
@@ -538,7 +640,7 @@ func DeleteL2InterfaceInRemoteNs(ifName, nsPath string) error {
 // SetupNetworkRoutes configures custom routes and default route if defined in the provided interface cr
 // status on the interface in the pod namespace.
 // Route mtu is only set for the pod network. Otherwise, pass 0 to ignore the configuration.
-func SetupNetworkRoutes(ifNameInPod string, intf *networkv1.NetworkInterface, nsPath string,
+func SetupNetworkRoutes(ifNameInPod string, intf *networkv1.NetworkInterface, netCR *networkv1.Network, nsPath string,
 	isDefaultInterface bool, podNetworkMTU int) error {
 	log.WithFields(logrus.Fields{
 		logfields.InterfaceInPod: ifNameInPod,
@@ -546,7 +648,7 @@ func SetupNetworkRoutes(ifNameInPod string, intf *networkv1.NetworkInterface, ns
 		logfields.MTU:            podNetworkMTU,
 		"network":                intf.Spec.NetworkName,
 		"isDefaultInterface":     isDefaultInterface,
-	}).Info("Set up network")
+	}).Info("Set up network routes")
 
 	var (
 		destCIDRs []*net.IPNet
@@ -587,6 +689,20 @@ func SetupNetworkRoutes(ifNameInPod string, intf *networkv1.NetworkInterface, ns
 			return fmt.Errorf("failed to set link %q UP: %v", ifNameInPod, err)
 		}
 
+		if netCR != nil && netCR.Spec.Type == networkv1.L3NetworkType {
+			//Add route to gateway
+			log.WithFields(logrus.Fields{
+				logfields.InterfaceInPod: ifNameInPod,
+				logfields.NetNSName:      nsPath,
+				logfields.MTU:            podNetworkMTU,
+				"network":                intf.Spec.NetworkName,
+				"isDefaultInterface":     isDefaultInterface,
+				"gateway":                *gw,
+			}).Info("Set up route to gateway for L3 network")
+			if err := addRoutes([]*net.IPNet{{IP: *gw, Mask: defaults.ContainerIPv4Mask}}, nil, l, mtu); err != nil {
+				return err
+			}
+		}
 		if err := addRoutes(destCIDRs, gw, l, mtu); err != nil {
 			return err
 		}
@@ -741,6 +857,13 @@ func populateInterfaceStatus(intf *networkv1.NetworkInterface, network *networkv
 		intf.Status.Routes = network.Spec.Routes
 		intf.Status.Gateway4 = network.Spec.Gateway4
 		intf.Status.DNSConfig = network.Spec.DNSConfig
+
+		// TODO(blzhao): after migration to oss network api, make sure for L3 on GKE,
+		// interface status is combined from network CR and GKEParams CR
+		// with host IP as backup GW.
+		if network.Spec.Type == networkv1.L3NetworkType && intf.Status.Gateway4 == nil {
+			intf.Status.Gateway4 = pointer.String(cfg.ParentIP.String())
+		}
 		return
 	}
 	if dhcpResp == nil {
