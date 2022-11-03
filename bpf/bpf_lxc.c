@@ -785,45 +785,7 @@ static __always_inline int handle_ipv4_from_lxc(struct __ctx_buff *ctx, __u32 *d
 	if (!revalidate_data(ctx, &data, &data_end, &ip4))
 		return DROP_INVALID;
 
-#ifdef ENABLE_GNG
-	{
-		// If this is a packet destined for the egress gateway and there is a local
-		// GNG pod, send it to the GNG pod instead of the host routing stack.
-		struct egress_gw_policy_entry *info;
-		info = lookup_ip4_egress_gw_policy(ip4->saddr, ip4->daddr);
-
-		if (info) {
-			struct local_redirect_key redirect_key;
-			struct local_redirect_info *redirect_value;
-			redirect_key.id = 42;
-			redirect_value = map_lookup_elem(&LOCAL_REDIRECT_MAP, &redirect_key);
-			if (redirect_value) {
-				union macaddr destmac;
-				// apparently sizeof(destmac) evaluates to 8 instead of 6 for some reason,
-				// and the verifier kicks us out. Just fix the size at 6.
-				memcpy(&destmac.addr, redirect_value->ifmac, 6);
-				/* Rewrite to destination MAC */
-				if (eth_store_daddr(ctx, (__u8 *) &destmac.addr, 0) < 0)
-					return send_drop_notify_error(ctx, SECLABEL, DROP_WRITE_ERROR,
-							CTX_ACT_OK, METRIC_EGRESS);
-				return ctx_redirect(ctx, redirect_value->ifindex, 0);
-			}
-		}
-	}
-#endif /* ENABLE_GNG */
-
 	has_l4_header = ipv4_has_l4_header(ip4);
-
-#ifdef IS_MULTI_NIC_DEVICE
-	// Examine packet sourcing from multi NIC endpoint.
-	ret = redirect_if_dhcp(ctx, ip4->protocol, ETH_HLEN + ipv4_hdrlen(ip4));
-	if (ret != CTX_ACT_OK)
-	        return ret;
-	// Revalidate data after redirect_if_dhcp to avoid verifier
-	// rejecting the previous dereferenced ip4.
-	if (!revalidate_data(ctx, &data, &data_end, &ip4))
-		return DROP_INVALID;
-#endif /* IS_MULTI_NIC_DEVICE */
 
 	/* Determine the destination category for policy fallback. */
 	if (1) {
@@ -1288,6 +1250,44 @@ static __always_inline int __tail_handle_ipv4(struct __ctx_buff *ctx)
 	if (ipv4_is_fragment(ip4))
 		return DROP_FRAG_NOSUPPORT;
 #endif
+
+#ifdef ENABLE_GNG
+	{
+		// If this is a packet destined for the egress gateway and there is a local
+		// GNG pod, send it to the GNG pod instead of the host routing stack.
+		struct egress_gw_policy_entry *info;
+		info = lookup_ip4_egress_gw_policy(ip4->saddr, ip4->daddr);
+
+		if (info) {
+			struct local_redirect_key redirect_key;
+			struct local_redirect_info *redirect_value;
+			redirect_key.id = 42;
+			redirect_value = map_lookup_elem(&LOCAL_REDIRECT_MAP, &redirect_key);
+			if (redirect_value) {
+				union macaddr destmac;
+				// apparently sizeof(destmac) evaluates to 8 instead of 6 for some reason,
+				// and the verifier kicks us out. Just fix the size at 6.
+				memcpy(&destmac.addr, redirect_value->ifmac, 6);
+				/* Rewrite to destination MAC */
+				if (eth_store_daddr(ctx, (__u8 *) &destmac.addr, 0) < 0)
+					return send_drop_notify_error(ctx, SECLABEL, DROP_WRITE_ERROR,
+							CTX_ACT_OK, METRIC_EGRESS);
+				return ctx_redirect(ctx, redirect_value->ifindex, 0);
+			}
+		}
+	}
+#endif /* ENABLE_GNG */
+
+#ifdef IS_MULTI_NIC_DEVICE
+	// Examine packet sourcing from multi NIC endpoint.
+	ret = redirect_if_dhcp(ctx, ip4->protocol, ETH_HLEN + ipv4_hdrlen(ip4));
+	if (ret != CTX_ACT_OK)
+	        return ret;
+	// Revalidate data after redirect_if_dhcp to avoid verifier
+	// rejecting the previous dereferenced ip4.
+	if (!revalidate_data(ctx, &data, &data_end, &ip4))
+		return DROP_INVALID;
+#endif /* IS_MULTI_NIC_DEVICE */
 
 	if (unlikely(!is_valid_lxc_src_ipv4(ip4)))
 		return DROP_INVALID_SIP;
