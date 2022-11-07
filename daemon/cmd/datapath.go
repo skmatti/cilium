@@ -374,6 +374,11 @@ func (d *Daemon) initMaps() error {
 		if _, err := sfc.SelectMap.OpenOrCreate(); err != nil {
 			return err
 		}
+
+		sfc.InitFlowMap(option.Config.CTMapEntriesGlobalTCP)
+		if _, err := sfc.FlowMapAny4.OpenOrCreate(); err != nil {
+			return err
+		}
 	}
 
 	if option.Config.EnableIPv4EgressGateway {

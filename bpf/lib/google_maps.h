@@ -57,6 +57,37 @@ struct sfc_path_entry {
 	__be32 address;
 };
 
+struct sfc_ipv4_flow_key {
+	/* These field names are correct for original direction traffic.
+	 * All are stored in network order.
+	 */
+	__be32		saddr;
+	__be32		daddr;
+	__be16		sport;
+	__be16		dport;
+	__u8		nexthdr;
+	__u8            pad;
+} __packed;
+
+struct sfc_ipv4_flow_entry {
+	/* SPI/SI encoded */
+	nshpath path;
+	/* The IP of the previous hop in the chain in the forward direction. */
+	__be32 previous_hop_addr;
+
+	__u32 lifetime;  // The time when this entry expires.
+
+	// Flags related to current TCP state.
+	// tx maps to forwarding path from source to destination.
+	// rx maps to returning path from destination to source.
+	__u16 rx_closing:1,  // The TCP is closing on the rx direction.
+	      tx_closing:1,  // The TCP is closing on the tx direction.
+	      seen_non_syn:1,  // The TCP has seen non syn packet.
+	      seen_rx_syn:1,  // The TCP has seen syn on the rx direction.
+	      seen_tx_syn:1,  // The TCP has seen syn on the tx direction.
+	      reserved:11;
+};
+
 #ifdef ENABLE_GOOGLE_MULTI_NIC
 
 #ifndef MULTI_NIC_DEV_MAP_SIZE
@@ -127,6 +158,14 @@ struct {
 	__uint(max_entries, SFC_PATH_MAP_SIZE);
 	__uint(map_flags, CONDITIONAL_PREALLOC);
 } SFC_PATH_MAP __section_maps_btf;
+
+struct {
+	__uint(type, BPF_MAP_TYPE_LRU_HASH);
+	__type(key, struct sfc_ipv4_flow_key);
+	__type(value, struct sfc_ipv4_flow_entry);
+	__uint(pinning, LIBBPF_PIN_BY_NAME);
+	__uint(max_entries, CT_MAP_SIZE_TCP);  // reuse CT_MAP_SIZE_TCP
+} SFC_FLOW_MAP_ANY4 __section_maps_btf;
 
 #endif /* ENABLE_GOOGLE_SERVICE_STEERING */
 

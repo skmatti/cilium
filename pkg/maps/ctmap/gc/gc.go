@@ -18,6 +18,7 @@ import (
 	"github.com/cilium/cilium/pkg/logging"
 	"github.com/cilium/cilium/pkg/logging/logfields"
 	"github.com/cilium/cilium/pkg/maps/ctmap"
+	"github.com/cilium/cilium/pkg/maps/sfc"
 	"github.com/cilium/cilium/pkg/option"
 	"github.com/cilium/cilium/pkg/signal"
 )
@@ -170,6 +171,9 @@ func runGC(e *endpoint.Endpoint, ipv4, ipv6, triggeredBySignal bool, filter *ctm
 	} else {
 		maps = ctmap.LocalMaps(e, ipv4, ipv6)
 	}
+
+	maxDeleteRatio = sfc.FlowGC()
+
 	for _, m := range maps {
 		path, err := m.Path()
 		if err == nil {

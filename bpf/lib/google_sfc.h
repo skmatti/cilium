@@ -206,6 +206,184 @@ sfc_select(struct __ctx_buff *ctx, struct iphdr *ip4, bool is_egress, struct sfc
 	return true;
 }
 
+static __always_inline int
+__flow4_extract_l4_ports(struct __ctx_buff *ctx, struct iphdr *ip4, int l4_off,
+			 enum ct_dir dir __maybe_unused,
+			 struct sfc_ipv4_flow_key *key)
+{
+#ifdef ENABLE_IPV4_FRAGMENTS
+	return ipv4_handle_fragmentation(
+	    ctx, ip4, l4_off, dir, (struct ipv4_frag_l4ports *)&key->sport,
+	    NULL);
+#else
+
+	/* load sport + dport */
+	if (ctx_load_bytes(ctx, l4_off, &key->sport, 4) < 0) {
+		return DROP_CT_INVALID_HDR;
+	}
+#endif
+}
+
+static __always_inline bool
+__flow4_entry_alive(const struct sfc_ipv4_flow_entry *entry)
+{
+	return !entry->rx_closing || !entry->tx_closing;
+}
+
+/**
+ * Update the flow timeouts for the specified entry.
+ */
+static __always_inline void
+__flow4_update_timeout(struct sfc_ipv4_flow_entry *entry, bool tcp, int dir,
+		       union tcp_flags tcp_flags)
+{
+	__u32 lifetime = bpf_sec_to_mono(CT_CONNECTION_LIFETIME_NONTCP);
+	bool syn = tcp_flags.value & TCP_FLAG_SYN;
+	__u32 now = bpf_mono_now();
+
+	if (tcp) {
+		entry->seen_non_syn |= !syn;
+		if (entry->seen_non_syn) {
+			lifetime = bpf_sec_to_mono(CT_CONNECTION_LIFETIME_TCP);
+		} else {
+			lifetime = bpf_sec_to_mono(CT_SYN_TIMEOUT);
+		}
+
+		if (dir == CT_EGRESS) {
+			entry->seen_tx_syn = entry->seen_tx_syn | syn;
+		} else {
+			entry->seen_rx_syn = entry->seen_rx_syn | syn;
+		}
+
+		if (syn) {
+			// reopen if needed.
+			entry->rx_closing = 0;
+			entry->tx_closing = 0;
+		} else if ((tcp_flags.value & TCP_FLAG_RST) ||
+			   (tcp_flags.value & TCP_FLAG_FIN)) {
+			// For incomplete connections (not seen syn both ways),
+			// terminate the connection on RST.
+			if ((tcp_flags.value & TCP_FLAG_RST) &&
+			    !(entry->seen_tx_syn && entry->seen_rx_syn)) {
+				entry->rx_closing = 1;
+				entry->tx_closing = 1;
+			} else if (dir == CT_EGRESS) {
+				entry->tx_closing = 1;
+			} else {
+				entry->rx_closing = 1;
+			}
+			if (!__flow4_entry_alive(entry)) {
+				lifetime = bpf_sec_to_mono(CT_CLOSE_TIMEOUT);
+				WRITE_ONCE(entry->lifetime, now + lifetime);
+				return;
+			}
+		}
+	}
+
+	// If the entry is not alive, do not refresh lifetime.
+	if (__flow4_entry_alive(entry)) {
+		WRITE_ONCE(entry->lifetime, now + lifetime);
+	}
+}
+
+static __always_inline bool __flow4_lookup(const struct sfc_ipv4_flow_key *key,
+					   union tcp_flags tcp_flags, int dir,
+					   struct sfc_ipv4_flow_entry *entry)
+{
+	bool is_tcp = (key->nexthdr == IPPROTO_TCP);
+	struct sfc_ipv4_flow_entry *f;
+
+	f = map_lookup_elem(&SFC_FLOW_MAP_ANY4, key);
+	if (f) {
+		__flow4_update_timeout(f, is_tcp, dir, tcp_flags);
+		*entry = *f;
+		return true;
+	}
+	return false;
+}
+
+static __always_inline __maybe_unused bool
+__flow_create4(const struct sfc_ipv4_flow_key *key, union tcp_flags tcp_flags,
+	       struct sfc_ipv4_flow_entry *entry)
+{
+	bool is_tcp = (key->nexthdr == IPPROTO_TCP);
+	struct sfc_ipv4_flow_entry new_entry = {
+	    .path = entry->path, .previous_hop_addr = entry->previous_hop_addr};
+
+	__flow4_update_timeout(&new_entry, is_tcp, CT_EGRESS, tcp_flags);
+	if (map_update_elem(&SFC_FLOW_MAP_ANY4, key, &new_entry, 0) < 0) {
+		return false;
+	}
+	*entry = new_entry;
+	return true;
+}
+
+/**
+ * Lookup service steering flows. Creates the entry if not reverse.
+ * @arg ctx:       Packet
+ * @arg ip4:       Pointer to L3 header
+ * @arg reverse: Boolean indicating whether packet is the return packet from
+ * destination.
+ * @arg entry:      Pointer to store the matching entry. If creating a new
+ * entry, only path and previous_hop_addr in the entry are used.
+ *
+ * Return negative `DROP_` codes if the packet can't be handled. `CT_NEW` if
+ * reverse and no matching entry found. `CT_ESTABLISHED` if an entry is found or
+ * created.
+ */
+static __always_inline __maybe_unused int
+sfc_flow_lookup4(struct __ctx_buff *ctx, struct iphdr *ip4, bool reverse,
+		 struct sfc_ipv4_flow_entry *entry)
+{
+	struct sfc_ipv4_flow_key key = {};
+	enum ct_dir dir = CT_EGRESS;
+	union tcp_flags tcp_flags = {.value = 0};
+	__be16 tmp_port = 0;
+	int ret;
+	int l4_off = ETH_HLEN + ipv4_hdrlen(ip4);
+
+	if (ip4->protocol != IPPROTO_UDP && ip4->protocol != IPPROTO_TCP) {
+		/* Protocol not supported */
+		return DROP_CT_UNKNOWN_PROTO;
+	}
+
+	key.saddr = ip4->saddr;
+	key.daddr = ip4->daddr;
+	key.nexthdr = ip4->protocol;
+	if (reverse) {
+		dir = CT_INGRESS;
+		key.daddr = ip4->saddr;
+		key.saddr = ip4->daddr;
+	}
+
+	ret = __flow4_extract_l4_ports(ctx, ip4, l4_off, dir, &key);
+	if IS_ERR (ret) {
+		return ret;
+	}
+
+	if (reverse) {
+		tmp_port = key.sport;
+		key.sport = key.dport;
+		key.dport = tmp_port;
+	}
+	if (ip4->protocol == IPPROTO_TCP) {
+		if (ctx_load_bytes(ctx, l4_off + 12, &tcp_flags, 2) < 0)
+			return DROP_CT_INVALID_HDR;
+	}
+
+	if (__flow4_lookup(&key, tcp_flags, dir, entry)) {
+		return CT_ESTABLISHED;
+	}
+	if (reverse) {
+		return CT_NEW;
+	}
+
+	if (!__flow_create4(&key, tcp_flags, entry)) {
+		return DROP_CT_CREATE_FAILED;
+	}
+	return CT_ESTABLISHED;
+}
+
 #endif /* ENABLE_GOOGLE_SERVICE_STEERING */
 
 #endif /* __LIB_GOOGLE_SFC_H_ */

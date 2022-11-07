@@ -100,6 +100,8 @@ int main(void)
 	DECLARE(struct sfc_select_key);
 	DECLARE(struct sfc_path_key);
 	DECLARE(struct sfc_path_entry);
+	DECLARE(struct sfc_ipv4_flow_key);
+	DECLARE(struct sfc_ipv4_flow_entry);
 	DECLARE(struct capture4_wcard);
 	DECLARE(struct capture6_wcard);
 	DECLARE(struct capture_rule);

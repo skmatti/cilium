@@ -621,6 +621,7 @@ func (h *HeaderfileWriter) WriteNodeConfig(w io.Writer, cfg *datapath.LocalNodeC
 		cDefinesMap["SFC_CIDR_MAP_SIZE"] = strconv.Itoa(sfc.CIDRMaxEntries)
 		cDefinesMap["SFC_SELECT_MAP"] = sfc.SelectMapName
 		cDefinesMap["SFC_SELECT_MAP_SIZE"] = strconv.Itoa(sfc.SelectMaxEntries)
+		cDefinesMap["SFC_FLOW_MAP_ANY4"] = sfc.FlowMapAny4Name
 	}
 
 	if option.Config.DisableIPv6Tunnel {

@@ -41,14 +41,19 @@ func NewPathKey(servicePathId uint32, serviceIndex uint8) (*PathKey, error) {
 	return key, nil
 }
 
+func extractSPISI(path uint32) (uint32, uint8) {
+	p := byteorder.NetworkToHost32(path)
+	return p >> 8, uint8(p)
+}
+
 func (key *PathKey) ServicePathId() uint32 {
-	path := byteorder.NetworkToHost32(key.Path)
-	return path >> 8
+	spi, _ := extractSPISI(key.Path)
+	return spi
 }
 
 func (key *PathKey) ServiceIndex() uint8 {
-	path := byteorder.NetworkToHost32(key.Path)
-	return uint8(path)
+	_, si := extractSPISI(key.Path)
+	return si
 }
 
 func (key *PathKey) String() string {

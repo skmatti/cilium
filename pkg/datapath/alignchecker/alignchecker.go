@@ -102,6 +102,8 @@ func CheckStructAlignments(path string) error {
 		"sfc_select_key":         {reflect.TypeOf(sfc.SelectKey{})},
 		"sfc_path_key":           {reflect.TypeOf(sfc.PathKey{})},
 		"sfc_path_entry":         {reflect.TypeOf(sfc.PathEntry{})},
+		"sfc_ipv4_flow_key":      {reflect.TypeOf(sfc.FlowKey4{})},
+		"sfc_ipv4_flow_entry":    {reflect.TypeOf(sfc.FlowEntry4{})},
 	}
 	if err := check.CheckStructAlignments(path, toCheck, true); err != nil {
 		return err

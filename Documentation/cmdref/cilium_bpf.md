@@ -36,6 +36,7 @@ Direct access to local BPF maps
 * [cilium bpf policy](cilium_bpf_policy.md)	 - Manage policy related BPF maps
 * [cilium bpf recorder](cilium_bpf_recorder.md)	 - PCAP recorder
 * [cilium bpf sfccidr](cilium_bpf_sfccidr.md)	 - Manage IP <-> CIDR mappings for service function chaining
+* [cilium bpf sfcflow](cilium_bpf_sfcflow.md)	 - Service Steering flow tracking tables
 * [cilium bpf sfcpath](cilium_bpf_sfcpath.md)	 - Manage (SPI, SI) <-> ServiceFunction IP mappings
 * [cilium bpf sfcselect](cilium_bpf_sfcselect.md)	 - Manage TrafficSelector entries for service function chaining
 * [cilium bpf sha](cilium_bpf_sha.md)	 - Manage compiled BPF template objects
