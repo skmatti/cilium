@@ -963,8 +963,8 @@ github.com/yusufpapurcu/wmi v1.2.2 h1:KBNDSne4vP5mbSWnJbO+51IMOXJB67QiYCSBrubbPR
 github.com/yusufpapurcu/wmi v1.2.2/go.mod h1:SBZ9tNy3G9/m5Oi98Zks0QjeHVDvuK0qfxQmPyzfmi0=
 gitlab.com/golang-commonmark/puny v0.0.0-20191124015043-9f83538fa04f h1:Wku8eEdeJqIOFHtrfkYUByc4bCaTeA6fL0UJgfEiFMI=
 gitlab.com/golang-commonmark/puny v0.0.0-20191124015043-9f83538fa04f/go.mod h1:Tiuhl+njh/JIg0uS/sOJVYi0x2HEa5rc1OAaVsb5tAs=
-gke-internal.googlesource.com/anthos-networking.git/apis/v2 v2.2.1-gke.0 h1:zsapJqQjBOCBmVvGsg2myYZxHozp2lKoAXyzEerrbKk=
-gke-internal.googlesource.com/anthos-networking.git/apis/v2 v2.2.1-gke.0/go.mod h1:601IKDlWd/acVzvvxDOa3CzhS4ZGmqHBstlX2BikE2k=
+gke-internal.googlesource.com/anthos-networking.git/apis/v2 v2.3.0-gke.3 h1:HuncRGrSigmC9GJDHndum4IgnTJVms28ptjDFHlfI6g=
+gke-internal.googlesource.com/anthos-networking.git/apis/v2 v2.3.0-gke.3/go.mod h1:601IKDlWd/acVzvvxDOa3CzhS4ZGmqHBstlX2BikE2k=
 gke-internal.googlesource.com/kubernetes/gke-node-firewall.git v0.0.20 h1:1dNXjmCaKXzmYSJ4XbKCwU88xAfvkhLc18fd/ComnXA=
 gke-internal.googlesource.com/kubernetes/gke-node-firewall.git v0.0.20/go.mod h1:sx5oCrAbOgzExnFShTLrEyfZCwk2thL8XwJhO0jH+j0=
 go.etcd.io/bbolt v1.3.2/go.mod h1:IbVyRI1SCnLcuJnV2u8VeU0CEYM7e686BmAb1XKL+uU=
