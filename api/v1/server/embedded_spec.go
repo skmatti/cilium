@@ -2491,6 +2491,10 @@ func init() {
           "description": "Disable source IP verification for the endpoint.\n",
           "type": "boolean"
         },
+        "enable-multicast": {
+          "description": "Enables multicast traffic for Endpoint.\n",
+          "type": "boolean"
+        },
         "external-ipam": {
           "description": "Indicates that IPAM is done external to Cilium. This will prevent the IP from being released and re-allocation of the IP address is skipped on restore.\n",
           "type": "boolean"
@@ -7449,6 +7453,10 @@ func init() {
       "properties": {
         "disable-sip-verification": {
           "description": "Disable source IP verification for the endpoint.\n",
+          "type": "boolean"
+        },
+        "enable-multicast": {
+          "description": "Enables multicast traffic for Endpoint.\n",
           "type": "boolean"
         },
         "external-ipam": {

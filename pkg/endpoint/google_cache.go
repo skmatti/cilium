@@ -24,3 +24,8 @@ func (ep *epInfoCache) GetParentDevIndex() int {
 func (ep *epInfoCache) IsIPVlan() bool {
 	return ep.deviceType == multinicep.EndpointDeviceIPVLAN
 }
+
+// EnableMulticast returns true if the endpoint allows multicast traffic.
+func (ep *epInfoCache) EnableMulticast() bool {
+	return ep.enableMulticast
+}
