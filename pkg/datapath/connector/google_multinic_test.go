@@ -47,9 +47,9 @@ const (
 	badIPv4Str        = "1"
 	goodIPv6Str       = "a:b::/32"
 	goodIPv6StrNoMask = "a:b::"
-	dummyLinkName     = "dummy"
-	dummyLinkIP       = "172.168.10.1"
-	dummyLinkMask     = 24
+	macvtapLinkName   = "macvtap1"
+	macvtapLinkIP     = "172.168.10.1"
+	macvtapLinkMask   = 24
 	remoteNSName      = "test"
 )
 
@@ -93,10 +93,10 @@ func errorContains(got error, want string) bool {
 	return strings.Contains(got.Error(), want)
 }
 
-// setupDummyInterfaceInRemoteNS creates a new remote network namespace
-// and a dummy interface in the remote ns.
+// setupMacvtapInRemoteNS creates a new remote network namespace
+// and a macvtap interface in the remote ns.
 // The function switches the current ns and reverts afterwards.
-func setupDummyInterfaceInRemoteNS(t *testing.T) (netlink.Link, string, func() error) {
+func setupMacvtapInRemoteNS(t *testing.T, addIP bool) (netlink.Link, string, func() error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 
@@ -112,27 +112,45 @@ func setupDummyInterfaceInRemoteNS(t *testing.T) (netlink.Link, string, func() e
 	}
 	defer remoteNS.Close()
 
-	dummy := &netlink.Dummy{LinkAttrs: netlink.LinkAttrs{Name: dummyLinkName}}
+	dummy := &netlink.Dummy{LinkAttrs: netlink.LinkAttrs{Name: "dummy"}}
 	err = netlink.LinkAdd(dummy)
 	if err != nil {
 		t.Fatalf("unable to add parent interface: %v", err)
 	}
 
-	if err := applyIPToLink(&net.IPNet{
-		IP:   net.ParseIP(dummyLinkIP),
-		Mask: net.CIDRMask(dummyLinkMask, 32),
-	}, dummy); err != nil {
-		t.Fatalf("unable to apply IP address: %v", err)
+	mv := &netlink.Macvtap{
+		Macvlan: netlink.Macvlan{
+			LinkAttrs: netlink.LinkAttrs{
+				Name:        macvtapLinkName,
+				ParentIndex: dummy.Index,
+			},
+			Mode: netlink.MACVLAN_MODE_BRIDGE,
+		},
 	}
 
-	return dummy, fmt.Sprint("/var/run/netns/", remoteNSName), func() error {
+	err = netlink.LinkAdd(mv)
+	if err != nil {
+		t.Fatalf("unable to add macvtap interface: %v", err)
+	}
+
+	if addIP {
+		// In order to add routes to the link, the link must have an assigned IP address.
+		if err := applyIPToLink(&net.IPNet{
+			IP:   net.ParseIP(macvtapLinkIP),
+			Mask: net.CIDRMask(macvtapLinkMask, 32),
+		}, mv); err != nil {
+			t.Fatalf("unable to apply IP address: %v", err)
+		}
+	}
+
+	return mv, fmt.Sprint("/var/run/netns/", remoteNSName), func() error {
 		return netns.DeleteNamed(remoteNSName)
 	}
 }
 
 func v4Route(ip, gw string, mask, mtu int, scope netlink.Scope) netlink.Route {
 	route := netlink.Route{
-		LinkIndex: 2,
+		LinkIndex: 3,
 		Scope:     scope,
 		Dst: &net.IPNet{
 			IP:   net.ParseIP(ip).To4(),
@@ -156,9 +174,9 @@ func v4DefaultRoute(gw string) netlink.Route {
 	return dr
 }
 
-func dummyLinkRoute() netlink.Route {
-	route := v4Route("172.168.10.0", "", dummyLinkMask, 0, netlink.SCOPE_LINK)
-	route.Src = net.ParseIP(dummyLinkIP)
+func macvtapLinkRoute() netlink.Route {
+	route := v4Route("172.168.10.0", "", macvtapLinkMask, 0, netlink.SCOPE_LINK)
+	route.Src = net.ParseIP(macvtapLinkIP)
 	route.Protocol = 2
 	return route
 }
@@ -648,7 +666,7 @@ func TestSetupNetworkRoutes(t *testing.T) {
 	for _, tc := range testcases {
 		t.Run(tc.desc, func(t *testing.T) {
 			var err error
-			dummyLink, testNSPath, deleteNSFunc := setupDummyInterfaceInRemoteNS(t)
+			dummyLink, testNSPath, deleteNSFunc := setupMacvtapInRemoteNS(t, true)
 			defer func() {
 				if err := deleteNSFunc(); err != nil {
 					t.Fatalf("deleting test network namespace failed %v", err)
@@ -661,7 +679,7 @@ func TestSetupNetworkRoutes(t *testing.T) {
 			}
 			defer testNS.Close()
 
-			interfaceNameInPod := dummyLinkName
+			interfaceNameInPod := macvtapLinkName
 			if tc.interfaceName != "" {
 				interfaceNameInPod = tc.interfaceName
 			}
@@ -689,7 +707,7 @@ func TestSetupNetworkRoutes(t *testing.T) {
 				t.Fatalf("failed to list routes: %v", err)
 			}
 
-			tc.wantRoutes = append(tc.wantRoutes, dummyLinkRoute())
+			tc.wantRoutes = append(tc.wantRoutes, macvtapLinkRoute())
 			if diff := cmp.Diff(gotRoutes, tc.wantRoutes, cmpopts.SortSlices(func(r1, r2 netlink.Route) bool {
 				return r1.String() < r2.String()
 			})); diff != "" {
@@ -1116,4 +1134,131 @@ func (dc *fakeDHCPClient) GetDHCPResponse(containerID, podNS, podIface, parentIf
 
 func (dc *fakeDHCPClient) Release(containerID, podNS, podIface string, letLeaseExpire bool) error {
 	return dc.clientErr
+}
+
+func TestConfigureInterface(t *testing.T) {
+	testcases := []struct {
+		desc    string
+		infCfg  interfaceConfiguration
+		wantErr string
+	}{
+		{
+			desc: "configure interface with multicast disabled",
+			infCfg: interfaceConfiguration{
+				IPV4Address: &net.IPNet{
+					IP:   net.ParseIP("10.0.0.2"),
+					Mask: net.IPv4Mask(255, 255, 255, 0),
+				},
+				MTU:        1500,
+				MacAddress: net.HardwareAddr([]byte{0x96, 0x90, 0xbc, 0xa2, 0x41, 0x8a}),
+			},
+		},
+		{
+			desc: "configure interface with multicast enabled",
+			infCfg: interfaceConfiguration{
+				IPV4Address: &net.IPNet{
+					IP:   net.ParseIP("10.0.0.2"),
+					Mask: net.IPv4Mask(255, 255, 255, 0),
+				},
+				MTU:             1500,
+				MacAddress:      net.HardwareAddr([]byte{0x96, 0x90, 0xbc, 0xa2, 0x41, 0x8a}),
+				EnableMulticast: true,
+			},
+		},
+		{
+			desc: "configure interface with invalid mac",
+			infCfg: interfaceConfiguration{
+				IPV4Address: &net.IPNet{
+					IP:   net.ParseIP("10.0.0.2"),
+					Mask: net.IPv4Mask(255, 255, 255, 0),
+				},
+				MacAddress: net.HardwareAddr([]byte{0xff, 0xff, 0xff, 0xff, 0xff, 0xff}),
+				MTU:        1500,
+			},
+			wantErr: "unable to configure interface \"macvtap1\" in container namespace: failed to apply mac address to \"macvtap1\": failed to add MAC addr \"ff:ff:ff:ff:ff:ff\" to \"macvtap1\": cannot assign requested address",
+		},
+		{
+			desc: "configure interface without mtu",
+			infCfg: interfaceConfiguration{
+				IPV4Address: &net.IPNet{
+					IP:   net.ParseIP("10.0.0.2"),
+					Mask: net.IPv4Mask(255, 255, 255, 0),
+				},
+			},
+			wantErr: "unable to configure interface \"macvtap1\" in container namespace: unable to set MTU 0 to \"macvtap1\": invalid argument",
+		},
+		{
+			desc: "configure interface with invalid IP",
+			infCfg: interfaceConfiguration{
+				IPV4Address: &net.IPNet{
+					IP: nil,
+				},
+				MTU: 1500,
+			},
+			wantErr: "unable to configure interface \"macvtap1\" in container namespace: failed to apply IP configuration: failed to add addr <nil> to \"macvtap1\": numerical result out of range",
+		},
+	}
+	for _, tc := range testcases {
+		t.Run(tc.desc, func(t *testing.T) {
+			var err error
+			_, testNSPath, deleteNSFunc := setupMacvtapInRemoteNS(t, false)
+			defer func() {
+				if err := deleteNSFunc(); err != nil {
+					t.Fatalf("deleting test network namespace failed %v", err)
+				}
+			}()
+
+			testNS, err := ns.GetNS(testNSPath)
+			if err != nil {
+				t.Fatalf("failed to open test network namespace: %v", err)
+			}
+			defer testNS.Close()
+
+			gotErr := configureInterface(&tc.infCfg, testNS, macvtapLinkName)
+			if gotErr != nil {
+				if tc.wantErr == "" {
+					t.Fatalf("configureInterface() returned error %v but want nil", gotErr)
+				}
+				if gotErr.Error() != tc.wantErr {
+					t.Fatalf("configureInterface() returned incorrect error, got: %s but want: %s", gotErr.Error(), tc.wantErr)
+				}
+				return
+			}
+
+			var mv netlink.Link
+			var ip4Addr []netlink.Addr
+			if err := testNS.Do(func(_ ns.NetNS) error {
+				mv, err = netlink.LinkByName(macvtapLinkName)
+				if err != nil {
+					return err
+				}
+				ip4Addr, err = netlink.AddrList(mv, netlink.FAMILY_V4)
+				if err != nil {
+					return fmt.Errorf("failed to list IPv4 address on macvtap link: %v", err)
+				}
+				return nil
+			}); err != nil {
+				t.Fatalf("unable to find link in ns: %v", err)
+			}
+
+			if mv.Attrs() == nil {
+				t.Fatal("macvtap link attributes are nil")
+			}
+			if len(ip4Addr) != 1 {
+				t.Fatalf("got %d IPv4 addresses on macvtap link, want 1", len(ip4Addr))
+			}
+			if tc.infCfg.IPV4Address.String() != ip4Addr[0].IPNet.String() {
+				t.Fatalf("unexpected IPv4 address configuration, got %s\n, want %s", ip4Addr[0].String(), tc.infCfg.IPV4Address.String())
+			}
+			if tc.infCfg.MTU != mv.Attrs().MTU {
+				t.Fatalf("unexpected MTU configuration, got %d, want %d", mv.Attrs().MTU, tc.infCfg.MTU)
+			}
+			if tc.infCfg.MacAddress.String() != mv.Attrs().HardwareAddr.String() {
+				t.Fatalf("unexpected MAC address configuration, got %s\n, want %s", mv.Attrs().HardwareAddr.String(), tc.infCfg.MacAddress.String())
+			}
+			if tc.infCfg.EnableMulticast != (mv.Attrs().Allmulti == 1) {
+				t.Fatalf("unexpected multicast configuration, got %v\n, want %v", mv.Attrs().Allmulti == 1, tc.infCfg.EnableMulticast)
+			}
+		})
+	}
 }

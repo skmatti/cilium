@@ -85,6 +85,9 @@ type CompileTimeConfiguration interface {
 	// IsMultiNIC returns true if the endpoint is a MultiNIC endpoint (macvlan/macvtap).
 	IsMultiNIC() bool
 
+	// EnableMulticast returns true if the endpoint allows multicast traffic.
+	EnableMulticast() bool
+
 	// DisableSIPVerification returns true if the endpoint wishes to skip
 	// source IP verification
 	DisableSIPVerification() bool

@@ -47,6 +47,8 @@ type interfaceConfiguration struct {
 	ParentInterfaceName string
 	MTU                 int
 	Type                string
+	// When true, IFF_ALLMULTI is enabled for the interface.
+	EnableMulticast bool
 }
 
 func isIPV6(ip net.IP) bool {
@@ -229,7 +231,7 @@ func configureInterface(cfg *interfaceConfiguration, netNs ns.NetNS, ifName stri
 			return fmt.Errorf("failed to lookup interface %q: %v", ifName, err)
 		}
 		if err = netlink.LinkSetMTU(l, cfg.MTU); err != nil {
-			return fmt.Errorf("unable to set MTU to %q: %v", l.Attrs().Name, err)
+			return fmt.Errorf("unable to set MTU %d to %q: %v", cfg.MTU, l.Attrs().Name, err)
 		}
 
 		if cfg.MacAddress != nil && cfg.Type != "ipvlan" {
@@ -244,6 +246,12 @@ func configureInterface(cfg *interfaceConfiguration, netNs ns.NetNS, ifName stri
 		}
 		if err := applyIPToLink(cfg.IPV4Address, l); err != nil {
 			return fmt.Errorf("failed to apply IP configuration: %v", err)
+		}
+
+		if cfg.EnableMulticast {
+			if err := netlink.LinkSetAllmulticastOn(l); err != nil {
+				return fmt.Errorf("failed to set link %q Allmulticast on: %v", ifName, err)
+			}
 		}
 
 		if err := netlink.LinkSetUp(l); err != nil {
@@ -384,6 +392,7 @@ func SetupL2Interface(ifNameInPod, podName string, podResources map[string][]str
 	if err != nil {
 		return nil, fmt.Errorf("failed to get a valid interface configuration: %v", err)
 	}
+	cfg.EnableMulticast = ep.DatapathConfiguration.EnableMulticast
 	log.Debugf("L2 interface configuration: %+v", cfg)
 	parentDevLink, err := netlink.LinkByName(cfg.ParentInterfaceName)
 	if err != nil {

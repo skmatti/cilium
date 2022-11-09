@@ -1261,6 +1261,10 @@ definitions:
         description: >
           Disable source IP verification for the endpoint.
         type: boolean
+      enable-multicast:
+        description: >
+          Enables multicast traffic for Endpoint.
+        type: boolean
   EndpointStatus:
     description: The current state and configuration of the endpoint, its policy & datapath, and subcomponents
     type: object

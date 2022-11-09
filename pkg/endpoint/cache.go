@@ -40,6 +40,7 @@ type epInfoCache struct {
 	requireRouting                         bool
 	requireEndpointRoute                   bool
 	disableSIPVerification                 bool
+	enableMulticast                        bool
 	policyVerdictLogFilter                 uint32
 	cidr4PrefixLengths, cidr6PrefixLengths []int
 	options                                *option.IntOptions
@@ -79,6 +80,7 @@ func (e *Endpoint) createEpInfoCache(epdir string) *epInfoCache {
 		requireRouting:         e.RequireRouting(),
 		requireEndpointRoute:   e.RequireEndpointRoute(),
 		disableSIPVerification: e.DisableSIPVerification(),
+		enableMulticast:        e.EnableMulticast(),
 		policyVerdictLogFilter: e.GetPolicyVerdictLogFilter(),
 		cidr4PrefixLengths:     cidr4,
 		cidr6PrefixLengths:     cidr6,

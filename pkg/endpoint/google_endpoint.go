@@ -150,3 +150,8 @@ func (e *Endpoint) ExternalDHCPEnabled() bool {
 func (e *Endpoint) IsIPVlan() bool {
 	return option.Config.EnableGoogleMultiNIC && e.deviceType == multinicep.EndpointDeviceIPVLAN
 }
+
+// EnableMulticast returns true if the endpoint allows multicast traffic.
+func (e *Endpoint) EnableMulticast() bool {
+	return e.DatapathConfiguration.EnableMulticast
+}

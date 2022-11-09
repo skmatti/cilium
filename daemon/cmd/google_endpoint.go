@@ -130,6 +130,8 @@ func (d *Daemon) createMultiNICEndpoints(ctx context.Context, owner regeneration
 		disableSourceIPValidation = (annotations[networkv1.DisableSourceIPValidationAnnotationKey] == networkv1.DisableSourceIPValidationAnnotationValTrue)
 	}
 
+	enableMulticast := (annotations[networkv1.EnableMulticastAnnotationKey] == networkv1.EnableMulticastAnnotationValTrue)
+
 	log.WithFields(logrus.Fields{
 		logfields.ContainerID: primaryEp.GetContainerID(),
 		logfields.EndpointID:  primaryEp.StringID(),
@@ -165,6 +167,7 @@ func (d *Daemon) createMultiNICEndpoints(ctx context.Context, owner regeneration
 
 		multinicTemplate := epTemplate.DeepCopy()
 		multinicTemplate.DatapathConfiguration.DisableSipVerification = disableSourceIPValidation
+		multinicTemplate.DatapathConfiguration.EnableMulticast = enableMulticast
 		isDefaultInterface := defaultInterface == ref.InterfaceName
 
 		multinicTemplate.PodStackRedirectIfindex = int64(redirectIfIndex)

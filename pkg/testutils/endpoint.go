@@ -70,6 +70,7 @@ func (e *TestEndpoint) GetPodStackRedirectIfindex() int             { return e.P
 func (e *TestEndpoint) GetOptions() *option.IntOptions              { return e.Opts }
 func (e *TestEndpoint) IsHost() bool                                { return e.isHost }
 func (e *TestEndpoint) IsMultiNIC() bool                            { return e.MultiNic }
+func (e *TestEndpoint) EnableMulticast() bool                       { return false }
 
 func (e *TestEndpoint) IPv4Address() addressing.CiliumIPv4 {
 	addr, _ := addressing.NewCiliumIPv4("192.0.2.3")
