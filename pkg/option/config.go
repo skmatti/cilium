@@ -2671,8 +2671,13 @@ func (c *DaemonConfig) K8sLeasesFallbackDiscoveryEnabled() bool {
 func (c *DaemonConfig) DirectRoutingDeviceRequired() bool {
 	// BPF NodePort and BPF Host Routing are using the direct routing device now.
 	// When tunneling is enabled, node-to-node redirection will be done by tunneling.
+
+	// Direct routing device is used when IPv6 tunneling is disabled.
+	// This is required when IPv4 is Island mode and IPv6 is Flat.
+	tunnelingDisabled := !c.TunnelingEnabled() || c.DisableIPv6Tunnel
+
 	BPFHostRoutingEnabled := !c.EnableHostLegacyRouting
-	return (c.EnableNodePort || BPFHostRoutingEnabled) && !c.TunnelingEnabled()
+	return (c.EnableNodePort || BPFHostRoutingEnabled) && tunnelingDisabled
 }
 
 // EnableK8sLeasesFallbackDiscovery enables using direct API probing as a fallback to check

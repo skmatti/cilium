@@ -456,6 +456,14 @@ func (h *HeaderfileWriter) WriteNodeConfig(w io.Writer, cfg *datapath.LocalNodeC
 
 			ipv4 := byteorder.NetIPv4ToHost32(ip)
 			cDefinesMap["IPV4_DIRECT_ROUTING"] = fmt.Sprintf("%d", ipv4)
+
+			// DirectRoutingDeviceRequired() returns true for mix mode deployments(IPv4 Island, IPv6 Flat)
+			// even when tunneling is enabled for IPv4, explicitly set the macro IPV4_DIRECT_ROUTING=0
+			// when tunneling is enabled.
+			if option.Config.TunnelingEnabled() {
+				cDefinesMap["IPV4_DIRECT_ROUTING"] = "0"
+			}
+
 		}
 
 		if option.Config.EnableIPv6 {
