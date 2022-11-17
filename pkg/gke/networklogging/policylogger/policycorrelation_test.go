@@ -85,7 +85,7 @@ var (
 	}
 )
 
-func TestLookUpPolicyForKey(t *testing.T) {
+func TestLookUpPoliciesForKey(t *testing.T) {
 	const (
 		tcp       = uint8(u8proto.TCP)
 		udp       = uint8(u8proto.UDP)
@@ -98,22 +98,31 @@ func TestLookUpPolicyForKey(t *testing.T) {
 		port81    = 81
 	)
 
-	label1 := labels.ParseLabelArray("k8s:policy.name=foo1", "k8s:policy.ns=bar1")
-	label2 := labels.ParseLabelArray("k8s:policy.name=foo2", "k8s:policy.ns=bar2")
-	label3 := labels.ParseLabelArray("k8s:policy.name=foo3", "k8s:policy.ns=bar3")
+	label1 := labels.ParseLabelArray(
+		fmt.Sprintf("k8s:%s=NetworkPolicy", k8sConst.PolicyLabelDerivedFrom),
+		fmt.Sprintf("k8s:%s=ns1", k8sConst.PolicyLabelNamespace),
+		fmt.Sprintf("k8s:%s=foo1", k8sConst.PolicyLabelName))
+	label2 := labels.ParseLabelArray(
+		fmt.Sprintf("k8s:%s=NetworkPolicy", k8sConst.PolicyLabelDerivedFrom),
+		fmt.Sprintf("k8s:%s=ns2", k8sConst.PolicyLabelNamespace),
+		fmt.Sprintf("k8s:%s=bar1", k8sConst.PolicyLabelName))
+	label3 := labels.ParseLabelArray(
+		fmt.Sprintf("k8s:%s=CiliumNetworkPolicy", k8sConst.PolicyLabelDerivedFrom),
+		fmt.Sprintf("k8s:%s=ns3", k8sConst.PolicyLabelNamespace),
+		fmt.Sprintf("k8s:%s=baz1", k8sConst.PolicyLabelName))
 
 	for _, tc := range []struct {
 		desc   string
 		ep     *testutils.FakeEndpointInfo
 		key    policy.Key
-		expect labels.LabelArrayList
+		expect []*Policy
 	}{
 		{
-			desc: "empty endpoint and key",
+			desc: "empty policy map and key",
 			ep:   &testutils.FakeEndpointInfo{},
 		},
 		{
-			desc: "empty endpoint and non-empty key",
+			desc: "empty policy map and non-empty key",
 			ep:   &testutils.FakeEndpointInfo{},
 			key: policy.Key{
 				Identity: identity1,
@@ -121,7 +130,7 @@ func TestLookUpPolicyForKey(t *testing.T) {
 			},
 		},
 		{
-			desc: "allow all endpoint matches",
+			desc: "allow all policy matches",
 			ep: &testutils.FakeEndpointInfo{
 				PolicyMap: map[policy.Key]labels.LabelArrayList{
 					{TrafficDirection: ingress}: {label1},
@@ -132,10 +141,16 @@ func TestLookUpPolicyForKey(t *testing.T) {
 				Nexthdr:          tcp,
 				TrafficDirection: ingress,
 			},
-			expect: labels.LabelArrayList{label1},
+			expect: []*Policy{
+				{
+					Kind:      "NetworkPolicy",
+					Namespace: "ns1",
+					Name:      "foo1",
+				},
+			},
 		},
 		{
-			desc: "allow all endpoint does not match",
+			desc: "allow all policy does not match",
 			ep: &testutils.FakeEndpointInfo{
 				PolicyMap: map[policy.Key]labels.LabelArrayList{
 					{TrafficDirection: ingress}: {label1},
@@ -148,7 +163,7 @@ func TestLookUpPolicyForKey(t *testing.T) {
 			},
 		},
 		{
-			desc: "allow tcp protocol endpoint matches",
+			desc: "allow tcp protocol policy matches",
 			ep: &testutils.FakeEndpointInfo{
 				PolicyMap: map[policy.Key]labels.LabelArrayList{
 					{Nexthdr: tcp, TrafficDirection: ingress}: {label1},
@@ -160,10 +175,16 @@ func TestLookUpPolicyForKey(t *testing.T) {
 				Nexthdr:          tcp,
 				TrafficDirection: ingress,
 			},
-			expect: labels.LabelArrayList{label1},
+			expect: []*Policy{
+				{
+					Kind:      "NetworkPolicy",
+					Namespace: "ns1",
+					Name:      "foo1",
+				},
+			},
 		},
 		{
-			desc: "allow tcp protocol endpoint does not match",
+			desc: "allow tcp protocol policy does not match",
 			ep: &testutils.FakeEndpointInfo{
 				PolicyMap: map[policy.Key]labels.LabelArrayList{
 					{Nexthdr: tcp, TrafficDirection: ingress}: {label1},
@@ -175,7 +196,7 @@ func TestLookUpPolicyForKey(t *testing.T) {
 			},
 		},
 		{
-			desc: "allow tcp port 80 endpoint matches",
+			desc: "allow tcp port 80 policy matches",
 			ep: &testutils.FakeEndpointInfo{
 				PolicyMap: map[policy.Key]labels.LabelArrayList{
 					{DestPort: port80, Nexthdr: tcp, TrafficDirection: ingress}: {label1},
@@ -187,10 +208,16 @@ func TestLookUpPolicyForKey(t *testing.T) {
 				Nexthdr:          tcp,
 				TrafficDirection: ingress,
 			},
-			expect: labels.LabelArrayList{label1},
+			expect: []*Policy{
+				{
+					Kind:      "NetworkPolicy",
+					Namespace: "ns1",
+					Name:      "foo1",
+				},
+			},
 		},
 		{
-			desc: "allow tcp port 80 endpoint does not match",
+			desc: "allow tcp port 80 policy does not match",
 			ep: &testutils.FakeEndpointInfo{
 				PolicyMap: map[policy.Key]labels.LabelArrayList{
 					{DestPort: port80, Nexthdr: tcp, TrafficDirection: ingress}: {label1},
@@ -203,7 +230,7 @@ func TestLookUpPolicyForKey(t *testing.T) {
 			},
 		},
 		{
-			desc: "allow single identity endpoint matches",
+			desc: "allow specific identity policy matches",
 			ep: &testutils.FakeEndpointInfo{
 				PolicyMap: map[policy.Key]labels.LabelArrayList{
 					{Identity: identity2, DestPort: port80, Nexthdr: tcp, TrafficDirection: ingress}: {label1},
@@ -215,10 +242,16 @@ func TestLookUpPolicyForKey(t *testing.T) {
 				Nexthdr:          tcp,
 				TrafficDirection: ingress,
 			},
-			expect: labels.LabelArrayList{label1},
+			expect: []*Policy{
+				{
+					Kind:      "NetworkPolicy",
+					Namespace: "ns1",
+					Name:      "foo1",
+				},
+			},
 		},
 		{
-			desc: "allow single identity endpoint does not match",
+			desc: "allow specific identity policy does not match",
 			ep: &testutils.FakeEndpointInfo{
 				PolicyMap: map[policy.Key]labels.LabelArrayList{
 					{Identity: identity1, DestPort: port80, Nexthdr: tcp, TrafficDirection: ingress}: {label1},
@@ -232,7 +265,7 @@ func TestLookUpPolicyForKey(t *testing.T) {
 			},
 		},
 		{
-			desc: "multiple endpoints match multiple",
+			desc: "multiple policies match",
 			ep: &testutils.FakeEndpointInfo{
 				PolicyMap: map[policy.Key]labels.LabelArrayList{
 					{Identity: identity1, DestPort: port80, Nexthdr: tcp, TrafficDirection: ingress}: {label1},
@@ -246,10 +279,50 @@ func TestLookUpPolicyForKey(t *testing.T) {
 				Nexthdr:          tcp,
 				TrafficDirection: ingress,
 			},
-			expect: labels.LabelArrayList{label2, label3},
+			expect: []*Policy{
+				{
+					Kind:      "NetworkPolicy",
+					Namespace: "ns2",
+					Name:      "bar1",
+				},
+				{
+					Kind:      "CiliumNetworkPolicy",
+					Namespace: "ns3",
+					Name:      "baz1",
+				},
+			},
 		},
 		{
-			desc: "multiple endpoints (icmp) match multiple",
+			desc: "multiple policies match duplicate labels",
+			ep: &testutils.FakeEndpointInfo{
+				PolicyMap: map[policy.Key]labels.LabelArrayList{
+					{Identity: identity1, DestPort: port80, Nexthdr: tcp, TrafficDirection: ingress}: {label1},
+					{Identity: identity1, TrafficDirection: ingress}:                                 {label2},
+					{Nexthdr: tcp, TrafficDirection: ingress}:                                        {label3},
+					{TrafficDirection: ingress}:                                                      {label3},
+				},
+			},
+			key: policy.Key{
+				Identity:         identity1,
+				DestPort:         port81,
+				Nexthdr:          tcp,
+				TrafficDirection: ingress,
+			},
+			expect: []*Policy{
+				{
+					Kind:      "NetworkPolicy",
+					Namespace: "ns2",
+					Name:      "bar1",
+				},
+				{
+					Kind:      "CiliumNetworkPolicy",
+					Namespace: "ns3",
+					Name:      "baz1",
+				},
+			},
+		},
+		{
+			desc: "multiple policies match for icmp traffic",
 			ep: &testutils.FakeEndpointInfo{
 				PolicyMap: map[policy.Key]labels.LabelArrayList{
 					{Identity: identity1, Nexthdr: tcp, TrafficDirection: ingress}: {label1},
@@ -262,10 +335,21 @@ func TestLookUpPolicyForKey(t *testing.T) {
 				Nexthdr:          icmp,
 				TrafficDirection: ingress,
 			},
-			expect: labels.LabelArrayList{label2, label3},
+			expect: []*Policy{
+				{
+					Kind:      "NetworkPolicy",
+					Namespace: "ns2",
+					Name:      "bar1",
+				},
+				{
+					Kind:      "CiliumNetworkPolicy",
+					Namespace: "ns3",
+					Name:      "baz1",
+				},
+			},
 		},
 		{
-			desc: "multiple endpoints match all",
+			desc: "all policies match",
 			ep: &testutils.FakeEndpointInfo{
 				PolicyMap: map[policy.Key]labels.LabelArrayList{
 					{DestPort: port80, Nexthdr: tcp, TrafficDirection: ingress}: {label1},
@@ -279,11 +363,27 @@ func TestLookUpPolicyForKey(t *testing.T) {
 				Nexthdr:          tcp,
 				TrafficDirection: ingress,
 			},
-			expect: labels.LabelArrayList{label1, label2, label3},
+			expect: []*Policy{
+				{
+					Kind:      "NetworkPolicy",
+					Namespace: "ns1",
+					Name:      "foo1",
+				},
+				{
+					Kind:      "NetworkPolicy",
+					Namespace: "ns2",
+					Name:      "bar1",
+				},
+				{
+					Kind:      "CiliumNetworkPolicy",
+					Namespace: "ns3",
+					Name:      "baz1",
+				},
+			},
 		},
 	} {
 		t.Run(tc.desc, func(t *testing.T) {
-			got, _, _ := lookupPolicyForKey(tc.ep, tc.key)
+			got := lookupPoliciesForKey(tc.ep, tc.key)
 			if diff := cmp.Diff(tc.expect, got); diff != "" {
 				t.Errorf("Got mismatch for policies (-want +got):\n%s", diff)
 			}
@@ -331,4 +431,62 @@ func TestPolicyCorrelation_correlatePolicy(t *testing.T) {
 		})
 	}
 
+}
+
+func TestK8sResouceForPolicyLabelSet(t *testing.T) {
+	for _, tc := range []struct {
+		desc       string
+		labelArray labels.LabelArray
+		wantPolicy Policy
+		wantOk     bool
+	}{
+		{
+			desc:       "empty label array",
+			labelArray: labels.LabelArray{},
+		},
+		{
+			desc: "non k8s source",
+			labelArray: labels.ParseLabelArray(
+				fmt.Sprintf("cilium:%s=NetworkPolicy", k8sConst.PolicyLabelDerivedFrom),
+				fmt.Sprintf("k8s:%s=ns", k8sConst.PolicyLabelNamespace),
+				fmt.Sprintf("k8s:%s=foo", k8sConst.PolicyLabelName)),
+		},
+		{
+			desc: "missing ks8 resource kind label",
+			labelArray: labels.ParseLabelArray(
+				fmt.Sprintf("k8s:%s=ns", k8sConst.PolicyLabelNamespace),
+				fmt.Sprintf("k8s:%s=foo", k8sConst.PolicyLabelName)),
+		},
+		{
+			desc: "missing ks8 resource namespace label",
+			labelArray: labels.ParseLabelArray(
+				fmt.Sprintf("k8s:%s=NetworkPolicy", k8sConst.PolicyLabelDerivedFrom),
+				fmt.Sprintf("k8s:%s=foo", k8sConst.PolicyLabelName)),
+		},
+		{
+			desc: "missing ks8 resource name label",
+			labelArray: labels.ParseLabelArray(
+				fmt.Sprintf("k8s:%s=NetworkPolicy", k8sConst.PolicyLabelDerivedFrom),
+				fmt.Sprintf("k8s:%s=ns", k8sConst.PolicyLabelNamespace)),
+		},
+		{
+			desc: "valid label set",
+			labelArray: labels.ParseLabelArray(
+				fmt.Sprintf("k8s:%s=NetworkPolicy", k8sConst.PolicyLabelDerivedFrom),
+				fmt.Sprintf("k8s:%s=foo", k8sConst.PolicyLabelName),
+				fmt.Sprintf("k8s:%s=ns", k8sConst.PolicyLabelNamespace)),
+			wantPolicy: Policy{Kind: "NetworkPolicy", Namespace: "ns", Name: "foo"},
+			wantOk:     true,
+		},
+	} {
+		t.Run(tc.desc, func(t *testing.T) {
+			got, gotOk := k8sResourceForPolicyLabelSet(tc.labelArray)
+			if gotOk != tc.wantOk {
+				t.Fatalf("k8sResouceForPolicyLabelSet()= _, %t, want %t", gotOk, tc.wantOk)
+			}
+			if diff := cmp.Diff(tc.wantPolicy, got); diff != "" {
+				t.Errorf("Got diff for Policy (-want +got):\n%s", diff)
+			}
+		})
+	}
 }

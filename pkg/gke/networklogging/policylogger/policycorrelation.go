@@ -77,13 +77,15 @@ func extractFlowKey(f *flow.Flow) (
 	return
 }
 
-func lookupPolicyForKey(ep endpointPolicyGetter, key policy.Key) (derivedFroms labels.LabelArrayList, revs uint64, oks bool) {
+// lookupPoliciesForKey retrives the policy rule label sets for specified
+// policy key and returns a slice of k8s policy resources associated with those
+// label sets.
+func lookupPoliciesForKey(ep endpointPolicyGetter, key policy.Key) []*Policy {
+	var policyRuleLabelSets labels.LabelArrayList
 	// Check for L4 policy rules
-	derivedFrom, rev, ok := ep.GetRealizedPolicyRuleLabelsForKey(key)
+	derivedFromRules, _, ok := ep.GetRealizedPolicyRuleLabelsForKey(key)
 	if ok {
-		derivedFroms = append(derivedFroms, derivedFrom...)
-		revs = rev
-		oks = ok
+		policyRuleLabelSets = append(policyRuleLabelSets, derivedFromRules...)
 	}
 
 	// Check for L3 policy rules
@@ -98,16 +100,14 @@ func lookupPolicyForKey(ep endpointPolicyGetter, key policy.Key) (derivedFroms l
 	//
 	// This policy allows all ingress traffic from the identity of the pods
 	// with labels {app: frontend}
-	derivedFrom, rev, ok = ep.GetRealizedPolicyRuleLabelsForKey(policy.Key{
+	derivedFromRules, _, ok = ep.GetRealizedPolicyRuleLabelsForKey(policy.Key{
 		Identity:         key.Identity,
 		DestPort:         0,
 		Nexthdr:          0,
 		TrafficDirection: key.TrafficDirection,
 	})
 	if ok {
-		derivedFroms = append(derivedFroms, derivedFrom...)
-		revs = rev
-		oks = ok
+		policyRuleLabelSets = append(policyRuleLabelSets, derivedFromRules...)
 	}
 
 	// Check for allow-specific-port-protocol policies.
@@ -123,16 +123,14 @@ func lookupPolicyForKey(ep endpointPolicyGetter, key policy.Key) (derivedFroms l
 	//
 	// The policy applies to ingress TCP traffic on port 80 from all the remote
 	// pods/ identities.
-	derivedFrom, rev, ok = ep.GetRealizedPolicyRuleLabelsForKey(policy.Key{
+	derivedFromRules, _, ok = ep.GetRealizedPolicyRuleLabelsForKey(policy.Key{
 		Identity:         0,
 		DestPort:         key.DestPort,
 		Nexthdr:          key.Nexthdr,
 		TrafficDirection: key.TrafficDirection,
 	})
 	if ok {
-		derivedFroms = append(derivedFroms, derivedFrom...)
-		revs = rev
-		oks = ok
+		policyRuleLabelSets = append(policyRuleLabelSets, derivedFromRules...)
 	}
 
 	// Check for allow-specific-protocol policy rules.
@@ -146,16 +144,14 @@ func lookupPolicyForKey(ep endpointPolicyGetter, key policy.Key) (derivedFroms l
 	//
 	// The policy applies to ingress TCP traffic from all the remote pods/ identities.
 	if key.DestPort != 0 {
-		derivedFrom, rev, ok = ep.GetRealizedPolicyRuleLabelsForKey(policy.Key{
+		derivedFromRules, _, ok = ep.GetRealizedPolicyRuleLabelsForKey(policy.Key{
 			Identity:         0,
 			DestPort:         0,
 			Nexthdr:          key.Nexthdr,
 			TrafficDirection: key.TrafficDirection,
 		})
 		if ok {
-			derivedFroms = append(derivedFroms, derivedFrom...)
-			revs = rev
-			oks = ok
+			policyRuleLabelSets = append(policyRuleLabelSets, derivedFromRules...)
 		}
 	}
 
@@ -167,59 +163,59 @@ func lookupPolicyForKey(ep endpointPolicyGetter, key policy.Key) (derivedFroms l
 	//  ingress: {}
 	//
 	// The policy applies to ingress traffic from all the remote pods/ identities.
-	derivedFrom, rev, ok = ep.GetRealizedPolicyRuleLabelsForKey(policy.Key{
+	derivedFromRules, _, ok = ep.GetRealizedPolicyRuleLabelsForKey(policy.Key{
 		Identity:         0,
 		DestPort:         0,
 		Nexthdr:          0,
 		TrafficDirection: key.TrafficDirection,
 	})
 	if ok {
-		derivedFroms = append(derivedFroms, derivedFrom...)
-		revs = rev
-		oks = ok
+		policyRuleLabelSets = append(policyRuleLabelSets, derivedFromRules...)
 	}
-	return derivedFroms, revs, oks
-}
 
-func toProto(derivedFrom labels.LabelArrayList, rev uint64) (policies []*Policy) {
-	for i, lbl := range derivedFrom {
-		// derivedFrom may contain a duplicate policies if the policy had
-		// multiple that contributed to the same policy map entry.
-		// We can easily detect the duplicates here, because derivedFrom is
-		// sorted.
-		if i > 0 && lbl.Equals(derivedFrom[i-1]) {
+	policyMap := make(map[Policy]bool, len(policyRuleLabelSets))
+	var policies []*Policy
+
+	for _, labelSet := range policyRuleLabelSets {
+		policy, ok := k8sResourceForPolicyLabelSet(labelSet)
+		if !ok {
+			log.WithField(logfields.Labels, labelSet).
+				Debug("unable to find a k8s policy resource for policy rule label set")
 			continue
 		}
-
-		policy := &Policy{}
-
-		var kind, ns, name string
-		for _, l := range lbl {
-			if l.Source != string(source.Kubernetes) {
-				continue
-			}
-			switch l.Key {
-			case k8sConst.PolicyLabelName:
-				name = l.Value
-			case k8sConst.PolicyLabelNamespace:
-				ns = l.Value
-			case k8sConst.PolicyLabelDerivedFrom:
-				kind = l.Value
-			}
-
-			if kind != "" && name != "" && ns != "" {
-				break
-			}
+		// Skip duplicates policies.
+		if policyMap[policy] {
+			continue
 		}
-
-		policy.Kind = kind
-		policy.Name = name
-		policy.Namespace = ns
-
-		policies = append(policies, policy)
+		policyMap[policy] = true
+		policies = append(policies, &policy)
 	}
 
 	return policies
+}
+
+// k8sResourceForPolicyLabelSet converts a given policy rule label set into
+// a k8s policy resource (e.g. NetworkPolicy, CiliumNetworkPolicy)
+func k8sResourceForPolicyLabelSet(labelSet labels.LabelArray) (Policy, bool) {
+	var kind, ns, name string
+	for _, l := range labelSet {
+		if l.Source != string(source.Kubernetes) {
+			continue
+		}
+		switch l.Key {
+		case k8sConst.PolicyLabelName:
+			name = l.Value
+		case k8sConst.PolicyLabelNamespace:
+			ns = l.Value
+		case k8sConst.PolicyLabelDerivedFrom:
+			kind = l.Value
+		}
+
+		if kind != "" && name != "" && ns != "" {
+			return Policy{Kind: kind, Namespace: ns, Name: name}, true
+		}
+	}
+	return Policy{}, false
 }
 
 func (p *policyCorrelation) correlatePolicy(f *flow.Flow) ([]*Policy, error) {
@@ -246,21 +242,21 @@ func (p *policyCorrelation) correlatePolicy(f *flow.Flow) ([]*Policy, error) {
 		return nil, errors.New("unsupported cilium version")
 	}
 
-	derivedFrom, rev, ok := lookupPolicyForKey(ep, policy.Key{
+	policies := lookupPoliciesForKey(ep, policy.Key{
 		Identity:         uint32(remoteIdentity),
 		DestPort:         dport,
 		Nexthdr:          uint8(proto),
 		TrafficDirection: uint8(direction),
 	})
-	if !ok {
+	if len(policies) <= 0 {
 		log.WithFields(logrus.Fields{
 			logfields.Identity:         remoteIdentity,
 			logfields.Port:             dport,
 			logfields.Protocol:         proto,
 			logfields.TrafficDirection: direction,
-		}).Debug("unable to find policy for policy verdict notification")
+		}).Debug("unable to find policy for policy verdict event")
 		return nil, nil
 	}
 
-	return toProto(derivedFrom, rev), nil
+	return policies, nil
 }
