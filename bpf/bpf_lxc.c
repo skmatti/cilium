@@ -986,9 +986,15 @@ ct_recreate4:
 
 #ifdef ENABLE_GOOGLE_SERVICE_STEERING
 {
-	struct sfc_path_key path;
-	if (sfc_select(ctx, ip4, true, &path)) {
-		ret = sfc_encap(ctx, ip4, &path);
+	__be32 inner_saddr = ip4->saddr;
+
+	ret = try_sfc_encap(ctx, ip4);
+	if (IS_ERR(ret))
+		return ret;
+	if (ret == CTX_ACT_REDIRECT) {
+		if (!revalidate_data_pull(ctx, &data, &data_end, &ip4))
+			return DROP_INVALID;
+		ret = sfc_lb4(ctx, ip4, inner_saddr);
 		if (IS_ERR(ret))
 			return ret;
 		if (!revalidate_data(ctx, &data, &data_end, &ip4))
@@ -1873,19 +1879,6 @@ ipv4_policy(struct __ctx_buff *ctx, int ifindex, __u32 src_label, enum ct_status
 	if (!revalidate_data(ctx, &data, &data_end, &ip4))
 		return DROP_INVALID;
 
-#ifdef ENABLE_GOOGLE_SERVICE_STEERING
-{
-	if (is_sfc_encapped(ctx, ip4)) {
-		struct encaphdr h_outer = {};
-		ret = sfc_decap(ctx, &h_outer);
-		if (IS_ERR(ret))
-			return ret;
-		if (!revalidate_data_pull(ctx, &data, &data_end, &ip4))
-			return DROP_INVALID;
-	}
-}
-#endif /* ENABLE_GOOGLE_SERVICE_STEERING */
-
 	policy_clear_mark(ctx);
 
 	/* If packet is coming from the ingress proxy we have to skip
@@ -2244,6 +2237,11 @@ int handle_policy(struct __ctx_buff *ctx)
 #endif /* ENABLE_IPV6 */
 #ifdef ENABLE_IPV4
 	case bpf_htons(ETH_P_IP):
+#ifdef ENABLE_GOOGLE_SERVICE_STEERING
+		ret = try_sfc_decap(ctx);
+		if (IS_ERR(ret))
+			break;
+#endif /* ENABLE_GOOGLE_SERVICE_STEERING */
 		invoke_tailcall_if(__and(is_defined(ENABLE_IPV4), is_defined(ENABLE_IPV6)),
 				   CILIUM_CALL_IPV4_CT_INGRESS_POLICY_ONLY,
 				   tail_ipv4_ct_ingress_policy_only);
@@ -2383,6 +2381,11 @@ int handle_to_container(struct __ctx_buff *ctx)
 #endif /* ENABLE_IPV6 */
 #ifdef ENABLE_IPV4
 	case bpf_htons(ETH_P_IP):
+#ifdef ENABLE_GOOGLE_SERVICE_STEERING
+		ret = try_sfc_decap(ctx);
+		if (IS_ERR(ret))
+			break;
+#endif /* ENABLE_GOOGLE_SERVICE_STEERING */
 		ep_tail_call(ctx, CILIUM_CALL_IPV4_CT_INGRESS);
 		ret = DROP_MISSED_TAIL_CALL;
 		break;

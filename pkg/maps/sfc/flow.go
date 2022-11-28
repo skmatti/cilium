@@ -32,6 +32,7 @@ type FlowKey4 struct {
 	DestAddr   types.IPv4      `align:"daddr"`
 	SourcePort uint16          `align:"sport"`
 	DestPort   uint16          `align:"dport"`
+	EpID       uint16          `align:"ep_id"`
 	NextHeader u8proto.U8proto `align:"nexthdr"`
 	Pad        uint8           `align:"pad"`
 }
@@ -40,7 +41,7 @@ type FlowKey4 struct {
 func (k *FlowKey4) NewValue() bpf.MapValue { return &FlowEntry4{} }
 
 func (k *FlowKey4) String() string {
-	return fmt.Sprintf("%s:%d --> %s:%d, %s", k.SourceAddr, byteorder.NetworkToHost16(k.SourcePort), k.DestAddr, byteorder.NetworkToHost16(k.DestPort), k.NextHeader.String())
+	return fmt.Sprintf("%d, %s:%d --> %s:%d, %s", k.EpID, k.SourceAddr, byteorder.NetworkToHost16(k.SourcePort), k.DestAddr, byteorder.NetworkToHost16(k.DestPort), k.NextHeader.String())
 }
 
 // GetKeyPtr returns the unsafe.Pointer for k.

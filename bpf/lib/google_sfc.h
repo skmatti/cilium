@@ -30,6 +30,12 @@ struct flow_5tuple {
 	__u8   r0;
 };
 
+struct redirect_info {
+	nshpath path;
+	__be32 daddr;
+	bool is_reply;
+};
+
 struct encaphdr {
 	struct iphdr ip;
 	struct udphdr udp;
@@ -78,37 +84,35 @@ static __always_inline __u16 flow_id(const struct iphdr *ip4, const struct l4hdr
 	return ~((csum & 0xffff) + (csum >> 16));
 }
 
-static __always_inline int sfc_encap(struct __ctx_buff *ctx, struct iphdr *ip4, struct sfc_path_key *key) {
+static __always_inline int sfc_encap(struct __ctx_buff *ctx, struct iphdr *ip4, struct redirect_info *redir) {
 	__u64 flags;
+	__u16 sport;
 	int l4_off = ETH_HLEN + ipv4_hdrlen(ip4);
 	struct l4hdr l4;
 	struct encaphdr h_outer = {0};
-	struct sfc_path_entry *path_entry;
 
 	if (ctx_load_bytes(ctx, l4_off, &l4, sizeof(struct l4hdr)) < 0)
 		return DROP_INVALID;
 
-	path_entry = map_lookup_elem(&SFC_PATH_MAP, key);
-	/* (SPI, SI) lookup should not fail. */
-	if (path_entry == NULL)
-		return DROP_NO_SERVICE;
-
 	geneve_init(&h_outer.geneve, ETH_P_NSH);
-	nsh_init(&h_outer.nsh, key->path);
+	nsh_init(&h_outer.nsh, redir->path);
 
 	/* https://datatracker.ietf.org/doc/html/rfc8926#section-3.3:
 	 * To encourage an even distribution of flows across multiple links, the source port SHOULD be
 	 * calculated using a hash of the encapsulated packet headers using, for example, a traditional 5-tuple.
 	 *
 	 * The hash is ORed with 0x8000 to make the port high enough to not conflict with priveleged ports.
+	 * Set LSB to 1 (odd port) for reply traffic.
+	 * Set LSB to 0 (even port) for non-reply traffic.
 	 */
-	h_outer.udp.source = bpf_htons(flow_id(ip4, &l4) | 0x8000);
+	sport = (flow_id(ip4, &l4) & 0xFFFE) | 0x8000 | redir->is_reply;
+	h_outer.udp.source = bpf_htons(sport);
 	h_outer.udp.dest = bpf_htons(GOOGLE_SFC_RESERVED_PORT);
 	h_outer.udp.len = bpf_htons(bpf_ntohs(ip4->tot_len) + sizeof(struct encaphdr) - sizeof(struct iphdr));
 
 	h_outer.ip = *ip4;
 	h_outer.ip.saddr = LXC_IPV4;
-	h_outer.ip.daddr = path_entry->address;
+	h_outer.ip.daddr = redir->daddr;
 	h_outer.ip.protocol = IPPROTO_UDP;
 	h_outer.ip.ihl = sizeof(struct iphdr) >> 2;
 	h_outer.ip.tot_len = bpf_htons(bpf_ntohs(ip4->tot_len) + sizeof(struct encaphdr));
@@ -116,6 +120,9 @@ static __always_inline int sfc_encap(struct __ctx_buff *ctx, struct iphdr *ip4, 
 	set_ipv4_csum(&h_outer.ip);
 
 	flags = BPF_F_ADJ_ROOM_FIXED_GSO | BPF_F_ADJ_ROOM_ENCAP_L3_IPV4 | BPF_F_ADJ_ROOM_ENCAP_L4_UDP;
+	/* Unset BPF_F_ADJ_ROOM_ENCAP_L3_IPV4 for local delivery due to b/261456637. */
+	if (lookup_ip4_endpoint(&h_outer.ip))
+		flags &= ~BPF_F_ADJ_ROOM_ENCAP_L3_IPV4;
 	if (ctx_adjust_hroom(ctx, sizeof(struct encaphdr), BPF_ADJ_ROOM_MAC, flags))
 		return DROP_INVALID;
 	if (ctx_store_bytes(ctx, ETH_HLEN, &h_outer, sizeof(struct encaphdr), BPF_F_INVALIDATE_HASH) < 0)
@@ -162,10 +169,11 @@ static __always_inline __u32 mask_ipv4(__u32 ip, __u8 prefix_len) {
  * @arg is_egress: Boolean indicating whether packet is from egress or ingress direction from to the pod
  * @arg path:      Pointer to store the matching rule's SFC path key
  *
- * Return `true` if packet matches a traffic selection, `false` if it does not.
+ * Return negative `DROP_` codes if the packet can't be handled.
+ * `path` will be set to a non-zero value if there's a matching traffic selection rule.
  */
-static __always_inline __maybe_unused bool
-sfc_select(struct __ctx_buff *ctx, struct iphdr *ip4, bool is_egress, struct sfc_path_key *path)
+static __always_inline __maybe_unused int
+sfc_select(struct __ctx_buff *ctx, struct iphdr *ip4, bool is_egress, nshpath *path)
 {
 	struct sfc_path_key *path_key;
 	struct sfc_select_key select_key = {
@@ -174,18 +182,14 @@ sfc_select(struct __ctx_buff *ctx, struct iphdr *ip4, bool is_egress, struct sfc
 		.protocol = ip4->protocol,
 	};
 
-	if (is_sfc_encapped(ctx, ip4))
-		return false;
-
 	if (ip4->protocol == IPPROTO_UDP || ip4->protocol == IPPROTO_TCP) {
 		/* Port offsets for UDP, TCP are the same */
 		int off = ETH_HLEN + ipv4_hdrlen(ip4) + TCP_DPORT_OFF;
-		int ret = l4_load_port(ctx, off, &select_key.port);
-		if (IS_ERR(ret))
-			return false;
+		if (l4_load_port(ctx, off, &select_key.port) < 0)
+			return DROP_INVALID;
 	} else {
 		/* Protocol not supported */
-		return false;
+		return DROP_INVALID;
 	}
 
 	select_key.src_prefix_len = lookup_prefix_len(ip4->saddr, is_egress, false);
@@ -199,11 +203,9 @@ sfc_select(struct __ctx_buff *ctx, struct iphdr *ip4, bool is_egress, struct sfc
 		select_key.port = 0;
 		path_key = map_lookup_elem(&SFC_SELECT_MAP, &select_key);
 	}
-	if (path_key == NULL) {
-		return false;
-	}
-	*path = *path_key;
-	return true;
+	if (path_key != NULL)
+		*path = path_key->path;
+	return CTX_ACT_OK;
 }
 
 static __always_inline int
@@ -307,8 +309,10 @@ __flow_create4(const struct sfc_ipv4_flow_key *key, union tcp_flags tcp_flags,
 	       struct sfc_ipv4_flow_entry *entry)
 {
 	bool is_tcp = (key->nexthdr == IPPROTO_TCP);
-	struct sfc_ipv4_flow_entry new_entry = {
-	    .path = entry->path, .previous_hop_addr = entry->previous_hop_addr};
+	struct sfc_ipv4_flow_entry new_entry = {};
+
+	new_entry.path = entry->path;
+	new_entry.previous_hop_addr = entry->previous_hop_addr;
 
 	__flow4_update_timeout(&new_entry, is_tcp, CT_EGRESS, tcp_flags);
 	if (map_update_elem(&SFC_FLOW_MAP_ANY4, key, &new_entry, 0) < 0) {
@@ -319,9 +323,10 @@ __flow_create4(const struct sfc_ipv4_flow_key *key, union tcp_flags tcp_flags,
 }
 
 /**
- * Lookup service steering flows. Creates the entry if not reverse.
+ * Lookup service steering flows. Creates the entry if `create` and not `reverse`.
  * @arg ctx:       Packet
  * @arg ip4:       Pointer to L3 header
+ * @arg create:  Boolean indicating whether to create flow entry.
  * @arg reverse: Boolean indicating whether packet is the return packet from
  * destination.
  * @arg entry:      Pointer to store the matching entry. If creating a new
@@ -332,7 +337,7 @@ __flow_create4(const struct sfc_ipv4_flow_key *key, union tcp_flags tcp_flags,
  * created.
  */
 static __always_inline __maybe_unused int
-sfc_flow_lookup4(struct __ctx_buff *ctx, struct iphdr *ip4, bool reverse,
+sfc_flow_lookup4(struct __ctx_buff *ctx, struct iphdr *ip4, bool create, bool reverse,
 		 struct sfc_ipv4_flow_entry *entry)
 {
 	struct sfc_ipv4_flow_key key = {};
@@ -347,6 +352,7 @@ sfc_flow_lookup4(struct __ctx_buff *ctx, struct iphdr *ip4, bool reverse,
 		return DROP_CT_UNKNOWN_PROTO;
 	}
 
+	key.ep_id = LXC_ID;
 	key.saddr = ip4->saddr;
 	key.daddr = ip4->daddr;
 	key.nexthdr = ip4->protocol;
@@ -374,7 +380,7 @@ sfc_flow_lookup4(struct __ctx_buff *ctx, struct iphdr *ip4, bool reverse,
 	if (__flow4_lookup(&key, tcp_flags, dir, entry)) {
 		return CT_ESTABLISHED;
 	}
-	if (reverse) {
+	if (!create || reverse) {
 		return CT_NEW;
 	}
 
@@ -382,6 +388,167 @@ sfc_flow_lookup4(struct __ctx_buff *ctx, struct iphdr *ip4, bool reverse,
 		return DROP_CT_CREATE_FAILED;
 	}
 	return CT_ESTABLISHED;
+}
+
+/**
+ * Encapuslate packet for SFC based on flow tracking and traffic selection.
+ * @arg ctx: Packet
+ * @arg ip4: Pointer to L3 header
+ *
+ * Return negative `DROP_` codes if the packet can't be handled.
+ * Return `CTX_ACT_REDIRECT` if the packet was encapsulated.
+ */
+static __always_inline int
+try_sfc_encap(struct __ctx_buff *ctx, struct iphdr *ip4)
+{
+	int ret;
+	struct redirect_info redir = {};
+	struct sfc_ipv4_flow_entry flow_entry = {};
+
+	if (is_sfc_encapped(ctx, ip4))
+		return CTX_ACT_OK;
+
+	if (ip4->protocol != IPPROTO_UDP && ip4->protocol != IPPROTO_TCP) {
+		/* Protocol not supported */
+		return CTX_ACT_OK;
+	}
+
+	// reverse flow lookup
+	ret = sfc_flow_lookup4(ctx, ip4, false, true, &flow_entry);
+	if (IS_ERR(ret))
+		return ret;
+	if (ret == CT_ESTABLISHED) {
+		redir.path = flow_entry.path;
+		redir.daddr = flow_entry.previous_hop_addr;
+		redir.is_reply = true;
+	}
+
+	// forwards flow lookup
+	if (!redir.path) {
+		ret = sfc_flow_lookup4(ctx, ip4, false, false, &flow_entry);
+		if (IS_ERR(ret))
+			return ret;
+		if (ret == CT_ESTABLISHED) {
+			__u32 spi = nshpath_spi(flow_entry.path);
+			__u8 si = nshpath_si(flow_entry.path);
+			if (si == 0)
+				return DROP_INVALID;
+			redir.path = nshpath_init(spi, si-1);
+		}
+	}
+
+	// traffic selection
+	if (!redir.path) {
+		ret = sfc_select(ctx, ip4, true, &redir.path);
+		if (IS_ERR(ret))
+			return ret;
+	}
+
+	// set next hop dest IP
+	if (redir.path && !redir.is_reply) {
+		__u8 si = nshpath_si(redir.path);
+		if (si == 0) {
+			redir.daddr = ip4->daddr;
+		} else {
+			struct sfc_path_key path_key = { .path = redir.path };
+			struct sfc_path_entry *path_entry = map_lookup_elem(&SFC_PATH_MAP, &path_key);
+			if (path_entry == NULL)
+				return DROP_NO_SERVICE;
+			redir.daddr = path_entry->address;
+		}
+	}
+
+	if (redir.path) {
+		ret = sfc_encap(ctx, ip4, &redir);
+		if (IS_ERR(ret))
+			return ret;
+		return CTX_ACT_REDIRECT;
+	}
+
+	return CTX_ACT_OK;
+}
+
+/**
+ * Decapuslate SFC packet and update the flow-tracking map.
+ * @arg ctx: Packet
+ *
+ * Return negative `DROP_` codes if the packet can't be handled and `CTX_ACT_OK` otherwise.
+ */
+static __always_inline int
+try_sfc_decap(struct __ctx_buff *ctx)
+{
+	void *data, *data_end;
+	struct iphdr *ip4;
+	int ret;
+
+	if (!revalidate_data(ctx, &data, &data_end, &ip4))
+		return DROP_INVALID;
+
+	if (is_sfc_encapped(ctx, ip4)) {
+		__u16 sport;
+		struct encaphdr h_outer = {};
+		struct sfc_ipv4_flow_entry flow_entry = {};
+		ret = sfc_decap(ctx, &h_outer);
+		if (IS_ERR(ret))
+			return ret;
+		if (!revalidate_data_pull(ctx, &data, &data_end, &ip4))
+			return DROP_INVALID;
+
+		sport = bpf_ntohs(h_outer.udp.source);
+		if ((sport & 0b1) == 0) {
+			/* Create flow entry for non-reply traffic. */
+			flow_entry.path = h_outer.nsh.path;
+			flow_entry.previous_hop_addr = h_outer.ip.saddr;
+			ret = sfc_flow_lookup4(ctx, ip4, true, false, &flow_entry);
+			if (IS_ERR(ret))
+				return ret;
+		}
+	}
+
+	return CTX_ACT_OK;
+}
+/**
+ * Load balance (DNAT) the packet if the dst is a service.
+ * @arg ctx: Packet
+ * @arg ip4: Pointer to L3 header
+ * @arg inner_saddr: IP address of the inner packet (original source IP before
+ * encap)
+ *
+ * Return negative `DROP_` codes if the packet can't be handled and `CTX_ACT_OK`
+ * (0) otherwise.
+ */
+static __always_inline int sfc_lb4(struct __ctx_buff *ctx, struct iphdr *ip4,
+				   __be32 inner_saddr)
+{
+	int ret;
+	struct ipv4_ct_tuple tuple = {};
+	struct csum_offset csum_off = {};
+	struct ct_state ct_state_new = {};
+	bool has_l4_header;
+	struct lb4_service *svc;
+	struct lb4_key key = {};
+	int l4_off;
+
+	has_l4_header = ipv4_has_l4_header(ip4);
+	tuple.nexthdr = ip4->protocol;
+	tuple.daddr = ip4->daddr;
+	tuple.saddr = ip4->saddr;
+
+	l4_off = ETH_HLEN + ipv4_hdrlen(ip4);
+
+	ret = lb4_extract_key(ctx, ip4, l4_off, &key, &csum_off, CT_EGRESS);
+	if (IS_ERR(ret))
+		return ret;
+
+	svc = lb4_lookup_service(&key, true);
+	if (svc) {
+		ret = lb4_local(get_ct_map4(&tuple), ctx, ETH_HLEN, l4_off,
+				&csum_off, &key, &tuple, svc, &ct_state_new,
+				inner_saddr, has_l4_header, false);
+		if (IS_ERR(ret))
+			return ret;
+	}
+	return CTX_ACT_OK;
 }
 
 #endif /* ENABLE_GOOGLE_SERVICE_STEERING */

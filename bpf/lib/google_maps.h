@@ -59,14 +59,15 @@ struct sfc_path_entry {
 
 struct sfc_ipv4_flow_key {
 	/* These field names are correct for original direction traffic.
-	 * All are stored in network order.
+	 * All are stored in network order, except `ep_id`.
 	 */
 	__be32		saddr;
 	__be32		daddr;
 	__be16		sport;
 	__be16		dport;
+	__u16		ep_id;
 	__u8		nexthdr;
-	__u8            pad;
+	__u8		pad;
 } __packed;
 
 struct sfc_ipv4_flow_entry {
