@@ -26,11 +26,12 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	networkapis "k8s.io/cloud-provider-gcp/crd/apis/network/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-// K8sClient interface contains the methods that can be used to interact with the Network and
-// NetworkInterface CRs.
+// K8sClient interface contains the methods that can be used to interact with the Network,
+// NetworkInterface and GKENetworkParams CRs.
 type K8sClient interface {
 	// GetNetworkInterface returns the specified NetworkInterface CR
 	GetNetworkInterface(ctx context.Context, name, namespace string) (*networkv1.NetworkInterface, error)
@@ -49,6 +50,9 @@ type K8sClient interface {
 
 	// SetPodIPsAnnotation sets the pod annotation for additional pod IPs assigned to the pod
 	SetPodIPsAnnotation(ctx context.Context, pod *v1.Pod, podIPs *networkv1.PodIPsAnnotation) error
+
+	// GetGKENetworkParams returns the specified GKENetworkParams CR
+	GetGKENetworkParams(ctx context.Context, name string) (*networkapis.GKENetworkParams, error)
 }
 
 // k8sClientImpl is an implementation of the K8sClient interface
@@ -126,4 +130,12 @@ func (c *k8sClientImpl) SetPodIPsAnnotation(ctx context.Context, obj *v1.Pod, po
 	patch := fmt.Sprintf(`{"metadata":{"annotations":%s}}`, raw)
 	log.Infof("applying patch %s to pod %s", patch, pod.Name)
 	return c.client.Status().Patch(ctx, pod, client.RawPatch(types.StrategicMergePatchType, []byte(patch)))
+}
+
+func (c *k8sClientImpl) GetGKENetworkParams(ctx context.Context, name string) (*networkapis.GKENetworkParams, error) {
+	gnp := &networkapis.GKENetworkParams{}
+	if err := c.client.Get(ctx, namespacedName(name, ""), gnp); err != nil {
+		return nil, err
+	}
+	return gnp, nil
 }

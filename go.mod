@@ -108,7 +108,10 @@ require (
 	sigs.k8s.io/yaml v1.3.0
 )
 
-require k8s.io/klog v1.0.0
+require (
+	k8s.io/cloud-provider-gcp/crd v0.0.0-20221123200206-55314f386081
+	k8s.io/klog v1.0.0
+)
 
 require (
 	github.com/Azure/go-autorest v14.2.0+incompatible // indirect

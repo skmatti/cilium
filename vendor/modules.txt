@@ -1575,6 +1575,9 @@ k8s.io/client-go/util/homedir
 k8s.io/client-go/util/jsonpath
 k8s.io/client-go/util/keyutil
 k8s.io/client-go/util/workqueue
+# k8s.io/cloud-provider-gcp/crd v0.0.0-20221123200206-55314f386081
+## explicit; go 1.16
+k8s.io/cloud-provider-gcp/crd/apis/network/v1
 # k8s.io/code-generator v0.24.13
 ## explicit; go 1.19
 k8s.io/code-generator
