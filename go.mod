@@ -250,6 +250,7 @@ require (
 	gke-internal.googlesource.com/anthos-networking/apis/v2 v2.1.1-gke.1
 	// GKE specific dependencies.
 	gke-internal/gke-node-firewall v0.0.0-00010101000000-000000000000
+	k8s.io/cloud-provider-gcp/crd v0.0.0-20230119221216-bb1acae5826d
 	k8s.io/kubelet v0.23.0
 )
 

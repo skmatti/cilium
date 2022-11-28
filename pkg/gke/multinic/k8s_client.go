@@ -18,14 +18,16 @@ package multinic
 
 import (
 	"context"
+	"fmt"
 
 	networkv1 "gke-internal.googlesource.com/anthos-networking/apis/v2/network/v1"
 	"k8s.io/apimachinery/pkg/types"
+	networkv1alpha1 "k8s.io/cloud-provider-gcp/crd/apis/network/v1alpha1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-// K8sClient interface contains the methods that can be used to interact with the Network and
-// NetworkInterface CRs.
+// K8sClient interface contains the methods that can be used to interact with the Network,
+// NetworkInterface and GKENetworkParams CRs.
 type K8sClient interface {
 	// GetNetworkInterface returns the specified NetworkInterface CR
 	GetNetworkInterface(ctx context.Context, name, namespace string) (*networkv1.NetworkInterface, error)
@@ -41,6 +43,9 @@ type K8sClient interface {
 
 	// DeleteNetworkInterface deletes the network interface object
 	DeleteNetworkInterface(ctx context.Context, obj *networkv1.NetworkInterface) error
+
+	// GetNetworkParamObject returns the specified Object pointed by the params ref inside the Network object.
+	GetNetworkParamObject(ctx context.Context, ref *networkv1.NetworkParametersReference) (client.Object, error)
 }
 
 // k8sClientImpl is an implementation of the K8sClient interface
@@ -96,4 +101,20 @@ func (c *k8sClientImpl) CreateNetworkInterface(ctx context.Context, obj *network
 
 func (c *k8sClientImpl) DeleteNetworkInterface(ctx context.Context, obj *networkv1.NetworkInterface) error {
 	return c.client.Delete(ctx, obj)
+}
+
+func (c *k8sClientImpl) GetNetworkParamObject(ctx context.Context, ref *networkv1.NetworkParametersReference) (client.Object, error) {
+	if ref.Group != networkv1alpha1.GroupName || ref.Kind != "GKENetworkParamSet" {
+		// Unsupported params ref kind
+		return nil, fmt.Errorf("unknown paramRef kind: %s/%s", ref.Group, ref.Kind)
+	}
+	ret := &networkv1alpha1.GKENetworkParamSet{}
+	ns := ""
+	if ref.Namespace != nil {
+		ns = *ref.Namespace
+	}
+	if err := c.client.Get(ctx, namespacedName(ref.Name, ns), ret); err != nil {
+		return nil, err
+	}
+	return ret, nil
 }
