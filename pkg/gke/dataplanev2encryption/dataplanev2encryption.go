@@ -20,13 +20,13 @@ func IsWireguard() bool {
 	v1alpha1.AddToScheme(scheme)
 	k8sClient, err := client.New(k8sConfig, client.Options{Scheme: scheme})
 	if err != nil {
-		log.Debugf("Unable to create k8s client: %v", err.Error())
+		log.Warnf("Unable to create k8s client: %v", err.Error())
 		return false
 	}
 
 	e := &v1alpha1.DataplaneV2Encryption{}
 	if err := k8sClient.Get(context.Background(), client.ObjectKey{Name: "default"}, e); err != nil {
-		log.Debugf("Unable to get DataplaneV2Encryption CR: %v", err.Error())
+		log.Warnf("Unable to get DataplaneV2Encryption CR: %v", err.Error())
 		return false
 	}
 

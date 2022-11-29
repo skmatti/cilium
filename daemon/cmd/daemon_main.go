@@ -1193,12 +1193,6 @@ func initializeFlags() {
 	option.BindEnv(option.EnablePMTUDiscovery)
 
 	viper.BindPFlags(flags)
-
-	if dpv2e.IsWireguard() {
-		viper.Set(option.EnableWireguard, true)
-		viper.Set(option.EnableL7Proxy, false)
-		log.Info("Enabling Wireguard. Wireguard is not compatible with L7-Proxy, hence disabling L7-Proxy")
-	}
 }
 
 // restoreExecPermissions restores file permissions to 0740 of all files inside
@@ -1714,6 +1708,11 @@ func runDaemon() {
 	iptablesManager := &iptables.IptablesManager{}
 	iptablesManager.Init()
 
+	if dpv2e.IsWireguard() {
+		option.Config.EnableWireguard = true
+		option.Config.EnableL7Proxy = false
+		log.Info("Enabling Wireguard. Wireguard is not compatible with L7-Proxy, hence disabling L7-Proxy")
+	}
 	var wgAgent *wireguard.Agent
 	if option.Config.EnableWireguard {
 		switch {
@@ -1730,6 +1729,8 @@ func runDaemon() {
 		wgAgent, err = wireguard.NewAgent(privateKeyPath)
 		if err != nil {
 			log.WithError(err).Fatal("Failed to initialize wireguard")
+		} else {
+			log.Info("Initialized wireguard.")
 		}
 
 		cleaner.cleanupFuncs.Add(func() {
