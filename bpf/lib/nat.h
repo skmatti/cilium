@@ -22,6 +22,7 @@
 #include "nat_46x64.h"
 #include "stubs.h"
 #include "trace.h"
+#include "google_multinic.h"
 
 enum  nat_dir {
 	NAT_DIR_EGRESS  = TUPLE_F_OUT,
@@ -634,6 +635,16 @@ static __always_inline bool snat_v4_prepare_state(struct __ctx_buff *ctx,
 		target->addr = IPV4_DIRECT_ROUTING;
 		return true;
 	}
+# ifdef ENABLE_GOOGLE_MULTI_NIC
+{
+	volatile __u32 ifindex = NATIVE_DEV_IFINDEX;
+	__be32 nodeport_ip = NODEPORT_IPV4_BY_IFINDEX(ifindex);
+	if (ip4->saddr == nodeport_ip) {
+		target->addr = nodeport_ip;
+		return true;
+	}
+}
+# endif
 # ifdef ENABLE_MASQUERADE
 	if (ip4->saddr == IPV4_MASQUERADE) {
 		target->addr = IPV4_MASQUERADE;

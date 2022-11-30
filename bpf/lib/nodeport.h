@@ -2091,6 +2091,18 @@ int tail_nodeport_nat_egress_ipv4(struct __ctx_buff *ctx)
 	 */
 	target.addr = IPV4_DIRECT_ROUTING;
 
+	/* Use per-interface NodePort SNAT IP for additional-network host devices
+	 * to preserve network isolation.
+	 * Same as above, this can be removed when GH#17158 is resolved and
+	 * bpf_fib_lookup() resolves src IP.
+	 */
+#ifdef ENABLE_GOOGLE_MULTI_NIC
+	if (DIRECT_ROUTING_DEV_IFINDEX != NATIVE_DEV_IFINDEX) {
+		volatile __u32 ifindex = NATIVE_DEV_IFINDEX;
+		target.addr = NODEPORT_IPV4_BY_IFINDEX(ifindex);
+	}
+#endif
+
 #ifdef TUNNEL_MODE
 	if (!revalidate_data(ctx, &data, &data_end, &ip4)) {
 		ret = DROP_INVALID;
