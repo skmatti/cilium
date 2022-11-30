@@ -600,6 +600,11 @@ func (h *HeaderfileWriter) WriteNodeConfig(w io.Writer, cfg *datapath.LocalNodeC
 		cDefinesMap["ENABLE_GOOGLE_MULTI_NIC"] = "1"
 		cDefinesMap["MULTI_NIC_DEV_MAP"] = multinicdev.MapName
 		cDefinesMap["MULTI_NIC_DEV_MAP_SIZE"] = fmt.Sprintf("%d", multinicdev.MaxEntries)
+		nodePortIPv4ByIfIndex, err := nodePortIPv4AddrsMacro()
+		if err != nil {
+			return err
+		}
+		cDefinesMap["NODEPORT_IPV4_BY_IFINDEX(IFINDEX)"] = nodePortIPv4ByIfIndex
 	}
 
 	if option.Config.DisableIPv6Tunnel {
