@@ -669,6 +669,10 @@ skip_egress_gateway:
 	if (local_ep && (local_ep->flags & ENDPOINT_F_HOST))
 		return false;
 
+	/* If ENDPOINT_F_MULTI_NIC flag is set, no SNAT is needed */
+	if (local_ep && (local_ep->flags & ENDPOINT_F_MULTI_NIC))
+		return false;
+
 	if (remote_ep) {
 #ifdef ENABLE_IP_MASQ_AGENT
 		/* Do not SNAT if dst belongs to any ip-masq-agent
