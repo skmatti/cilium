@@ -137,7 +137,10 @@ func (d *Daemon) launchHubble() {
 		return
 	}
 
-	gkeFlowPlugin := gkeflow.New()
+	gkeOpts := gkeflow.GKEFlowOptions{
+		DisablePolicyEventCountMetric: option.Config.DisablePolicyEventCountMetric,
+	}
+	gkeFlowPlugin := gkeflow.New(gkeOpts)
 	observerOpts = append(observerOpts,
 		observeroption.WithOnServerInit(gkeFlowPlugin),
 		observeroption.WithMaxFlows(maxFlows),

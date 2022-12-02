@@ -243,6 +243,9 @@ const (
 	// EnableHostFirewall enables network policies for the host
 	EnableHostFirewall = "enable-host-firewall"
 
+	// DisablePolicyEventCountMetric  disables the policy event count metric on this host.
+	DisablePolicyEventCountMetric = "disable-policy-event-count-metric"
+
 	// EnableRedirectService enables google redirect service for the host
 	EnableRedirectService = "enable-redirect-service"
 
@@ -2009,6 +2012,9 @@ type DaemonConfig struct {
 	// EnableHostFirewall enables network policies for the host
 	EnableHostFirewall bool
 
+	// DisablePolicyEventCountMetric  disables the policy event count metric on this host.
+	DisablePolicyEventCountMetric bool
+
 	// EnableRedirectService enables google redirect service for the host
 	EnableRedirectService bool
 
@@ -2969,6 +2975,7 @@ func (c *DaemonConfig) Populate() {
 	c.EnableMKE = viper.GetBool(EnableMKE)
 	c.CgroupPathMKE = viper.GetString(CgroupPathMKE)
 	c.EnableHostFirewall = viper.GetBool(EnableHostFirewall)
+	c.DisablePolicyEventCountMetric = viper.GetBool(DisablePolicyEventCountMetric)
 	c.EnableRedirectService = viper.GetBool(EnableRedirectService)
 	c.EnableFQDNNetworkPolicy = viper.GetBool(EnableFQDNNetworkPolicy)
 	c.EnableTrafficSteering = viper.GetBool(EnableTrafficSteering)

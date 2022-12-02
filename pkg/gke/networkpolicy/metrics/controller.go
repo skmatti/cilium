@@ -26,6 +26,10 @@ var (
 	log = logging.DefaultLogger.WithField(logfields.LogSubsys, "gke-network-policy-metrics")
 )
 
+type ControllerOptions struct {
+	DisablePolicyEventCount bool
+}
+
 // Controller is a struct that is used for providing a control mechanism to pkg/gke/flow/plugin.go over
 // metric exporter
 type Controller struct {
@@ -33,20 +37,27 @@ type Controller struct {
 	stopCh     chan struct{}         // stopCh is used for receiving stop signal from plugin and then stopping the exporter go routine
 
 	exporter *exporter // exporter is reference to metric exporter used for control operations
+
+	opts ControllerOptions
 }
 
 // NewController is used for controller object creation
-func NewController(dispatcher dispatcher.Dispatcher, stopCh chan struct{}) (*Controller, error) {
+func NewController(dispatcher dispatcher.Dispatcher, stopCh chan struct{}, options ControllerOptions) (*Controller, error) {
 	c := &Controller{
 		dispatcher: dispatcher,
 		exporter:   newExporter(dispatcher),
 		stopCh:     stopCh,
+		opts:       options,
 	}
 	return c, nil
 }
 
 // Run is used for performing start & stop operation controls on metric exporter
 func (c *Controller) Run() {
+	if c.opts.DisablePolicyEventCount {
+		log.Info("Stopping network policy metric exporter because policy_event_count is disabled")
+		return
+	}
 	log.Info("Starting network policy metric exporter controller")
 	err := c.exporter.start()
 	if err != nil {

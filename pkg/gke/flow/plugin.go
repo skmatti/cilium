@@ -35,7 +35,13 @@ var (
 	log = logging.DefaultLogger.WithField(logfields.LogSubsys, "gke-flow-plugin")
 )
 
+type GKEFlowOptions struct {
+	DisablePolicyEventCountMetric bool
+}
+
 type gkeFlowPlugin struct {
+	options GKEFlowOptions
+
 	networkLoggingController  *nlcontroller.Controller
 	metricsExporterController *me.Controller
 	endpointGetter            getters.EndpointGetter
@@ -58,8 +64,10 @@ type GKEFlowPlugin interface {
 }
 
 // New
-func New() GKEFlowPlugin {
-	return &gkeFlowPlugin{}
+func New(o GKEFlowOptions) GKEFlowPlugin {
+	return &gkeFlowPlugin{
+		options: o,
+	}
 }
 
 // Stop stops GKEFlowPlugin.
@@ -109,17 +117,20 @@ func (p *gkeFlowPlugin) OnServerInit(srv observeroption.Server) error {
 		log.Errorf("Failed to create network logging controller: %v", err)
 		return err
 	}
-	log.Info("Created network logging controller")
+	log.Info("Created network logging controller, but not started")
 
 	// metricExporterStopCh is used to only signal closing. So it doesn't needs any buffer
 	// and will only have open and close operations.
 	p.metricExporterStopCh = make(chan struct{})
-	p.metricsExporterController, err = me.NewController(p.dispatcher, p.metricExporterStopCh)
+	metricOpts := me.ControllerOptions{
+		DisablePolicyEventCount: p.options.DisablePolicyEventCountMetric,
+	}
+	p.metricsExporterController, err = me.NewController(p.dispatcher, p.metricExporterStopCh, metricOpts)
 	if err != nil {
 		log.Errorf("Failed to create metric exporter controller: %v", err)
 		return err
 	}
-	log.Info("Created metric exporter controller")
+	log.Info("Created metric exporter controller, but not started")
 	go p.metricsExporterController.Run()
 	go p.networkLoggingController.Run()
 	return nil
