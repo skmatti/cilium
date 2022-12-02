@@ -1198,7 +1198,7 @@ pass_to_stack:
 #endif
 	}
 
-#if (defined(TUNNEL_MODE) || defined(ENABLE_EGRESS_GATEWAY)) && !defined(IS_MULTI_NIC_DEVICE)
+#if (defined(TUNNEL_MODE) && !defined(IS_MULTI_NIC_DEVICE)) || defined(ENABLE_EGRESS_GATEWAY)
 encrypt_to_stack:
 #endif
 	send_trace_notify(ctx, TRACE_TO_STACK, SECLABEL, *dst_id, 0, 0,
