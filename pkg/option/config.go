@@ -237,6 +237,9 @@ const (
 	// EnableHostFirewall enables network policies for the host
 	EnableHostFirewall = "enable-host-firewall"
 
+	// DisablePolicyEventCountMetric  disables the policy event count metric on this host.
+	DisablePolicyEventCountMetric = "disable-policy-event-count-metric"
+
 	// EnableHostPort enables HostPort forwarding implemented by Cilium in BPF
 	EnableHostPort = "enable-host-port"
 
@@ -2020,6 +2023,9 @@ type DaemonConfig struct {
 	// EnableHostFirewall enables network policies for the host
 	EnableHostFirewall bool
 
+	// DisablePolicyEventCountMetric  disables the policy event count metric on this host.
+	DisablePolicyEventCountMetric bool
+
 	// EnableLocalRedirectPolicy enables redirect policies to redirect traffic within nodes
 	EnableLocalRedirectPolicy bool
 
@@ -2986,6 +2992,7 @@ func (c *DaemonConfig) Populate(vp *viper.Viper) {
 	c.EnableMKE = vp.GetBool(EnableMKE)
 	c.CgroupPathMKE = vp.GetString(CgroupPathMKE)
 	c.EnableHostFirewall = vp.GetBool(EnableHostFirewall)
+	c.DisablePolicyEventCountMetric = vp.GetBool(DisablePolicyEventCountMetric)
 	c.EnableLocalRedirectPolicy = vp.GetBool(EnableLocalRedirectPolicy)
 	c.EnableGoogleMultiNIC = vp.GetBool(EnableGoogleMultiNIC)
 	c.AllowDisableSourceIPValidation = vp.GetBool(AllowDisableSourceIPValidation)
