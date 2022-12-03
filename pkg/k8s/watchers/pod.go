@@ -476,6 +476,9 @@ func (k *K8sWatcher) genServiceMappings(pod *slim_corev1.Pod, podIPs []string, l
 		svcs       []loadbalancer.SVC
 		containers []slim_corev1.Container
 	)
+	if !k8sUtils.IsPodRunning(pod.Status) {
+		return svcs
+	}
 	containers = append(containers, pod.Spec.InitContainers...)
 	containers = append(containers, pod.Spec.Containers...)
 	for _, c := range containers {
