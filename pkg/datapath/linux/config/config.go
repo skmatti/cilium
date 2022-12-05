@@ -467,8 +467,7 @@ func (h *HeaderfileWriter) WriteNodeConfig(w io.Writer, cfg *datapath.LocalNodeC
 	}
 	cDefinesMap["HASH_INIT4_SEED"] = fmt.Sprintf("%d", maglev.SeedJhash0)
 	cDefinesMap["HASH_INIT6_SEED"] = fmt.Sprintf("%d", maglev.SeedJhash1)
-
-	if option.Config.DirectRoutingDeviceRequired() {
+	if option.Config.EnableNodePort {
 		directRoutingIface := option.Config.DirectRoutingDevice
 		directRoutingIfIndex, err := link.GetIfIndex(directRoutingIface)
 		if err != nil {

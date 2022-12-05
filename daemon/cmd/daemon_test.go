@@ -20,6 +20,7 @@ import (
 	"github.com/cilium/cilium/pkg/controller"
 	"github.com/cilium/cilium/pkg/datapath"
 	fakeDatapath "github.com/cilium/cilium/pkg/datapath/fake"
+	"github.com/cilium/cilium/pkg/datapath/linux"
 	"github.com/cilium/cilium/pkg/endpoint"
 	fqdnproxy "github.com/cilium/cilium/pkg/fqdn/proxy"
 	"github.com/cilium/cilium/pkg/fqdn/restore"
@@ -147,6 +148,7 @@ func (ds *DaemonSuite) SetUpTest(c *C) {
 			},
 			func() datapath.Datapath { return fakeDatapath.NewDatapath() },
 			func() *option.DaemonConfig { return option.Config },
+			func() *linux.DeviceManager { return nil },
 		),
 		ControlPlane,
 		cell.Invoke(func(p promise.Promise[*Daemon]) {

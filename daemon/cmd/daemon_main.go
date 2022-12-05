@@ -1748,6 +1748,8 @@ type daemonParams struct {
 	LocalNodeStore node.LocalNodeStore
 	BGPController  *bgpv1.Controller
 	Shutdowner     hive.Shutdowner
+
+	DeviceManager *linuxdatapath.DeviceManager
 }
 
 func newDaemonPromise(params daemonParams) promise.Promise[*Daemon] {
@@ -1774,7 +1776,8 @@ func newDaemonPromise(params daemonParams) promise.Promise[*Daemon] {
 				WithDefaultEndpointManager(daemonCtx, params.Clientset, endpoint.CheckHealth),
 				params.Datapath,
 				params.WGAgent,
-				params.Clientset)
+				params.Clientset,
+				params.DeviceManager)
 			if err != nil {
 				return fmt.Errorf("daemon creation failed: %w", err)
 			}

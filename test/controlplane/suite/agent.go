@@ -12,6 +12,7 @@ import (
 	"github.com/cilium/cilium/daemon/cmd"
 	"github.com/cilium/cilium/pkg/datapath"
 	fakeDatapath "github.com/cilium/cilium/pkg/datapath/fake"
+	"github.com/cilium/cilium/pkg/datapath/linux"
 	"github.com/cilium/cilium/pkg/hive"
 	"github.com/cilium/cilium/pkg/hive/cell"
 	k8sClient "github.com/cilium/cilium/pkg/k8s/client"
@@ -66,6 +67,7 @@ func startCiliumAgent(t *testing.T, nodeName string, clientset k8sClient.Clients
 			func() k8sClient.Clientset { return clientset },
 			func() datapath.Datapath { return fdp },
 			func() *option.DaemonConfig { return option.Config },
+			func() *linux.DeviceManager { return nil },
 		),
 		cmd.ControlPlane,
 		cell.Invoke(func(p promise.Promise[*cmd.Daemon]) {

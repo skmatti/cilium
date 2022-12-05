@@ -1252,9 +1252,6 @@ func (s *linuxPrivilegedIPv6OnlyTestSuite) TestArpPingHandling(c *check.C) {
 		return nil
 	})
 
-	prevTunnel := option.Config.Tunnel
-	defer func() { option.Config.Tunnel = prevTunnel }()
-	option.Config.Tunnel = option.TunnelDisabled
 	prevDRDev := option.Config.DirectRoutingDevice
 	defer func() { option.Config.DirectRoutingDevice = prevDRDev }()
 	option.Config.DirectRoutingDevice = "veth0"
@@ -2422,9 +2419,6 @@ func (s *linuxPrivilegedIPv4OnlyTestSuite) TestArpPingHandling(c *check.C) {
 		return nil
 	})
 
-	prevTunnel := option.Config.Tunnel
-	defer func() { option.Config.Tunnel = prevTunnel }()
-	option.Config.Tunnel = option.TunnelDisabled
 	prevDRDev := option.Config.DirectRoutingDevice
 	defer func() { option.Config.DirectRoutingDevice = prevDRDev }()
 	option.Config.DirectRoutingDevice = "veth0"

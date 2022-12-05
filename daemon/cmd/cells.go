@@ -5,6 +5,7 @@ package cmd
 
 import (
 	"github.com/cilium/cilium/pkg/bgpv1"
+	"github.com/cilium/cilium/pkg/datapath/linux"
 	"github.com/cilium/cilium/pkg/defaults"
 	"github.com/cilium/cilium/pkg/gops"
 	"github.com/cilium/cilium/pkg/hive/cell"
@@ -40,6 +41,8 @@ var (
 
 		// Provide option.Config via hive so cells can depend on the agent config.
 		cell.Provide(func() *option.DaemonConfig { return option.Config }),
+
+		cell.Provide(linux.NewDeviceManager),
 	)
 
 	// ControlPlane implement the per-node control functions. These are pure

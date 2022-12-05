@@ -429,6 +429,7 @@ func newDaemon(ctx context.Context, cleaner *daemonCleanup,
 	epMgr *endpointmanager.EndpointManager, dp datapath.Datapath,
 	wgAgent *wg.Agent,
 	clientset k8sClient.Clientset,
+	devMngr *linuxdatapath.DeviceManager,
 ) (*Daemon, *endpointRestoreState, error) {
 
 	var (
@@ -555,11 +556,6 @@ func newDaemon(ctx context.Context, cleaner *daemonCleanup,
 	}
 
 	nd := nodediscovery.NewNodeDiscovery(nodeMngr, clientset, mtuConfig, netConf)
-
-	devMngr, err := linuxdatapath.NewDeviceManager()
-	if err != nil {
-		return nil, nil, err
-	}
 
 	d := Daemon{
 		ctx:               ctx,
@@ -986,13 +982,15 @@ func newDaemon(ctx context.Context, cleaner *daemonCleanup,
 	// This is because the device detection requires self (Cilium)Node object,
 	// and the k8s service watcher depends on option.Config.EnableNodePort flag
 	// which can be modified after the device detection.
-	if _, err := d.deviceManager.Detect(clientset.IsEnabled()); err != nil {
-		if option.Config.AreDevicesRequired() {
-			// Fail hard if devices are required to function.
-			return nil, nil, fmt.Errorf("failed to detect devices: %w", err)
+	if d.deviceManager != nil {
+		if _, err := d.deviceManager.Detect(clientset.IsEnabled()); err != nil {
+			if option.Config.AreDevicesRequired() {
+				// Fail hard if devices are required to function.
+				return nil, nil, fmt.Errorf("failed to detect devices: %w", err)
+			}
+			log.WithError(err).Warn("failed to detect devices, disabling BPF NodePort")
+			disableNodePort()
 		}
-		log.WithError(err).Warn("failed to detect devices, disabling BPF NodePort")
-		disableNodePort()
 	}
 	if err := finishKubeProxyReplacementInit(); err != nil {
 		log.WithError(err).Error("failed to finalise LB initialization")
@@ -1327,7 +1325,7 @@ func newDaemon(ctx context.Context, cleaner *daemonCleanup,
 	identitymanager.Subscribe(d.policy)
 
 	// Start listening to changed devices if requested.
-	if option.Config.EnableRuntimeDeviceDetection {
+	if option.Config.EnableRuntimeDeviceDetection && d.deviceManager != nil {
 		if option.Config.AreDevicesRequired() {
 			devicesChan, err := d.deviceManager.Listen(ctx)
 			if err != nil {
