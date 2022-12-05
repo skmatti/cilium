@@ -12,9 +12,9 @@ import (
 	"github.com/cilium/cilium/pkg/logging"
 	"github.com/cilium/cilium/pkg/logging/logfields"
 	"github.com/cilium/cilium/pkg/node"
-	networkv1 "gke-internal.googlesource.com/anthos-networking/apis/v2/network/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	networkv1 "k8s.io/cloud-provider-gcp/crd/apis/network/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
 
 	"github.com/cilium/cilium/pkg/endpointmanager"

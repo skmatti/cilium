@@ -32,8 +32,8 @@ import (
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/vishvananda/netlink"
 	"github.com/vishvananda/netns"
-	networkv1 "gke-internal.googlesource.com/anthos-networking/apis/v2/network/v1"
 	"golang.org/x/sys/unix"
+	networkv1 "k8s.io/cloud-provider-gcp/crd/apis/network/v1"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/pointer"

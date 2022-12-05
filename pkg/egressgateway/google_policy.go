@@ -2,7 +2,7 @@ package egressgateway
 
 import (
 	k8sLbls "github.com/cilium/cilium/pkg/k8s/slim/k8s/apis/labels"
-	networkv1 "gke-internal.googlesource.com/anthos-networking/apis/v2/network/v1"
+	networkv1 "k8s.io/cloud-provider-gcp/crd/apis/network/v1"
 )
 
 // isMultiNICEndpoint returns true if the endpoint has multi-network label

@@ -28,9 +28,9 @@ import (
 	"github.com/containernetworking/plugins/pkg/ns"
 	"github.com/sirupsen/logrus"
 	"github.com/vishvananda/netlink"
-	networkv1 "gke-internal.googlesource.com/anthos-networking/apis/v2/network/v1"
 	"golang.org/x/sys/unix"
 	"k8s.io/apimachinery/pkg/types"
+	networkv1 "k8s.io/cloud-provider-gcp/crd/apis/network/v1"
 	"k8s.io/utils/pointer"
 )
 

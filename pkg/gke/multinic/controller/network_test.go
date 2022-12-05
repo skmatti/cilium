@@ -31,11 +31,11 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/vishvananda/netlink"
 	"github.com/vishvananda/netns"
-	networkv1 "gke-internal.googlesource.com/anthos-networking/apis/v2/network/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	k8sruntime "k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	networkv1 "k8s.io/cloud-provider-gcp/crd/apis/network/v1"
 	utilpointer "k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 

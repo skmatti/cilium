@@ -24,8 +24,8 @@ import (
 	"github.com/cilium/cilium/pkg/maps/multinicdev"
 	"github.com/cilium/cilium/pkg/option"
 	"github.com/sirupsen/logrus"
-	networkv1 "gke-internal.googlesource.com/anthos-networking/apis/v2/network/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	networkv1 "k8s.io/cloud-provider-gcp/crd/apis/network/v1"
 	utilpointer "k8s.io/utils/pointer"
 
 	. "github.com/cilium/cilium/api/v1/server/restapi/endpoint"

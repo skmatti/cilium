@@ -22,11 +22,11 @@ import (
 	"fmt"
 
 	v1 "github.com/cilium/cilium/pkg/k8s/slim/k8s/api/core/v1"
-	networkv1 "gke-internal.googlesource.com/anthos-networking/apis/v2/network/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	networkapis "k8s.io/cloud-provider-gcp/crd/apis/network/v1"
+	networkv1 "k8s.io/cloud-provider-gcp/crd/apis/network/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 

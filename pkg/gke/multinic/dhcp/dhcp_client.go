@@ -29,7 +29,7 @@ import (
 	"github.com/containernetworking/cni/pkg/skel"
 	cnitypes "github.com/containernetworking/cni/pkg/types"
 	ipam "github.com/containernetworking/cni/pkg/types/100"
-	networkv1 "gke-internal.googlesource.com/anthos-networking/apis/v2/network/v1"
+	networkv1 "k8s.io/cloud-provider-gcp/crd/apis/network/v1"
 	"k8s.io/utils/pointer"
 )
 
