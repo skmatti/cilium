@@ -29,6 +29,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	"github.com/cilium/cilium/pkg/endpointmanager"
+	multinictypes "github.com/cilium/cilium/pkg/gke/multinic/types"
 )
 
 var (
@@ -131,7 +132,7 @@ func (r *NetworkReconciler) loadEBPFOnParent(ctx context.Context, network *netwo
 		log.Infof("No need to load ebpf for network type %q", network.Spec.Type)
 		return nil
 	}
-	devToLoad, err := network.InterfaceName()
+	devToLoad, err := multinictypes.InterfaceName(network)
 	if err != nil {
 		log.Infof("errored generating interface name for network %s: %s", network.Name, err)
 		return nil
@@ -166,7 +167,7 @@ func (r *NetworkReconciler) loadEBPFOnParent(ctx context.Context, network *netwo
 }
 
 func (r *NetworkReconciler) unloadEBPFOnParent(ctx context.Context, network *networkv1.Network, log *logrus.Entry) error {
-	devToUnload, err := network.InterfaceName()
+	devToUnload, err := multinictypes.InterfaceName(network)
 	if err != nil {
 		log.Infof("errored generating interface name for network %s: %s", network.Name, err)
 		return nil
@@ -384,7 +385,7 @@ func deleteVlanID(network *networkv1.Network, log *logrus.Entry) error {
 		return nil
 	}
 
-	taggedIntName, err := network.InterfaceName()
+	taggedIntName, err := multinictypes.InterfaceName(network)
 	if err != nil {
 		log.Errorf("Errored generating interface name for network %s: %s", network.Name, err)
 		return nil
@@ -421,7 +422,7 @@ func hasVlanTag(network *networkv1.Network) bool {
 }
 
 func ensureInterface(network *networkv1.Network, log *logrus.Entry) error {
-	intfName, err := network.InterfaceName()
+	intfName, err := multinictypes.InterfaceName(network)
 	if err != nil {
 		// Log error but return nil here as this is mostly due to misconfiguration
 		// in the network CR object and is unlikely to reconcile.
@@ -480,7 +481,7 @@ func bestAddrMatch(addrs []netlink.Addr) *net.IPNet {
 }
 
 func obtainSubnet(network *networkv1.Network, log *logrus.Entry) (string, string, error) {
-	_, err := network.InterfaceName()
+	_, err := multinictypes.InterfaceName(network)
 	if err != nil {
 		// Log error but return nil here as this is mostly due to misconfiguration
 		// in the network CR object and is unlikely to reconcile.

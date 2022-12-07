@@ -8,6 +8,9 @@ import (
 	"testing"
 
 	"github.com/cilium/cilium/pkg/cidr"
+	"github.com/cilium/cilium/pkg/node"
+	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	networkv1 "k8s.io/cloud-provider-gcp/crd/apis/network/v1"
 )
 
 func TestBuildMultiNetworkCIDRs(t *testing.T) {
@@ -71,6 +74,83 @@ func TestBuildMultiNetworkCIDRs(t *testing.T) {
 					t.Fatalf("incorrect mask for network %s, got %s, want %s", nw, resCIDR.Mask.String(), wantCIDR.Mask.String())
 				}
 			}
+		}
+	}
+}
+
+func TestInterfaceName(t *testing.T) {
+	testCases := []struct {
+		desc     string
+		network  *networkv1.Network
+		wantName string
+		wantErr  string
+	}{
+		{
+			desc: "valid",
+			network: &networkv1.Network{
+				ObjectMeta: v1.ObjectMeta{
+					Name: "nic1",
+				},
+				Spec: networkv1.NetworkSpec{
+					Type: networkv1.L3NetworkType,
+				},
+			},
+			wantName: "lo",
+			wantErr:  "",
+		},
+		{
+			desc: "invalid, no matching interface",
+			network: &networkv1.Network{
+				ObjectMeta: v1.ObjectMeta{
+					Name: "nic2",
+				},
+				Spec: networkv1.NetworkSpec{
+					Type: networkv1.L3NetworkType,
+				},
+			},
+			wantName: "",
+			wantErr:  "matching interface does not exist for network nic2 with IP 127.1.0.0",
+		},
+		{
+			desc: "invalid, network not found in annotation",
+			network: &networkv1.Network{
+				ObjectMeta: v1.ObjectMeta{
+					Name: "abc",
+				},
+				Spec: networkv1.NetworkSpec{
+					Type: networkv1.L3NetworkType,
+				},
+			},
+			wantName: "",
+			wantErr:  "network abc not found in north interfaces annotation",
+		},
+	}
+
+	for _, tc := range testCases {
+		niAnnotation := []networkv1.NorthInterface{
+			{
+				Network:   "nic1",
+				IpAddress: "127.0.0.1",
+			},
+			{
+				Network:   "nic2",
+				IpAddress: "127.1.0.0",
+			},
+		}
+		niAnnotationString, err := networkv1.MarshalNorthInterfacesAnnotation(niAnnotation)
+		if err != nil {
+			t.Fatalf("error: %v", err)
+		}
+		var annotations = map[string]string{
+			networkv1.NorthInterfacesAnnotationKey: niAnnotationString,
+		}
+		node.SetAnnotations(annotations)
+		infName, err := InterfaceName(tc.network)
+		if err != nil && tc.wantErr != err.Error() {
+			t.Fatalf("want err %v, got err %v", tc.wantErr, err)
+		}
+		if infName != tc.wantName {
+			t.Fatalf("incorrect interface name, want %s got %s", tc.wantName, infName)
 		}
 	}
 }

@@ -22,6 +22,7 @@ import (
 	"github.com/cilium/cilium/api/v1/models"
 	dhcp "github.com/cilium/cilium/pkg/gke/multinic/dhcp"
 	multinicep "github.com/cilium/cilium/pkg/gke/multinic/endpoint"
+	multinictypes "github.com/cilium/cilium/pkg/gke/multinic/types"
 	"github.com/cilium/cilium/pkg/ipam"
 	"github.com/cilium/cilium/pkg/logging/logfields"
 	"github.com/cilium/cilium/pkg/netns"
@@ -138,7 +139,7 @@ func getInterfaceConfiguration(intf *networkv1.NetworkInterface, network *networ
 		}
 	}
 
-	cfg.ParentInterfaceName, err = network.InterfaceName()
+	cfg.ParentInterfaceName, err = multinictypes.InterfaceName(network)
 	if err != nil {
 		return nil, fmt.Errorf("parent interface name is empty in the network CR %q: %s", network.Name, err)
 	}
@@ -608,7 +609,7 @@ func configureDHCPInfo(network *networkv1.Network, cfg *interfaceConfiguration, 
 		return nil, nil
 	}
 
-	parentInterface, err := network.InterfaceName()
+	parentInterface, err := multinictypes.InterfaceName(network)
 	if err != nil {
 		return nil, fmt.Errorf("failed to configure dhcp info for %s: %s", network.Name, err)
 	}
