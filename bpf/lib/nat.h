@@ -705,14 +705,14 @@ static __always_inline bool snat_v4_prepare_state(struct __ctx_buff *ctx,
 skip_egress_gateway:
 #endif
 
-#ifdef ENABLE_MASQUERADE /* SNAT local pod to world packets */
+#if defined(ENABLE_MASQUERADE) || defined(ENABLE_FLAT_IPV4)
 # ifdef IS_BPF_OVERLAY
         /* Do not MASQ when this function is executed from bpf_overlay
          * (IS_BPF_OVERLAY denotes this fact). Otherwise, a packet will
          * be SNAT'd to cilium_host IP addr.
          */
         return false;
-# endif
+# endif /* ENABLE_MASQUERADE || ENABLE_FLAT_IPV4 */
 
 #ifdef IPV4_SNAT_EXCLUSION_DST_CIDR
 	/* Do not MASQ if a dst IP belongs to a pods CIDR
