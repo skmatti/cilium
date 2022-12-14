@@ -503,9 +503,20 @@ and the ``http`` metric with the ``destinationContext=pod-short`` option.
 Context Options
 ^^^^^^^^^^^^^^^
 
-Most Hubble metrics can be configured to add the source and/or destination
-context as a label. The options are called ``sourceContext`` and
-``destinationContext``. The possible values are:
+Hubble metrics support configuration via context options.
+Supported context options for all metrics:
+
+- ``sourceContext`` - Configures the ``source`` label on metrics for both egress and ingress traffic.
+- ``sourceEgressContext`` - Configures the ``source`` label on metrics for egress traffic (takes precedence over ``sourceContext``).
+- ``sourceIngressContext`` - Configures the ``source`` label on metrics for ingress traffic (takes precedence over ``sourceContext``).
+- ``destinationContext`` - Configures the ``destination`` label on metrics for both egress and ingress traffic.
+- ``destinationEgressContext`` - Configures the ``destination`` label on metrics for egress traffic (takes precedence over ``destinationContext``).
+- ``destinationIngressContext`` - Configures the ``destination`` label on metrics for ingress traffic (takes precedence over ``destinationContext``).
+
+There are also some context options that are specific to certain metrics.
+See the documentation for the individual metrics to see what options are available for each.
+
+See below for details on each of the different context options.
 
 ===================== ===================================================================================
 Option Value          Description

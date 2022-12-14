@@ -22,9 +22,13 @@ Metrics:
   http_request_duration_seconds - Median, 90th and 99th percentile of request duration.
 
 Options:
- sourceContext          := identifier , { "|", identifier }
- destinationContext     := identifier , { "|", identifier }
- identifier             := identity | namespace | pod | pod-short | dns | ip | reserved-identity
+ sourceContext             ::= identifier , { "|", identifier }
+ destinationContext        ::= identifier , { "|", identifier }
+ sourceEgressContext       ::= identifier , { "|", identifier }
+ sourceIngressContext      ::= identifier , { "|", identifier }
+ destinationEgressContext  ::= identifier , { "|", identifier }
+ destinationIngressContext ::= identifier , { "|", identifier }
+ identifier                ::= identity | namespace | pod | pod-short | dns | ip | reserved-identity
 `
 	assert.Equal(t, expected, plugin.HelpText())
 }

@@ -43,9 +43,13 @@ const (
 
 // ContextOptionsHelp is the help text for context options
 const ContextOptionsHelp = `
- sourceContext          := identifier , { "|", identifier }
- destinationContext     := identifier , { "|", identifier }
- identifier             := identity | namespace | pod | pod-short | dns | ip | reserved-identity
+ sourceContext             ::= identifier , { "|", identifier }
+ destinationContext        ::= identifier , { "|", identifier }
+ sourceEgressContext       ::= identifier , { "|", identifier }
+ sourceIngressContext      ::= identifier , { "|", identifier }
+ destinationEgressContext  ::= identifier , { "|", identifier }
+ destinationIngressContext ::= identifier , { "|", identifier }
+ identifier                ::= identity | namespace | pod | pod-short | dns | ip | reserved-identity
 `
 
 var (
@@ -90,10 +94,19 @@ func (cs ContextIdentifierList) String() string {
 // ContextOptions is the set of options to define whether and how to include
 // sending and/or receiving context information
 type ContextOptions struct {
-	// Destination is the destination context to include in metrics
+	// Destination is the destination context to include in metrics for both egress and ingress traffic
 	Destination ContextIdentifierList
-	// Source is the source context to include in metrics
+	// Destination is the destination context to include in metrics for egress traffic (overrides Destination)
+	DestinationEgress ContextIdentifierList
+	// Destination is the destination context to include in metrics for ingress traffic (overrides Destination)
+	DestinationIngress ContextIdentifierList
+
+	// Source is the source context to include in metrics for both egress and ingress traffic
 	Source ContextIdentifierList
+	// Source is the source context to include in metrics for egress traffic (overrides Source)
+	SourceEgress ContextIdentifierList
+	// Source is the source context to include in metrics for ingress traffic (overrides Source)
+	SourceIngress ContextIdentifierList
 }
 
 func parseContextIdentifier(s string) (ContextIdentifier, error) {
@@ -133,20 +146,39 @@ func parseContext(s string) (cs ContextIdentifierList, err error) {
 // relevant options
 func ParseContextOptions(options Options) (*ContextOptions, error) {
 	o := &ContextOptions{}
+	var err error
 	for key, value := range options {
 		switch strings.ToLower(key) {
 		case "destinationcontext":
-			c, err := parseContext(value)
+			o.Destination, err = parseContext(value)
 			if err != nil {
 				return nil, err
 			}
-			o.Destination = c
+		case "destinationegresscontext":
+			o.DestinationEgress, err = parseContext(value)
+			if err != nil {
+				return nil, err
+			}
+		case "destinationingresscontext":
+			o.DestinationIngress, err = parseContext(value)
+			if err != nil {
+				return nil, err
+			}
 		case "sourcecontext":
-			c, err := parseContext(value)
+			o.Source, err = parseContext(value)
 			if err != nil {
 				return nil, err
 			}
-			o.Source = c
+		case "sourceegresscontext":
+			o.SourceEgress, err = parseContext(value)
+			if err != nil {
+				return nil, err
+			}
+		case "sourceingresscontext":
+			o.SourceIngress, err = parseContext(value)
+			if err != nil {
+				return nil, err
+			}
 		}
 	}
 
@@ -285,9 +317,15 @@ func destinationIPContext(flow *pb.Flow) (context string) {
 // to the configured options. The order of the values is the same as the order
 // of the label names returned by GetLabelNames()
 func (o *ContextOptions) GetLabelValues(flow *pb.Flow) (labels []string) {
-	if len(o.Source) != 0 {
+	var sourceContextIdentifiers = o.Source
+	if o.SourceIngress != nil && flow.GetTrafficDirection() == pb.TrafficDirection_INGRESS {
+		sourceContextIdentifiers = o.SourceIngress
+	} else if o.SourceEgress != nil && flow.GetTrafficDirection() == pb.TrafficDirection_EGRESS {
+		sourceContextIdentifiers = o.SourceEgress
+	}
+	if len(sourceContextIdentifiers) != 0 {
 		var context string
-		for _, source := range o.Source {
+		for _, source := range sourceContextIdentifiers {
 			switch source {
 			case ContextNamespace:
 				context = sourceNamespaceContext(flow)
@@ -312,9 +350,15 @@ func (o *ContextOptions) GetLabelValues(flow *pb.Flow) (labels []string) {
 		labels = append(labels, context)
 	}
 
-	if len(o.Destination) != 0 {
+	var destinationContextIdentifiers = o.Destination
+	if o.DestinationIngress != nil && flow.GetTrafficDirection() == pb.TrafficDirection_INGRESS {
+		destinationContextIdentifiers = o.DestinationIngress
+	} else if o.DestinationEgress != nil && flow.GetTrafficDirection() == pb.TrafficDirection_EGRESS {
+		destinationContextIdentifiers = o.DestinationEgress
+	}
+	if len(destinationContextIdentifiers) != 0 {
 		var context string
-		for _, destination := range o.Destination {
+		for _, destination := range destinationContextIdentifiers {
 			switch destination {
 			case ContextNamespace:
 				context = destinationNamespaceContext(flow)
