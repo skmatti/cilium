@@ -1095,11 +1095,15 @@ out:
 	}
 #endif
 
-#if defined(ENABLE_NODEPORT) && \
-	(!defined(ENABLE_DSR) || \
-	 (defined(ENABLE_DSR) && defined(ENABLE_DSR_HYBRID)) || \
-	 defined(ENABLE_MASQUERADE) || \
-	 defined(ENABLE_EGRESS_GATEWAY))
+#ifdef ENABLE_SRV6
+	ret = handle_srv6(ctx);
+	if (ret != CTX_ACT_OK)
+		return send_drop_notify_error(ctx, 0, ret, CTX_ACT_DROP,
+					      METRIC_EGRESS);
+#endif /* ENABLE_SRV6 */
+
+#if defined(ENABLE_NODEPORT) || \
+        defined(ENABLE_EGRESS_GATEWAY)
 	if (!ctx_snat_done(ctx)) {
 		/*
 		 * handle_nat_fwd tail calls in the majority of cases,
