@@ -639,7 +639,11 @@ int tail_nodeport_nat_ipv6(struct __ctx_buff *ctx)
 		info = ipcache_lookup6(&IPCACHE_MAP, dst, V6_CACHE_KEY_LEN);
 		if (info != NULL && info->tunnel_endpoint != 0) {
 			ret = __encap_with_nodeid(ctx, info->tunnel_endpoint,
+#ifdef PRESERVE_WORLD_ID
 						  WORLD_ID,
+#else
+						  SECLABEL,
+#endif /* PRESERVE_WORLD_ID */
 						  NOT_VTEP_DST,
 						  (enum trace_reason)CT_NEW,
 						  TRACE_PAYLOAD_LEN);
@@ -846,7 +850,11 @@ skip_service_lookup:
 		switch (ret) {
 		case CT_NEW:
 redo:
+#ifdef PRESERVE_WORLD_ID
 			ct_state_new.src_sec_id = WORLD_ID;
+#else
+			ct_state_new.src_sec_id = SECLABEL;
+#endif /* PRESERVE_WORLD_ID */
 			ct_state_new.node_port = 1;
 			ct_state_new.ifindex = (__u16)NATIVE_DEV_IFINDEX;
 			ret = ct_create6(get_ct_map6(&tuple), NULL, &tuple, ctx,
@@ -1612,7 +1620,11 @@ int tail_nodeport_nat_ipv4(struct __ctx_buff *ctx)
 			 * outside.
 			 */
 			ret = __encap_with_nodeid(ctx, info->tunnel_endpoint,
+#ifdef PRESERVE_WORLD_ID
 						  WORLD_ID,
+#else
+						  SECLABEL,
+#endif /* PRESERVE_WORLD_ID */
 						  NOT_VTEP_DST,
 						  (enum trace_reason)CT_NEW,
 						  TRACE_PAYLOAD_LEN);
@@ -1837,7 +1849,11 @@ skip_service_lookup:
 		switch (ret) {
 		case CT_NEW:
 redo:
+#ifdef PRESERVE_WORLD_ID
 			ct_state_new.src_sec_id = WORLD_ID;
+#else
+			ct_state_new.src_sec_id = SECLABEL;
+#endif /* PRESERVE_WORLD_ID */
 			ct_state_new.node_port = 1;
 			ct_state_new.ifindex = (__u16)NATIVE_DEV_IFINDEX;
 			ret = ct_create4(get_ct_map4(&tuple), NULL, &tuple, ctx,

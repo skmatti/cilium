@@ -300,6 +300,9 @@ const (
 	// Alias to NodePortAcceleration
 	LoadBalancerAcceleration = "bpf-lb-acceleration"
 
+	// Alias to LoadBalancerPreserveWorldID
+	LoadBalancerPreserveWorldID = "bpf-lb-preserve-world-id"
+
 	// MaglevTableSize determines the size of the backend table per service
 	MaglevTableSize = "bpf-lb-maglev-table-size"
 
@@ -1955,6 +1958,10 @@ type DaemonConfig struct {
 	LoadBalancerRSSv6CIDR string
 	LoadBalancerRSSv6     net.IPNet
 
+	// LoadBalancerPreserveWorldID indicates whether world security ID should
+	// be set for to be forwarded via tunnel LB requests
+	LoadBalancerPreserveWorldID bool
+
 	// EnablePMTUDiscovery indicates whether to send ICMP fragmentation-needed
 	// replies to the client (when needed).
 	EnablePMTUDiscovery bool
@@ -3094,6 +3101,7 @@ func (c *DaemonConfig) Populate() {
 	c.LoadBalancerDSRL4Xlate = viper.GetString(LoadBalancerDSRL4Xlate)
 	c.LoadBalancerRSSv4CIDR = viper.GetString(LoadBalancerRSSv4CIDR)
 	c.LoadBalancerRSSv6CIDR = viper.GetString(LoadBalancerRSSv6CIDR)
+	c.LoadBalancerPreserveWorldID = viper.GetBool(LoadBalancerPreserveWorldID)
 	c.InstallNoConntrackIptRules = viper.GetBool(InstallNoConntrackIptRules)
 	c.EnableCustomCalls = viper.GetBool(EnableCustomCallsName)
 	c.BGPAnnounceLBIP = viper.GetBool(BGPAnnounceLBIP)

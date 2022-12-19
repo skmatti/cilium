@@ -541,6 +541,10 @@ func (h *HeaderfileWriter) WriteNodeConfig(w io.Writer, cfg *datapath.LocalNodeC
 				cDefinesMap["ENABLE_IP_MASQ_AGENT"] = "1"
 				cDefinesMap["IP_MASQ_AGENT_IPV4"] = ipmasq.MapName
 			}
+
+			if option.Config.LoadBalancerPreserveWorldID {
+				cDefinesMap["PRESERVE_WORLD_ID"] = "1"
+			}
 		}
 
 		ctmap.WriteBPFMacros(fw, nil)
