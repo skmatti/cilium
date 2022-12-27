@@ -22,6 +22,7 @@ require (
 	github.com/cilium/deepequal-gen v0.0.0-20200406125435-ad6a9003139e
 	github.com/cilium/dns v1.1.51-0.20231120140355-729345173dc3
 	github.com/cilium/ebpf v0.9.4-0.20221102092914-a9cf21df64c2
+	github.com/cilium/fake v0.4.0
 	github.com/cilium/ipam v0.0.0-20220824141044-46ef3d556735
 	github.com/cilium/lumberjack/v2 v2.2.2
 	github.com/cilium/proxy v0.0.0-20230709104538-6aa1c739866f
@@ -77,7 +78,7 @@ require (
 	github.com/spf13/cobra v1.6.1
 	github.com/spf13/pflag v1.0.5
 	github.com/spf13/viper v1.14.0
-	github.com/stretchr/testify v1.8.1
+	github.com/stretchr/testify v1.8.2
 	github.com/tidwall/gjson v1.14.4
 	github.com/tidwall/sjson v1.2.5
 	github.com/vishvananda/netlink v1.2.1-beta.2.0.20220608195807-1a118fe229fc
