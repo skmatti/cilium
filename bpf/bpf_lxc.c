@@ -989,6 +989,21 @@ ct_recreate4:
 	__be32 inner_saddr = ip4->saddr;
 
 	ret = try_sfc_encap(ctx, ip4);
+	if (unlikely(ret == DROP_FRAG_NEEDED)) {
+		__u32 redirect_dir = 0;
+#if defined(MULTI_NIC_DEVICE_TYPE) && MULTI_NIC_DEVICE_TYPE != EP_DEV_TYPE_INDEX_MULTI_NIC_VETH
+		// L2 MultiNIC devices are in the pod namespace
+		// directly.
+		redirect_dir = BPF_F_INGRESS;
+#endif
+		// ct_state_new.rev_nat_index is set if the packet has been
+		// service load balanced.
+		ret = sfc_build_icmp4(ctx, ip4, ct_state_new.rev_nat_index);
+		if (ret == CTX_ACT_OK) {
+			return ctx_redirect(ctx, ctx_get_ifindex(ctx),
+						redirect_dir);
+		}
+	}
 	if (IS_ERR(ret))
 		return ret;
 	if (ret == CTX_ACT_REDIRECT) {

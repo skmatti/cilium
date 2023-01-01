@@ -43,6 +43,9 @@ struct encaphdr {
 	struct nshhdr nsh;
 } __packed;
 
+/* Bytes added to packets due to SFC encap. */
+#define SFC_MTU_OVERHEAD (sizeof(struct encaphdr))
+
 static __always_inline bool is_sfc_encapped(struct __ctx_buff *ctx, const struct iphdr *ip4) {
 	__be16 dport;
 	int l4_off = ETH_HLEN + ipv4_hdrlen(ip4);
@@ -84,15 +87,88 @@ static __always_inline __u16 flow_id(const struct iphdr *ip4, const struct l4hdr
 	return ~((csum & 0xffff) + (csum >> 16));
 }
 
+static __always_inline __u16 __endpoint_mtu()
+{
+#ifdef MULTI_NIC_DEVICE_TYPE
+	return MULTI_NIC_ENDPOINT_MTU;
+#else
+	return ROUTE_MTU;
+#endif
+}
+
+static __always_inline int __is_packet_too_big4(struct __ctx_buff *ctx,
+						struct iphdr *ip4)
+{
+	__u16 tot_len = bpf_ntohs(ip4->tot_len) + SFC_MTU_OVERHEAD;
+	const __u16 endpoint_mtu = __endpoint_mtu();
+
+	if (tot_len <= endpoint_mtu)
+		return CTX_ACT_OK;
+	if (ctx->gso_segs <= 1) {
+		// Non gso/tso
+		return DROP_FRAG_NEEDED;
+	}
+	// For gso/tso packets, let it pass.
+	// For TCP TSO, unsetting BPF_F_ADJ_ROOM_FIXED_GSO helps to adjust
+	// gso_size and we don't need to return ICMP.
+	// For UDP GSO, BPF_F_ADJ_ROOM_FIXED_GSO doesn't work but we also don't
+	// have access to gso_size in 5.7- kernels in order to enforce the MTU.
+	// Simply let it pass and the packet will be dropped if gso_size is too
+	// big. But UDP GSO applications have control on gso_size so they can
+	// easily set correct gso_size to get around this issue.
+	return CTX_ACT_OK;
+}
+
+static __always_inline int __extract_l4_ports(struct __ctx_buff *ctx,
+					      struct iphdr *ip4, int l4_off,
+					      enum ct_dir dir __maybe_unused,
+					      struct l4hdr *ports)
+{
+#ifdef ENABLE_IPV4_FRAGMENTS
+	int ret = ipv4_handle_fragmentation(
+	    ctx, ip4, l4_off, dir, (struct ipv4_frag_l4ports *)ports, NULL);
+	if(IS_ERR(ret)) {
+		// ipv4_handle_fragmentation doesn't return DROP_FRAG_NEEDED.
+		// This is to make verifier happy so that it doesn't excercise
+		// sfc_build_icmp4().
+		if (ret == DROP_FRAG_NEEDED) {
+			return DROP_INVALID;
+		}
+		return ret;
+	}
+	return CTX_ACT_OK;
+#else
+	if (unlikely(ipv4_is_fragment(ip4)))
+		return DROP_FRAG_NOSUPPORT;
+	/* load sport + dport */
+	if (ctx_load_bytes(ctx, l4_off, ports, sizeof(struct l4hdr)) < 0)
+		return DROP_INVALID;
+
+	return CTX_ACT_OK;
+#endif
+}
+
 static __always_inline int sfc_encap(struct __ctx_buff *ctx, struct iphdr *ip4, struct redirect_info *redir) {
 	__u64 flags;
 	__u16 sport;
 	int l4_off = ETH_HLEN + ipv4_hdrlen(ip4);
 	struct l4hdr l4;
 	struct encaphdr h_outer = {0};
+	int ret;
+	enum ct_dir dir __maybe_unused = CT_EGRESS;
 
-	if (ctx_load_bytes(ctx, l4_off, &l4, sizeof(struct l4hdr)) < 0)
-		return DROP_INVALID;
+	ret = __is_packet_too_big4(ctx, ip4);
+	if (IS_ERR(ret)) {
+		return ret;
+	}
+
+	if (redir->is_reply) {
+		dir = CT_INGRESS;
+	}
+	ret = __extract_l4_ports(ctx, ip4, l4_off, dir, &l4);
+	if (IS_ERR(ret)) {
+		return ret;
+	}
 
 	geneve_init(&h_outer.geneve, ETH_P_NSH);
 	nsh_init(&h_outer.nsh, redir->path);
@@ -110,7 +186,10 @@ static __always_inline int sfc_encap(struct __ctx_buff *ctx, struct iphdr *ip4, 
 	h_outer.udp.dest = bpf_htons(GOOGLE_SFC_RESERVED_PORT);
 	h_outer.udp.len = bpf_htons(bpf_ntohs(ip4->tot_len) + sizeof(struct encaphdr) - sizeof(struct iphdr));
 
-	h_outer.ip = *ip4;
+	h_outer.ip.version = IPVERSION;
+	h_outer.ip.ttl = IPDEFTTL;
+	h_outer.ip.tos = ip4->tos;
+	h_outer.ip.id = ip4->id;
 	h_outer.ip.saddr = LXC_IPV4;
 	h_outer.ip.daddr = redir->daddr;
 	h_outer.ip.protocol = IPPROTO_UDP;
@@ -119,7 +198,11 @@ static __always_inline int sfc_encap(struct __ctx_buff *ctx, struct iphdr *ip4, 
 
 	set_ipv4_csum(&h_outer.ip);
 
-	flags = BPF_F_ADJ_ROOM_FIXED_GSO | BPF_F_ADJ_ROOM_ENCAP_L3_IPV4 | BPF_F_ADJ_ROOM_ENCAP_L4_UDP;
+	flags = BPF_F_ADJ_ROOM_ENCAP_L3_IPV4 | BPF_F_ADJ_ROOM_ENCAP_L4_UDP;
+	if (ip4->protocol == IPPROTO_UDP) {
+		// UDP GSO must have BPF_F_ADJ_ROOM_FIXED_GSO.
+		flags |= BPF_F_ADJ_ROOM_FIXED_GSO;
+	}
 	/* Unset BPF_F_ADJ_ROOM_ENCAP_L3_IPV4 for local delivery due to b/261456637. */
 	if (lookup_ip4_endpoint(&h_outer.ip))
 		flags &= ~BPF_F_ADJ_ROOM_ENCAP_L3_IPV4;
@@ -206,24 +289,6 @@ sfc_select(struct __ctx_buff *ctx, struct iphdr *ip4, bool is_egress, nshpath *p
 	if (path_key != NULL)
 		*path = path_key->path;
 	return CTX_ACT_OK;
-}
-
-static __always_inline int
-__flow4_extract_l4_ports(struct __ctx_buff *ctx, struct iphdr *ip4, int l4_off,
-			 enum ct_dir dir __maybe_unused,
-			 struct sfc_ipv4_flow_key *key)
-{
-#ifdef ENABLE_IPV4_FRAGMENTS
-	return ipv4_handle_fragmentation(
-	    ctx, ip4, l4_off, dir, (struct ipv4_frag_l4ports *)&key->sport,
-	    NULL);
-#else
-
-	/* load sport + dport */
-	if (ctx_load_bytes(ctx, l4_off, &key->sport, 4) < 0) {
-		return DROP_CT_INVALID_HDR;
-	}
-#endif
 }
 
 static __always_inline bool
@@ -362,7 +427,7 @@ sfc_flow_lookup4(struct __ctx_buff *ctx, struct iphdr *ip4, bool create, bool re
 		key.saddr = ip4->daddr;
 	}
 
-	ret = __flow4_extract_l4_ports(ctx, ip4, l4_off, dir, &key);
+	ret = __extract_l4_ports(ctx, ip4, l4_off, dir, (struct l4hdr *)&key.sport);
 	if IS_ERR (ret) {
 		return ret;
 	}
@@ -372,7 +437,7 @@ sfc_flow_lookup4(struct __ctx_buff *ctx, struct iphdr *ip4, bool create, bool re
 		key.sport = key.dport;
 		key.dport = tmp_port;
 	}
-	if (ip4->protocol == IPPROTO_TCP) {
+	if (ip4->protocol == IPPROTO_TCP && likely(ipv4_has_l4_header(ip4))) {
 		if (ctx_load_bytes(ctx, l4_off + 12, &tcp_flags, 2) < 0)
 			return DROP_CT_INVALID_HDR;
 	}
@@ -549,6 +614,174 @@ static __always_inline int sfc_lb4(struct __ctx_buff *ctx, struct iphdr *ip4,
 			return ret;
 	}
 	return CTX_ACT_OK;
+}
+
+/**
+ * Convert the packet into a ICMP fragmentation needed packet.
+ *
+ * This fuction is copied from nodeport.h:dsr_reply_icmp4(). The reason it's not
+ * called directly because:
+ *   * Need to adjust orig_dgram. See comment below.
+ *   * Need to make svc_addr and dport optional because we don't always handle
+ * service traffic.
+ *   * dsr_reply_icmp4() always redirect to egress but we may need ingress for
+ * L2 devices.
+ *
+ * @arg ctx: Packet
+ * @arg ip4: Pointer to L3 header
+ * @arg svc_addr: The original svc address before DNAT. If not 0, will set as
+ * daddr in inner IP header.
+ * @arg dport: The original dst port before DNAT. If not 0, will set as dport in
+ * inner L4 header.
+ *
+ *
+ * Return negative `DROP_` codes if the packet can't be handled.
+ * Return `CTX_ACT_OK` if the ICMP packet is succesfully built.
+ */
+static __always_inline int __sfc_reply_icmp4(struct __ctx_buff *ctx,
+					   struct iphdr *ip4, __u32 svc_addr,
+					   __u16 dport)
+{
+	// Diff from dsr_reply_icmp4:
+	//   orig_dgram 8 -> 20
+	//   ctx_adjust_troom() below requires a min length of packet that
+	//   includes L4 csum when csum offload is enabled.
+	//   See bpf_skb_change_tail:
+	//     https://elixir.bootlin.com/linux/v5.10.161/source/net/core/filter.c#L3688
+	const __s32 orig_dgram = 20, off = ETH_HLEN;
+	const __u32 l3_max = MAX_IPOPTLEN + sizeof(*ip4) + orig_dgram;
+	__be16 type = bpf_htons(ETH_P_IP);
+	__s32 len_new = off + ipv4_hdrlen(ip4) + orig_dgram;
+	__s32 len_old = ctx_full_len(ctx);
+	__u8 tmp[l3_max];
+	union macaddr smac, dmac;
+	struct icmphdr icmp __align_stack_8 = {
+		.type		= ICMP_DEST_UNREACH,
+		.code		= ICMP_FRAG_NEEDED,
+		.un = {
+			.frag = {
+				.mtu = bpf_htons(__endpoint_mtu() - SFC_MTU_OVERHEAD),
+			},
+		},
+	};
+	__u64 tot_len = sizeof(struct iphdr) + ipv4_hdrlen(ip4) + sizeof(icmp) + orig_dgram;
+	struct iphdr ip __align_stack_8 = {
+		.ihl		= sizeof(ip) >> 2,
+		.version	= IPVERSION,
+		.ttl		= IPDEFTTL,
+		.tos		= ip4->tos,
+		.id		= ip4->id,
+		.protocol	= IPPROTO_ICMP,
+		.saddr		= ip4->daddr,
+		.daddr		= ip4->saddr,
+		.frag_off	= bpf_htons(IP_DF),
+		.tot_len	= bpf_htons((__u16)tot_len),
+	};
+
+	struct iphdr inner_ip_hdr __align_stack_8 = *ip4;
+	__s32 l4_dport_offset;
+
+	if (unlikely(!ipv4_has_l4_header(ip4))) {
+		// Returning ICMP frag needed when there is no L4 header won't help.
+		return DROP_FRAG_NEEDED;
+	}
+
+	if (svc_addr) {
+		inner_ip_hdr.daddr = svc_addr;
+		inner_ip_hdr.check = 0;
+		inner_ip_hdr.check = csum_fold(csum_diff(NULL, 0, &inner_ip_hdr,
+						 sizeof(inner_ip_hdr), 0));
+	}
+
+	if (inner_ip_hdr.protocol == IPPROTO_UDP)
+		l4_dport_offset = UDP_DPORT_OFF;
+	else if (inner_ip_hdr.protocol == IPPROTO_TCP)
+		l4_dport_offset = TCP_DPORT_OFF;
+
+	if (eth_load_saddr(ctx, smac.addr, 0) < 0)
+		goto drop_err;
+	if (eth_load_daddr(ctx, dmac.addr, 0) < 0)
+		goto drop_err;
+
+	ip.check = csum_fold(csum_diff(NULL, 0, &ip, sizeof(ip), 0));
+
+	/* We use a workaround here in that we push zero-bytes into the
+	 * payload in order to support dynamic IPv4 header size. This
+	 * works given one's complement sum does not change.
+	 */
+	memset(tmp, 0, MAX_IPOPTLEN);
+	if (ctx_store_bytes(ctx, len_new, tmp, MAX_IPOPTLEN, 0) < 0)
+		goto drop_err;
+	if (ctx_load_bytes(ctx, off, tmp, sizeof(tmp)) < 0)
+		goto drop_err;
+
+	memcpy(tmp, &inner_ip_hdr, sizeof(inner_ip_hdr));
+	if (dport)
+		memcpy(tmp + sizeof(inner_ip_hdr) + l4_dport_offset, &dport, sizeof(dport));
+
+	icmp.checksum = csum_fold(csum_diff(NULL, 0, tmp, sizeof(tmp),
+					    csum_diff(NULL, 0, &icmp,
+						      sizeof(icmp), 0)));
+
+	if (ctx_adjust_troom(ctx, -(len_old - len_new)) < 0)
+		goto drop_err;
+	if (ctx_adjust_hroom(ctx, sizeof(ip) + sizeof(icmp),
+			     BPF_ADJ_ROOM_NET,
+			     ctx_adjust_hroom_dsr_flags()) < 0)
+		goto drop_err;
+
+	if (eth_store_daddr(ctx, smac.addr, 0) < 0)
+		goto drop_err;
+	if (eth_store_saddr(ctx, dmac.addr, 0) < 0)
+		goto drop_err;
+	if (ctx_store_bytes(ctx, ETH_ALEN * 2, &type, sizeof(type), 0) < 0)
+		goto drop_err;
+	if (ctx_store_bytes(ctx, off, &ip, sizeof(ip), 0) < 0)
+		goto drop_err;
+	if (ctx_store_bytes(ctx, off + sizeof(ip), &icmp,
+			    sizeof(icmp), 0) < 0)
+		goto drop_err;
+	if (ctx_store_bytes(ctx, off + sizeof(ip) + sizeof(icmp),
+			    &inner_ip_hdr, sizeof(inner_ip_hdr), 0) < 0)
+		goto drop_err;
+	if (dport)
+		if (ctx_store_bytes(ctx, off + sizeof(ip) + sizeof(icmp)
+			    + sizeof(inner_ip_hdr) + l4_dport_offset,
+			    &dport, sizeof(dport), 0) < 0)
+			goto drop_err;
+
+	return CTX_ACT_OK;
+drop_err:
+	return DROP_INVALID;
+}
+
+ /**
+   * Convert the packet into a ICMP fragmentation needed packet.
+   *
+   * @arg ctx: Packet
+   * @arg ip4: Pointer to L3 header
+   * @arg rev_nat_index: Used to find the original LB service the packet is sent to.
+   *
+   *
+   * Return negative `DROP_` codes if the packet can't be handled.
+   * Return `CTX_ACT_OK` if the ICMP packet is succesfully built.
+   */
+static __always_inline int
+sfc_build_icmp4(struct __ctx_buff *ctx, struct iphdr *ip4, __u16 rev_nat_index) {
+	__u32 svc_addr = 0;
+	__u16 dport = 0;
+	// Need to do reverse DNAT in the innner headers when building the ICMP
+	// pkt.
+	if (rev_nat_index) {
+		const struct lb4_reverse_nat *nat =
+		    map_lookup_elem(&LB4_REVERSE_NAT_MAP, &rev_nat_index);
+		if (nat == NULL) {
+			return DROP_NO_SERVICE;
+		}
+		svc_addr = nat->address;
+		dport = nat->port;
+	}
+	return __sfc_reply_icmp4(ctx, ip4, svc_addr, dport);
 }
 
 #endif /* ENABLE_GOOGLE_SERVICE_STEERING */
