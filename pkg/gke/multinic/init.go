@@ -47,7 +47,9 @@ func Init(ctx context.Context, endpointManager *endpointmanager.EndpointManager,
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("failed to create manager: %v", err)
 	}
-
+	if err := mnwIPAMMgr.UpdateMultiNetworkIPAMAllocators(node.GetAnnotations()); err != nil {
+		return nil, nil, nil, fmt.Errorf("failed to initialize multi-network allocators: %v", err)
+	}
 	if err = (&controller.NetworkReconciler{
 		Client:          mgr.GetClient(),
 		EndpointManager: endpointManager,
@@ -67,10 +69,6 @@ func Init(ctx context.Context, endpointManager *endpointmanager.EndpointManager,
 	kubeletClient, err := NewKubeletClient(ctx)
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("failed to create kubelet client: %v", err)
-	}
-
-	if err := mnwIPAMMgr.UpdateMultiNetworkIPAMAllocators(node.GetAnnotations()); err != nil {
-		return nil, nil, nil, fmt.Errorf("failed to initialize multi-network allocators: %v", err)
 	}
 	return NewK8sClient(mgr.GetClient()), kubeletClient, dhcp.NewDHCPClient(), nil
 }

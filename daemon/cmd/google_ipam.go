@@ -22,6 +22,9 @@ func (d *Daemon) UpdateMultiNetworkIPAMAllocators(annotations map[string]string)
 	}
 	node.SetAnnotations(annotations)
 	existingAllocators := d.ipam.MultiNetworkAllocators
+	if existingAllocators == nil {
+		existingAllocators = map[string]ipam.Allocator{}
+	}
 	// Delete the allocator of the network that is not present anymore.
 	for n := range existingAllocators {
 		if _, ok := nws[n]; !ok {
