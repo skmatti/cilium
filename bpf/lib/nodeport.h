@@ -2297,6 +2297,7 @@ skip_service_lookup:
 			if (IS_ERR(ret))
 				return ret;
 
+#ifndef ENABLE_EGRESS_GATEWAY
 #ifndef ENABLE_MASQUERADE
 			/* The packet is DSR-eligible, so we know for sure that it is
 			 * not reply traffic by a remote backend which would require
@@ -2304,6 +2305,7 @@ skip_service_lookup:
 			 * other reason to tail-call CILIUM_CALL_IPV4_NODEPORT_NAT_INGRESS.
 			 */
 			return CTX_ACT_OK;
+#endif
 #endif
 		}
 #endif /* ENABLE_DSR */
