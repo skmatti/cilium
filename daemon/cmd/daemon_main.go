@@ -1708,7 +1708,11 @@ func runDaemon() {
 	iptablesManager := &iptables.IptablesManager{}
 	iptablesManager.Init()
 
-	if dpv2e.IsWireguard() {
+	if c, err := dpv2e.GetClient(); err != nil {
+		log.Fatalf("Failed to create k8s client: %v", err)
+	} else if wgEnabled, err := dpv2e.IsWireguard(c); err != nil {
+		log.Fatalf("Failed to check if Wireguard is enabled: %s", err)
+	} else if wgEnabled {
 		option.Config.EnableWireguard = true
 		option.Config.EnableL7Proxy = false
 		log.Info("Enabling Wireguard. Wireguard is not compatible with L7-Proxy, hence disabling L7-Proxy")
