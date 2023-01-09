@@ -57,3 +57,10 @@ ${CODEGEN_PKG}/generate-groups.sh \
   github.com/cilium/cilium/pkg/gke/client/dataplanev2encryption github.com/cilium/cilium/pkg/gke/apis \
   "dataplanev2encryption:v1alpha1" \
   --go-header-file ${SCRIPT_ROOT}/hack/boilerplate.go.txt
+
+echo "Performing code generation for RemoteNode CRD"
+${CODEGEN_PKG}/generate-groups.sh \
+  "deepcopy,client,informer,lister" \
+  github.com/cilium/cilium/pkg/gke/client/remotenode github.com/cilium/cilium/pkg/gke/apis \
+  "remotenode:v1alpha1" \
+  --go-header-file ${SCRIPT_ROOT}/hack/boilerplate.go.txt
