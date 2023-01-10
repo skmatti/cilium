@@ -42,6 +42,8 @@ const (
 
 	// MetadataKeyBackendKey is the key used to store the backend key.
 	MetadataKeyBackendKey = 0
+	// byKeyIndex is the name of the index of the identities by key.
+	byKeyIndex = "by-key-index"
 )
 
 func NewCRDBackend(c CRDBackendConfiguration) (allocator.Backend, error) {
@@ -50,9 +52,9 @@ func NewCRDBackend(c CRDBackendConfiguration) (allocator.Backend, error) {
 
 type CRDBackendConfiguration struct {
 	NodeName string
-	Store    cache.Store
+	Store    cache.Indexer
 	Client   clientset.Interface
-	KeyType  allocator.AllocatorKey
+	KeyFunc  func(map[string]string) allocator.AllocatorKey
 }
 
 type crdBackend struct {
@@ -232,7 +234,12 @@ func (c *crdBackend) get(ctx context.Context, key allocator.AllocatorKey) *v2.Ci
 		return nil
 	}
 
-	for _, identityObject := range c.Store.List() {
+	identities, err := c.Store.ByIndex(byKeyIndex, key.GetKey())
+	if err != nil || len(identities) == 0 {
+		return nil
+	}
+
+	for _, identityObject := range identities {
 		identity, ok := identityObject.(*v2.CiliumIdentity)
 		if !ok {
 			return nil
@@ -242,7 +249,6 @@ func (c *crdBackend) get(ctx context.Context, key allocator.AllocatorKey) *v2.Ci
 			return identity
 		}
 	}
-
 	return nil
 }
 
@@ -307,7 +313,7 @@ func (c *crdBackend) GetByID(ctx context.Context, id idpool.ID) (allocator.Alloc
 		return nil, nil
 	}
 
-	return c.KeyType.PutKeyFromMap(identity.SecurityLabels), nil
+	return c.KeyFunc(identity.SecurityLabels), nil
 }
 
 // Release dissociates this node from using the identity bound to the given ID.
@@ -320,8 +326,19 @@ func (c *crdBackend) Release(ctx context.Context, id idpool.ID, key allocator.Al
 	return nil
 }
 
+func getIdentitiesByKeyFunc(keyFunc func(map[string]string) allocator.AllocatorKey) func(obj interface{}) ([]string, error) {
+	return func(obj interface{}) ([]string, error) {
+		if identity, ok := obj.(*v2.CiliumIdentity); ok {
+			return []string{keyFunc(identity.SecurityLabels).GetKey()}, nil
+		}
+		return []string{}, fmt.Errorf("object other than CiliumIdentity was pushed to the store")
+	}
+}
+
 func (c *crdBackend) ListAndWatch(ctx context.Context, handler allocator.CacheMutations, stopChan chan struct{}) {
-	c.Store = cache.NewStore(cache.DeletionHandlingMetaNamespaceKeyFunc)
+	c.Store = cache.NewIndexer(
+		cache.DeletionHandlingMetaNamespaceKeyFunc,
+		cache.Indexers{byKeyIndex: getIdentitiesByKeyFunc(c.KeyFunc)})
 	identityInformer := informer.NewInformerWithStore(
 		k8sUtils.ListerWatcherFromTyped[*v2.CiliumIdentityList](c.Client.CiliumV2().CiliumIdentities()),
 		&v2.CiliumIdentity{},
@@ -330,7 +347,7 @@ func (c *crdBackend) ListAndWatch(ctx context.Context, handler allocator.CacheMu
 			AddFunc: func(obj interface{}) {
 				if identity, ok := obj.(*v2.CiliumIdentity); ok {
 					if id, err := strconv.ParseUint(identity.Name, 10, 64); err == nil {
-						handler.OnAdd(idpool.ID(id), c.KeyType.PutKeyFromMap(identity.SecurityLabels))
+						handler.OnAdd(idpool.ID(id), c.KeyFunc(identity.SecurityLabels))
 					}
 				}
 			},
@@ -341,7 +358,7 @@ func (c *crdBackend) ListAndWatch(ctx context.Context, handler allocator.CacheMu
 							return
 						}
 						if id, err := strconv.ParseUint(newIdentity.Name, 10, 64); err == nil {
-							handler.OnModify(idpool.ID(id), c.KeyType.PutKeyFromMap(newIdentity.SecurityLabels))
+							handler.OnModify(idpool.ID(id), c.KeyFunc(newIdentity.SecurityLabels))
 						}
 					}
 				}
@@ -355,7 +372,7 @@ func (c *crdBackend) ListAndWatch(ctx context.Context, handler allocator.CacheMu
 
 				if identity, ok := obj.(*v2.CiliumIdentity); ok {
 					if id, err := strconv.ParseUint(identity.Name, 10, 64); err == nil {
-						handler.OnDelete(idpool.ID(id), c.KeyType.PutKeyFromMap(identity.SecurityLabels))
+						handler.OnDelete(idpool.ID(id), c.KeyFunc(identity.SecurityLabels))
 					}
 				} else {
 					log.Debugf("Ignoring unknown delete event %#v", obj)

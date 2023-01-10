@@ -9,13 +9,13 @@ import (
 	"net"
 	"net/netip"
 	"path"
-	"strings"
 
 	"github.com/sirupsen/logrus"
 	"k8s.io/client-go/tools/cache"
 
 	"github.com/cilium/cilium/pkg/allocator"
 	"github.com/cilium/cilium/pkg/identity"
+	"github.com/cilium/cilium/pkg/identity/key"
 	"github.com/cilium/cilium/pkg/idpool"
 	clientset "github.com/cilium/cilium/pkg/k8s/client/clientset/versioned"
 	"github.com/cilium/cilium/pkg/k8s/identitybackend"
@@ -33,63 +33,6 @@ var (
 	// key-value store.
 	IdentitiesPath = path.Join(kvstore.BaseKeyPrefix, "state", "identities", "v1")
 )
-
-// GlobalIdentity is the structure used to store an identity
-type GlobalIdentity struct {
-	labels.LabelArray
-
-	// metadata contains metadata that are stored for example by the backends.
-	metadata map[any]any
-}
-
-// GetKey encodes an Identity as string
-func (gi GlobalIdentity) GetKey() string {
-	var str strings.Builder
-	for _, l := range gi.LabelArray {
-		str.Write(l.FormatForKVStore())
-	}
-	return str.String()
-}
-
-// GetAsMap encodes a GlobalIdentity a map of keys to values. The keys will
-// include a source delimted by a ':'. This output is pareable by PutKeyFromMap.
-func (gi GlobalIdentity) GetAsMap() map[string]string {
-	return gi.StringMap()
-}
-
-// PutKey decodes an Identity from its string representation
-func (gi GlobalIdentity) PutKey(v string) allocator.AllocatorKey {
-	return GlobalIdentity{LabelArray: labels.NewLabelArrayFromSortedList(v)}
-}
-
-// PutKeyFromMap decodes an Identity from a map of key to value. Output
-// from GetAsMap can be parsed.
-// Note: NewLabelArrayFromMap will parse the ':' separated label source from
-// the keys because the source parameter is ""
-func (gi GlobalIdentity) PutKeyFromMap(v map[string]string) allocator.AllocatorKey {
-	return GlobalIdentity{LabelArray: labels.Map2Labels(v, "").LabelArray()}
-}
-
-// PutValue puts metadata inside the global identity for the given 'key' with
-// the given 'value'.
-func (gi GlobalIdentity) PutValue(key, value any) allocator.AllocatorKey {
-	newMap := map[any]any{}
-	if gi.metadata != nil {
-		for k, v := range gi.metadata {
-			newMap[k] = v
-		}
-	}
-	newMap[key] = value
-	return GlobalIdentity{
-		LabelArray: gi.LabelArray,
-		metadata:   newMap,
-	}
-}
-
-// Value returns the value stored in the metadata map.
-func (gi GlobalIdentity) Value(key any) any {
-	return gi.metadata[key]
-}
 
 // CachingIdentityAllocator manages the allocation of identities for both
 // global and local identities.
@@ -229,18 +172,22 @@ func (m *CachingIdentityAllocator) InitIdentityAllocator(client clientset.Interf
 		switch option.Config.IdentityAllocationMode {
 		case option.IdentityAllocationModeKVstore:
 			log.Debug("Identity allocation backed by KVStore")
-			backend, err = kvstoreallocator.NewKVStoreBackend(m.identitiesPath, owner.GetNodeSuffix(), GlobalIdentity{}, kvstore.Client())
+			backend, err = kvstoreallocator.NewKVStoreBackend(m.identitiesPath, owner.GetNodeSuffix(), &key.GlobalIdentity{}, kvstore.Client())
 			if err != nil {
 				log.WithError(err).Fatal("Unable to initialize kvstore backend for identity allocation")
 			}
 
 		case option.IdentityAllocationModeCRD:
 			log.Debug("Identity allocation backed by CRD")
+			if identityStore != nil {
+				// ListAndWatch overwrites the store.
+				log.Warnf("Ignoring provided identityStore")
+			}
 			backend, err = identitybackend.NewCRDBackend(identitybackend.CRDBackendConfiguration{
 				NodeName: owner.GetNodeSuffix(),
-				Store:    identityStore,
+				Store:    nil,
 				Client:   client,
-				KeyType:  GlobalIdentity{},
+				KeyFunc:  (&key.GlobalIdentity{}).PutKeyFromMap,
 			})
 			if err != nil {
 				log.WithError(err).Fatal("Unable to initialize Kubernetes CRD backend for identity allocation")
@@ -250,7 +197,7 @@ func (m *CachingIdentityAllocator) InitIdentityAllocator(client clientset.Interf
 			log.Fatalf("Unsupported identity allocation mode %s", option.Config.IdentityAllocationMode)
 		}
 
-		a, err := allocator.NewAllocator(GlobalIdentity{}, backend,
+		a, err := allocator.NewAllocator(&key.GlobalIdentity{}, backend,
 			allocator.WithMax(maxID), allocator.WithMin(minID),
 			allocator.WithEvents(events),
 			allocator.WithMasterKeyProtection(),
@@ -403,7 +350,7 @@ func (m *CachingIdentityAllocator) AllocateIdentity(ctx context.Context, lbls la
 		return nil, false, fmt.Errorf("allocator not initialized")
 	}
 
-	idp, isNew, isNewLocally, err := m.IdentityAllocator.Allocate(ctx, GlobalIdentity{LabelArray: lbls.LabelArray()})
+	idp, isNew, isNewLocally, err := m.IdentityAllocator.Allocate(ctx, &key.GlobalIdentity{LabelArray: lbls.LabelArray()})
 	if err != nil {
 		return nil, false, err
 	}
@@ -470,7 +417,7 @@ func (m *CachingIdentityAllocator) Release(ctx context.Context, id *identity.Ide
 	// ID is no longer used locally, it may still be used by
 	// remote nodes, so we can't rely on the locally computed
 	// "lastUse".
-	return m.IdentityAllocator.Release(ctx, GlobalIdentity{LabelArray: id.LabelArray})
+	return m.IdentityAllocator.Release(ctx, &key.GlobalIdentity{LabelArray: id.LabelArray})
 }
 
 // ReleaseSlice attempts to release a set of identities. It is a helper
@@ -500,12 +447,12 @@ func (m *CachingIdentityAllocator) ReleaseSlice(ctx context.Context, owner Ident
 func (m *CachingIdentityAllocator) WatchRemoteIdentities(remoteName string, backend kvstore.BackendOperations) (*allocator.RemoteCache, error) {
 	<-m.globalIdentityAllocatorInitialized
 
-	remoteAllocatorBackend, err := kvstoreallocator.NewKVStoreBackend(m.identitiesPath, m.owner.GetNodeSuffix(), GlobalIdentity{}, backend)
+	remoteAllocatorBackend, err := kvstoreallocator.NewKVStoreBackend(m.identitiesPath, m.owner.GetNodeSuffix(), &key.GlobalIdentity{}, backend)
 	if err != nil {
 		return nil, fmt.Errorf("error setting up remote allocator backend: %s", err)
 	}
 
-	remoteAlloc, err := allocator.NewAllocator(GlobalIdentity{}, remoteAllocatorBackend, allocator.WithEvents(m.IdentityAllocator.GetEvents()), allocator.WithoutGC())
+	remoteAlloc, err := allocator.NewAllocator(&key.GlobalIdentity{}, remoteAllocatorBackend, allocator.WithEvents(m.IdentityAllocator.GetEvents()), allocator.WithoutGC())
 	if err != nil {
 		return nil, fmt.Errorf("unable to initialize remote Identity Allocator: %s", err)
 	}
