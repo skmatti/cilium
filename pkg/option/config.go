@@ -2027,6 +2027,10 @@ type DaemonConfig struct {
 	// EnableHostFirewall enables network policies for the host
 	EnableHostFirewall bool
 
+	// DisablePodToRemoteNodeTunneling disables tunneling for all traffic to the
+	// remote nodes. This option is used together with enable-host-firewall.
+	DisablePodToRemoteNodeTunneling bool
+
 	// DisablePolicyEventCountMetric  disables the policy event count metric on this host.
 	DisablePolicyEventCountMetric bool
 
@@ -3139,6 +3143,7 @@ func (c *DaemonConfig) Populate(vp *viper.Viper) {
 	c.EnableFlatIPv4 = vp.GetBool(EnableFlatIPv4)
 	c.DisableIPv6Tunnel = vp.GetBool(DisableIPv6Tunnel)
 	c.EnableGNG = vp.GetBool(EnableGNG)
+	c.DisablePodToRemoteNodeTunneling = vp.GetBool(DisablePodToRemoteNodeTunneling)
 
 	vlanBPFBypassIDs := vp.GetStringSlice(VLANBPFBypass)
 	c.VLANBPFBypass = make([]int, 0, len(vlanBPFBypassIDs))

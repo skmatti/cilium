@@ -39,4 +39,7 @@ const (
 
 	// PopulateGCENICInfo is the name of the option to populate GCE NIC information as node annotation.
 	PopulateGCENICInfo = "populate-gce-nic-info"
+
+	// DisablePodToRemoteNodeTunneling disables tunneling for all traffic to the remote nodes.
+	DisablePodToRemoteNodeTunneling = "disable-pod-to-remote-node-tunneling"
 )
