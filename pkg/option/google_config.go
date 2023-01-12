@@ -70,4 +70,7 @@ const (
 	// during startup logs, even those not using it. This decision was made in
 	// consultation with the wider GKE Multi-tenancy team.
 	EnableGKEMultiTenancy = "enable-multi-project"
+
+	// DisablePodToRemoteNodeTunneling disables tunneling for all traffic to the remote nodes.
+	DisablePodToRemoteNodeTunneling = "disable-pod-to-remote-node-tunneling"
 )

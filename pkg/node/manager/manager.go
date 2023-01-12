@@ -29,6 +29,7 @@ import (
 	"github.com/cilium/cilium/pkg/controller"
 	"github.com/cilium/cilium/pkg/datapath/iptables/ipset"
 	datapath "github.com/cilium/cilium/pkg/datapath/types"
+	"github.com/cilium/cilium/pkg/gke/features"
 	"github.com/cilium/cilium/pkg/identity"
 	"github.com/cilium/cilium/pkg/inctimer"
 	"github.com/cilium/cilium/pkg/ip"
@@ -573,7 +574,7 @@ func (m *manager) nodeAddressHasTunnelIP(address nodeTypes.Address) bool {
 	// encapsulation. In encryption case we also want to use vxlan device
 	// to create symmetric traffic when sending nodeIP->pod and pod->nodeIP.
 	return address.Type == addressing.NodeCiliumInternalIP || m.conf.NodeEncryptionEnabled() ||
-		m.conf.EnableHostFirewall || m.conf.JoinCluster
+		(!features.GlobalConfig.DisablePodToRemoteNodeTunneling && m.conf.EnableHostFirewall) || m.conf.JoinCluster
 }
 
 func (m *manager) nodeAddressHasEncryptKey() bool {

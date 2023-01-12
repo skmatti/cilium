@@ -60,6 +60,8 @@ type Config struct {
 	//
 	// Ref. http://go/dpv2-with-gke-multi-tenancy
 	EnableGKEMultiTenancy bool `mapstructure:"enable-multi-project"`
+	// DisablePodToRemoteNodeTunneling disables tunneling for all traffic to the remote nodes.
+	DisablePodToRemoteNodeTunneling bool `mapstructure:"disable-pod-to-remote-node-tunneling"`
 }
 
 var defaultConfig = Config{
@@ -75,6 +77,8 @@ var defaultConfig = Config{
 	PopulateGCENICInfo:          false,
 	EnableMultiPoolIPAM:         false,
 	EnableGKEMultiTenancy:       false,
+
+	DisablePodToRemoteNodeTunneling: false,
 }
 
 func (cfg Config) Flags(flags *pflag.FlagSet) {
@@ -114,4 +118,7 @@ func (cfg Config) Flags(flags *pflag.FlagSet) {
 	// made in consultation with the wider GKE Multi-tenancy team.
 	flags.Bool(option.EnableGKEMultiTenancy, defaultConfig.EnableGKEMultiTenancy, "Enable multi-project support for Cilium.")
 	flags.MarkHidden(option.EnableGKEMultiTenancy)
+
+	flags.Bool(option.DisablePodToRemoteNodeTunneling, defaultConfig.DisablePodToRemoteNodeTunneling, "Disable tunneling for traffic from a pod to the remote nodes")
+	flags.MarkHidden(option.DisablePodToRemoteNodeTunneling)
 }
