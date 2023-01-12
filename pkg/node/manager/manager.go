@@ -418,7 +418,7 @@ func (m *Manager) NodeUpdated(n nodeTypes.Node) {
 		// encapsulation. In encryption case we also want to use vxlan device
 		// to create symmetric traffic when sending nodeIP->pod and pod->nodeIP.
 		if address.Type == addressing.NodeCiliumInternalIP || m.conf.EncryptionEnabled() ||
-			option.Config.EnableHostFirewall || option.Config.JoinCluster {
+			(!option.Config.DisablePodToRemoteNodeTunneling && option.Config.EnableHostFirewall) || option.Config.JoinCluster {
 			tunnelIP = nodeIP
 		}
 

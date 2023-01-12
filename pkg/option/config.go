@@ -243,6 +243,10 @@ const (
 	// EnableHostFirewall enables network policies for the host
 	EnableHostFirewall = "enable-host-firewall"
 
+	// DisablePodToRemoteNodeTunneling disables tunneling for all traffic to the
+	// remote nodes.
+	DisablePodToRemoteNodeTunneling = "disable-pod-to-remote-node-tunneling"
+
 	// DisablePolicyEventCountMetric  disables the policy event count metric on this host.
 	DisablePolicyEventCountMetric = "disable-policy-event-count-metric"
 
@@ -2019,6 +2023,10 @@ type DaemonConfig struct {
 	// EnableHostFirewall enables network policies for the host
 	EnableHostFirewall bool
 
+	// DisablePodToRemoteNodeTunneling disables tunneling for all traffic to the
+	// remote nodes. This option is used together with enable-host-firewall.
+	DisablePodToRemoteNodeTunneling bool
+
 	// DisablePolicyEventCountMetric  disables the policy event count metric on this host.
 	DisablePolicyEventCountMetric bool
 
@@ -3398,6 +3406,7 @@ func (c *DaemonConfig) Populate() {
 	c.EnableStaleCiliumEndpointCleanup = viper.GetBool(EnableStaleCiliumEndpointCleanup)
 
 	c.K8sInterfaceOnly = viper.GetBool(K8sInterfaceOnly)
+	c.DisablePodToRemoteNodeTunneling = viper.GetBool(DisablePodToRemoteNodeTunneling)
 
 	// Disable Envoy version check if L7 proxy is disabled.
 	c.DisableEnvoyVersionCheck = viper.GetBool(DisableEnvoyVersionCheck)

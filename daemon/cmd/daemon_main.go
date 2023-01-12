@@ -292,6 +292,10 @@ func initializeFlags() {
 	flags.Bool(option.K8sInterfaceOnly, false, "Only use k8s node interface as host device")
 	option.BindEnv(option.K8sInterfaceOnly)
 
+	flags.Bool(option.DisablePodToRemoteNodeTunneling, false, "Disable tunneling for traffic from a pod to the remote nodes")
+	flags.MarkHidden(option.DisablePodToRemoteNodeTunneling)
+	option.BindEnv(option.DisablePodToRemoteNodeTunneling)
+
 	flags.String(option.LBDevInheritIPAddr, "", fmt.Sprintf("Device name which IP addr is inherited by devices running LB BPF program (--%s)", option.Devices))
 	option.BindEnv(option.LBDevInheritIPAddr)
 
