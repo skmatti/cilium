@@ -26,6 +26,7 @@ func (d *Daemon) allocateIPsIfMultiNICEndpoint(ep *endpoint.Endpoint) error {
 		_, err := alloc.Allocate(net.IP(ep.GetIPv4Address()), ep.K8sPodName)
 		if err == nil {
 			reserved = true
+			ep.Logger(daemonSubsys).Info("successfully restored multi-nic endpoint IP")
 			break
 		}
 	}
