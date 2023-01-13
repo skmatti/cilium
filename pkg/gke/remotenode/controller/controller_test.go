@@ -18,10 +18,11 @@ package controller
 
 import (
 	"errors"
-	"github.com/cilium/cilium/api/v1/models"
-	. "github.com/cilium/cilium/pkg/gke/apis/remotenode/v1alpha1"
 	"net"
 	"testing"
+
+	"github.com/cilium/cilium/api/v1/models"
+	. "github.com/cilium/cilium/pkg/gke/apis/remotenode/v1alpha1"
 )
 
 func TestUpsertWireguardTunnel(t *testing.T) {
@@ -61,11 +62,10 @@ func TestUpsertWireguardTunnel(t *testing.T) {
 			wantErr:    true,
 		},
 		{
-			name:            "fail to upsert in wireguard peer",
-			remoteNode:      &RemoteNode{Spec: RemoteNodeSpec{TunnelIP: "1.2.3.4", PodCIDRs: []string{"1.1.1.0/24"}}},
-			wgagent:         &fakeWgAgent{failOnUpsert: true},
-			wantErr:         true,
-			wantIpCacheSize: 1, // IP cache will be updated since the failure happens after ipcache updation.
+			name:       "fail to upsert wireguard peer",
+			remoteNode: &RemoteNode{Spec: RemoteNodeSpec{TunnelIP: "1.2.3.4", PodCIDRs: []string{"1.1.1.0/24"}}},
+			wgagent:    &fakeWgAgent{failOnUpsert: true},
+			wantErr:    true,
 		},
 		{
 			name:            "success with ipv4",
@@ -106,9 +106,99 @@ func TestUpsertWireguardTunnel(t *testing.T) {
 	}
 }
 
+func TestDeleteWireguardTunnel(t *testing.T) {
+	tests := []struct {
+		name            string
+		remoteNode      *RemoteNode
+		wgagent         *fakeWgAgent
+		ipcache         *fakeIpCache
+		wantErr         bool
+		wantPeerCount   int
+		wantIpCacheSize int
+	}{
+		{
+			name:            "fail to delete wireguard peer",
+			remoteNode:      &RemoteNode{Spec: RemoteNodeSpec{TunnelIP: "1.2.3.4", PodCIDRs: []string{"1.1.1.0/24"}}},
+			wgagent:         &fakeWgAgent{peerCount: 1, failOnDelete: true},
+			ipcache:         &fakeIpCache{size: 1},
+			wantErr:         true,
+			wantPeerCount:   1,
+			wantIpCacheSize: 1,
+		},
+		{
+			name:            "fail to parse RemoteNode with no tunnel ip",
+			remoteNode:      &RemoteNode{},
+			wgagent:         &fakeWgAgent{peerCount: 1},
+			ipcache:         &fakeIpCache{size: 1},
+			wantErr:         true,
+			wantPeerCount:   0, // ipcache is not cleaned up but wireguard peer config is deleted.
+			wantIpCacheSize: 1,
+		},
+		{
+			name:            "fail to parse RemoteNode with invalid tunnel ip",
+			remoteNode:      &RemoteNode{Spec: RemoteNodeSpec{TunnelIP: "abcd"}},
+			wgagent:         &fakeWgAgent{peerCount: 1},
+			ipcache:         &fakeIpCache{size: 1},
+			wantErr:         true,
+			wantPeerCount:   0, // ipcache is not cleaned up but wireguard peer config is deleted.
+			wantIpCacheSize: 1,
+		},
+		{
+			name:            "fail to delete in ipcache",
+			remoteNode:      &RemoteNode{Spec: RemoteNodeSpec{TunnelIP: "1.2.3.4", PodCIDRs: []string{"1.1.1.0/24"}}},
+			wgagent:         &fakeWgAgent{peerCount: 1},
+			ipcache:         &fakeIpCache{size: 1, failOnDelete: true},
+			wantErr:         true,
+			wantPeerCount:   0, // ipcache is not cleaned up but wireguard peer config is deleted.
+			wantIpCacheSize: 1,
+		},
+		{
+			name:            "success with ipv4",
+			remoteNode:      &RemoteNode{Spec: RemoteNodeSpec{TunnelIP: "1.2.3.4", PodCIDRs: []string{"1.1.1.0/24"}}},
+			wgagent:         &fakeWgAgent{peerCount: 1},
+			ipcache:         &fakeIpCache{size: 1},
+			wantPeerCount:   0,
+			wantIpCacheSize: 0,
+		},
+		{
+			name:            "success with ipv6",
+			remoteNode:      &RemoteNode{Spec: RemoteNodeSpec{TunnelIP: "1:2:3:4:aa:bb:cc:dd", PodCIDRs: []string{"10:20:30::/48"}}},
+			wgagent:         &fakeWgAgent{peerCount: 1},
+			ipcache:         &fakeIpCache{size: 1},
+			wantPeerCount:   0,
+			wantIpCacheSize: 0,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			wgagent := &fakeWgAgent{peerCount: 0}
+			if test.wgagent != nil {
+				wgagent = test.wgagent
+			}
+			ipcache := &fakeIpCache{size: 0}
+			if test.ipcache != nil {
+				ipcache = test.ipcache
+			}
+			u := Controller{wgagent: wgagent, ipcache: ipcache}
+			err := u.deleteWireguardTunnel(test.remoteNode)
+			if (err != nil) != test.wantErr {
+				t.Errorf("%s - got error %v, want error %v", test.name, err, test.wantErr)
+			}
+			if wgagent.peerCount != test.wantPeerCount {
+				t.Errorf("%s - peerCount updated", test.name)
+			}
+			if ipcache.size != test.wantIpCacheSize {
+				t.Errorf("%s - ipcache updated", test.name)
+			}
+		})
+	}
+}
+
 type fakeWgAgent struct {
 	peerCount    int
 	failOnUpsert bool
+	failOnDelete bool
 }
 
 func (f *fakeWgAgent) UpdatePeer(_, _ string, _, _ net.IP) error {
@@ -119,13 +209,28 @@ func (f *fakeWgAgent) UpdatePeer(_, _ string, _, _ net.IP) error {
 	return nil
 }
 
-func (f *fakeWgAgent) DeletePeer(_ string) error { return nil }
+func (f *fakeWgAgent) DeletePeer(_ string) error {
+	if f.failOnDelete {
+		return errors.New("failed to delete wireguard peer")
+	}
+	f.peerCount--
+	return nil
+}
 
 func (f *fakeWgAgent) Status(_ bool) (*models.WireguardStatus, error) { return nil, nil }
 
 type fakeIpCache struct {
 	size         int
 	failOnUpsert bool
+	failOnDelete bool
+}
+
+func (f *fakeIpCache) DeleteRemoteNode(_, _ net.IP) error {
+	if f.failOnDelete {
+		return errors.New("failed to delete remote node")
+	}
+	f.size--
+	return nil
 }
 
 func (f *fakeIpCache) UpsertRemotePods(net.IP, []*net.IPNet) error {

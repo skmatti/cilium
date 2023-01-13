@@ -16,8 +16,6 @@ package controller
 
 import (
 	"fmt"
-	"github.com/cilium/cilium/pkg/ip"
-	"github.com/cilium/cilium/pkg/k8s"
 	"net"
 	"time"
 
@@ -25,6 +23,8 @@ import (
 	"github.com/cilium/cilium/pkg/gke/apis/remotenode/v1alpha1"
 	"github.com/cilium/cilium/pkg/gke/client/remotenode/clientset/versioned"
 	"github.com/cilium/cilium/pkg/gke/client/remotenode/informers/externalversions"
+	"github.com/cilium/cilium/pkg/ip"
+	"github.com/cilium/cilium/pkg/k8s"
 	"github.com/cilium/cilium/pkg/logging"
 	"github.com/cilium/cilium/pkg/logging/logfields"
 	"github.com/sirupsen/logrus"
@@ -73,6 +73,7 @@ func NewController(clientset *versioned.Clientset, wgAgent datapath.WireguardAge
 
 type ipcache interface {
 	UpsertRemotePods(net.IP, []*net.IPNet) error
+	DeleteRemoteNode(nodeIPv4, nodeIPv6 net.IP) error
 }
 
 type Controller struct {
@@ -105,7 +106,9 @@ func (c *Controller) onAddRemoteNode(obj interface{}) {
 		"pubkey":   remoteNode.Spec.PublicKey,
 		"podcidrs": remoteNode.Spec.PodCIDRs,
 	}).Info("Will configure wireguard tunnel with remote node")
-	c.upsertWireguardTunnel(remoteNode)
+	if err := c.upsertWireguardTunnel(remoteNode); err != nil {
+		log.WithField("name", remoteNode.Name).Errorf("Failed to configure wireguard peer config for remote node: %v", err)
+	}
 }
 
 func (c *Controller) onUpdateRemoteNode(newObj interface{}) {
@@ -127,18 +130,9 @@ func (c *Controller) onUpdateRemoteNode(newObj interface{}) {
 }
 
 func (c *Controller) upsertWireguardTunnel(remoteNode *v1alpha1.RemoteNode) error {
-	remoteNodeIP := net.ParseIP(remoteNode.Spec.TunnelIP)
-	if remoteNodeIP == nil {
-		return fmt.Errorf("failed to parse RemoteNode Tunnel-IP: %s", remoteNode.Spec.TunnelIP)
-	}
-	var remoteNodeIPv4, remoteNodeIPv6 net.IP
-	if ip.IsIPv4(remoteNodeIP) {
-		remoteNodeIPv4 = remoteNodeIP
-	} else if ip.IsIPv6(remoteNodeIP) {
-		remoteNodeIPv6 = remoteNodeIP
-	}
-	if remoteNodeIPv4 == nil && remoteNodeIPv6 == nil {
-		return fmt.Errorf("RemoteNode Tunnel-IP is neither v4 nor v6: %v", remoteNodeIP.String())
+	remoteNodeIP, remoteNodeIPv4, remoteNodeIPv6, err := parseIP(remoteNode.Spec.TunnelIP)
+	if err != nil {
+		return err
 	}
 
 	if len(remoteNode.Spec.PodCIDRs) == 0 {
@@ -163,7 +157,10 @@ func (c *Controller) upsertWireguardTunnel(remoteNode *v1alpha1.RemoteNode) erro
 
 	// Setup wireguard peer config for this remote-node.
 	if err := c.wgagent.UpdatePeer(remoteNode.Name, remoteNode.Spec.PublicKey, remoteNodeIPv4, remoteNodeIPv6); err != nil {
-		// TODO(ambekara) - Delete pod-cidr from ipcache.
+		// A best effort job for cleaning up pod-cidrs from ipcache for this remote node.
+		if err := c.ipcache.DeleteRemoteNode(remoteNodeIPv4, remoteNodeIPv6); err != nil {
+			log.WithField("name", remoteNode.Name).Errorf("Failed to delete pod-cidrs from ipcache for remote node: %v", err)
+		}
 		return fmt.Errorf("failed to upsert wireguard peer config: %v", err)
 	}
 
@@ -182,11 +179,24 @@ func (c *Controller) onDeleteRemoteNode(obj interface{}) {
 		"pubkey":   remoteNode.Spec.PublicKey,
 		"podcidrs": remoteNode.Spec.PodCIDRs,
 	}).Info("Will remove wireguard peer config for remote node")
-	if err := c.wgagent.DeletePeer(remoteNode.Name); err != nil {
+	if err := c.deleteWireguardTunnel(remoteNode); err != nil {
 		log.WithField("name", remoteNode.Name).Errorf("Failed to delete wireguard peer config for remote node: %v", err)
 		return
 	}
-	// TODO(ambekara) - Delete pod-cidr from ipcache.
+}
+
+func (c *Controller) deleteWireguardTunnel(remoteNode *v1alpha1.RemoteNode) error {
+	// Delete wireguard peer config.
+	if err := c.wgagent.DeletePeer(remoteNode.Name); err != nil {
+		return err
+	}
+	// Delete pod-cidrs from ipcache.
+	if _, remoteNodeIPv4, remoteNodeIPv6, err := parseIP(remoteNode.Spec.TunnelIP); err != nil {
+		return err
+	} else if err := c.ipcache.DeleteRemoteNode(remoteNodeIPv4, remoteNodeIPv6); err != nil {
+		return err
+	}
+	return nil
 }
 
 func objToRemoteNode(obj interface{}) (*v1alpha1.RemoteNode, error) {
@@ -202,4 +212,17 @@ func objToRemoteNode(obj interface{}) (*v1alpha1.RemoteNode, error) {
 	default:
 		return nil, fmt.Errorf("invalid object type %T", obj)
 	}
+}
+
+func parseIP(ipstr string) (ipaddr net.IP, ipv4addr net.IP, ipv6addr net.IP, err error) {
+	ipaddr = net.ParseIP(ipstr)
+	if ipaddr == nil {
+		return nil, nil, nil, fmt.Errorf("failed to parse RemoteNode Tunnel-IP: %s", ipstr)
+	}
+	if ip.IsIPv6(ipaddr) {
+		ipv6addr = ipaddr
+	} else {
+		ipv4addr = ipaddr
+	}
+	return ipaddr, ipv4addr, ipv6addr, nil
 }
