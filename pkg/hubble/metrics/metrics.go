@@ -19,6 +19,7 @@ import (
 	_ "github.com/cilium/cilium/pkg/hubble/metrics/drop"              // invoke init
 	_ "github.com/cilium/cilium/pkg/hubble/metrics/flow"              // invoke init
 	_ "github.com/cilium/cilium/pkg/hubble/metrics/flows-to-world"    // invoke init
+	_ "github.com/cilium/cilium/pkg/hubble/metrics/gke/flow"          // invoke init
 	_ "github.com/cilium/cilium/pkg/hubble/metrics/http"              // invoke init
 	_ "github.com/cilium/cilium/pkg/hubble/metrics/icmp"              // invoke init
 	_ "github.com/cilium/cilium/pkg/hubble/metrics/kafka"             // invoke init
