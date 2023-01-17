@@ -1715,7 +1715,8 @@ func runDaemon() {
 	} else if wgEnabled {
 		option.Config.EnableWireguard = true
 		option.Config.EnableL7Proxy = false
-		log.Info("Enabling Wireguard. Wireguard is not compatible with L7-Proxy, hence disabling L7-Proxy")
+		option.Config.EnableFQDNNetworkPolicy = false
+		log.Info("Enabling Wireguard. Wireguard is not compatible with L7-Proxy, hence disabling L7-Proxy and FQDNNetworkPolicy")
 	}
 	var wgAgent *wireguard.Agent
 	if option.Config.EnableWireguard {
