@@ -2,6 +2,7 @@ package flow
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -59,11 +60,11 @@ func TestFlowHandler(t *testing.T) {
 
 		metricFamilies, err := registry.Gather()
 		require.NoError(t, err)
-		require.Len(t, metricFamilies, 1)
+		require.Len(t, metricFamilies, 2)
 
-		assert.Equal(t, "pod_flow_ingress_flows_count", *metricFamilies[0].Name)
-		require.Len(t, metricFamilies[0].Metric, 1)
-		metric := metricFamilies[0].Metric[0]
+		assert.Equal(t, "pod_flow_ingress_flows_count", *metricFamilies[1].Name)
+		require.Len(t, metricFamilies[1].Metric, 1)
+		metric := metricFamilies[1].Metric[0]
 
 		assert.Equal(t, "destination", *metric.Label[destinationLabelIdx].Name)
 		assert.Equal(t, "bar", *metric.Label[destinationLabelIdx].Value)
@@ -115,7 +116,7 @@ func TestFlowHandler(t *testing.T) {
 
 		metricFamilies, err := registry.Gather()
 		require.NoError(t, err)
-		require.Len(t, metricFamilies, 0)
+		require.Len(t, metricFamilies, 1)
 
 	})
 
@@ -143,11 +144,11 @@ func TestFlowHandler(t *testing.T) {
 
 		metricFamilies, err := registry.Gather()
 		require.NoError(t, err)
-		require.Len(t, metricFamilies, 1)
+		require.Len(t, metricFamilies, 2)
 
-		assert.Equal(t, "pod_flow_ingress_flows_count", *metricFamilies[0].Name)
-		require.Len(t, metricFamilies[0].Metric, 1)
-		metric := metricFamilies[0].Metric[0]
+		assert.Equal(t, "pod_flow_ingress_flows_count", *metricFamilies[1].Name)
+		require.Len(t, metricFamilies[1].Metric, 1)
+		metric := metricFamilies[1].Metric[0]
 
 		assert.Equal(t, "destination", *metric.Label[destinationLabelIdx].Name)
 		assert.Equal(t, "bar", *metric.Label[destinationLabelIdx].Value)
@@ -197,11 +198,11 @@ func TestFlowHandler(t *testing.T) {
 
 		metricFamilies, err := registry.Gather()
 		require.NoError(t, err)
-		require.Len(t, metricFamilies, 1)
+		require.Len(t, metricFamilies, 2)
 
-		assert.Equal(t, "pod_flow_ingress_flows_count", *metricFamilies[0].Name)
-		require.Len(t, metricFamilies[0].Metric, 1)
-		metric := metricFamilies[0].Metric[0]
+		assert.Equal(t, "pod_flow_ingress_flows_count", *metricFamilies[1].Name)
+		require.Len(t, metricFamilies[1].Metric, 1)
+		metric := metricFamilies[1].Metric[0]
 
 		assert.Equal(t, "destination", *metric.Label[destinationLabelIdx].Name)
 		assert.Equal(t, "bar", *metric.Label[destinationLabelIdx].Value)
@@ -254,11 +255,11 @@ func TestFlowHandler(t *testing.T) {
 
 		metricFamilies, err := registry.Gather()
 		require.NoError(t, err)
-		require.Len(t, metricFamilies, 1)
+		require.Len(t, metricFamilies, 2)
 
-		assert.Equal(t, "pod_flow_ingress_flows_count", *metricFamilies[0].Name)
-		require.Len(t, metricFamilies[0].Metric, 1)
-		metric := metricFamilies[0].Metric[0]
+		assert.Equal(t, "pod_flow_ingress_flows_count", *metricFamilies[1].Name)
+		require.Len(t, metricFamilies[1].Metric, 1)
+		metric := metricFamilies[1].Metric[0]
 
 		assert.Equal(t, "destination", *metric.Label[destinationLabelIdx].Name)
 		assert.Equal(t, "bar", *metric.Label[destinationLabelIdx].Value)
@@ -310,11 +311,11 @@ func TestFlowHandler(t *testing.T) {
 
 		metricFamilies, err := registry.Gather()
 		require.NoError(t, err)
-		require.Len(t, metricFamilies, 1)
+		require.Len(t, metricFamilies, 2)
 
-		assert.Equal(t, "pod_flow_ingress_flows_count", *metricFamilies[0].Name)
-		require.Len(t, metricFamilies[0].Metric, 1)
-		metric := metricFamilies[0].Metric[0]
+		assert.Equal(t, "pod_flow_ingress_flows_count", *metricFamilies[1].Name)
+		require.Len(t, metricFamilies[1].Metric, 1)
+		metric := metricFamilies[1].Metric[0]
 
 		assert.Equal(t, "destination", *metric.Label[destinationLabelIdx].Name)
 		assert.Equal(t, "bar", *metric.Label[destinationLabelIdx].Value)
@@ -363,11 +364,11 @@ func TestFlowHandler(t *testing.T) {
 
 		metricFamilies, err := registry.Gather()
 		require.NoError(t, err)
-		require.Len(t, metricFamilies, 1)
+		require.Len(t, metricFamilies, 2)
 
-		assert.Equal(t, "pod_flow_ingress_flows_count", *metricFamilies[0].Name)
-		require.Len(t, metricFamilies[0].Metric, 1)
-		metric := metricFamilies[0].Metric[0]
+		assert.Equal(t, "pod_flow_ingress_flows_count", *metricFamilies[1].Name)
+		require.Len(t, metricFamilies[1].Metric, 1)
+		metric := metricFamilies[1].Metric[0]
 
 		assert.Equal(t, "destination", *metric.Label[destinationLabelIdx].Name)
 		assert.Equal(t, "bar", *metric.Label[destinationLabelIdx].Value)
@@ -419,11 +420,11 @@ func TestFlowHandler(t *testing.T) {
 
 		metricFamilies, err := registry.Gather()
 		require.NoError(t, err)
-		require.Len(t, metricFamilies, 1)
+		require.Len(t, metricFamilies, 2)
 
-		assert.Equal(t, "pod_flow_ingress_flows_count", *metricFamilies[0].Name)
-		require.Len(t, metricFamilies[0].Metric, 1)
-		metric := metricFamilies[0].Metric[0]
+		assert.Equal(t, "pod_flow_ingress_flows_count", *metricFamilies[1].Name)
+		require.Len(t, metricFamilies[1].Metric, 1)
+		metric := metricFamilies[1].Metric[0]
 
 		assert.Equal(t, "destination", *metric.Label[destinationLabelIdx].Name)
 		assert.Equal(t, "bar", *metric.Label[destinationLabelIdx].Value)
@@ -451,6 +452,115 @@ func TestFlowHandler(t *testing.T) {
 
 	})
 
+	t.Run("ProcessMisbehavingFlow", func(t *testing.T) {
+		registry, h := initSut(t)
+
+		flow := &pb.Flow{
+			EventType: &pb.CiliumEventType{Type: monitorAPI.MessageTypePolicyVerdict},
+			L4: &pb.Layer4{
+				Protocol: &pb.Layer4_TCP{
+					TCP: &pb.TCP{
+						DestinationPort: 8080,
+						SourcePort:      31313,
+					},
+				},
+			},
+			Source:           &pb.Endpoint{Namespace: "foo"},
+			Destination:      &pb.Endpoint{Namespace: "bar"},
+			Verdict:          pb.Verdict_FORWARDED,
+			TrafficDirection: pb.TrafficDirection_INGRESS,
+			IsReply:          wrapperspb.Bool(false),
+		}
+		for port := 8080; port < (8080 + PerContextMetricsLimit + 100); port++ {
+			flow.L4.GetTCP().DestinationPort = uint32(port)
+			h.ProcessFlow(context.TODO(), flow)
+		}
+
+		metricFamilies, err := registry.Gather()
+		require.NoError(t, err)
+		require.Len(t, metricFamilies, 2)
+
+		assert.Equal(t, "pod_flow_ingress_flows_count", *metricFamilies[1].Name)
+		require.Len(t, metricFamilies[1].Metric, PerContextMetricsLimit)
+	})
+
+}
+
+func BenchmarkFlowHandler(b *testing.B) {
+	registry, h := initSut(b)
+	flow := &pb.Flow{
+		EventType: &pb.CiliumEventType{Type: monitorAPI.MessageTypePolicyVerdict},
+		L4: &pb.Layer4{
+			Protocol: &pb.Layer4_TCP{
+				TCP: &pb.TCP{
+					DestinationPort: 8080,
+					SourcePort:      31313,
+				},
+			},
+		},
+		Source:           &pb.Endpoint{Namespace: "foo"},
+		Destination:      &pb.Endpoint{Namespace: "bar"},
+		Verdict:          pb.Verdict_FORWARDED,
+		TrafficDirection: pb.TrafficDirection_INGRESS,
+		IsReply:          wrapperspb.Bool(false),
+	}
+
+	// pre-populate registry
+	for i := 0; i < 300; i++ {
+		flow.Source.Namespace = fmt.Sprintf("foo-%d", i)
+		flow.Destination.Namespace = fmt.Sprintf("bar-%d", i)
+		h.ProcessFlow(context.TODO(), flow)
+	}
+
+	for i := 0; i < PerContextMetricsLimit; i++ {
+		flow.L4.GetTCP().DestinationPort = uint32(8080 + i)
+		h.ProcessFlow(context.TODO(), flow)
+	}
+
+	b.Run("Benchmark allowed decisions", func(b *testing.B) {
+
+		for i := 0; i < b.N; i++ {
+			flow.L4.GetTCP().DestinationPort = uint32(8080 + i%PerContextMetricsLimit)
+			h.ProcessFlow(context.TODO(), flow)
+		}
+
+		metricFamilies, err := registry.Gather()
+		require.NoError(b, err)
+		require.Len(b, metricFamilies, 2)
+
+		assert.Equal(b, "pod_flow_ingress_flows_count", *metricFamilies[1].Name)
+
+	})
+
+	b.Run("Benchmark rejected decisions", func(b *testing.B) {
+
+		for i := 0; i < b.N; i++ {
+			flow.L4.GetTCP().DestinationPort = uint32(8080 + PerContextMetricsLimit + 1)
+			h.ProcessFlow(context.TODO(), flow)
+		}
+
+		metricFamilies, err := registry.Gather()
+		require.NoError(b, err)
+		require.Len(b, metricFamilies, 2)
+
+		assert.Equal(b, "pod_flow_ingress_flows_count", *metricFamilies[1].Name)
+
+	})
+
+	b.Run("Benchmark mixed decisions", func(b *testing.B) {
+
+		for i := 0; i < b.N; i++ {
+			flow.L4.GetTCP().DestinationPort = uint32(8080 + i%(2*PerContextMetricsLimit))
+			h.ProcessFlow(context.TODO(), flow)
+		}
+
+		metricFamilies, err := registry.Gather()
+		require.NoError(b, err)
+		require.Len(b, metricFamilies, 2)
+
+		assert.Equal(b, "pod_flow_ingress_flows_count", *metricFamilies[1].Name)
+
+	})
 }
 
 func initSut(t require.TestingT) (*prometheus.Registry, *flowHandler) {

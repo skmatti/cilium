@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+	"strings"
 
 	"github.com/prometheus/client_golang/prometheus"
 
@@ -13,12 +14,16 @@ import (
 )
 
 type flowHandler struct {
+	outcome      *prometheus.CounterVec
 	flowsIngress *prometheus.CounterVec
 	flowsEgress  *prometheus.CounterVec
 	context      *api.ContextOptions
+	limiter      map[string]map[string]bool
 }
 
 const (
+	// PerContextMetricsLimit is limit of data series per context that this handler can create
+	PerContextMetricsLimit = 50
 	// linuxDefaultEphemeralPortMin is linux default ephemeral port min value.
 	// In most linux distros default ephemeral port range is 32768–60999.
 	linuxDefaultEphemeralPortMin = 32768
@@ -34,6 +39,12 @@ func (h *flowHandler) Init(registry *prometheus.Registry, options api.Options) e
 
 	labels := append(h.labelNames(), h.context.GetLabelNames()...)
 
+	h.outcome = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "pod_flow",
+		Name:      "handler",
+		Help:      "Total number of flows processed by handler",
+	}, []string{"outcome"})
+
 	h.flowsIngress = prometheus.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "pod_flow",
 		Name:      "ingress_flows_count",
@@ -46,6 +57,9 @@ func (h *flowHandler) Init(registry *prometheus.Registry, options api.Options) e
 		Help:      "Total number of egress flows processed",
 	}, labels)
 
+	h.limiter = make(map[string]map[string]bool)
+
+	registry.MustRegister(h.outcome)
 	registry.MustRegister(h.flowsIngress)
 	registry.MustRegister(h.flowsEgress)
 	return nil
@@ -58,13 +72,28 @@ func (h *flowHandler) Status() string {
 
 // ProcessFlow processes single flow and updates corresponding counters.
 func (h *flowHandler) ProcessFlow(ctx context.Context, flow *flowpb.Flow) {
-	labelValues := h.context.GetLabelValues(flow)
+	contextLabelValues := h.context.GetLabelValues(flow)
+
+	if !h.sourceAndDestLabelsSet(contextLabelValues) {
+		// do not report metrics without source or destination
+		h.outcome.WithLabelValues("context_missing").Inc()
+		return
+	}
 
 	if counter := h.prometheusCounter(flow); counter != nil {
 		labels := h.getLabelValues(flow)
-		labels = append(labels, labelValues...)
+
+		if !h.canCreateMetricSeries(contextLabelValues, labels) {
+			h.outcome.WithLabelValues("limit_exceeded").Inc()
+			return
+		}
+
+		labels = append(labels, contextLabelValues...)
 
 		counter.WithLabelValues(labels...).Inc()
+		h.outcome.WithLabelValues("success").Inc()
+	} else {
+		h.outcome.WithLabelValues("unknown_direction").Inc()
 	}
 }
 
@@ -108,6 +137,39 @@ func (h *flowHandler) prometheusCounter(flow *flowpb.Flow) *prometheus.CounterVe
 	default:
 		return nil
 	}
+}
+
+func (h *flowHandler) sourceAndDestLabelsSet(values []string) bool {
+	for i, labelName := range h.context.GetLabelNames() {
+		if values[i] == "" && (labelName == "source" || labelName == "destination") {
+			return false
+		}
+	}
+
+	return true
+}
+
+func (h *flowHandler) canCreateMetricSeries(contextLabels []string, labels []string) bool {
+	key := strings.Join(contextLabels[:], "_")
+	value := strings.Join(labels[:], "_")
+
+	if k, ok := h.limiter[key]; ok {
+		if _, ok := k[value]; ok {
+			// data series already exists
+			return true
+		}
+	} else {
+		h.limiter[key] = make(map[string]bool)
+	}
+
+	if len(h.limiter[key]) >= PerContextMetricsLimit {
+		// too many different metrics per context
+		return false
+	}
+
+	// save labels set as allowed within limit
+	h.limiter[key][value] = true
+	return true
 }
 
 func getPortAsString(flow *flowpb.Flow) string {
