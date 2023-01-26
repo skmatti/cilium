@@ -10,6 +10,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 
 	pb "github.com/cilium/cilium/api/v1/flow"
+	slim_corev1 "github.com/cilium/cilium/pkg/k8s/slim/k8s/api/core/v1"
 	"github.com/cilium/cilium/pkg/logging"
 	"github.com/cilium/cilium/pkg/logging/logfields"
 )
@@ -65,6 +66,12 @@ type Handler interface {
 	// accounting
 	ProcessFlow(ctx context.Context, flow *pb.Flow)
 
+	// ListMetricVec returns an array of MetricVec used by a handler
+	ListMetricVec() []*prometheus.MetricVec
+
+	// Context used by this metrics handler
+	Context() *ContextOptions
+
 	// Status returns the configuration status of the metric handler
 	Status() string
 }
@@ -74,6 +81,18 @@ type Handler interface {
 func (h Handlers) ProcessFlow(ctx context.Context, flow *pb.Flow) {
 	for _, mh := range h {
 		mh.ProcessFlow(ctx, flow)
+	}
+}
+
+// ProcessPodDeletion queries all handlers for a list of MetricVec and removes
+// metrics directly associated to deleted pod.
+func (h Handlers) ProcessPodDeletion(pod *slim_corev1.Pod) {
+	for _, handler := range h {
+		for _, mv := range handler.ListMetricVec() {
+			if ctx := handler.Context(); ctx != nil {
+				ctx.DeleteMetricsAssociatedWithPod(pod.GetName(), pod.GetNamespace(), mv)
+			}
+		}
 	}
 }
 

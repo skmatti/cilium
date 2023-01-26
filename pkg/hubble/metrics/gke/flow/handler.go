@@ -70,6 +70,14 @@ func (h *flowHandler) Status() string {
 	return h.context.Status()
 }
 
+func (h *flowHandler) Context() *api.ContextOptions {
+	return h.context
+}
+
+func (h *flowHandler) ListMetricVec() []*prometheus.MetricVec {
+	return []*prometheus.MetricVec{h.flowsIngress.MetricVec, h.flowsEgress.MetricVec}
+}
+
 // ProcessFlow processes single flow and updates corresponding counters.
 func (h *flowHandler) ProcessFlow(ctx context.Context, flow *flowpb.Flow) {
 	contextLabelValues := h.context.GetLabelValues(flow)

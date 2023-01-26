@@ -548,6 +548,14 @@ and use the IP address of the target instead.
 
    In all of these 3 cases, ``reserved-identity`` context returns ``reserved:kube-apiserver``.
 
+.. note::
+
+    To limit metrics cardinality hubble will remove data series bound to specific pod after one minute from pod deletion.
+    Metric is considered to be bound to a specific pod when at least one of the following conditions is met:
+
+    * ``sourceContext`` is set to ``pod`` and metric series has ``source`` label matching ``<pod_namespace>/<pod_name>``
+    * ``destinationContext`` is set to ``pod`` and metric series has ``destination`` label matching ``<pod_namespace>/<pod_name>``
+
 .. _hubble_exported_metrics:
 
 Exported Metrics

@@ -59,6 +59,14 @@ func (h *flowsToWorldHandler) Status() string {
 	return h.context.Status()
 }
 
+func (h *flowsToWorldHandler) Context() *api.ContextOptions {
+	return h.context
+}
+
+func (h *flowsToWorldHandler) ListMetricVec() []*prometheus.MetricVec {
+	return []*prometheus.MetricVec{h.flowsToWorld.MetricVec}
+}
+
 func (h *flowsToWorldHandler) isReservedWorld(endpoint *flowpb.Endpoint) bool {
 	for _, label := range endpoint.Labels {
 		if label == h.worldLabel {

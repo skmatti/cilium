@@ -55,6 +55,14 @@ func (h *httpHandler) Status() string {
 	return h.context.Status()
 }
 
+func (h *httpHandler) Context() *api.ContextOptions {
+	return h.context
+}
+
+func (h *httpHandler) ListMetricVec() []*prometheus.MetricVec {
+	return []*prometheus.MetricVec{h.requests.MetricVec, h.responses.MetricVec, h.duration.MetricVec}
+}
+
 func (h *httpHandler) ProcessFlow(ctx context.Context, flow *flowpb.Flow) {
 	l7 := flow.GetL7()
 	if l7 == nil {

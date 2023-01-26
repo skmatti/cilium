@@ -89,6 +89,14 @@ func (d *dnsHandler) Status() string {
 	return strings.Join(append(status, d.context.Status()), ",")
 }
 
+func (d *dnsHandler) Context() *api.ContextOptions {
+	return d.context
+}
+
+func (d *dnsHandler) ListMetricVec() []*prometheus.MetricVec {
+	return []*prometheus.MetricVec{d.queries.MetricVec, d.responses.MetricVec, d.responseTypes.MetricVec}
+}
+
 func (d *dnsHandler) ProcessFlow(ctx context.Context, flow *flowpb.Flow) {
 	if flow.GetL7() == nil {
 		return
