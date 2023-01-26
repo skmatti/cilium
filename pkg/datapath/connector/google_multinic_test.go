@@ -26,6 +26,7 @@ import (
 	"testing"
 
 	"github.com/cilium/cilium/pkg/gke/multinic/dhcp"
+	multinictypes "github.com/cilium/cilium/pkg/gke/multinic/types"
 	"github.com/cilium/cilium/pkg/ipam"
 	"github.com/containernetworking/plugins/pkg/ns"
 	"github.com/google/go-cmp/cmp"
@@ -1116,8 +1117,7 @@ func (dc *fakeDHCPClient) GetDHCPResponse(containerID, podNS, podIface, parentIf
 	if dc.clientErr != nil {
 		return nil, dc.clientErr
 	}
-
-	expectedParentIface, err := dc.network.InterfaceName()
+	expectedParentIface, err := multinictypes.InterfaceName(dc.network)
 	if err != nil {
 		dc.t.Fatalf("errored getting parent interface from network %+v: %s", dc.network, err)
 	}

@@ -25,8 +25,8 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
-	networkapis "k8s.io/cloud-provider-gcp/crd/apis/network/v1"
 	networkv1 "k8s.io/cloud-provider-gcp/crd/apis/network/v1"
+	networkv1alpha1 "k8s.io/cloud-provider-gcp/crd/apis/network/v1alpha1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -51,8 +51,8 @@ type K8sClient interface {
 	// SetPodIPsAnnotation sets the pod annotation for additional pod IPs assigned to the pod
 	SetPodIPsAnnotation(ctx context.Context, pod *v1.Pod, podIPs *networkv1.PodIPsAnnotation) error
 
-	// GetGKENetworkParams returns the specified GKENetworkParams CR
-	GetGKENetworkParams(ctx context.Context, name string) (*networkapis.GKENetworkParams, error)
+	// GetNetworkParamObject returns the specified Object pointed by the params ref inside the Network object.
+	GetNetworkParamObject(ctx context.Context, ref *networkv1.NetworkParametersReference) (client.Object, error)
 }
 
 // k8sClientImpl is an implementation of the K8sClient interface
@@ -132,10 +132,18 @@ func (c *k8sClientImpl) SetPodIPsAnnotation(ctx context.Context, obj *v1.Pod, po
 	return c.client.Status().Patch(ctx, pod, client.RawPatch(types.StrategicMergePatchType, []byte(patch)))
 }
 
-func (c *k8sClientImpl) GetGKENetworkParams(ctx context.Context, name string) (*networkapis.GKENetworkParams, error) {
-	gnp := &networkapis.GKENetworkParams{}
-	if err := c.client.Get(ctx, namespacedName(name, ""), gnp); err != nil {
+func (c *k8sClientImpl) GetNetworkParamObject(ctx context.Context, ref *networkv1.NetworkParametersReference) (client.Object, error) {
+	if ref.Group != networkv1alpha1.GroupName || ref.Kind != "GKENetworkParamSet" {
+		// Unsupported params ref kind
+		return nil, fmt.Errorf("unknown paramRef kind: %s/%s", ref.Group, ref.Kind)
+	}
+	ret := &networkv1alpha1.GKENetworkParamSet{}
+	ns := ""
+	if ref.Namespace != nil {
+		ns = *ref.Namespace
+	}
+	if err := c.client.Get(ctx, namespacedName(ref.Name, ns), ret); err != nil {
 		return nil, err
 	}
-	return gnp, nil
+	return ret, nil
 }

@@ -1,21 +1,22 @@
-package v1
+package v1alpha1
 
 import metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 // +genclient
+// +genclient:nonNamespaced
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
 // +kubebuilder:resource:scope=Cluster
 // +kubebuilder:storageversion
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
-// GKENetworkParams represent GKE specific parameters for the network.
-type GKENetworkParams struct {
+// GKENetworkParamSet represent GKE specific parameters for the network.
+type GKENetworkParamSet struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   GKENetworkParamsSpec   `json:"spec,omitempty"`
-	Status GKENetworkParamsStatus `json:"status,omitempty"`
+	Spec   GKENetworkParamSetSpec   `json:"spec,omitempty"`
+	Status GKENetworkParamSetStatus `json:"status,omitempty"`
 }
 
 // DeviceModeType defines mode in which the devices will be used by the Pod
@@ -37,8 +38,8 @@ type SecondaryRanges struct {
 	RangeNames []string `json:"rangeNames"`
 }
 
-// GKENetworkParamsSpec contains the specifications for network object
-type GKENetworkParamsSpec struct {
+// GKENetworkParamSetSpec contains the specifications for network object
+type GKENetworkParamSetSpec struct {
 	// VPC speficies the VPC to which the network belongs.
 	// +required
 	VPC string `json:"vpc"`
@@ -65,8 +66,8 @@ type NetworkRanges struct {
 	CIDRBlocks []string `json:"cidrBlocks"`
 }
 
-// GKENetworkParamsStatus contains the status information related to the network.
-type GKENetworkParamsStatus struct {
+// GKENetworkParamSetStatus contains the status information related to the network.
+type GKENetworkParamSetStatus struct {
 	// PodCIDRs specifies the CIDRs from which IPs will be used for Pod interfaces
 	// +optional
 	PodCIDRs *NetworkRanges `json:"podCIDRs,omitempty"`
@@ -78,11 +79,11 @@ type GKENetworkParamsStatus struct {
 // +kubebuilder:object:root=true
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
-// GKENetworkParamsList contains a list of GKENetworkParams resources.
-type GKENetworkParamsList struct {
+// GKENetworkParamSetList contains a list of GKENetworkParamSet resources.
+type GKENetworkParamSetList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
 
-	// Items is a slice of GKENetworkParams resources.
-	Items []GKENetworkParams `json:"items"`
+	// Items is a slice of GKENetworkParamset resources.
+	Items []GKENetworkParamSet `json:"items"`
 }

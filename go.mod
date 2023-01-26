@@ -230,7 +230,7 @@ require (
 require (
 	// GKE specific dependencies.
 	gke-internal/gke-node-firewall v0.0.0-00010101000000-000000000000
-	k8s.io/cloud-provider-gcp/crd v0.0.0-20221205004701-c250891f063a
+	k8s.io/cloud-provider-gcp/crd v0.0.0-20230119221216-bb1acae5826d
 	k8s.io/klog v1.0.0
 	k8s.io/kubelet v0.23.0
 	sigs.k8s.io/controller-runtime v0.11.0
