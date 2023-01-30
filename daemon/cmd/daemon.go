@@ -1037,7 +1037,7 @@ func NewDaemon(ctx context.Context, cancel context.CancelFunc, epMgr *endpointma
 		return nil, nil, fmt.Errorf(msg, option.Devices)
 	}
 	if option.Config.EnableSCTP {
-		if probes.NewProbeManager().GetMisc().HaveLargeInsnLimit {
+		if !probes.NewProbeManager().GetMisc().HaveLargeInsnLimit {
 			log.WithError(err).Error("SCTP support needs kernel 5.2 or newer")
 			return nil, nil, fmt.Errorf("SCTP support needs kernel 5.2 or newer")
 		}
