@@ -5,7 +5,7 @@
 Delete SFC CIDR entry
 
 ```
-cilium bpf sfccidr delete <endpoint id> <ingress/egress> <source/destination> <cidr> [flags]
+cilium bpf sfccidr delete <endpoint id> <ingress/egress> <cidr> [flags]
 ```
 
 ### Options

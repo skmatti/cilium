@@ -605,7 +605,7 @@ static __always_inline int sfc_lb4(struct __ctx_buff *ctx, struct iphdr *ip4,
 	if (IS_ERR(ret))
 		return ret;
 
-	svc = lb4_lookup_service(&key, true);
+	svc = lb4_lookup_service(&key, true, true);
 	if (svc) {
 		ret = lb4_local(get_ct_map4(&tuple), ctx, ETH_HLEN, l4_off,
 				&csum_off, &key, &tuple, svc, &ct_state_new,

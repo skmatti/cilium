@@ -5,7 +5,7 @@
 Add/update SFC CIDR entry
 
 ```
-cilium bpf sfccidr add <endpoint id> <ingress/egress> <source/destination> <cidr> [flags]
+cilium bpf sfccidr add <endpoint id> <ingress/egress> <cidr> [flags]
 ```
 
 ### Options

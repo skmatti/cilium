@@ -5,7 +5,7 @@
 Add/update SFC traffic selector entry
 
 ```
-cilium bpf sfcselect add <endpoint id> <ingress/egress> <from cidr> <to cidr> <port>[/protocol] <spi> <si> [flags]
+cilium bpf sfcselect add <endpoint id> <ingress/egress> <cidr> <port>[/protocol] <spi> <si> [flags]
 ```
 
 ### Options

@@ -5,7 +5,7 @@
 Delete SFC traffic selector entry
 
 ```
-cilium bpf sfcselect delete <endpoint id> <ingress/egress> <from cidr> <to cidr> <port>[/protocol] [flags]
+cilium bpf sfcselect delete <endpoint id> <ingress/egress> <cidr> <port>[/protocol] [flags]
 ```
 
 ### Options

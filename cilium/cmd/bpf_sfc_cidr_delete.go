@@ -7,18 +7,17 @@ import (
 )
 
 var bpfSFCCIDRDeleteCmd = &cobra.Command{
-	Args:  cobra.ExactArgs(4),
-	Use:   "delete <endpoint id> <ingress/egress> <source/destination> <cidr>",
+	Args:  cobra.ExactArgs(3),
+	Use:   "delete <endpoint id> <ingress/egress> <cidr>",
 	Short: "Delete SFC CIDR entry",
 	Run: func(cmd *cobra.Command, args []string) {
 		common.RequireRootPrivilege("cilium bpf sfccidr delete")
 
 		id := ParseEndpointID(args[0])
 		isEgress := ParseIsEgress(args[1])
-		isDst := ParseIsDst(args[2])
-		cidr := ParseCIDR(args[3])
+		cidr := ParseCIDR(args[2])
 
-		cidrKey := sfc.NewCIDRKey(id, isEgress, isDst, *cidr)
+		cidrKey := sfc.NewCIDRKey(id, isEgress, *cidr)
 
 		if err := sfc.CIDRMap.Delete(cidrKey); err != nil {
 			Fatalf("Failed to update map: %v", err)

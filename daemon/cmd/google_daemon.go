@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/cilium/cilium/pkg/gke/multinic"
 	multinicctrl "github.com/cilium/cilium/pkg/gke/multinic/controller"
@@ -20,6 +21,7 @@ import (
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	networkv1 "k8s.io/cloud-provider-gcp/crd/apis/network/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 )
 
@@ -94,6 +96,7 @@ func initManager() (manager.Manager, error) {
 	mgr, err := ctrl.NewManager(kubeConfig, ctrl.Options{
 		Scheme:             scheme,
 		MetricsBindAddress: "0",
+		NewCache:           filteredCache(),
 	})
 	if err != nil {
 		return nil, err
@@ -127,19 +130,28 @@ func (d *Daemon) initMultiNIC(ctx context.Context, mgr manager.Manager) error {
 }
 
 func (d *Daemon) initServiceSteering(ctx context.Context, mgr manager.Manager) error {
-	if err := (&servicesteering.ServiceFunctionChainReconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
+	if err := (&servicesteering.ServiceSteeringReconciler{
+		Client:          mgr.GetClient(),
+		Scheme:          mgr.GetScheme(),
+		EndpointManager: d.endpointManager,
 	}).SetupWithManager(mgr); err != nil {
-		return fmt.Errorf("failed to setup ServiceFunctionChain controller: %v", err)
+		return fmt.Errorf("failed to setup service steering controller: %v", err)
 	}
-	sslog.Info("Created ServiceFunctionChain controller")
-	if err := (&servicesteering.TrafficSelectorReconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
-	}).SetupWithManager(mgr); err != nil {
-		return fmt.Errorf("failed to setup TrafficSelector controller: %v", err)
-	}
-	sslog.Info("Created TrafficSelector controller")
+	sslog.Info("Created service steering controller")
 	return nil
+}
+
+// filteredCache returns a cache with a ListWatch that's restricted to the desired fields in order
+// to reduce memory consumption.
+func filteredCache() cache.NewCacheFunc {
+	resyncInterval := time.Minute * 10
+	return cache.BuilderWithOptions(cache.Options{
+		Resync: &resyncInterval,
+		SelectorsByObject: cache.SelectorsByObject{
+			&corev1.Service{}:            servicesteering.FilteredSvcSelector(),
+			&ssv1.TrafficSelector{}:      {},
+			&ssv1.ServiceFunctionChain{}: {},
+			&networkv1.Network{}:         {},
+		},
+	})
 }

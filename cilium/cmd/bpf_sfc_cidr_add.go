@@ -10,18 +10,17 @@ import (
 )
 
 var bpfSFCCIDRAddCmd = &cobra.Command{
-	Args:  cobra.ExactArgs(4),
-	Use:   "add <endpoint id> <ingress/egress> <source/destination> <cidr>",
+	Args:  cobra.ExactArgs(3),
+	Use:   "add <endpoint id> <ingress/egress> <cidr>",
 	Short: "Add/update SFC CIDR entry",
 	Run: func(cmd *cobra.Command, args []string) {
 		common.RequireRootPrivilege("cilium bpf sfccidr add")
 
 		id := ParseEndpointID(args[0])
 		isEgress := ParseIsEgress(args[1])
-		isDst := ParseIsDst(args[2])
-		cidr := ParseCIDR(args[3])
+		cidr := ParseCIDR(args[2])
 
-		cidrKey := sfc.NewCIDRKey(id, isEgress, isDst, *cidr)
+		cidrKey := sfc.NewCIDRKey(id, isEgress, *cidr)
 		cidrEntry := sfc.NewCIDREntry(*cidr)
 
 		if err := sfc.CIDRMap.Update(cidrKey, cidrEntry); err != nil {

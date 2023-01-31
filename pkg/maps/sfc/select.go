@@ -26,7 +26,10 @@ const (
 	CIDRKeyStaticPrefixBits = 32
 )
 
-var SupportedProtocols = [...]u8proto.U8proto{u8proto.TCP, u8proto.UDP}
+var (
+	SupportedProtocols = [...]u8proto.U8proto{u8proto.TCP, u8proto.UDP}
+	AllIPv4            = net.IPNet{IP: net.IPv4zero, Mask: net.CIDRMask(0, net.IPv4len*8)}
+)
 
 // CIDRKey must match 'struct sfc_cidr_key' in "bpf/lib/google_maps.h".
 // +k8s:deepcopy-gen=true
@@ -47,7 +50,8 @@ const (
 func (key *CIDRKey) GetKeyPtr() unsafe.Pointer { return unsafe.Pointer(key) }
 func (key *CIDRKey) NewValue() bpf.MapValue    { return &CIDREntry{} }
 
-func NewCIDRKey(epID uint16, egress bool, dst bool, cidr net.IPNet) *CIDRKey {
+func NewCIDRKey(epID uint16, egress bool, cidr net.IPNet) *CIDRKey {
+	dst := egress
 	prefixLen, _ := cidr.Mask.Size()
 	key := &CIDRKey{
 		LPMPrefixLen: CIDRKeyStaticPrefixBits + uint32(prefixLen),
@@ -129,7 +133,15 @@ func (key *SelectKey) GetKeyPtr() unsafe.Pointer { return unsafe.Pointer(key) }
 func (entry *SelectKey) NewValue() bpf.MapValue  { return &PathKey{} }
 
 // NewSelectKey returns a new SelectKey instance.
-func NewSelectKey(epID uint16, egress bool, srcCIDR, dstCIDR net.IPNet, port uint16, proto u8proto.U8proto) *SelectKey {
+func NewSelectKey(epID uint16, egress bool, cidr net.IPNet, port uint16, proto u8proto.U8proto) *SelectKey {
+	var srcCIDR, dstCIDR net.IPNet
+	if egress {
+		srcCIDR = AllIPv4
+		dstCIDR = cidr
+	} else {
+		srcCIDR = cidr
+		dstCIDR = AllIPv4
+	}
 	fromPrefixLen, _ := srcCIDR.Mask.Size()
 	toPrefixLen, _ := dstCIDR.Mask.Size()
 	key := &SelectKey{
@@ -147,11 +159,23 @@ func NewSelectKey(epID uint16, egress bool, srcCIDR, dstCIDR net.IPNet, port uin
 	return key
 }
 
+func (key *SelectKey) IsEgress() bool {
+	return key.Flags&IsEgress == 1
+}
+
 func (key *SelectKey) getDir() string {
-	if key.Flags&IsEgress == 0 {
-		return "ingress"
-	} else {
+	if key.IsEgress() {
 		return "egress"
+	} else {
+		return "ingress"
+	}
+}
+
+func (key *SelectKey) GetCIDR() *net.IPNet {
+	if key.IsEgress() {
+		return key.getDstCIDR()
+	} else {
+		return key.getSrcCIDR()
 	}
 }
 

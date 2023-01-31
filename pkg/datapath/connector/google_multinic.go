@@ -157,7 +157,7 @@ func getInterfaceConfiguration(intf *networkv1.NetworkInterface, network *networ
 		cfg.Type = multinicep.EndpointDeviceMACVTAP
 	} else if network.Spec.Type == networkv1.L3NetworkType {
 		cfg.Type = multinicep.EndpointDeviceMultinicVETH
-		cfg.NetworkID = generateNetworkID(network)
+		cfg.NetworkID = GenerateNetworkID(network)
 	} else {
 		cfg.Type = multinicep.EndpointDeviceMACVLAN
 	}
@@ -165,7 +165,7 @@ func getInterfaceConfiguration(intf *networkv1.NetworkInterface, network *networ
 	return &cfg, nil
 }
 
-func generateNetworkID(network *networkv1.Network) uint32 {
+func GenerateNetworkID(network *networkv1.Network) uint32 {
 	return crc32.ChecksumIEEE([]byte(network.UID))
 }
 
