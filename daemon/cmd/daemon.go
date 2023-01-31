@@ -1172,16 +1172,7 @@ func NewDaemon(ctx context.Context, cancel context.CancelFunc, epMgr *endpointma
 		d.restoreCiliumHostIPs(true, router6FromK8s)
 	}
 
-	// Initialize and wait for multinic client cache to sync
-	if option.Config.EnableGoogleMultiNIC {
-		if !k8s.IsEnabled() {
-			log.Fatal("K8s needs to be enabled for multi nic support")
-		}
-		d.multinicClient, d.kubeletClient, d.dhcpClient, err = multinic.Init(d.ctx, d.endpointManager, &d)
-		if err != nil {
-			log.WithError(err).Fatal("Unable to init multinic")
-		}
-	}
+	d.initGoogleControllers(ctx)
 
 	// restore endpoints before any IPs are allocated to avoid eventual IP
 	// conflicts later on, otherwise any IP conflict will result in the
