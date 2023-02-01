@@ -43,10 +43,10 @@ func (d *Daemon) errorDuringMultiNICCreation(primaryEp *endpoint.Endpoint, code 
 	for _, e := range eps {
 		var errs []error
 		if e.IsMultiNIC() {
-			errs = d.deleteEndpointQuiet(e, endpoint.DeleteConfig{
+			errs = d.deleteMultiNICEndpointQuiet(e, endpoint.DeleteConfig{
 				// For multinic endpoints, the IPAM is external so no need to release IP.
 				NoIPRelease: true,
-			})
+			}, false)
 		} else {
 			errs = d.deleteEndpointQuiet(e, endpoint.DeleteConfig{
 				// Since the IP expiration timer is already stopped for the primary endpoint
@@ -507,7 +507,7 @@ func (d *Daemon) DeleteEndpoints(ctx context.Context, id string) (int, error) {
 	}
 
 	if len(eps) == 0 {
-		return 0, api.New(DeleteEndpointIDNotFoundCode, "multinic endpoints %q not found", id)
+		return 0, api.New(DeleteEndpointIDNotFoundCode, "endpoints %q not found", id)
 	}
 
 	podName := eps[0].K8sPodName
@@ -554,8 +554,8 @@ func (d *Daemon) DeleteEndpoints(ctx context.Context, id string) (int, error) {
 		log.WithFields(logrus.Fields{
 			logfields.IPv4:        ep.GetIPv4Address(),
 			logfields.IPv6:        ep.GetIPv6Address(),
-			logfields.ContainerID: ep.GetContainerID(),
-		}).Info("Delete multinic endpoints request")
+			logfields.ContainerID: ep.GetShortContainerID(),
+		}).Info("Delete endpoint request")
 		if err := endpoint.APICanModify(ep); err != nil {
 			return 0, api.Error(DeleteEndpointIDInvalidCode, err)
 		}
