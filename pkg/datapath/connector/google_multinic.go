@@ -689,8 +689,12 @@ func SetupNetworkRoutes(ifNameInPod string, intf *networkv1.NetworkInterface, ne
 			return fmt.Errorf("failed to set link %q UP: %v", ifNameInPod, err)
 		}
 
-		if netCR != nil && netCR.Spec.Type == networkv1.L3NetworkType {
-			//Add route to gateway
+		// Add a route to gateway for L3 network excepet the default network
+		if netCR != nil && netCR.Spec.Type == networkv1.L3NetworkType &&
+			netCR.Name != networkv1.DefaultNetworkName {
+			if gw == nil {
+				return errors.New("gateway for L3 network should not be nil")
+			}
 			log.WithFields(logrus.Fields{
 				logfields.InterfaceInPod: ifNameInPod,
 				logfields.NetNSName:      nsPath,
