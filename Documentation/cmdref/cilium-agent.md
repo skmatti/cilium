@@ -138,6 +138,7 @@ cilium-agent [flags]
       --enable-svc-source-range-check                           Enable check of service source ranges (currently, only for LoadBalancer) (default true)
       --enable-tracing                                          Enable tracing while determining policy (debugging)
       --enable-traffic-steering                                 Enable google traffic steering functionality
+      --enable-transparent-health-checks                        Enable Google LB health checks to pods to be answered by K8s status watcher
       --enable-unreachable-routes                               Add unreachable routes on pod deletion
       --enable-vtep                                             Enable  VXLAN Tunnel Endpoint (VTEP) Integration (beta)
       --enable-well-known-identities                            Enable well-known identities for known Kubernetes components (default true)

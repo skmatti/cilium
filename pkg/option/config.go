@@ -1168,6 +1168,10 @@ const (
 	// EnableStaleCiliumEndpointCleanup sets whether Cilium should perform cleanup of
 	// stale CiliumEndpoints during init.
 	EnableStaleCiliumEndpointCleanup = "enable-stale-cilium-endpoint-cleanup"
+
+	// EnableTransparentHealthChecks enables Transparent Health Checks (go/1n-transparent-hc-design).
+	// After enabling THC, the redirection to a new endpoint will be added.
+	EnableTransparentHealthChecks = "enable-transparent-health-checks"
 )
 
 // Default string arguments
@@ -1668,6 +1672,7 @@ type DaemonConfig struct {
 	EnableHostServicesUDP         bool
 	EnableHostServicesPeer        bool
 	EnablePolicy                  string
+	EnableTHC                     bool
 	EnableTracing                 bool
 	EnableUnreachableRoutes       bool
 	EnvoyLog                      string
@@ -3429,6 +3434,9 @@ func (c *DaemonConfig) Populate() {
 
 	// Envoy secrets namespace to watch
 	c.EnvoySecretNamespace = viper.GetString(IngressSecretsNamespace)
+
+	// Enable Google LB health checks to pods to be answered by K8s status watcher
+	c.EnableTHC = viper.GetBool(EnableTransparentHealthChecks)
 }
 
 func (c *DaemonConfig) additionalMetrics() []string {

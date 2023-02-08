@@ -1195,6 +1195,9 @@ func initializeFlags() {
 	flags.Bool(option.EnablePMTUDiscovery, false, "Enable path MTU discovery to send ICMP fragmentation-needed replies to the client")
 	option.BindEnv(option.EnablePMTUDiscovery)
 
+	flags.Bool(option.EnableTransparentHealthChecks, false, "Enable Google LB health checks to pods to be answered by K8s status watcher")
+	option.BindEnv(option.EnableTransparentHealthChecks)
+
 	viper.BindPFlags(flags)
 }
 
