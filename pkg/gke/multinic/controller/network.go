@@ -122,7 +122,11 @@ func (r *NetworkReconciler) mapNodeToNetwork(obj client.Object) []ctrl.Request {
 	// accordingly.
 	return []ctrl.Request{
 		{
+			// TODO(b/269187538): Remove request from the list once DefaultNetworkName is deprecated.
 			NamespacedName: types.NamespacedName{Name: networkv1.DefaultNetworkName},
+		},
+		{
+			NamespacedName: types.NamespacedName{Name: networkv1.DefaultPodNetworkName},
 		},
 	}
 }
@@ -142,7 +146,7 @@ func (r *NetworkReconciler) loadEBPFOnParent(ctx context.Context, network *netwo
 		log.Info("EndpointManager is nil. Please make sure the reconciler is initialized successfully")
 		return nil
 	}
-	if network.Name == networkv1.DefaultNetworkName {
+	if networkv1.IsDefaultNetwork(network.Name) {
 		log.Infof("No need to load ebpf for default network: %v", network.Name)
 		return nil
 	}

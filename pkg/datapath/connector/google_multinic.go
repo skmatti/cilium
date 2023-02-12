@@ -659,7 +659,7 @@ func SetupNetworkRoutes(ifNameInPod string, intf *networkv1.NetworkInterface, ne
 		mtu       int
 	)
 
-	if intf.Spec.NetworkName == networkv1.DefaultNetworkName {
+	if networkv1.IsDefaultNetwork(intf.Spec.NetworkName) {
 		mtu = podNetworkMTU
 	}
 	if len(intf.Status.Routes) != 0 {
@@ -692,8 +692,7 @@ func SetupNetworkRoutes(ifNameInPod string, intf *networkv1.NetworkInterface, ne
 		}
 
 		// Add a route to gateway for L3 network excepet the default network
-		if netCR != nil && netCR.Spec.Type == networkv1.L3NetworkType &&
-			netCR.Name != networkv1.DefaultNetworkName {
+		if netCR != nil && netCR.Spec.Type == networkv1.L3NetworkType && !networkv1.IsDefaultNetwork(netCR.Name) {
 			if gw == nil {
 				return errors.New("gateway for L3 network should not be nil")
 			}
@@ -713,7 +712,7 @@ func SetupNetworkRoutes(ifNameInPod string, intf *networkv1.NetworkInterface, ne
 			return err
 		}
 		// No need to re-configure the default route for pod-network.
-		if isDefaultInterface && intf.Spec.NetworkName != networkv1.DefaultNetworkName {
+		if isDefaultInterface && !networkv1.IsDefaultNetwork(intf.Spec.NetworkName) {
 			if err := addDefaultRoute(gw, l); err != nil {
 				return err
 			}
