@@ -1,5 +1,9 @@
 package labels
 
+import (
+	networkv1 "k8s.io/cloud-provider-gcp/crd/apis/network/v1"
+)
+
 const (
 	// MultinicNetwork is the name of network where the multinic endpoint is in.
 	MultinicNetwork = "networking.gke.io/network"
@@ -17,6 +21,12 @@ const (
 //	Labels{Label{MultinicNetwork, value3, source3}}
 func (l Labels) MergeMultiNICLabels(from Labels) {
 	if v, ok := from[MultinicNetwork]; ok {
+		// Override the value for MultinicNetwork for default network to the
+		// new `default` value from `pod-network` until all the clusters are
+		// upgraded defaulted to the `default` value.
+		if v.Value == networkv1.DefaultNetworkName {
+			v.Value = networkv1.DefaultPodNetworkName
+		}
 		l[MultinicNetwork] = v
 	}
 }

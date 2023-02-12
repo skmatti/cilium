@@ -6,8 +6,8 @@ import (
 )
 
 // isMultiNICEndpoint returns true if the endpoint has multi-network label
-// and not in the pod-network.
+// and not the default pod-network.
 func isMultiNICEndpoint(lblsToMatch k8sLbls.Labels) bool {
 	network := lblsToMatch.Get(networkv1.NetworkAnnotationKey)
-	return network != "" && network != networkv1.DefaultNetworkName
+	return network != "" && !networkv1.IsDefaultNetwork(network)
 }

@@ -551,7 +551,7 @@ func (h *putEndpointID) Handle(params PutEndpointIDParams) (resp middleware.Resp
 		log.WithField(logfields.Params, logfields.Repr(params)).Debug("PUT /endpoint/{id} request")
 	}
 	epTemplate := params.Endpoint
-	addNetworkLabelIfMultiNICEnabled(epTemplate, networkv1.DefaultNetworkName)
+	addNetworkLabelIfMultiNICEnabled(epTemplate, networkv1.DefaultPodNetworkName)
 
 	r, err := h.d.apiLimiterSet.Wait(params.HTTPRequest.Context(), apiRequestEndpointCreate)
 	if err != nil {

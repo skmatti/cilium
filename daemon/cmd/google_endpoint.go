@@ -152,8 +152,8 @@ func (d *Daemon) createMultiNICEndpoints(ctx context.Context, owner regeneration
 
 	var eps []*endpoint.Endpoint
 	var podIPs networkv1.PodIPsAnnotation
-	var podNetworkConfigured bool
-	podNetworkMTU := d.mtuConfig.GetRouteMTU()
+	var defaultPodNetworkConfigured bool
+	defaultPodNetworkMTU := d.mtuConfig.GetRouteMTU()
 	// parentDevInUse tracks the use of parent device for the L2 interface.
 	parentDevInUse := make(map[string]string)
 	for _, ref := range interfaceAnnotation {
@@ -177,7 +177,7 @@ func (d *Daemon) createMultiNICEndpoints(ctx context.Context, owner regeneration
 
 		var cleanup func()
 		// Update the interface status of the primary endpoint.
-		if intfCR != nil && intfCR.Spec.NetworkName == networkv1.DefaultNetworkName {
+		if intfCR != nil && networkv1.IsDefaultNetwork(intfCR.Spec.NetworkName) {
 			primaryEp.Logger(daemonSubsys).WithField("interfaceCR", intfCR.Name).Debug("Updating interface status")
 			intfCR.Status.IpAddresses = nil
 			if ipv4 := primaryEp.GetIPv4Address(); ipv4 != "" {
@@ -228,11 +228,11 @@ func (d *Daemon) createMultiNICEndpoints(ctx context.Context, owner regeneration
 		}
 		if intfCR != nil {
 			networkName := intfCR.Spec.NetworkName
-			if networkName == networkv1.DefaultNetworkName {
-				podNetworkConfigured = true
+			if networkv1.IsDefaultNetwork(networkName) {
+				defaultPodNetworkConfigured = true
 			}
 			if err := connector.SetupNetworkRoutes(ref.InterfaceName, intfCR, netCR, multinicTemplate.NetworkNamespace,
-				isDefaultInterface, podNetworkMTU); err != nil {
+				isDefaultInterface, defaultPodNetworkMTU); err != nil {
 				return d.errorWithMultiNICCleanup(primaryEp, PutEndpointIDInvalidCode, fmt.Errorf("failed setting up network %q for pod %q: %v", networkName, podID, err), nil)
 			}
 			intfLog.Infof("Successfully configure network %s", networkName)
@@ -245,18 +245,18 @@ func (d *Daemon) createMultiNICEndpoints(ctx context.Context, owner regeneration
 		}
 	}
 
-	if !podNetworkConfigured {
+	if !defaultPodNetworkConfigured {
 		// Pod network is required to set up when the default interface
-		// is not within the pod-network.
-		_, podNetworkCR, err := d.getInterfaceAndNetworkCR(ctx, &networkv1.InterfaceRef{Network: utilpointer.StringPtr(networkv1.DefaultNetworkName)}, pod)
-		podInterfaceCR := convertNetworkSpecToInterface(podNetworkCR)
+		// is not within the default pod-network.
+		_, defaultPodNetworkCR, err := d.getInterfaceAndNetworkCR(ctx, &networkv1.InterfaceRef{Network: utilpointer.StringPtr(networkv1.DefaultPodNetworkName)}, pod)
+		podInterfaceCR := convertNetworkSpecToInterface(defaultPodNetworkCR)
 		if err != nil || podInterfaceCR == nil {
 			return d.errorDuringMultiNICCreation(primaryEp, PutEndpointIDInvalidCode, fmt.Errorf("pod-network CR is required if the default gateway is on multi-nic interface: %v", err))
 		}
 		// We only require the pod network CR exists instead of custom routes inside the object
 		if err := connector.SetupNetworkRoutes(primaryVethNameInPod, podInterfaceCR, nil, epTemplate.NetworkNamespace,
-			false, podNetworkMTU); err != nil {
-			return d.errorDuringMultiNICCreation(primaryEp, PutEndpointIDInvalidCode, fmt.Errorf("failed setting up pod-network %q for pod %q: %v", podNetworkCR.Name, podID, err))
+			false, defaultPodNetworkMTU); err != nil {
+			return d.errorDuringMultiNICCreation(primaryEp, PutEndpointIDInvalidCode, fmt.Errorf("failed setting up pod-network %q for pod %q: %v", defaultPodNetworkCR.Name, podID, err))
 		}
 		primaryEp.Logger(daemonSubsys).Info("Pod network is configured")
 	}
@@ -330,7 +330,7 @@ func (d *Daemon) getInterfaceAndNetworkCR(ctx context.Context, ref *networkv1.In
 
 	if ref.Network != nil {
 		networkName = *ref.Network
-		if networkName != networkv1.DefaultNetworkName {
+		if !networkv1.IsDefaultNetwork(networkName) {
 			log.Info("Constructing network interface CR based on Network information")
 			intfCR = constructNetworkInterfaceObject(ctx, networkName, pod)
 			err = d.multinicClient.CreateNetworkInterface(ctx, intfCR)
@@ -353,8 +353,8 @@ func (d *Daemon) getInterfaceAndNetworkCR(ctx context.Context, ref *networkv1.In
 
 	netCR, err := d.multinicClient.GetNetwork(ctx, networkName)
 	if err != nil {
-		// We don't require pod-network CR exists
-		if k8sErrors.IsNotFound(err) && networkName == networkv1.DefaultNetworkName {
+		// We don't require for default pod-network to exist
+		if k8sErrors.IsNotFound(err) && networkv1.IsDefaultNetwork(networkName) {
 			return intfCR, nil, nil
 		}
 		return nil, nil, fmt.Errorf("failed getting network CR %s: %v", networkName, err)
