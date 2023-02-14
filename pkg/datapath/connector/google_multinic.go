@@ -28,13 +28,17 @@ import (
 	"github.com/cilium/cilium/pkg/ipam"
 	"github.com/cilium/cilium/pkg/logging/logfields"
 	"github.com/cilium/cilium/pkg/netns"
+	"github.com/cilium/cilium/pkg/node"
 	"github.com/containernetworking/plugins/pkg/ns"
 	"github.com/sirupsen/logrus"
 	"github.com/vishvananda/netlink"
+	anutils "gke-internal.googlesource.com/anthos-networking/apis/v2/utils"
 	"golang.org/x/sys/unix"
 	"k8s.io/apimachinery/pkg/types"
 	networkv1 "k8s.io/cloud-provider-gcp/crd/apis/network/v1"
+	networkv1alpha1 "k8s.io/cloud-provider-gcp/crd/apis/network/v1alpha1"
 	"k8s.io/utils/pointer"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 const (
@@ -514,7 +518,9 @@ func SetupL2Interface(ifNameInPod, podName string, podResources map[string][]str
 		return cleanup, fmt.Errorf("failed to configure interface: %v", err)
 	}
 
-	populateInterfaceStatus(intf, network, cfg, dhcpResp, podName)
+	if err := populateInterfaceStatus(intf, network, cfg, dhcpResp, podName, nil); err != nil {
+		return cleanup, fmt.Errorf("failed to populate interface status: %v", err)
+	}
 
 	// Update the endpoint addressing after the macvlan interface is configured.
 	ep.Addressing.IPV4 = cfg.IPV4Address.IP.String()
@@ -532,7 +538,7 @@ func SetupL2Interface(ifNameInPod, podName string, podResources map[string][]str
 	return cleanup, nil
 }
 
-func SetupL3Interface(ifNameInPod, podName string, podResources map[string][]string, network *networkv1.Network, intf *networkv1.NetworkInterface, ep *models.EndpointChangeRequest, ipam *ipam.IPAM) (func(), error) {
+func SetupL3Interface(ifNameInPod, podName string, podResources map[string][]string, network *networkv1.Network, intf *networkv1.NetworkInterface, ep *models.EndpointChangeRequest, ipam *ipam.IPAM, paramsRef client.Object) (func(), error) {
 	cfg, err := getInterfaceConfiguration(intf, network, podResources)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get a valid interface configuration: %v", err)
@@ -545,8 +551,16 @@ func SetupL3Interface(ifNameInPod, podName string, podResources map[string][]str
 	// TODO(yfshen): get MTU information from interface CR.
 	cfg.MTU = parentDevLink.Attrs().MTU
 
-	ips, _ := netlink.AddrList(parentDevLink, netlink.FAMILY_V4)
-	cfg.ParentIP = &ips[0].IP
+	_, parentIP, err := anutils.InterfaceInfo(network, node.GetAnnotations())
+	ip := net.ParseIP(parentIP)
+	cfg.ParentIP = &ip
+	if err != nil {
+		if network.Spec.Gateway4 == nil {
+			return nil, fmt.Errorf("failed to fetch host ip for L3 interface: %v", err)
+		}
+		// Not a fatal error if network has gw configured
+		log.Warnf("Failed to fetch host ip for L3 interface: %v", err)
+	}
 
 	var peerIfName string
 	var peer netlink.Link
@@ -608,7 +622,9 @@ func SetupL3Interface(ifNameInPod, podName string, podResources map[string][]str
 		return cleanup, fmt.Errorf("failed to configure interface: %v", err)
 	}
 
-	populateInterfaceStatus(intf, network, cfg, nil, podName)
+	if err := populateInterfaceStatus(intf, network, cfg, nil, podName, paramsRef); err != nil {
+		return cleanup, fmt.Errorf("failed to populate interface status: %v", err)
+	}
 
 	// Update the endpoint addressing after the veth interface is configured.
 	ep.Addressing.IPV4 = cfg.IPV4Address.IP.String()
@@ -813,9 +829,6 @@ func releaseIP(network *networkv1.Network, cfg *interfaceConfiguration, ipam *ip
 	if cfg.IPV4Address == nil {
 		return
 	}
-	if isStaticNetwork(network) {
-		return
-	}
 	ipam.MultiNetworkAllocatorMutex.Lock()
 	defer ipam.MultiNetworkAllocatorMutex.Unlock()
 	ipa, ok := ipam.MultiNetworkAllocators[network.Name]
@@ -850,29 +863,48 @@ func isStaticNetwork(network *networkv1.Network) bool {
 	return routesConfigured || gatewayConfigured || dnsConfigured
 }
 
-func populateInterfaceStatus(intf *networkv1.NetworkInterface, network *networkv1.Network, cfg *interfaceConfiguration, dhcpResp *dhcp.DHCPResponse, podName string) {
+func extractRoutes(network *networkv1.Network, netParamsObj client.Object) ([]networkv1.Route, error) {
+	ret := network.Spec.Routes
+	if netParamsObj == nil {
+		return ret, nil
+	}
+	if network.Spec.Type == networkv1.L3NetworkType {
+		if gkeparam, ok := netParamsObj.(*networkv1alpha1.GKENetworkParamSet); ok {
+			for _, cidr := range gkeparam.Status.PodCIDRs.CIDRBlocks {
+				ret = append(ret, networkv1.Route{To: cidr})
+			}
+		} else {
+			return nil, fmt.Errorf("Expected GKENetworkParamSet but got unknown param struct [%T] %+v", netParamsObj, netParamsObj)
+		}
+	}
+	return ret, nil
+}
+
+func populateInterfaceStatus(intf *networkv1.NetworkInterface, network *networkv1.Network, cfg *interfaceConfiguration, dhcpResp *dhcp.DHCPResponse, podName string, netParamsObj client.Object) error {
 	// Update the interface status after IP and MAC address are configured successfully.
 	intf.Status.IpAddresses = []string{cfg.IPV4Address.String()}
 	intf.Status.MacAddress = cfg.MacAddress.String()
 	intf.Status.PodName = pointer.StringPtr(podName)
-
-	if isStaticNetwork(network) {
-		intf.Status.Routes = network.Spec.Routes
-		intf.Status.Gateway4 = network.Spec.Gateway4
-		intf.Status.DNSConfig = network.Spec.DNSConfig
-
-		// TODO(blzhao): after migration to oss network api, make sure for L3 on GKE,
-		// interface status is combined from network CR and GKEParams CR
-		// with host IP as backup GW.
-		if network.Spec.Type == networkv1.L3NetworkType && intf.Status.Gateway4 == nil {
+	intf.Status.Routes = network.Spec.Routes
+	intf.Status.Gateway4 = network.Spec.Gateway4
+	intf.Status.DNSConfig = network.Spec.DNSConfig
+	// Respect DHCP response if not nil and override interface parameters with DHCP response values.
+	if dhcpResp != nil {
+		intf.Status.Routes = dhcpResp.Routes
+		intf.Status.Gateway4 = dhcpResp.Gateway4
+		intf.Status.DNSConfig = dhcpResp.DNSConfig
+	}
+	if network.Spec.Type == networkv1.L3NetworkType {
+		routes, err := extractRoutes(network, netParamsObj)
+		if err != nil {
+			return err
+		}
+		intf.Status.Routes = routes
+		if intf.Status.Gateway4 == nil {
+			// For L3 network, if gateway is not specified in network,
+			// use the ParentIP which is the north interface IP for that network
 			intf.Status.Gateway4 = pointer.String(cfg.ParentIP.String())
 		}
-		return
 	}
-	if dhcpResp == nil {
-		return
-	}
-	intf.Status.Routes = dhcpResp.Routes
-	intf.Status.Gateway4 = dhcpResp.Gateway4
-	intf.Status.DNSConfig = dhcpResp.DNSConfig
+	return nil
 }

@@ -75,6 +75,7 @@ require (
 	github.com/stretchr/testify v1.8.0
 	github.com/vishvananda/netlink v1.1.1-0.20220125195016-0639e7e787ba
 	github.com/vishvananda/netns v0.0.0-20211101163701-50045581ed74
+	gke-internal.googlesource.com/anthos-networking/apis/v2 v2.0.0-00010101000000-000000000000
 	go.etcd.io/etcd/api/v3 v3.5.4
 	go.etcd.io/etcd/client/pkg/v3 v3.5.4
 	go.etcd.io/etcd/client/v3 v3.5.4
@@ -230,14 +231,14 @@ require (
 require (
 	// GKE specific dependencies.
 	gke-internal/gke-node-firewall v0.0.0-00010101000000-000000000000
-	k8s.io/cloud-provider-gcp/crd v0.0.0-20230202183644-b674bb5be613
+	k8s.io/cloud-provider-gcp/crd v0.0.0-20230209193419-9f8207133805
 	k8s.io/klog v1.0.0
 	k8s.io/kubelet v0.23.0
 	sigs.k8s.io/controller-runtime v0.11.0
 )
 
 replace (
-	gke-internal.googlesource.com/anthos-networking/apis/v2 => gke-internal.googlesource.com/anthos-networking.git/apis/v2 v2.3.0-gke.3
+	gke-internal.googlesource.com/anthos-networking/apis/v2 => gke-internal.googlesource.com/anthos-networking.git/apis/v2 v2.4.0-gke.0.0.20230214041608-6f61ba18d27b
 	gke-internal/gke-node-firewall => gke-internal.googlesource.com/kubernetes/gke-node-firewall.git v0.0.20
 )
 

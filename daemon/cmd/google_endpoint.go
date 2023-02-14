@@ -10,6 +10,7 @@ import (
 	v1 "github.com/cilium/cilium/pkg/k8s/slim/k8s/api/core/v1"
 	"github.com/containernetworking/plugins/pkg/ns"
 	"github.com/vishvananda/netlink"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/cilium/cilium/api/v1/models"
 	"github.com/cilium/cilium/pkg/api"
@@ -176,6 +177,7 @@ func (d *Daemon) createMultiNICEndpoints(ctx context.Context, owner regeneration
 		}
 
 		var cleanup func()
+		var netParamsRef client.Object
 		// Update the interface status of the primary endpoint.
 		if intfCR != nil && networkv1.IsDefaultNetwork(intfCR.Spec.NetworkName) {
 			primaryEp.Logger(daemonSubsys).WithField("interfaceCR", intfCR.Name).Debug("Updating interface status")
@@ -194,6 +196,11 @@ func (d *Daemon) createMultiNICEndpoints(ctx context.Context, owner regeneration
 			}
 			intfCR.Status.PodName = utilpointer.StringPtr(primaryEp.GetK8sPodName())
 		} else if intfCR != nil && netCR != nil {
+			if netCR.Spec.ParametersRef != nil {
+				if netParamsRef, err = d.multinicClient.GetNetworkParamObject(ctx, netCR.Spec.ParametersRef); err != nil {
+					intfLog.WithField("network", netCR.Name).Infof("Failed to get network params ref %v", err)
+				}
+			}
 			if netCR.Spec.Type == networkv1.L2NetworkType {
 				if cleanup, err = connector.SetupL2Interface(ref.InterfaceName, pod.Name, podResources, netCR, intfCR, multinicTemplate, d.dhcpClient, d.ipam); err != nil {
 					return d.errorWithMultiNICCleanup(primaryEp, PutEndpointIDInvalidCode, fmt.Errorf("failed setting up layer2 interface %q for pod %q: %v", intfCR.Name, podID, err), cleanup)
@@ -205,7 +212,7 @@ func (d *Daemon) createMultiNICEndpoints(ctx context.Context, owner regeneration
 				parentDevInUse[multinicTemplate.ParentDeviceName] = ref.InterfaceName
 
 			} else if netCR.Spec.Type == networkv1.L3NetworkType {
-				if cleanup, err = connector.SetupL3Interface(ref.InterfaceName, pod.Name, podResources, netCR, intfCR, multinicTemplate, d.ipam); err != nil {
+				if cleanup, err = connector.SetupL3Interface(ref.InterfaceName, pod.Name, podResources, netCR, intfCR, multinicTemplate, d.ipam, netParamsRef); err != nil {
 					return d.errorWithMultiNICCleanup(primaryEp, PutEndpointIDInvalidCode, fmt.Errorf("failed setting up layer3 interface %q for pod %q: %v", intfCR.Name, podID, err), cleanup)
 				}
 			} else {
