@@ -224,7 +224,7 @@ func (c *Controller) handlePod(curr interface{}) {
 	scopedLog := log.WithField("name", pod.Name).WithField("namespace", pod.Namespace)
 	podIP, err := ipOf(pod)
 	if err != nil {
-		scopedLog.WithError(err).Error("failed to extract pod IP")
+		scopedLog.WithError(err).Debug("failed to extract pod IP")
 		return
 	}
 
@@ -246,7 +246,7 @@ func (c *Controller) delPod(obj interface{}) {
 	scopedLog := log.WithField("name", pod.Name).WithField("namespace", pod.Namespace)
 	podIP, err := ipOf(pod)
 	if err != nil {
-		scopedLog.WithError(err).Error("failed to extract pod IP")
+		scopedLog.WithError(err).Debug("failed to extract pod IP")
 		return
 	}
 
