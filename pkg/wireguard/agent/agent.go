@@ -14,6 +14,8 @@ import (
 	"os"
 	"strconv"
 
+	"github.com/cilium/cilium/pkg/metrics"
+	cnode "github.com/cilium/cilium/pkg/node/types"
 	"github.com/go-openapi/strfmt"
 	"github.com/sirupsen/logrus"
 	"github.com/vishvananda/netlink"
@@ -607,6 +609,7 @@ func (a *Agent) Status(withPeers bool) (*models.WireguardStatus, error) {
 			Peers:      peers,
 		}},
 	}
+	metrics.WireguardPeersTotal.WithLabelValues(cnode.GetName()).Set(float64(len(dev.Peers)))
 
 	return status, nil
 }

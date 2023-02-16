@@ -70,6 +70,9 @@ const (
 	// SubsystemNodeNeigh is the subsystem to scope metrics related to management of node neighbor.
 	SubsystemNodeNeigh = "node_neigh"
 
+	// SubsystemWireguard is the subsystem to scope metrics related to wireguard encryption.
+	SubsystemWireguard = "wireguard"
+
 	// Namespace is used to scope metrics from cilium. It is prepended to metric
 	// names and separated with a '_'
 	Namespace = "cilium"
@@ -522,6 +525,10 @@ var (
 	// ArpingRequestsTotal is the counter of the number of sent
 	// (successful and failed) arping requests
 	ArpingRequestsTotal = NoOpCounterVec
+
+	// WireguardPeersTotal is the total number of Wireguard Peers for this node,
+	// i.e this node sets up a Wireguard tunnel to these many other nodes.
+	WireguardPeersTotal = NoOpGaugeVec
 )
 
 type Configuration struct {
@@ -600,6 +607,7 @@ type Configuration struct {
 	APILimiterAdjustmentFactor              bool
 	APILimiterProcessedRequests             bool
 	ArpingRequestsTotalEnabled              bool
+	WireguardPeersTotalEnabled              bool
 }
 
 func DefaultMetrics() map[string]struct{} {
@@ -666,6 +674,7 @@ func DefaultMetrics() map[string]struct{} {
 		Namespace + "_" + SubsystemAPILimiter + "_adjustment_factor":                 {},
 		Namespace + "_" + SubsystemAPILimiter + "_processed_requests_total":          {},
 		Namespace + "_" + SubsystemNodeNeigh + "_arping_requests_total":              {},
+		Namespace + "_" + SubsystemWireguard + "_peers_total":                        {},
 	}
 }
 
@@ -1467,6 +1476,19 @@ func CreateConfiguration(metricsEnabled []string) (Configuration, []prometheus.C
 
 			collectors = append(collectors, NodeConnectivityLatency)
 			c.NodeConnectivityLatencyEnabled = true
+
+		case Namespace + "_" + SubsystemWireguard + "_peers_total":
+			WireguardPeersTotal = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+				Namespace: Namespace,
+				Subsystem: SubsystemWireguard,
+				Name:      "peers_total",
+				Help:      "Total number of Wireguard peers.",
+			}, []string{
+				LabelSourceNodeName,
+			})
+
+			collectors = append(collectors, WireguardPeersTotal)
+			c.WireguardPeersTotalEnabled = true
 		}
 
 	}
