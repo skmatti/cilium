@@ -198,14 +198,11 @@ static __always_inline int sfc_encap(struct __ctx_buff *ctx, struct iphdr *ip4, 
 
 	set_ipv4_csum(&h_outer.ip);
 
-	flags = BPF_F_ADJ_ROOM_ENCAP_L3_IPV4 | BPF_F_ADJ_ROOM_ENCAP_L4_UDP;
+	flags = BPF_F_ADJ_ROOM_ENCAP_L4_UDP;
 	if (ip4->protocol == IPPROTO_UDP) {
 		// UDP GSO must have BPF_F_ADJ_ROOM_FIXED_GSO.
 		flags |= BPF_F_ADJ_ROOM_FIXED_GSO;
 	}
-	/* Unset BPF_F_ADJ_ROOM_ENCAP_L3_IPV4 for local delivery due to b/261456637. */
-	if (lookup_ip4_endpoint(&h_outer.ip))
-		flags &= ~BPF_F_ADJ_ROOM_ENCAP_L3_IPV4;
 	if (ctx_adjust_hroom(ctx, sizeof(struct encaphdr), BPF_ADJ_ROOM_MAC, flags))
 		return DROP_INVALID;
 	if (ctx_store_bytes(ctx, ETH_HLEN, &h_outer, sizeof(struct encaphdr), BPF_F_INVALIDATE_HASH) < 0)
@@ -593,6 +590,7 @@ static __always_inline int sfc_lb4(struct __ctx_buff *ctx, struct iphdr *ip4,
 	struct lb4_service *svc;
 	struct lb4_key key = {};
 	int l4_off;
+	__be32 new_daddr;
 
 	has_l4_header = ipv4_has_l4_header(ip4);
 	tuple.nexthdr = ip4->protocol;
@@ -612,6 +610,26 @@ static __always_inline int sfc_lb4(struct __ctx_buff *ctx, struct iphdr *ip4,
 				inner_saddr, has_l4_header, false);
 		if (IS_ERR(ret))
 			return ret;
+		new_daddr = ct_state_new.addr;
+	} else {
+		new_daddr = ip4->daddr;
+	}
+
+	if (!__lookup_ip4_endpoint(new_daddr)) {
+		// Endpoint is remote, so re-encap with skb->encapsulation set to 1.
+		// See b/261456637 for more context.
+		// TODO(b/269499064): Implement a more efficient solution that doesn't require re-encapsulation.
+		struct encaphdr h_outer = {};
+		__u64 flags = BPF_F_ADJ_ROOM_FIXED_GSO | BPF_F_ADJ_ROOM_ENCAP_L3_IPV4 | BPF_F_ADJ_ROOM_ENCAP_L4_UDP;
+
+		if (ctx_load_bytes(ctx, ETH_HLEN, &h_outer, sizeof(struct encaphdr)) < 0)
+			return DROP_INVALID;
+		if (ctx_adjust_hroom(ctx, -(__s32)sizeof(struct encaphdr), BPF_ADJ_ROOM_MAC, BPF_F_ADJ_ROOM_FIXED_GSO))
+			return DROP_INVALID;
+		if (ctx_adjust_hroom(ctx, sizeof(struct encaphdr), BPF_ADJ_ROOM_MAC, flags))
+			return DROP_INVALID;
+		if (ctx_store_bytes(ctx, ETH_HLEN, &h_outer, sizeof(struct encaphdr), BPF_F_INVALIDATE_HASH) < 0)
+			return DROP_INVALID;
 	}
 	return CTX_ACT_OK;
 }

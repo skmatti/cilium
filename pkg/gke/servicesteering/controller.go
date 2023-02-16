@@ -156,7 +156,7 @@ func (r *ServiceSteeringReconciler) reconcilePathMap(ctx context.Context, log *l
 		if err := sfc.PathMap.Update(&key, &entry); err != nil {
 			return fmt.Errorf("unable to update path %s: %v", &key, err)
 		}
-		log.Infof("Updated path, %s -> %s", &key, &entry)
+		log.Infof("Updated path, %s: %s", &key, &entry)
 	}
 	return nil
 }

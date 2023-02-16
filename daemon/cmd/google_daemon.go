@@ -54,7 +54,7 @@ func (d *Daemon) initGoogleControllers(ctx context.Context) {
 	if option.Config.EnableGoogleServiceSteering {
 		crdsExist, err := servicesteering.CRDsExist(mgr.GetRESTMapper())
 		if err != nil {
-			log.WithError(err).Fatal("Unable to probe for service steering CRDs")
+			sslog.WithError(err).Fatal("Unable to probe for service steering CRDs")
 		}
 		if !crdsExist {
 			sslog.Warn("Service steering CRDs are missing, disabling the feature")
