@@ -529,6 +529,10 @@ var (
 	// WireguardPeersTotal is the total number of Wireguard Peers for this node,
 	// i.e this node sets up a Wireguard tunnel to these many other nodes.
 	WireguardPeersTotal = NoOpGaugeVec
+
+	// WireguardAgentTimeStats is the total time it takes to initialize the Wireguard
+	// interface, create a key pair, start the agent etc.
+	WireguardAgentTimeStats = NoOpObserverVec
 )
 
 type Configuration struct {
@@ -608,6 +612,7 @@ type Configuration struct {
 	APILimiterProcessedRequests             bool
 	ArpingRequestsTotalEnabled              bool
 	WireguardPeersTotalEnabled              bool
+	WireguardAgentTimeStatsEnabled          bool
 }
 
 func DefaultMetrics() map[string]struct{} {
@@ -675,6 +680,7 @@ func DefaultMetrics() map[string]struct{} {
 		Namespace + "_" + SubsystemAPILimiter + "_processed_requests_total":          {},
 		Namespace + "_" + SubsystemNodeNeigh + "_arping_requests_total":              {},
 		Namespace + "_" + SubsystemWireguard + "_peers_total":                        {},
+		Namespace + "_" + SubsystemWireguard + "_agent_time_stats_seconds":           {},
 	}
 }
 
@@ -1489,8 +1495,17 @@ func CreateConfiguration(metricsEnabled []string) (Configuration, []prometheus.C
 
 			collectors = append(collectors, WireguardPeersTotal)
 			c.WireguardPeersTotalEnabled = true
-		}
 
+		case Namespace + "_" + SubsystemWireguard + "_agent_time_stats_seconds":
+			WireguardAgentTimeStats = prometheus.NewHistogramVec(prometheus.HistogramOpts{
+				Namespace: Namespace,
+				Name:      "wireguard_agent_time_stats_seconds",
+				Help:      "Duration it takes to perform various wireguard management activities via the agent.",
+			}, []string{LabelSourceNodeName, LabelScope})
+
+			collectors = append(collectors, WireguardAgentTimeStats)
+			c.WireguardAgentTimeStatsEnabled = true
+		}
 	}
 
 	return c, collectors

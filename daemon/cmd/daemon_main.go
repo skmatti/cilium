@@ -1711,6 +1711,7 @@ func runDaemon() {
 	iptablesManager := &iptables.IptablesManager{}
 	iptablesManager.Init()
 
+	var wireguardInitTime time.Time
 	if c, err := dpv2e.GetClient(); err != nil {
 		log.Fatalf("Failed to create k8s client: %v", err)
 	} else if wgEnabled, err := dpv2e.IsWireguard(c); err != nil {
@@ -1720,6 +1721,7 @@ func runDaemon() {
 		option.Config.EnableL7Proxy = false
 		option.Config.EnableFQDNNetworkPolicy = false
 		log.Info("Enabling Wireguard. Wireguard is not compatible with L7-Proxy, hence disabling L7-Proxy and FQDNNetworkPolicy")
+		wireguardInitTime = time.Now()
 	}
 	var wgAgent *wireguard.Agent
 	if option.Config.EnableWireguard {
@@ -1905,8 +1907,22 @@ func runDaemon() {
 
 	d.startStatusCollector()
 
-	metricsErrs := initMetrics()
+	// The status collector invocation above registers status probes, after
+	// which the cilium cli tool begins to report encryption stats. So while
+	// this stat does _not_ measure time to create a full mesh, which is really
+	// what one would need to say that encryption has been "enabled" for a
+	// cluster, it measures the time till which this specific node reports
+	// "Encryption: Wireguard" via the cilium cli.
+	//
+	// The Wireguard mesh itself is created via agent.UpdatePeer, and combining
+	// these two timer stats should give us an approximation of how long it
+	// takes to setup a full mesh.
+	if option.Config.EnableWireguard {
+		metrics.WireguardAgentTimeStats.WithLabelValues(
+			nodeTypes.GetName(), "init").Observe(time.Since(wireguardInitTime).Seconds())
+	}
 
+	metricsErrs := initMetrics()
 	d.startAgentHealthHTTPService()
 	if option.Config.KubeProxyReplacementHealthzBindAddr != "" {
 		if option.Config.KubeProxyReplacement != option.KubeProxyReplacementDisabled {

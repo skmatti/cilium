@@ -13,6 +13,7 @@ import (
 	"net"
 	"os"
 	"strconv"
+	"time"
 
 	"github.com/cilium/cilium/pkg/metrics"
 	cnode "github.com/cilium/cilium/pkg/node/types"
@@ -315,6 +316,10 @@ func (a *Agent) RestoreFinished() error {
 }
 
 func (a *Agent) UpdatePeer(nodeName, pubKeyHex string, nodeIPv4, nodeIPv6 net.IP) error {
+	u := time.Now()
+	defer metrics.WireguardAgentTimeStats.WithLabelValues(
+		cnode.GetName(), "updatePeer").Observe(time.Since(u).Seconds())
+
 	// To avoid running into a deadlock, we need to lock the IPCache before
 	// calling a.Lock(), because IPCache might try to call into
 	// OnIPIdentityCacheChange concurrently
