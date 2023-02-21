@@ -1209,6 +1209,10 @@ func initializeFlags() {
 	flags.Bool(option.EnableTransparentHealthChecks, false, "Enable Google LB health checks to pods to be answered by K8s status watcher")
 	option.BindEnv(option.EnableTransparentHealthChecks)
 
+	flags.Bool(option.EnableMergeCIDRPrefixIPLabels, defaults.EnableMergeCIDRPrefixIPLabels, "EnableMergeCIDRPrefixIPLabels controls whether to merge labels for CIDR prefix IPs")
+	flags.MarkHidden(option.EnableMergeCIDRPrefixIPLabels)
+	option.BindEnv(option.EnableMergeCIDRPrefixIPLabels)
+
 	flags.Int(option.THCPort, 0, "The port for Transparent Health Checks")
 	flags.MarkHidden(option.THCPort)
 	option.BindEnv(option.THCPort)

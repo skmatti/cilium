@@ -1190,6 +1190,10 @@ const (
 
 	// THCSourceRanges are CIDR IP ranges of Transparent Health Checks queries.
 	THCSourceRanges = "thc-source-ranges"
+
+	// EnableMergeCIDRPrefixIPLabels sets whether to merge the labels for CIDR
+	// prefix IPs.
+	EnableMergeCIDRPrefixIPLabels = "enable-merge-cidr-prefix-ip-labels"
 )
 
 // Default string arguments
@@ -2426,6 +2430,10 @@ type DaemonConfig struct {
 
 	// THCSourceRanges are source IP ranges of Transparent Health Checks queries.
 	THCSourceRanges []string
+
+	// EnableMergeCIDRPrefixIPLabels Controls whether to merge labels when
+	// processing a CIDR prefix IP.
+	EnableMergeCIDRPrefixIPLabels bool
 }
 
 var (
@@ -2477,6 +2485,8 @@ var (
 		ExternalClusterIP:     defaults.ExternalClusterIP,
 		EnableVTEP:            defaults.EnableVTEP,
 		EnableBGPControlPlane: defaults.EnableBGPControlPlane,
+
+		EnableMergeCIDRPrefixIPLabels: defaults.EnableMergeCIDRPrefixIPLabels,
 	}
 )
 
@@ -3167,6 +3177,8 @@ func (c *DaemonConfig) Populate() {
 	c.BGPConfigPath = viper.GetString(BGPConfigPath)
 	c.ExternalClusterIP = viper.GetBool(ExternalClusterIPName)
 	c.TCFilterPriority = viper.GetInt(TCFilterPriority)
+	c.EnablePMTUDiscovery = viper.GetBool(EnablePMTUDiscovery)
+	c.EnableMergeCIDRPrefixIPLabels = viper.GetBool(EnableMergeCIDRPrefixIPLabels)
 	c.EnableIPv4Masquerade = viper.GetBool(EnableIPv4Masquerade) && c.EnableIPv4
 	c.EnableIPv6Masquerade = viper.GetBool(EnableIPv6Masquerade) && c.EnableIPv6
 	c.EnableBPFMasquerade = viper.GetBool(EnableBPFMasquerade)
