@@ -533,6 +533,10 @@ var (
 	// WireguardAgentTimeStats is the total time it takes to initialize the Wireguard
 	// interface, create a key pair, start the agent etc.
 	WireguardAgentTimeStats = NoOpObserverVec
+
+	// WireguardTransferBytesTotal is the total bytes sent or received through
+	// a given source node's wireguard interface, to each destination node.
+	WireguardTransferBytesTotal = NoOpGaugeVec
 )
 
 type Configuration struct {
@@ -613,6 +617,7 @@ type Configuration struct {
 	ArpingRequestsTotalEnabled              bool
 	WireguardPeersTotalEnabled              bool
 	WireguardAgentTimeStatsEnabled          bool
+	WireguardTransferBytesTotalEnabled      bool
 }
 
 func DefaultMetrics() map[string]struct{} {
@@ -681,6 +686,7 @@ func DefaultMetrics() map[string]struct{} {
 		Namespace + "_" + SubsystemNodeNeigh + "_arping_requests_total":              {},
 		Namespace + "_" + SubsystemWireguard + "_peers_total":                        {},
 		Namespace + "_" + SubsystemWireguard + "_agent_time_stats_seconds":           {},
+		Namespace + "_" + SubsystemWireguard + "_transfer_bytes_total":               {},
 	}
 }
 
@@ -1482,6 +1488,20 @@ func CreateConfiguration(metricsEnabled []string) (Configuration, []prometheus.C
 
 			collectors = append(collectors, NodeConnectivityLatency)
 			c.NodeConnectivityLatencyEnabled = true
+
+		case Namespace + "_" + SubsystemWireguard + "_transfer_bytes_total":
+			WireguardTransferBytesTotal = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+				Namespace: Namespace,
+				Subsystem: SubsystemWireguard,
+				Name:      "transfer_bytes_total",
+				Help:      "Total number of bytes transferred via the Wireguard interface.",
+			}, []string{
+				LabelSourceNodeName,
+				LabelTargetNodeName,
+				LabelType,
+			})
+			collectors = append(collectors, WireguardTransferBytesTotal)
+			c.WireguardTransferBytesTotalEnabled = true
 
 		case Namespace + "_" + SubsystemWireguard + "_peers_total":
 			WireguardPeersTotal = prometheus.NewGaugeVec(prometheus.GaugeOpts{

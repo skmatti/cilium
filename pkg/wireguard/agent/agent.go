@@ -583,26 +583,32 @@ func (a *Agent) Status(withPeers bool) (*models.WireguardStatus, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to get device: %w", err)
 	}
-
 	var peers []*models.WireguardPeer
-	if withPeers {
-		peers = make([]*models.WireguardPeer, 0, len(dev.Peers))
-		for _, p := range dev.Peers {
-			allowedIPs := make([]string, 0, len(p.AllowedIPs))
-			for _, ip := range p.AllowedIPs {
-				allowedIPs = append(allowedIPs, ip.String())
-			}
-
-			peer := &models.WireguardPeer{
-				PublicKey:         p.PublicKey.String(),
-				Endpoint:          p.Endpoint.String(),
-				LastHandshakeTime: strfmt.DateTime(p.LastHandshakeTime),
-				AllowedIps:        allowedIPs,
-				TransferTx:        p.TransmitBytes,
-				TransferRx:        p.ReceiveBytes,
-			}
-			peers = append(peers, peer)
+	peers = make([]*models.WireguardPeer, 0, len(dev.Peers))
+	sourceNodeName := cnode.GetName()
+	for _, p := range dev.Peers {
+		targetNodeName := a.nodeNameByPubKey[p.PublicKey]
+		metrics.WireguardTransferBytesTotal.WithLabelValues(
+			sourceNodeName, targetNodeName, "transmitted").Set(float64(p.TransmitBytes))
+		metrics.WireguardTransferBytesTotal.WithLabelValues(
+			sourceNodeName, targetNodeName, "received").Set(float64(p.ReceiveBytes))
+		if !withPeers {
+			continue
 		}
+		allowedIPs := make([]string, 0, len(p.AllowedIPs))
+		for _, ip := range p.AllowedIPs {
+			allowedIPs = append(allowedIPs, ip.String())
+		}
+
+		peer := &models.WireguardPeer{
+			PublicKey:         p.PublicKey.String(),
+			Endpoint:          p.Endpoint.String(),
+			LastHandshakeTime: strfmt.DateTime(p.LastHandshakeTime),
+			AllowedIps:        allowedIPs,
+			TransferTx:        p.TransmitBytes,
+			TransferRx:        p.ReceiveBytes,
+		}
+		peers = append(peers, peer)
 	}
 
 	status := &models.WireguardStatus{
@@ -614,7 +620,7 @@ func (a *Agent) Status(withPeers bool) (*models.WireguardStatus, error) {
 			Peers:      peers,
 		}},
 	}
-	metrics.WireguardPeersTotal.WithLabelValues(cnode.GetName()).Set(float64(len(dev.Peers)))
+	metrics.WireguardPeersTotal.WithLabelValues(sourceNodeName).Set(float64(len(dev.Peers)))
 
 	return status, nil
 }
