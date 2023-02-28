@@ -70,6 +70,10 @@ func (r *NetworkReconciler) Reconcile(ctx context.Context, req ctrl.Request) (_ 
 	node.Annotations = make(map[string]string)
 	if oldNode.Annotations != nil {
 		node.Annotations[networkv1.NodeNetworkAnnotationKey] = oldNode.Annotations[networkv1.NodeNetworkAnnotationKey]
+		// TODO(b/269187538): Remove once DefaultNetworkName is deprecated.
+		if len(node.Annotations[networkv1.NodeNetworkAnnotationKey]) == 0 {
+			node.Annotations[networkv1.NodeNetworkAnnotationKey] = "[]"
+		}
 	}
 	defer func() {
 		err := r.patchNodeAnnotations(ctx, log, oldNode, node)

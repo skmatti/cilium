@@ -123,7 +123,7 @@ func (d *Daemon) initMultiNIC(ctx context.Context, mgr manager.Manager) error {
 	if err != nil {
 		return fmt.Errorf("failed to create kubelet client: %v", err)
 	}
-
+	d.multinicClient = multinic.NewK8sClient(mgr.GetClient())
 	d.kubeletClient = kubeletClient
 	d.dhcpClient = dhcp.NewDHCPClient()
 	return nil
