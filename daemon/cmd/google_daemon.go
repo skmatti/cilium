@@ -16,6 +16,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	networkv1 "k8s.io/cloud-provider-gcp/crd/apis/network/v1"
+	networkv1alpha1 "k8s.io/cloud-provider-gcp/crd/apis/network/v1alpha1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	ctrlClient "sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
@@ -32,6 +33,7 @@ func init() {
 	// The controller runs on every node. Consider performance impact when adding new schemes.
 	utilruntime.Must(corev1.AddToScheme(scheme))
 	utilruntime.Must(networkv1.AddToScheme(scheme))
+	utilruntime.Must(networkv1alpha1.AddToScheme(scheme))
 }
 
 func (d *Daemon) initGoogleControllers(ctx context.Context) {
