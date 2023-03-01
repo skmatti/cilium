@@ -959,7 +959,7 @@ func TestConfigureDHCPInfo(t *testing.T) {
 			cfg:     emptyConfig,
 			dc:      fakeClient,
 			wantCfg: emptyConfig,
-			wantErr: "failed to configure dhcp info for : invalid network : network.spec.nodeInterfaceMatcher.InterfaceName cannot be nil or empty",
+			wantErr: "failed to configure dhcp info for : no node annotations passed, cannot look for any north-interface annotation",
 		},
 		{
 			desc:    "dhcp client errors",

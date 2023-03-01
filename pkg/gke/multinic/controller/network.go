@@ -13,6 +13,7 @@ import (
 	"github.com/cilium/cilium/pkg/datapath/loader"
 	"github.com/cilium/cilium/pkg/logging"
 	"github.com/cilium/cilium/pkg/logging/logfields"
+	"github.com/cilium/cilium/pkg/node"
 	"github.com/cilium/cilium/pkg/option"
 	"github.com/sirupsen/logrus"
 	"github.com/vishvananda/netlink"
@@ -30,7 +31,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	"github.com/cilium/cilium/pkg/endpointmanager"
-	multinictypes "github.com/cilium/cilium/pkg/gke/multinic/types"
+	anutils "gke-internal.googlesource.com/anthos-networking/apis/v2/utils"
 )
 
 var (
@@ -154,7 +155,7 @@ func (r *NetworkReconciler) loadEBPFOnParent(ctx context.Context, network *netwo
 		log.Infof("No need to load ebpf for default network: %v", network.Name)
 		return nil
 	}
-	devToLoad, err := multinictypes.InterfaceName(network)
+	devToLoad, _, err := anutils.InterfaceInfo(network, node.GetAnnotations())
 	if err != nil {
 		log.Infof("errored generating interface name for network %s: %s", network.Name, err)
 		return nil
@@ -189,7 +190,7 @@ func (r *NetworkReconciler) loadEBPFOnParent(ctx context.Context, network *netwo
 }
 
 func (r *NetworkReconciler) unloadEBPFOnParent(ctx context.Context, network *networkv1.Network, log *logrus.Entry) error {
-	devToUnload, err := multinictypes.InterfaceName(network)
+	devToUnload, _, err := anutils.InterfaceInfo(network, node.GetAnnotations())
 	if err != nil {
 		log.Infof("errored generating interface name for network %s: %s", network.Name, err)
 		return nil
@@ -440,7 +441,7 @@ func deleteVlanID(network *networkv1.Network, log *logrus.Entry) error {
 		return nil
 	}
 
-	taggedIntName, err := multinictypes.InterfaceName(network)
+	taggedIntName, _, err := anutils.InterfaceInfo(network, node.GetAnnotations())
 	if err != nil {
 		log.Errorf("deleteVlanID: Errored generating interface name for network %s: %s", network.Name, err)
 		return nil
@@ -477,7 +478,7 @@ func hasVlanTag(network *networkv1.Network) bool {
 }
 
 func ensureInterface(network *networkv1.Network, log *logrus.Entry) error {
-	intfName, err := multinictypes.InterfaceName(network)
+	intfName, _, err := anutils.InterfaceInfo(network, node.GetAnnotations())
 	if err != nil {
 		// Log error but return nil here as this is mostly due to misconfiguration
 		// in the network CR object and is unlikely to reconcile.
@@ -485,9 +486,10 @@ func ensureInterface(network *networkv1.Network, log *logrus.Entry) error {
 		return nil
 	}
 	scopedLog := log.WithField(logfields.Interface, intfName)
-
-	// InterfaceName() will return an error if Spec.NodeInterfaceMatcher.InterfaceName is nil
-	parentIntName := *network.Spec.NodeInterfaceMatcher.InterfaceName
+	parentIntName := intfName
+	if network.Spec.L2NetworkConfig != nil && network.Spec.L2NetworkConfig.VlanID != nil {
+		parentIntName = *network.Spec.NodeInterfaceMatcher.InterfaceName
+	}
 	link, err := netlink.LinkByName(parentIntName)
 	if err != nil {
 		return fmt.Errorf("failed to find parent interface %s: %q", parentIntName, err)
@@ -536,19 +538,16 @@ func bestAddrMatch(addrs []netlink.Addr) *net.IPNet {
 }
 
 func obtainSubnet(network *networkv1.Network, log *logrus.Entry) (string, string, error) {
-	_, err := multinictypes.InterfaceName(network)
+	intfName, _, err := anutils.InterfaceInfo(network, node.GetAnnotations())
 	if err != nil {
 		// Log error but return nil here as this is mostly due to misconfiguration
 		// in the network CR object and is unlikely to reconcile.
 		log.Errorf("obtainSubnet: Errored generating interface name for network %s: %v", network.Name, err)
 		return "", "", nil
 	}
-
-	// InterfaceName() will return an error if Spec.NodeInterfaceMatcher.InterfaceName is nil
-	parentIntName := *network.Spec.NodeInterfaceMatcher.InterfaceName
-	link, err := netlink.LinkByName(parentIntName)
+	link, err := netlink.LinkByName(intfName)
 	if err != nil {
-		return "", "", fmt.Errorf("failed to find parent interface %s: %q", parentIntName, err)
+		return "", "", fmt.Errorf("failed to find parent interface %s: %q", intfName, err)
 	}
 	addrs, err := netlink.AddrList(link, netlink.FAMILY_V4)
 	if err != nil {
