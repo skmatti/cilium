@@ -260,8 +260,8 @@ func ensureVlanID(vlanIntName string, vlanID int, parentLink netlink.Link, log *
 // The information is parsed from the node annotation.
 func getNetworkStatusMap(node *corev1.Node) (map[string]networkv1.NodeNetworkStatus, error) {
 	netStatusMap := make(map[string]networkv1.NodeNetworkStatus)
-	annotation, exist := node.Annotations[networkv1.NodeNetworkAnnotationKey]
-	if !exist {
+	annotation := node.Annotations[networkv1.NodeNetworkAnnotationKey]
+	if len(annotation) == 0 {
 		return netStatusMap, nil
 	}
 	netAnn, err := networkv1.ParseNodeNetworkAnnotation(annotation)

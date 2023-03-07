@@ -496,6 +496,18 @@ func TestUpdateNodeNetworkAnnotation(t *testing.T) {
 			},
 		},
 		{
+			desc: "add new network to empty annotation value",
+			existingAnnotations: map[string]string{
+				networkv1.NodeNetworkAnnotationKey: "",
+			},
+			nodeName: nodeName,
+			network:  "bar",
+			isAdd:    true,
+			wantAnnotations: map[string]string{
+				networkv1.NodeNetworkAnnotationKey: `[{"name":"bar"}]`,
+			},
+		},
+		{
 			desc:                "add new network with ipv4 subnet",
 			existingAnnotations: map[string]string{},
 			nodeName:            nodeName,
