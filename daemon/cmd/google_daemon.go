@@ -128,6 +128,13 @@ func (d *Daemon) initMultiNIC(ctx context.Context, mgr manager.Manager, endpoint
 	if err := d.setupMultiNetworkingIPAMAllocators(ctx, endpoints); err != nil {
 		return fmt.Errorf("failed to initialize multi-network allocators: %v", err)
 	}
+
+	// Populates nic-info node annotation
+	if option.Config.PopulateGCENICInfo {
+		if err := multinic.PopulateNICInfoAnnotation(d.ctx, k8s.Client()); err != nil {
+			log.WithError(err).Fatalf("unable to populate nic annotations, high-perf networks will not work: %v", err)
+		}
+	}
 	return nil
 }
 
