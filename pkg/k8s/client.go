@@ -52,6 +52,9 @@ var (
 
 	// k8sAPIExtWatcherCLI is the client dedicated k8s structure watchers.
 	k8sAPIExtWatcherCLI = &K8sAPIExtensionsClient{}
+
+	// k8sRestConfig is the Kubernetes client rest configuration.
+	k8sRestConfig = &rest.Config{}
 )
 
 // Client returns the default Kubernetes client.
@@ -77,6 +80,11 @@ func APIExtClient() *K8sAPIExtensionsClient {
 // WatcherAPIExtClient returns the client dedicated to API Extensions watchers.
 func WatcherAPIExtClient() *K8sAPIExtensionsClient {
 	return k8sAPIExtWatcherCLI
+}
+
+// RestConfig returns the deep copy of Kubernetes client rest configuration.
+func RestConfig() *rest.Config {
+	return rest.CopyConfig(k8sRestConfig)
 }
 
 // CreateConfig creates a client configuration based on the configured API
@@ -132,6 +140,7 @@ func createDefaultClient(c *rest.Config, httpClient *http.Client) (rest.Interfac
 	}
 
 	k8sCLI.Interface = createdK8sClient
+	k8sRestConfig = &restConfig
 
 	createK8sWatcherCli, err := watcher_client.NewForConfigAndClient(&restConfig, httpClient)
 	if err != nil {
