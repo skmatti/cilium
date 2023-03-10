@@ -180,7 +180,7 @@ func Test_cleanStaleCEP(t *testing.T) {
 				return true, nil, nil
 			}))
 
-			epm := &fakeEPManager{test.managedEndpoints}
+			epm := &fakeEPManager{byPodName: test.managedEndpoints}
 
 			err := d.cleanStaleCEPs(context.Background(), epm, fakeClient.CiliumV2(), test.enableCES)
 
@@ -191,7 +191,8 @@ func Test_cleanStaleCEP(t *testing.T) {
 }
 
 type fakeEPManager struct {
-	byPodName map[string]*endpoint.Endpoint
+	byPodName    map[string]*endpoint.Endpoint
+	epsByPodName map[string][]*endpoint.Endpoint
 }
 
 func (epm *fakeEPManager) LookupPodName(name string) *endpoint.Endpoint {
