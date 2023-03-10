@@ -255,15 +255,14 @@ func (d *Daemon) createMultiNICEndpoints(ctx context.Context, owner regeneration
 	if !defaultPodNetworkConfigured {
 		// Pod network is required to set up when the default interface
 		// is not within the default pod-network.
-		_, defaultPodNetworkCR, err := d.getInterfaceAndNetworkCR(ctx, &networkv1.InterfaceRef{Network: utilpointer.StringPtr(networkv1.DefaultPodNetworkName)}, pod)
-		podInterfaceCR := convertNetworkSpecToInterface(defaultPodNetworkCR)
-		if err != nil || podInterfaceCR == nil {
-			return d.errorDuringMultiNICCreation(primaryEp, PutEndpointIDInvalidCode, fmt.Errorf("pod-network CR is required if the default gateway is on multi-nic interface: %v", err))
+		defaultPodNetworkCR, err := d.defaultNetwork(ctx)
+		if err != nil {
+			return d.errorDuringMultiNICCreation(primaryEp, PutEndpointIDInvalidCode, fmt.Errorf("default network CR is required if the default gateway is on multi-net interface: %v", err))
 		}
-		// We only require the pod network CR exists instead of custom routes inside the object
+		podInterfaceCR := convertNetworkSpecToInterface(defaultPodNetworkCR)
 		if err := connector.SetupNetworkRoutes(primaryVethNameInPod, podInterfaceCR, nil, epTemplate.NetworkNamespace,
 			false, defaultPodNetworkMTU); err != nil {
-			return d.errorDuringMultiNICCreation(primaryEp, PutEndpointIDInvalidCode, fmt.Errorf("failed setting up pod-network %q for pod %q: %v", defaultPodNetworkCR.Name, podID, err))
+			return d.errorDuringMultiNICCreation(primaryEp, PutEndpointIDInvalidCode, fmt.Errorf("failed setting up default network %q for pod %q: %v", defaultPodNetworkCR.Name, podID, err))
 		}
 		primaryEp.Logger(daemonSubsys).Info("Pod network is configured")
 	}
@@ -360,10 +359,6 @@ func (d *Daemon) getInterfaceAndNetworkCR(ctx context.Context, ref *networkv1.In
 
 	netCR, err := d.multinicClient.GetNetwork(ctx, networkName)
 	if err != nil {
-		// We don't require for default pod-network to exist
-		if k8sErrors.IsNotFound(err) && networkv1.IsDefaultNetwork(networkName) {
-			return intfCR, nil, nil
-		}
 		return nil, nil, fmt.Errorf("failed getting network CR %s: %v", networkName, err)
 	}
 	return intfCR, netCR, nil
@@ -708,4 +703,22 @@ func setDataPathConfigurationForMultiNIC(ep *models.EndpointChangeRequest) {
 		ep.DatapathConfiguration.RequireArpPassthrough = true
 		ep.DatapathConfiguration.RequireRouting = pointer.BoolPtr(false)
 	}
+}
+
+// defaultNetwork retrieves the default network in the cluster.
+// For compatibility concerns, the function first search "default" network,
+// then fallbacks to "pod-network" if "default" doesn't exist.
+// TODO(b/272608138): Remove the fallback logic once the migration is done in ABM.
+func (d *Daemon) defaultNetwork(ctx context.Context) (*networkv1.Network, error) {
+	var defaultNetwork *networkv1.Network
+	var err error
+	if _, defaultNetwork, err = d.getInterfaceAndNetworkCR(ctx, &networkv1.InterfaceRef{Network: utilpointer.StringPtr(networkv1.DefaultPodNetworkName)}, nil); err == nil {
+		return defaultNetwork, nil
+	}
+	log.Debugf("Error looking for default network: %v; fallback to pod-network", err)
+	// Fallback to "pod-network" if "default" network is not found.
+	if _, defaultNetwork, err = d.getInterfaceAndNetworkCR(ctx, &networkv1.InterfaceRef{Network: utilpointer.StringPtr(networkv1.DefaultNetworkName)}, nil); err != nil {
+		return nil, fmt.Errorf("default network %q: %v", networkv1.DefaultNetworkName, err)
+	}
+	return defaultNetwork, nil
 }

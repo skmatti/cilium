@@ -5,15 +5,20 @@ package cmd
 
 import (
 	"context"
+	"strings"
 
 	apiEndpoint "github.com/cilium/cilium/api/v1/server/restapi/endpoint"
 	"github.com/cilium/cilium/pkg/checker"
+	"github.com/cilium/cilium/pkg/k8s/slim/k8s/api/core/v1"
 	"github.com/cilium/cilium/pkg/option"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	networkv1 "k8s.io/cloud-provider-gcp/crd/apis/network/v1"
 	"k8s.io/utils/pointer"
 
 	. "gopkg.in/check.v1"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 func (ds *DaemonSuite) TestCreateMultiNICEndpointsNoK8sEnabled(c *C) {
@@ -90,4 +95,73 @@ func (ds *DaemonSuite) TestConvertNetworkSpec(c *C) {
 
 	intf = convertNetworkSpecToInterface(network)
 	c.Assert(intf, checker.DeepEquals, expectedIntf)
+}
+
+func (ds *DaemonSuite) TestDefaultNetwork(c *C) {
+	ds.d.multinicClient = &mockMultiNICClient{}
+
+	var networkCR *networkv1.Network
+	var err error
+
+	// Both default and pod-network don't exist.
+	defaultExist, podNetworkExist = false, false
+	networkCR, err = ds.d.defaultNetwork(context.TODO())
+	c.Assert(strings.Contains(err.Error(), "default network \"pod-network\":"), Equals, true)
+
+	defaultExist, podNetworkExist = true, true
+	networkCR, err = ds.d.defaultNetwork(context.TODO())
+	c.Assert(err, IsNil)
+	c.Assert(networkCR.Name, Equals, "default")
+
+	defaultExist, podNetworkExist = true, false
+	networkCR, err = ds.d.defaultNetwork(context.TODO())
+	c.Assert(err, IsNil)
+	c.Assert(networkCR.Name, Equals, "default")
+
+	defaultExist, podNetworkExist = false, true
+	networkCR, err = ds.d.defaultNetwork(context.TODO())
+	c.Assert(err, IsNil)
+	c.Assert(networkCR.Name, Equals, "pod-network")
+}
+
+var defaultExist, podNetworkExist bool
+
+type mockMultiNICClient struct{}
+
+func (m *mockMultiNICClient) GetNetworkInterface(ctx context.Context, name, namespace string) (*networkv1.NetworkInterface, error) {
+	return nil, nil
+}
+
+func (m *mockMultiNICClient) GetNetwork(ctx context.Context, name string) (*networkv1.Network, error) {
+	if defaultExist && name == networkv1.DefaultPodNetworkName {
+		return &networkv1.Network{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "default",
+			},
+		}, nil
+	}
+	if podNetworkExist && name == networkv1.DefaultNetworkName {
+		return &networkv1.Network{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "pod-network",
+			},
+		}, nil
+	}
+	return nil, apierrors.NewNotFound(schema.GroupResource{}, name)
+}
+
+func (m *mockMultiNICClient) PatchNetworkInterfaceStatus(ctx context.Context, obj *networkv1.NetworkInterface) error {
+	return nil
+}
+func (m *mockMultiNICClient) CreateNetworkInterface(ctx context.Context, obj *networkv1.NetworkInterface) error {
+	return nil
+}
+func (m *mockMultiNICClient) DeleteNetworkInterface(ctx context.Context, obj *networkv1.NetworkInterface) error {
+	return nil
+}
+func (m *mockMultiNICClient) SetPodIPsAnnotation(ctx context.Context, pod *v1.Pod, podIPs *networkv1.PodIPsAnnotation) error {
+	return nil
+}
+func (m *mockMultiNICClient) GetNetworkParamObject(ctx context.Context, ref *networkv1.NetworkParametersReference) (client.Object, error) {
+	return nil, nil
 }
