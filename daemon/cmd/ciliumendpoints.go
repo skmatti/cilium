@@ -18,10 +18,12 @@ import (
 	"github.com/cilium/cilium/pkg/k8s/types"
 	"github.com/cilium/cilium/pkg/logging/logfields"
 	"github.com/cilium/cilium/pkg/node"
+	"github.com/cilium/cilium/pkg/option"
 )
 
 type localEndpointCache interface {
 	LookupPodName(name string) *endpoint.Endpoint
+	LookupEndpointsByPodName(name string) []*endpoint.Endpoint
 }
 
 // This must only be run after K8s Pod and CES/CEP caches are synced and local endpoint restoration is complete.
@@ -44,6 +46,7 @@ func (d *Daemon) cleanStaleCEPs(ctx context.Context, eps localEndpointCache, cil
 			if !ok {
 				return fmt.Errorf("unexpected object type returned from ciliumendpointslice store: %T", cesObj)
 			}
+			// TODO(b/272832773): fix CES restoration after retrieving pod information from multi-network endpoints.
 			for _, cep := range ces.Endpoints {
 				if cep.Networking.NodeIP == node.GetCiliumEndpointNodeIP() && eps.LookupPodName(ces.Namespace+"/"+cep.Name) == nil {
 					d.deleteCiliumEndpoint(ctx, ces.Namespace, cep.Name, nil, ciliumClient, eps,
@@ -56,6 +59,13 @@ func (d *Daemon) cleanStaleCEPs(ctx context.Context, eps localEndpointCache, cil
 			cep, ok := cepObj.(*types.CiliumEndpoint)
 			if !ok {
 				return fmt.Errorf("unexpected object type returned from ciliumendpoint store: %T", cepObj)
+			}
+
+			if option.Config.EnableGoogleMultiNIC {
+				if err := d.cleanStaleCEPWhenMultiNIC(ctx, eps, ciliumClient, cep); err != nil {
+					return fmt.Errorf("could not clean statle CiliumEndpoint when Google MultiNIC is enabled: %w", err)
+				}
+				continue
 			}
 
 			if cep.Networking.NodeIP == node.GetCiliumEndpointNodeIP() && eps.LookupPodName(cep.Namespace+"/"+cep.Name) == nil {
