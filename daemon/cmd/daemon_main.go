@@ -1059,6 +1059,14 @@ func initializeFlags() {
 	flags.Int(option.HubbleRecorderSinkQueueSize, defaults.HubbleRecorderSinkQueueSize, "Queue size of each Hubble recorder sink")
 	option.BindEnv(option.HubbleRecorderSinkQueueSize)
 
+	flags.StringSlice(option.HubbleMonitorEvents, []string{},
+		fmt.Sprintf(
+			"Cilium monitor events for Hubble to observe: [%s]. By default, Hubble observes all monitor events.",
+			strings.Join(monitorAPI.AllMessageTypeNames(), " "),
+		),
+	)
+	option.BindEnv(option.HubbleMonitorEvents)
+
 	flags.StringSlice(option.DisableIptablesFeederRules, []string{}, "Chains to ignore when installing feeder rules.")
 	option.BindEnv(option.DisableIptablesFeederRules)
 

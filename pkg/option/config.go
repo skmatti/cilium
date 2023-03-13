@@ -1000,6 +1000,10 @@ const (
 	// HubbleRecorderSinkQueueSize is the queue size for each recorder sink
 	HubbleRecorderSinkQueueSize = "hubble-recorder-sink-queue-size"
 
+	// HubbleMonitorEvents specifies Cilium monitor events for Hubble to observe.
+	// By default, Hubble observes all monitor events.
+	HubbleMonitorEvents = "hubble-monitor-events"
+
 	// DisableIptablesFeederRules specifies which chains will be excluded
 	// when installing the feeder rules
 	DisableIptablesFeederRules = "disable-iptables-feeder-rules"
@@ -2221,6 +2225,10 @@ type DaemonConfig struct {
 	// K8sHeartbeatTimeout configures the timeout for apiserver heartbeat
 	K8sHeartbeatTimeout time.Duration
 
+	// HubbleMonitorEvents specifies Cilium monitor events for Hubble to observe.
+	// By default, Hubble observes all monitor events.
+	HubbleMonitorEvents []string
+
 	// EndpointStatus enables population of information in the
 	// CiliumEndpoint.Status resource
 	EndpointStatus map[string]struct{}
@@ -3418,6 +3426,7 @@ func (c *DaemonConfig) Populate() {
 	c.EnableHubbleRecorderAPI = viper.GetBool(EnableHubbleRecorderAPI)
 	c.HubbleRecorderStoragePath = viper.GetString(HubbleRecorderStoragePath)
 	c.HubbleRecorderSinkQueueSize = viper.GetInt(HubbleRecorderSinkQueueSize)
+	c.HubbleMonitorEvents = viper.GetStringSlice(HubbleMonitorEvents)
 	c.DisableIptablesFeederRules = viper.GetStringSlice(DisableIptablesFeederRules)
 	c.EnableCiliumEndpointSlice = viper.GetBool(EnableCiliumEndpointSlice)
 

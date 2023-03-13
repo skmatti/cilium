@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -78,6 +79,21 @@ var (
 		MessageTypeNameRecCapture:    MessageTypeRecCapture,
 	}
 )
+
+// AllMessageTypeNames returns a slice of MessageTypeNames
+func AllMessageTypeNames() []string {
+	names := make([]string, 0, len(MessageTypeNames))
+	for name := range MessageTypeNames {
+		names = append(names, name)
+	}
+
+	// Sort by the underlying MessageType
+	sort.SliceStable(names, func(i, j int) bool {
+		return MessageTypeNames[names[i]] < MessageTypeNames[names[j]]
+	})
+
+	return names
+}
 
 // MessageTypeName returns the name for a message type or the numeric value if
 // the name can't be found
