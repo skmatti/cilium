@@ -986,6 +986,10 @@ const (
 	// HubbleSkipUnknownCGroupIDs specifies if events with unknown cgroup ids should be skipped
 	HubbleSkipUnknownCGroupIDs = "hubble-skip-unknown-cgroup-ids"
 
+	// HubbleMonitorEvents specifies Cilium monitor events for Hubble to observe.
+	// By default, Hubble observes all monitor events.
+	HubbleMonitorEvents = "hubble-monitor-events"
+
 	// DisableIptablesFeederRules specifies which chains will be excluded
 	// when installing the feeder rules
 	DisableIptablesFeederRules = "disable-iptables-feeder-rules"
@@ -2182,6 +2186,10 @@ type DaemonConfig struct {
 
 	// HubbleSkipUnknownCGroupIDs specifies if events with unknown cgroup ids should be skipped
 	HubbleSkipUnknownCGroupIDs bool
+
+	// HubbleMonitorEvents specifies Cilium monitor events for Hubble to observe.
+	// By default, Hubble observes all monitor events.
+	HubbleMonitorEvents []string
 
 	// EndpointStatus enables population of information in the
 	// CiliumEndpoint.Status resource
@@ -3390,6 +3398,7 @@ func (c *DaemonConfig) Populate(vp *viper.Viper) {
 	c.HubbleRecorderStoragePath = vp.GetString(HubbleRecorderStoragePath)
 	c.HubbleRecorderSinkQueueSize = vp.GetInt(HubbleRecorderSinkQueueSize)
 	c.HubbleSkipUnknownCGroupIDs = vp.GetBool(HubbleSkipUnknownCGroupIDs)
+	c.HubbleMonitorEvents = vp.GetStringSlice(HubbleMonitorEvents)
 
 	c.DisableIptablesFeederRules = vp.GetStringSlice(DisableIptablesFeederRules)
 	c.EnableCiliumEndpointSlice = vp.GetBool(EnableCiliumEndpointSlice)
