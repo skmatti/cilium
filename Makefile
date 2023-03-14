@@ -229,6 +229,7 @@ check_deps:
 include Makefile.kind
 
 -include Makefile.docker
+-include Makefile.docker.google
 
 manifests: ## Generate K8s manifests e.g. CRD, RBAC etc.
 	contrib/scripts/k8s-manifests-gen.sh

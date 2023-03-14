@@ -36,22 +36,17 @@ RUN apt-get update && \
     apt-get upgrade -y && \
     apt-get install -y jq
 
+# Google-internal: install bash and debugging/troubleshooting tools.
+# We're substituting UBUNTU_IMAGE with debian-base which does not
+# have bash by default, but even the first script below is bash-based.
+RUN apt-get install -y bash curl tcpdump conntrack
+
 WORKDIR /go/src/github.com/cilium/cilium/images/runtime
 RUN --mount=type=bind,readwrite,target=/go/src/github.com/cilium/cilium/images/runtime \
     ./install-runtime-deps.sh
 
-COPY --from=iptables-dist /iptables /iptables
-RUN dpkg -i /iptables/*\.deb && rm -rf /iptables
-
-RUN --mount=type=bind,readwrite,target=/go/src/github.com/cilium/cilium/images/runtime \
-    ./iptables-wrapper-installer.sh --no-sanity-check
-
 COPY --from=llvm-dist /usr/local/bin/clang /usr/local/bin/llc /usr/local/bin/
 COPY --from=bpftool-dist /usr/local /usr/local
-
-ARG TARGETPLATFORM
-COPY --from=gops-cni-builder /out/${TARGETPLATFORM}/bin/loopback /cni/loopback
-COPY --from=gops-cni-builder /out/${TARGETPLATFORM}/bin/gops /bin/gops
 
 FROM ${TESTER_IMAGE} AS test
 COPY --from=rootfs / /

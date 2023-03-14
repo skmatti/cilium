@@ -51,10 +51,7 @@ RUN --mount=type=bind,readwrite,target=/go/src/github.com/cilium/cilium \
     make GOARCH=${BUILDARCH} DESTDIR=/tmp/install/${TARGETOS}/${TARGETARCH} PKG_BUILD=1 ${MODIFIERS} \
     install-bash-completion licenses-all && \
     mv LICENSE.all /tmp/install/${TARGETOS}/${TARGETARCH}/LICENSE.all && \
-    mkdir -p /tmp/hubble/${TARGETOS}/${TARGETARCH} && \
-    cd hubble && \
-    make GOOS=${TARGETOS} GOARCH=${TARGETARCH} && \
-    mv hubble /tmp/hubble/${TARGETOS}/${TARGETARCH}/hubble
+    true
 
 # Extract debug symbols to /tmp/debug and strip the binaries if NOSTRIP is not set.
 RUN set -xe && \
@@ -92,14 +89,7 @@ ARG TARGETOS
 ARG TARGETARCH
 LABEL maintainer="maintainer@cilium.io"
 RUN echo ". /etc/profile.d/bash_completion.sh" >> /etc/bash.bashrc
-COPY --from=cilium-envoy /usr/lib/libcilium.so /usr/lib/libcilium.so
-COPY --from=cilium-envoy /usr/bin/cilium-envoy /usr/bin/cilium-envoy-starter /usr/bin/
-# When used within the Cilium container, Hubble CLI should target the
-# local unix domain socket instead of Hubble Relay.
-ENV HUBBLE_SERVER=unix:///var/run/cilium/hubble.sock
 COPY --from=builder /tmp/install/${TARGETOS}/${TARGETARCH} /
-COPY --from=builder /tmp/hubble/${TARGETOS}/${TARGETARCH}/hubble /usr/bin/hubble
-RUN /usr/bin/hubble completion bash > /etc/bash_completion.d/hubble
 WORKDIR /home/cilium
 
 ENV INITSYSTEM="SYSTEMD"
