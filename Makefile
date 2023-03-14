@@ -238,6 +238,7 @@ build-rpm: ## Build rpm package of cilium.
 	$(QUIET) $(MAKE) $(SUBMAKEOPTS) -C ./contrib/packaging/rpm
 
 -include Makefile.docker
+-include Makefile.docker.google
 
 ##@ API targets
 CRD_OPTIONS ?= "crd:crdVersions=v1"
