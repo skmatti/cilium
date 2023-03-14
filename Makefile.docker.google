@@ -1,0 +1,51 @@
+#
+# Template for DPV2 Docker images. Paramaters are:
+# $(1) image target name
+# $(2) Dockerfile path
+# $(3) image name stem (e.g., cilium, cilium-operator, etc)
+# $(4) image tag
+#
+define DPV2_IMAGE_TEMPLATE
+.PHONY: $(1)
+$(1):
+	$(eval IMAGE_NAME := $(subst %,$$$$*,$(3)))
+	$(ECHO_DOCKER)$(2) $(IMAGE_REPOSITORY)/$(IMAGE_NAME)$${UNSTRIPPED}:$(4)
+	$(QUIET) $(CONTAINER_ENGINE) buildx build -f $(subst %,$$*,$(2)) \
+		$(DOCKER_BUILD_FLAGS) $(DOCKER_FLAGS) \
+		--build-arg BASE_IMAGE=${BASE_IMAGE} \
+		--build-arg NOSTRIP=$${NOSTRIP} \
+		--build-arg NOOPT=${NOOPT} \
+		--build-arg LOCKDEBUG=${LOCKDEBUG} \
+		--build-arg RACE=${RACE}\
+		--build-arg V=${V} \
+		--build-arg LIBNETWORK_PLUGIN=${LIBNETWORK_PLUGIN} \
+		--build-arg CILIUM_SHA=$(firstword $(GIT_VERSION)) \
+		--build-arg OPERATOR_VARIANT=$(IMAGE_NAME) \
+		--build-arg CILIUM_RUNTIME_IMAGE=$(RUNTIME_IMAGE_TAG) \
+		--build-arg CILIUM_BUILDER_IMAGE=$(BUILDER_IMAGE_TAG) \
+		-t $(IMAGE_REPOSITORY)/$(IMAGE_NAME)$${UNSTRIPPED}$(DOCKER_IMAGE_SUFFIX):$(4) .
+endef
+
+# docker-dpv2-image
+$(eval $(call DPV2_IMAGE_TEMPLATE,docker-dpv2-image,images/cilium/Dockerfile,cilium,$(DOCKER_IMAGE_TAG)))
+
+docker-cilium-runtime-image:
+	docker buildx build $(DOCKER_FLAGS) \
+		-t $(RUNTIME_IMAGE_TAG) $(ROOT_DIR)/images/runtime
+
+docker-cilium-builder-image:
+	docker buildx build $(DOCKER_FLAGS) \
+		--build-arg CILIUM_RUNTIME_IMAGE=$(RUNTIME_IMAGE_TAG) \
+		-t $(BUILDER_IMAGE_TAG) $(ROOT_DIR)/images/builder
+
+# variables to be passed into docker-dpv2-image target
+ROOT_DIR:=$(shell git rev-parse --show-toplevel)
+# images tags appended with "-dpv2" to avoid collisions with images created by the docker-cilium-image target.
+DOCKER_DPV2_IMAGE_TAG:=$(DOCKER_IMAGE_TAG)-dpv2
+RUNTIME_IMAGE_TAG:=$(DOCKER_REGISTRY)/$(IMAGE_NAME)/cilium-runtime:$(DOCKER_DPV2_IMAGE_TAG)
+BUILDER_IMAGE_TAG:=$(DOCKER_REGISTRY)/$(IMAGE_NAME)/cilium-builder:$(DOCKER_DPV2_IMAGE_TAG)
+
+docker-cilium-dpv2-image: docker-cilium-runtime-image docker-cilium-builder-image
+	DOCKER_REGISTRY=$(DOCKER_REGISTRY) DOCKER_IMAGE_TAG=$(DOCKER_DPV2_IMAGE_TAG) ARCH=$(ARCH) RUNTIME_IMAGE_TAG=$(RUNTIME_IMAGE_TAG) BUILDER_IMAGE_TAG=$(BUILDER_IMAGE_TAG) $(MAKE) docker-dpv2-image
+
+.PHONY: docker-cilium-runtime-image docker-cilium-builder-image docker-dpv2-image docker-cilium-dpv2-image
