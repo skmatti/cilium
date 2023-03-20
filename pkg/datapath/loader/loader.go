@@ -254,6 +254,16 @@ func (l *Loader) reloadHostDatapath(ctx context.Context, ep datapath.Endpoint, o
 
 	// Replace programs on physical devices.
 	for _, device := range option.Config.GetDevices() {
+		// Avoid loading default bpf programs on multinic host devices for
+		// default host endpoint.
+		if !ep.IsMultiNICHost() && node.IsMultiNICHostDevice(device) {
+			continue
+		}
+		// For a multi nic host endpoint, load bpf only on the associated device.
+		if ep.IsMultiNICHost() && ep.GetParentDevName() != device {
+			continue
+		}
+
 		if _, err := netlink.LinkByName(device); err != nil {
 			log.WithError(err).WithField("device", device).Warn("Link does not exist")
 			continue

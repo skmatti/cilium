@@ -1037,6 +1037,15 @@ func initializeFlags() {
 	flags.MarkHidden(option.EnableGoogleMultiNICHairpin)
 	option.BindEnv(Vp, option.EnableGoogleMultiNICHairpin)
 
+	flags.Bool(option.EnableGoogleMultiNICHostFirewall, false, "Enable google multi NIC host firewall support")
+	flags.MarkHidden(option.EnableGoogleMultiNICHostFirewall)
+	option.BindEnv(Vp, option.EnableGoogleMultiNICHostFirewall)
+
+	flags.Var(option.NewNamedMapOptions(option.GoogleMultiNICHostMapping, &option.Config.GoogleMultiNICHostMapping, option.Config.FixedIdentityMappingValidator),
+		option.GoogleMultiNICHostMapping, "Key-value pairs of numeric identity (must be in range [128, 255]) and network object name, e.g. `128=node-network1` or `140=node-network2,142=node-network3`")
+	flags.MarkHidden(option.GoogleMultiNICHostMapping)
+	option.BindEnv(Vp, option.GoogleMultiNICHostMapping)
+
 	flags.Bool(option.EnableGoogleServiceSteering, false, "Enable google service steering support")
 	flags.MarkHidden(option.EnableGoogleServiceSteering)
 	option.BindEnv(Vp, option.EnableGoogleServiceSteering)
@@ -1394,6 +1403,17 @@ func initEnv() {
 	policy.SetPolicyEnabled(option.Config.EnablePolicy)
 	if option.Config.PolicyAuditMode {
 		log.Warningf("%s is enabled. Network policy will not be enforced.", option.PolicyAuditMode)
+	}
+
+	if option.Config.EnableGoogleMultiNICHostFirewall && len(option.Config.FixedIdentityMapping) > 0 {
+		log.Fatal("Fixed Identity Mapping must not be specified when multi nic host firewall feature is enabled")
+	}
+
+	if option.Config.EnableGoogleMultiNICHostFirewall {
+		identity.InitDefaultHostIdentity()
+		if err := identity.InitMultiNICHostNumericIdentitySet(option.Config.GoogleMultiNICHostMapping); err != nil {
+			log.WithError(err).Fatal("Invalid multi nic host identities provided")
+		}
 	}
 
 	if err := identity.AddUserDefinedNumericIdentitySet(option.Config.FixedIdentityMapping); err != nil {

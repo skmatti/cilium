@@ -16,6 +16,7 @@ import (
 	"github.com/cilium/cilium/pkg/identity/cache"
 	ipcacheTypes "github.com/cilium/cilium/pkg/ipcache/types"
 	"github.com/cilium/cilium/pkg/labels"
+	"github.com/cilium/cilium/pkg/option"
 	"github.com/cilium/cilium/pkg/source"
 	testidentity "github.com/cilium/cilium/pkg/testutils/identity"
 )
@@ -223,6 +224,57 @@ func TestInjectExisting(t *testing.T) {
 	assert.True(t, ok)
 	assert.Equal(t, source.KubeAPIServer, id.Source)
 
+}
+
+func TestMultiNICHostInjectLabels(t *testing.T) {
+	option.Config.EnableGoogleMultiNICHostFirewall = true
+	defer func() {
+		option.Config.EnableGoogleMultiNICHostFirewall = false
+	}()
+	// Adds kube API server label.
+	cancel := setupTest(t)
+	defer cancel()
+	ctx := context.Background()
+
+	updater := IPIdentityCache.PolicyHandler.(*mockUpdater)
+	allocator := IPIdentityCache.IdentityAllocator.(*testidentity.MockIdentityAllocator)
+
+	assert.Len(t, IPIdentityCache.metadata.m, 1)
+	remaining, err := IPIdentityCache.InjectLabels(ctx, []netip.Prefix{worldPrefix})
+	assert.Len(t, remaining, 0)
+	assert.NoError(t, err)
+	assert.Len(t, IPIdentityCache.ipToIdentityCache, 1)
+
+	id := IPIdentityCache.ipToIdentityCache[worldPrefix.String()].ID
+	assert.Len(t, updater.added, 1)
+	assert.Equal(t, allocator.LookupIdentityByID(ctx, id).LabelArray, updater.added[id])
+	assert.Len(t, updater.removed, 0)
+
+	// Insert multinic-host IP.
+	nodeNetwork := "test-node-network1"
+	hostEPPrefix := netip.MustParsePrefix("11.0.0.0/32")
+	id = identity.NumericIdentity(135)
+	lbls := labels.NewReservedMultiNICHostLabels(nodeNetwork)
+	// This label will be removed during label injection.
+	lbls.MergeLabels(labels.LabelWorld)
+	err = identity.InitMultiNICHostNumericIdentitySet(map[string]string{
+		id.String(): nodeNetwork,
+	})
+	assert.NoError(t, err)
+	IPIdentityCache.metadata.upsertLocked(hostEPPrefix, source.Local, "multinic-host-uid", lbls)
+	assert.Len(t, IPIdentityCache.metadata.m, 2)
+	remaining, err = IPIdentityCache.InjectLabels(ctx, []netip.Prefix{hostEPPrefix})
+	assert.NoError(t, err)
+	assert.Len(t, remaining, 0)
+	assert.Len(t, IPIdentityCache.ipToIdentityCache, 2)
+
+	id = IPIdentityCache.ipToIdentityCache[hostEPPrefix.String()].ID
+	assert.Len(t, updater.added, 1)
+	assert.Equal(t, allocator.LookupIdentityByID(ctx, id).LabelArray, updater.added[id])
+	assert.Len(t, updater.removed, 0)
+
+	// Remove identity.
+	assert.NoError(t, identity.DeleteReservedIdentity(id))
 }
 
 func TestFilterMetadataByLabels(t *testing.T) {

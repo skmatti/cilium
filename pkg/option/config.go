@@ -2409,6 +2409,16 @@ type DaemonConfig struct {
 	// PopulateGCENICInfo is a feature flag for google high performance multinetworking support, default is false.
 	PopulateGCENICInfo bool
 
+	// EnableGoogleMultiNICHostFirewall is a feature flag for google multi NIC
+	// support for host firewall policies, default is false. This option is
+	// true if enable-google-multi-nic, enable-host-firewall and
+	// enable-google-multi-nic-host-firewall are set to true.
+	EnableGoogleMultiNICHostFirewall bool
+
+	// GoogleMultiNICHostMapping a map of numeric identities to a multi nic node
+	// network name. Must be used with EnableGoogleMultiNICHostFirewall.
+	GoogleMultiNICHostMapping map[string]string
+
 	// EnableGDCILB is a feature flag for google GDC-H ILB Support, default is false
 	EnableGDCILB bool
 
@@ -2546,6 +2556,8 @@ var (
 		BPFEventsDropEnabled:          defaults.BPFEventsDropEnabled,
 		BPFEventsPolicyVerdictEnabled: defaults.BPFEventsPolicyVerdictEnabled,
 		BPFEventsTraceEnabled:         defaults.BPFEventsTraceEnabled,
+
+		GoogleMultiNICHostMapping: make(map[string]string),
 	}
 )
 
@@ -3108,6 +3120,7 @@ func (c *DaemonConfig) Populate(vp *viper.Viper) {
 	c.EnableLocalRedirectPolicy = vp.GetBool(EnableLocalRedirectPolicy)
 	c.EnableGoogleMultiNIC = vp.GetBool(EnableGoogleMultiNIC)
 	c.EnableGoogleMultiNICHairpin = vp.GetBool(EnableGoogleMultiNICHairpin)
+	c.EnableGoogleMultiNICHostFirewall = vp.GetBool(EnableHostFirewall) && vp.GetBool(EnableGoogleMultiNIC) && vp.GetBool(EnableGoogleMultiNICHostFirewall)
 	c.EnableGoogleServiceSteering = vp.GetBool(EnableGoogleServiceSteering)
 	c.PopulateGCENICInfo = vp.GetBool(PopulateGCENICInfo)
 	c.EncryptInterface = vp.GetStringSlice(EncryptInterface)
@@ -3418,6 +3431,12 @@ func (c *DaemonConfig) Populate(vp *viper.Viper) {
 		log.Fatalf("unable to parse %s: %s", FixedIdentityMapping, err)
 	} else if len(m) != 0 {
 		c.FixedIdentityMapping = m
+	}
+
+	if m := command.GetStringMapString(viper.GetViper(), GoogleMultiNICHostMapping); err != nil {
+		log.Fatalf("unable to parse %s: %s", GoogleMultiNICHostMapping, err)
+	} else if len(m) != 0 {
+		c.GoogleMultiNICHostMapping = m
 	}
 
 	c.ConntrackGCInterval = vp.GetDuration(ConntrackGCInterval)

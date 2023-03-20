@@ -212,6 +212,10 @@ func LookupReservedIdentityByLabels(lbls labels.Labels) *Identity {
 		return identity
 	}
 
+	if id, ok := ReservedMultiNICHostIDForLabels(lbls); ok {
+		return NewIdentity(id, lbls)
+	}
+
 	for _, lbl := range lbls {
 		var createID bool
 		switch {

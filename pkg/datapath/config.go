@@ -89,6 +89,12 @@ type CompileTimeConfiguration interface {
 	// IsMultiNIC returns true if the endpoint is a MultiNIC endpoint (macvlan/macvtap).
 	IsMultiNIC() bool
 
+	// IsMultiNICHost returns true if the endpoint is a MultiNIC host endpoint.
+	IsMultiNICHost() bool
+
+	// GetParentDevName returns the name of the parent device for the endpoint.
+	GetParentDevName() string
+
 	// EnableMulticast returns true if the endpoint allows multicast traffic.
 	EnableMulticast() bool
 

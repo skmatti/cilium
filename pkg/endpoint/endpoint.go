@@ -368,6 +368,9 @@ type Endpoint struct {
 	// Device type of the endpoint. If it's unset (empty), it's the normal veth endpoint.
 	deviceType multinicep.EndpointDeviceType
 
+	// nodeNetworkName is the name of the host network for a multinic L2 endpoint.
+	nodeNetworkName string
+
 	// parentDevName is the name of the parent interface for a multinic L2/L3 endpoint.
 	parentDevName string
 
@@ -884,6 +887,8 @@ func parseEndpoint(ctx context.Context, owner regeneration.Owner, policyGetter p
 
 	// If host label is present, it's the host endpoint.
 	ep.isHost = ep.HasLabels(labels.LabelHost)
+
+	ep.populateNodeNetwork()
 
 	if ep.isHost {
 		// Overwrite datapath configuration with the current agent configuration.
@@ -1727,6 +1732,16 @@ func (e *Endpoint) InitWithNodeLabels(ctx context.Context, launchTime time.Durat
 	newLabels := labels.Map2Labels(node.GetLabels(), labels.LabelSourceK8s)
 	newIdtyLabels, _ := labelsfilter.Filter(newLabels)
 	epLabels.MergeLabels(newIdtyLabels)
+
+	if option.Config.EnableGoogleMultiNICHostFirewall {
+		// Set node network name for default host endpoint.
+		if e.GetNodeNetworkName() == "" {
+			e.SetNodeNetworkName(identity.DefaultMultiNICNodeNetwork)
+		}
+		nodeNetwork := e.GetNodeNetworkName()
+		// Reserved identity labels.
+		epLabels.MergeLabels(labels.NewReservedMultiNICHostLabels(nodeNetwork))
+	}
 
 	// Give the endpoint a security identity
 	newCtx, cancel := context.WithTimeout(ctx, launchTime)

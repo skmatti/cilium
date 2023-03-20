@@ -11,15 +11,13 @@ import (
 	"github.com/cilium/cilium/pkg/backoff"
 	"github.com/cilium/cilium/pkg/gke/multinic/nic"
 	"github.com/cilium/cilium/pkg/node"
-	networkv1 "k8s.io/cloud-provider-gcp/crd/apis/network/v1"
+	nodeTypes "github.com/cilium/cilium/pkg/node/types"
+	"github.com/vishvananda/netlink"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	k8sTypes "k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes"
-
-	nodeTypes "github.com/cilium/cilium/pkg/node/types"
-
-	"github.com/vishvananda/netlink"
+	networkv1 "k8s.io/cloud-provider-gcp/crd/apis/network/v1"
 )
 
 const (

@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	multinicep "github.com/cilium/cilium/pkg/gke/multinic/endpoint"
+	"github.com/cilium/cilium/pkg/labels"
 	"github.com/cilium/cilium/pkg/option"
 	"github.com/cilium/cilium/pkg/testutils"
 )
@@ -79,6 +80,56 @@ func TestGenerateCEPName(t *testing.T) {
 			}
 			if got != tc.want {
 				t.Fatalf("ep.GenerateCEPName() return %s but want %s", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestPopulateNodeNetwork(t *testing.T) {
+	testcases := []struct {
+		desc            string
+		disableMultiNIC bool
+		endpoint        *Endpoint
+		wantNetwork     string
+	}{
+		{
+			desc: "host endpoint",
+			endpoint: &Endpoint{
+				OpLabels: labels.OpLabels{
+					OrchestrationIdentity: labels.LabelHost,
+				},
+			},
+		},
+		{
+			desc: "multi nic host endpoint with reserved labels",
+			endpoint: &Endpoint{
+				OpLabels: labels.OpLabels{
+					OrchestrationIdentity: labels.NewReservedMultiNICHostLabels("node-network1"),
+				},
+			},
+			wantNetwork: "node-network1",
+		},
+		{
+			desc:            "multi nic host endpoint with reserved labels (multi NIC host firewall disabled)",
+			disableMultiNIC: true,
+			endpoint: &Endpoint{
+				OpLabels: labels.OpLabels{
+					OrchestrationIdentity: labels.NewReservedMultiNICHostLabels("node-network1"),
+				},
+			},
+		},
+	}
+	for _, tc := range testcases {
+		t.Run(tc.desc, func(t *testing.T) {
+			if !tc.disableMultiNIC {
+				option.Config.EnableGoogleMultiNICHostFirewall = true
+				defer func() {
+					option.Config.EnableGoogleMultiNICHostFirewall = false
+				}()
+			}
+			tc.endpoint.populateNodeNetwork()
+			if tc.endpoint.nodeNetworkName != tc.wantNetwork {
+				t.Fatalf("ep.populateNodeNetwork() = %s, want %s", tc.endpoint.nodeNetworkName, tc.wantNetwork)
 			}
 		})
 	}

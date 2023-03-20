@@ -9,8 +9,10 @@ import (
 	"sync"
 	"time"
 
+	"github.com/cilium/cilium/pkg/identity"
 	v1 "github.com/cilium/cilium/pkg/k8s/slim/k8s/api/core/v1"
 	"github.com/cilium/cilium/pkg/metrics"
+	"github.com/cilium/cilium/pkg/node"
 	"github.com/containernetworking/plugins/pkg/ns"
 	"github.com/vishvananda/netlink"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -846,4 +848,76 @@ func (d *Daemon) defaultNetwork(ctx context.Context) (*networkv1.Network, error)
 		return nil, fmt.Errorf("default network %q: %v", networkv1.DefaultNetworkName, err)
 	}
 	return defaultNetwork, nil
+}
+
+// EnsureMultiNICHostEndpoint adds a multinic host endpoint for a given network.
+func (d *Daemon) EnsureMultiNICHostEndpoint(restored []*endpoint.Endpoint, network, parentDevice string) (*endpoint.Endpoint, error) {
+	if !option.Config.EnableGoogleMultiNICHostFirewall {
+		return nil, nil
+	}
+	// Default node network is managed by the main daemon process.
+	if network == identity.DefaultMultiNICNodeNetwork {
+		return nil, nil
+	}
+	// If a reserved identity does not exist, do not create a multi nic endpoint.
+	if _, ok := identity.ReservedMultiNICHostIDForLabels(labels.NewReservedMultiNICHostLabels(network)); !ok {
+		return nil, nil
+	}
+	scopedLog := log.WithField("node-network", network)
+	scopedLog.Info("Ensuring multi nic host endpoint")
+	ep := d.endpointManager.GetMultiNICHostEndpoint(network)
+	// If the endpoint already exists, initialize the node labels.
+	if ep != nil {
+		node.AddMultiNICHostDevice(parentDevice)
+		ep.SetParentDevName(parentDevice)
+		d.endpointManager.InitEndpointWithNodeLabels(d.ctx, ep)
+		scopedLog.WithField(logfields.EndpointID, ep.ID).Info("Multi nic host endpoint labels initialized")
+		return ep, nil
+	}
+	// Check if the endpoint is being regenerated before creating new one.
+	for _, ep := range restored {
+		if ep.GetNodeNetworkName() == network {
+			return nil, fmt.Errorf("wait for multi nic host endpoint for node network %s to be restored, will retry", network)
+		}
+	}
+	scopedLog.Info("Creating multi nic host endpoint")
+	var err error
+	if ep, err = d.endpointManager.CreateMultiNICHostEndpoint(
+		d.ctx, d, d, d.ipcache, d.l7Proxy, d.identityAllocator,
+		fmt.Sprintf("create multi nic host endpoint for node network %s", network),
+		network, parentDevice,
+	); err != nil {
+		scopedLog.Errorf("Unable to create multi nic host endpoint: %v", err)
+		return nil, err
+	}
+	node.AddMultiNICHostDevice(parentDevice)
+	scopedLog.WithField(logfields.EndpointID, ep.ID).Info("Multi nic host endpoint created")
+	return ep, nil
+}
+
+// DeleteMultiNICHostEndpoint deletes the multi nic host endpoint for a given
+// network.
+func (d *Daemon) DeleteMultiNICHostEndpoint(network, parentDevice string) error {
+	// Default node network is managed by the main daemon process.
+	if network == identity.DefaultMultiNICNodeNetwork {
+		return nil
+	}
+	scopedLog := log.WithFields(logrus.Fields{
+		"node-network": network,
+	})
+	ep := d.endpointManager.GetMultiNICHostEndpoint(network)
+	if ep == nil {
+		scopedLog.Warnf("Could not find multi nic host endpoint, skipped deletion")
+		return nil
+	}
+	scopedLog = scopedLog.WithField(logfields.EndpointID, ep.ID)
+	scopedLog.Info("Deleting multi nic host endpoint")
+	errs := d.endpointManager.RemoveEndpoint(ep, endpoint.DeleteConfig{NoIPRelease: true})
+	if len(errs) > 0 {
+		err := fmt.Errorf("unable to delete multi nic host endpoint: %v", errs)
+		scopedLog.Error(err)
+		return err
+	}
+	node.DeleteMultiNICHostDevice(parentDevice)
+	return nil
 }

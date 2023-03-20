@@ -11,6 +11,7 @@ import (
 	"github.com/cilium/cilium/pkg/checker"
 	"github.com/cilium/cilium/pkg/identity"
 	"github.com/cilium/cilium/pkg/labels"
+	"github.com/cilium/cilium/pkg/option"
 )
 
 // Hook up gocheck into the "go test" runner.
@@ -88,6 +89,42 @@ func (s *IdentityManagerTestSuite) TestHostIdentityLifecycle(c *C) {
 	newHostLabels := labels.NewLabelsFromModel([]string{"id=foo"})
 	newHostLabels.MergeLabels(labels.LabelHost)
 	newHostIdentity := identity.NewIdentity(identity.ReservedIdentityHost, newHostLabels)
+	idm.RemoveOldAddNew(hostIdentity, newHostIdentity)
+	c.Assert(idm.identities[hostIdentity.ID].refCount, Equals, uint(1))
+	c.Assert(idm.identities[hostIdentity.ID].identity, checker.DeepEquals, newHostIdentity)
+}
+
+func (s *IdentityManagerTestSuite) TestMultiNICHostIdentityLifecycle(c *C) {
+	option.Config.EnableGoogleMultiNICHostFirewall = true
+	defer func() {
+		option.Config.EnableGoogleMultiNICHostFirewall = false
+	}()
+	idm := NewIdentityManager()
+	c.Assert(idm.identities, Not(IsNil))
+
+	testNetwork := "test-node-network1"
+	id := identity.NumericIdentity(135)
+
+	// Create multi nic host reserved identity.
+	err := identity.InitMultiNICHostNumericIdentitySet(map[string]string{
+		id.String(): testNetwork,
+	})
+	c.Assert(err, IsNil)
+	defer func() {
+		identity.DelReservedNumericIdentity(id)
+	}()
+
+	hostIdentity := identity.NewIdentity(id, labels.NewReservedMultiNICHostLabels(testNetwork))
+	_, exists := idm.identities[hostIdentity.ID]
+	c.Assert(exists, Equals, false)
+
+	idm.Add(hostIdentity)
+	c.Assert(idm.identities[hostIdentity.ID].refCount, Equals, uint(1))
+
+	// Update labels for the multi nic host endpoint.
+	newHostLabels := labels.NewLabelsFromModel([]string{"id=foo"})
+	newHostLabels.MergeLabels(labels.NewReservedMultiNICHostLabels(testNetwork))
+	newHostIdentity := identity.NewIdentity(id, newHostLabels)
 	idm.RemoveOldAddNew(hostIdentity, newHostIdentity)
 	c.Assert(idm.identities[hostIdentity.ID].refCount, Equals, uint(1))
 	c.Assert(idm.identities[hostIdentity.ID].identity, checker.DeepEquals, newHostIdentity)

@@ -2,6 +2,7 @@ package endpointmanager
 
 import (
 	"context"
+	"sort"
 
 	apiv1 "github.com/cilium/cilium/api/v1/models"
 	"github.com/cilium/cilium/pkg/checker"
@@ -9,6 +10,7 @@ import (
 	endpointid "github.com/cilium/cilium/pkg/endpoint/id"
 	"github.com/cilium/cilium/pkg/endpointmanager/idallocator"
 	multinicep "github.com/cilium/cilium/pkg/gke/multinic/endpoint"
+	"github.com/cilium/cilium/pkg/ipcache"
 	"github.com/cilium/cilium/pkg/option"
 	testidentity "github.com/cilium/cilium/pkg/testutils/identity"
 	testipcache "github.com/cilium/cilium/pkg/testutils/ipcache"
@@ -467,4 +469,129 @@ func (s *EndpointManagerSuite) TestRemoveMultiNIC(c *C) {
 	c.Assert(len(mgr.endpoints), Equals, 0)
 	c.Assert(len(mgr.endpointsAux), Equals, 0)
 	c.Assert(len(mgr.endpointsMultiNIC), Equals, 0)
+}
+
+func (s *EndpointManagerSuite) TestGetMultiNICHostEndpoint(c *C) {
+	option.Config.EnableGoogleMultiNICHostFirewall = true
+	defer func() {
+		option.Config.EnableGoogleMultiNICHostFirewall = false
+	}()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	tests := []struct {
+		desc      string
+		endpoints []*endpoint.Endpoint
+		network   string
+		wantEP    bool
+	}{
+		{
+			desc:    "non existing endpoint",
+			network: "node-network-1",
+		},
+		{
+			desc: "non host endpoint",
+			endpoints: []*endpoint.Endpoint{
+				newTestHostEndpoint(ctx, s, 6, "node-network-1", false /*isHost*/),
+			},
+			network: "node-network-1",
+		},
+		{
+			desc: "matching endpoint",
+			endpoints: []*endpoint.Endpoint{
+				newTestHostEndpoint(ctx, s, 7, "node-network-1", true /*isHost*/),
+			},
+			network: "node-network-1",
+			wantEP:  true,
+		},
+		{
+			desc: "multiple endpoints",
+			endpoints: []*endpoint.Endpoint{
+				newTestHostEndpoint(ctx, s, 8, "node-network-1", true /*isHost*/),
+				newTestHostEndpoint(ctx, s, 9, "node-network-2", true /*isHost*/),
+				newTestHostEndpoint(ctx, s, 10, "node-network-3", true /*isHost*/),
+			},
+			network: "node-network-1",
+			wantEP:  true,
+		},
+	}
+	for _, tc := range tests {
+		mgr := NewEndpointManager(&dummyEpSyncher{})
+		for _, ep := range tc.endpoints {
+			c.Assert(mgr.expose(ep), IsNil)
+		}
+		got := mgr.GetMultiNICHostEndpoint(tc.network)
+		c.Assert(got != nil, Equals, tc.wantEP)
+		if !tc.wantEP {
+			return
+		}
+		c.Assert(got.IsHost(), Equals, true)
+		c.Assert(got.GetNodeNetworkName(), Equals, tc.network)
+	}
+}
+
+func (s *EndpointManagerSuite) TestGetMultiNICHostEndpoints(c *C) {
+	option.Config.EnableGoogleMultiNICHostFirewall = true
+	defer func() {
+		option.Config.EnableGoogleMultiNICHostFirewall = false
+	}()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	tests := []struct {
+		desc         string
+		endpoints    []*endpoint.Endpoint
+		wantNetworks []string
+	}{
+		{
+			desc: "nil endpoints",
+		},
+		{
+			desc:      "empty endpoints",
+			endpoints: []*endpoint.Endpoint{},
+		},
+		{
+			desc: "non host endpoint",
+			endpoints: []*endpoint.Endpoint{
+				newTestHostEndpoint(ctx, s, 16, "node-network-1", false /*isHost*/),
+			},
+		},
+		{
+			desc: "default host endpoint not returned",
+			endpoints: []*endpoint.Endpoint{
+				newTestHostEndpoint(ctx, s, 17, "" /*network*/, true /*isHost*/),
+			},
+		},
+		{
+			desc: "multiple endpoints",
+			endpoints: []*endpoint.Endpoint{
+				// Default host endpoint.
+				newTestHostEndpoint(ctx, s, 18, "node-network", true /*isHost*/),
+				newTestHostEndpoint(ctx, s, 19, "node-network-1", true /*isHost*/),
+				newTestHostEndpoint(ctx, s, 20, "node-network-2", true /*isHost*/),
+			},
+			wantNetworks: []string{"node-network-1", "node-network-2"},
+		},
+	}
+	for _, tc := range tests {
+		mgr := NewEndpointManager(&dummyEpSyncher{})
+		for _, ep := range tc.endpoints {
+			c.Assert(mgr.expose(ep), IsNil)
+		}
+		gotEPs := mgr.GetMultiNICHostEndpoints()
+		var got []string
+		for _, ep := range gotEPs {
+			got = append(got, ep.GetNodeNetworkName())
+		}
+		sort.Strings(got)
+		c.Assert(got, checker.DeepEquals, tc.wantNetworks)
+	}
+}
+
+func newTestHostEndpoint(ctx context.Context, s *EndpointManagerSuite, id uint16, network string, isHost bool) *endpoint.Endpoint {
+	ipc := ipcache.NewIPCache(&ipcache.Configuration{
+		Context: ctx,
+	})
+	ep := endpoint.NewEndpointWithState(s, s, ipc, &endpoint.FakeEndpointProxy{}, &testidentity.MockIdentityAllocator{}, id, endpoint.StateReady)
+	ep.SetIsHost(isHost)
+	ep.SetNodeNetworkName(network)
+	return ep
 }

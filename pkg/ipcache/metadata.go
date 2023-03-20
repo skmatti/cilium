@@ -412,6 +412,18 @@ func (ipc *IPCache) injectLabels(ctx context.Context, prefix netip.Prefix, lbls 
 		lbls = n
 	}
 
+	if id, ok := identity.ReservedMultiNICHostIDForLabels(lbls); ok {
+		if lbls.Has(labels.LabelWorld[labels.IDNameWorld]) {
+			// If the prefix is associated with both world and multinic-host,
+			// then the latter take precedence to avoid allocating a CIDR identity
+			// for an entity within the cluster.
+			n := lbls.Remove(labels.LabelWorld)
+			n = n.Remove(cidrlabels.GetCIDRLabels(prefix))
+			lbls = n
+		}
+		return identity.LookupReservedIdentity(id), false, nil
+	}
+
 	if lbls.Has(labels.LabelHost[labels.IDNameHost]) {
 		// Associate any new labels with the host identity.
 		//

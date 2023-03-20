@@ -107,13 +107,21 @@ func (d *Daemon) initManager() (manager.Manager, error) {
 }
 
 func (d *Daemon) initMultiNIC(ctx context.Context, mgr manager.Manager, endpoints []*endpoint.Endpoint) error {
+	var hostEPs []*endpoint.Endpoint
+	for _, ep := range endpoints {
+		if ep.IsHost() {
+			hostEPs = append(hostEPs, ep)
+		}
+	}
 	reconciler := &multinicctrl.NetworkReconciler{
-		Client:          mgr.GetClient(),
-		EndpointManager: d.endpointManager,
-		NodeName:        nodeTypes.GetName(),
-		IPAMMgr:         d,
-		DeviceMgr:       d,
-		Log:             log,
+		Client:              mgr.GetClient(),
+		EndpointManager:     d.endpointManager,
+		NodeName:            nodeTypes.GetName(),
+		IPAMMgr:             d,
+		DeviceMgr:           d,
+		Log:                 log,
+		HostEndpointManager: d,
+		RestoredHostEPs:     hostEPs,
 	}
 	if err := reconciler.SetupWithManager(mgr); err != nil {
 		return fmt.Errorf("failed to setup network controller: %v", err)

@@ -30,6 +30,18 @@ const (
 	// EnableGoogleMultiNICHaipin is the name of the option to enable gogole multi nic hairpin support.
 	EnableGoogleMultiNICHairpin = "enable-google-multi-nic-hairpin"
 
+	// EnableGoogleMultiNICHostFirewall is the name of the option to enable google
+	// multi NIC support for host firewall policies.
+	EnableGoogleMultiNICHostFirewall = "enable-google-multi-nic-host-firewall"
+
+	// GoogleMultiNICHostMapping is the name of the option to which maps
+	// numeric identities to a multi nic host network name.
+	GoogleMultiNICHostMapping = "google-multi-nic-host-mapping"
+
+	// EnableTunnelFreeEgress enables tunnel-free egress NAT.
+	// The option is ignored unless `enable-flat-ipv4` is true.
+	EnableTunnelFreeEgress = "enable-tunnel-free-egress"
+
 	// EnableGoogleServiceSteering is the name of the option to enable google service steering support.
 	EnableGoogleServiceSteering = "enable-google-service-steering"
 

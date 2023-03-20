@@ -3,13 +3,13 @@ package controller
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"os"
 	"path"
 	"time"
 
 	"github.com/cilium/cilium/pkg/datapath/loader"
+	"github.com/cilium/cilium/pkg/endpoint"
 	"github.com/cilium/cilium/pkg/logging"
 	"github.com/cilium/cilium/pkg/logging/logfields"
 	"github.com/cilium/cilium/pkg/option"
@@ -184,22 +184,25 @@ func (r *NetworkReconciler) loadEBPFOnParent(ctx context.Context, network *netwo
 		return nil
 	}
 
-	scopedLog := r.Log.WithField(logfields.Interface, devToLoad)
-	if isCiliumManaged(devToLoad) {
-		scopedLog.Info("The parent interface is already a cilium-managed device. No need to reconcile")
+	hostEp, err := r.createHostEndpointIfNeeded(network.Name, devToLoad)
+	if err != nil {
+		return err
+	}
+	if hostEp == nil {
 		return nil
 	}
 
-	scopedLog.WithField("network", network.Name).Infof("Loading ebpf for network")
+	scopedLog := r.Log.WithFields(logrus.Fields{
+		"network":           network.Name,
+		logfields.Interface: devToLoad,
+	})
+	scopedLog.Info("Loading ebpf for network")
+	// This returns nil if path already exists.
 	objDir := path.Join(multinicObjDir, devToLoad)
 	if err := os.MkdirAll(objDir, os.ModePerm); err != nil {
 		return fmt.Errorf("failed to create multinic object dir: %v", err)
 	}
 
-	hostEp := r.EndpointManager.GetHostEndpoint()
-	if hostEp == nil {
-		return errors.New("waiting for host endpoint to come up. Will retry.")
-	}
 	epInfo, err := hostEp.GetEpInfoCacheForCurrentDir()
 	if err != nil {
 		return fmt.Errorf("failed to get endpoint cache: %v", err)
@@ -210,6 +213,37 @@ func (r *NetworkReconciler) loadEBPFOnParent(ctx context.Context, network *netwo
 
 	scopedLog.Info("Datapath ebpf loaded successfully")
 	return nil
+}
+
+// createHostEndpointIfNeeded returns the host endpoint associated with
+// the network. If host endpoint does not exist for a network, then it is
+// created.
+func (r *NetworkReconciler) createHostEndpointIfNeeded(networkName, devToLoad string) (*endpoint.Endpoint, error) {
+	scopedLog := r.Log.WithFields(logrus.Fields{
+		"network":           networkName,
+		logfields.Interface: devToLoad,
+	})
+	if !option.Config.EnableGoogleMultiNICHostFirewall && isCiliumManaged(devToLoad) {
+		scopedLog.Info("The parent interface is already a cilium-managed device. No need to reconcile")
+		return nil, nil
+	}
+
+	// Wait for default host endpoint to come up before ensuring multi
+	// nic host endpoint.
+	hostEp := r.EndpointManager.GetHostEndpoint()
+	if hostEp == nil {
+		// This should be retried higher in the call-chain.
+		return nil, fmt.Errorf("host endpoint not found")
+	}
+
+	multiNICHostEp, err := r.HostEndpointManager.EnsureMultiNICHostEndpoint(r.RestoredHostEPs, networkName, devToLoad)
+	if err != nil {
+		return nil, fmt.Errorf("ensure multi nic host endpoint for network %s (parent-device %s): %w", networkName, devToLoad, err)
+	}
+	if multiNICHostEp != nil {
+		return multiNICHostEp, nil
+	}
+	return hostEp, nil
 }
 
 func (r *NetworkReconciler) unloadEBPFOnParent(ctx context.Context, network *networkv1.Network, node *corev1.Node) error {
@@ -232,6 +266,10 @@ func (r *NetworkReconciler) unloadEBPFOnParent(ctx context.Context, network *net
 
 	if err := os.RemoveAll(path.Join(multinicObjDir, devToUnload)); err != nil {
 		return fmt.Errorf("failed to remove multinic object dir: %v", err)
+	}
+
+	if err := r.HostEndpointManager.DeleteMultiNICHostEndpoint(network.Name, devToUnload); err != nil {
+		return err
 	}
 
 	scopedLog.Info("Datapath ebpf unloaded successfully")
