@@ -437,23 +437,23 @@ func (keys MapState) insertIfNotExists(key Key, entry MapStateEntry) {
 //
 // The above can be accomplished by:
 //
-// 1. Change existing L4-only ALLOW key on matching port that does not already
-//    redirect to redirect.
-//    - e.g., 0:80=allow,0 -> 0:80=allow,<proxyport>
-// 2. If allow-all policy exists, add L4-only visibility redirect key if the L4-only
-//    key does not already exist.
-//    - e.g., 0:0=allow,0 -> add 0:80=allow,<proxyport> if 0:80 does not exist
-//      - this allows all traffic on port 80, but see step 5 below.
-// 3. Change all L3/L4 ALLOW keys on matching port that do not already redirect to
-//    redirect.
-//    - e.g, <ID1>:80=allow,0 -> <ID1>:80=allow,<proxyport>
-// 4. For each L3-only ALLOW key add the corresponding L3/L4 ALLOW redirect if no
-//    L3/L4 key already exists and no L4-only key already exists and one is not added.
-//    - e.g., <ID2>:0=allow,0 -> add <ID2>:80=allow,<proxyport> if <ID2>:80
-//      and 0:80 do not exist
-// 5. If a new L4-only key was added: For each L3-only DENY key add the
-//    corresponding L3/L4 DENY key if no L3/L4 key already exists.
-//    - e.g., <ID3>:0=deny,0 -> add <ID3>:80=deny,0 if <ID3>:80 does not exist
+//  1. Change existing L4-only ALLOW key on matching port that does not already
+//     redirect to redirect.
+//     - e.g., 0:80=allow,0 -> 0:80=allow,<proxyport>
+//  2. If allow-all policy exists, add L4-only visibility redirect key if the L4-only
+//     key does not already exist.
+//     - e.g., 0:0=allow,0 -> add 0:80=allow,<proxyport> if 0:80 does not exist
+//     - this allows all traffic on port 80, but see step 5 below.
+//  3. Change all L3/L4 ALLOW keys on matching port that do not already redirect to
+//     redirect.
+//     - e.g, <ID1>:80=allow,0 -> <ID1>:80=allow,<proxyport>
+//  4. For each L3-only ALLOW key add the corresponding L3/L4 ALLOW redirect if no
+//     L3/L4 key already exists and no L4-only key already exists and one is not added.
+//     - e.g., <ID2>:0=allow,0 -> add <ID2>:80=allow,<proxyport> if <ID2>:80
+//     and 0:80 do not exist
+//  5. If a new L4-only key was added: For each L3-only DENY key add the
+//     corresponding L3/L4 DENY key if no L3/L4 key already exists.
+//     - e.g., <ID3>:0=deny,0 -> add <ID3>:80=deny,0 if <ID3>:80 does not exist
 //
 // With the above we only change/expand existing allow keys to redirect, and
 // expand existing drop keys to also drop on the port of interest, if a new
@@ -616,6 +616,43 @@ func (keys MapState) DetermineAllowLocalhostIngress() {
 				},
 			}
 			es := NewMapStateEntry(nil, derivedFrom, false, isHostDenied)
+			keys.DenyPreferredInsert(localRemoteNodeKey, es)
+		}
+	}
+}
+
+// DetermineAllowLocalMultiNIChostIngress determines whether communication
+// should be allowed from the localhost. It inserts the Key corresponding to the
+// localhost in the desiredPolicyKeys if the localhost is allowed to communicate
+// with the endpoint.
+func (keys MapState) DetermineAllowLocalMultiNIChostIngress(hostId identity.NumericIdentity) {
+	if option.Config.AlwaysAllowLocalhost() {
+		derivedFrom := labels.LabelArrayList{
+			labels.LabelArray{
+				labels.NewLabel(LabelKeyPolicyDerivedFrom, LabelAllowLocalHostIngress, labels.LabelSourceReserved),
+			},
+		}
+		es := NewMapStateEntry(nil, derivedFrom, false, false)
+		localHostKey := Key{
+			Identity:         hostId.Uint32(),
+			TrafficDirection: trafficdirection.Ingress.Uint8(),
+		}
+		keys.DenyPreferredInsert(localHostKey, es)
+		if !option.Config.EnableRemoteNodeIdentity {
+			var isHostDenied bool
+			v, ok := keys[localHostKey]
+			isHostDenied = ok && v.IsDeny
+			derivedFrom := labels.LabelArrayList{
+				labels.LabelArray{
+					labels.NewLabel(LabelKeyPolicyDerivedFrom, LabelAllowRemoteHostIngress, labels.LabelSourceReserved),
+				},
+			}
+			es := NewMapStateEntry(nil, derivedFrom, false, isHostDenied)
+			// localRemoteNodeKey represents an ingress L3 allow from remote nodes.
+			localRemoteNodeKey = Key{
+				Identity:         identity.RemoteMultiNICHostID(hostId).Uint32(),
+				TrafficDirection: trafficdirection.Ingress.Uint8(),
+			}
 			keys.DenyPreferredInsert(localRemoteNodeKey, es)
 		}
 	}

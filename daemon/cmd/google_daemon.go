@@ -117,6 +117,7 @@ func (d *Daemon) initMultiNIC(ctx context.Context, mgr manager.Manager, endpoint
 		IPAMMgr:         d,
 		DeviceMgr:       d,
 		Log:             log,
+		HostEndpointMgr: d,
 	}
 	if err := reconciler.SetupWithManager(mgr); err != nil {
 		return fmt.Errorf("failed to setup network controller: %v", err)

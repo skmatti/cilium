@@ -531,6 +531,17 @@ func (l Labels) FindReserved() Labels {
 	return nil
 }
 
+// FindLabelKey returns the label with the specified label key.
+// If there is no label with the given key, returns nil.
+func (l Labels) FindLabelKey(key string) *Label {
+	for _, lbl := range l {
+		if lbl.Key == key {
+			return &lbl
+		}
+	}
+	return nil
+}
+
 // IsReserved returns true if any of the labels has a reserved source.
 func (l Labels) IsReserved() bool {
 	for _, lbl := range l {

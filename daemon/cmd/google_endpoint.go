@@ -10,6 +10,7 @@ import (
 
 	v1 "github.com/cilium/cilium/pkg/k8s/slim/k8s/api/core/v1"
 	"github.com/cilium/cilium/pkg/metrics"
+	"github.com/cilium/cilium/pkg/node"
 	"github.com/containernetworking/plugins/pkg/ns"
 	"github.com/vishvananda/netlink"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -821,4 +822,63 @@ func (d *Daemon) defaultNetwork(ctx context.Context) (*networkv1.Network, error)
 		return nil, fmt.Errorf("default network %q: %v", networkv1.DefaultNetworkName, err)
 	}
 	return defaultNetwork, nil
+}
+
+// EnsureMultiNICHostEndpoint adds a multinic host endpoint for network.
+func (d *Daemon) EnsureMultiNICHostEndpoint(network, parentDevice string) (*endpoint.Endpoint, error) {
+	scopedLog := log.WithFields(logrus.Fields{
+		"node-network": network,
+	})
+	scopedLog.Info("Ensuring host endpoint")
+	if network == node.DefaultNodeNetwork {
+		ep := d.endpointManager.GetHostEndpoint()
+		if ep == nil {
+			return nil, fmt.Errorf("default host endpoint not found")
+		}
+		ep.SetNodeNetworkName(network)
+		d.endpointManager.InitEndpointWithNodeLablels(d.ctx, ep)
+		scopedLog.WithField(logfields.EndpointID, ep.ID).Info("Default host endpoint ensured")
+		return ep, nil
+	}
+	ep := d.endpointManager.GetMultiNICHostEndpoint(network)
+	if ep != nil {
+		d.endpointManager.InitEndpointWithNodeLablels(d.ctx, ep)
+		scopedLog.WithField(logfields.EndpointID, ep.ID).Info("Multinic host endpoint ensured")
+		return ep, nil
+	} else {
+		scopedLog.Info("Creating multinic host endpoint")
+		var err error
+		if ep, err = d.endpointManager.CreateMultiNICHostEndpoint(
+			d.ctx, d, d, d.ipcache, d.l7Proxy, d.identityAllocator,
+			fmt.Sprintf("Create multinic host endpoint for node network %s", network),
+			network, parentDevice,
+		); err != nil {
+			scopedLog.Errorf("unable to create multinic host endpoint: %v", err)
+			return nil, err
+		}
+	}
+	scopedLog.WithField(logfields.EndpointID, ep.ID).Info("Multinic host endpoint ensured")
+	return ep, nil
+}
+
+// DeleteMultiNICHostEndpoint deletes the multinic host endpoint for given
+// node network.
+func (d *Daemon) DeleteMultiNICHostEndpoint(network string) error {
+	scopedLog := log.WithFields(logrus.Fields{
+		"network": network,
+	})
+	ep := d.endpointManager.GetMultiNICHostEndpoint(network)
+	if ep == nil {
+		scopedLog.Warnf("could not find host endpoint for network %s, skipped deletion", network)
+		return nil
+	}
+	scopedLog = scopedLog.WithField(logfields.EndpointID, ep.ID)
+	scopedLog.Info("Deleting host endpoint")
+	errs := d.endpointManager.RemoveEndpoint(ep, endpoint.DeleteConfig{NoIPRelease: true})
+	if len(errs) > 0 {
+		err := fmt.Errorf("unable to delete host endpoint: %v", errs)
+		scopedLog.Error(err)
+		return err
+	}
+	return nil
 }

@@ -12,6 +12,7 @@ import (
 	api "github.com/cilium/cilium/pkg/k8s/apis/cilium.io"
 	"github.com/cilium/cilium/pkg/labels"
 	"github.com/cilium/cilium/pkg/lock"
+	"github.com/cilium/cilium/pkg/node"
 	"github.com/cilium/cilium/pkg/option"
 )
 
@@ -370,6 +371,8 @@ var (
 		labels.IDNameRemoteNode:    ReservedIdentityRemoteNode,
 		labels.IDNameKubeAPIServer: ReservedIdentityKubeAPIServer,
 		labels.IDNameIngress:       ReservedIdentityIngress,
+
+		labels.ReservedMultiNICHostLabels(node.DefaultNodeNetwork).String(): ReservedIdentityHost,
 	}
 	reservedIdentityNames = map[NumericIdentity]string{
 		IdentityUnknown:               "unknown",
@@ -445,9 +448,10 @@ func DelReservedNumericIdentity(identity NumericIdentity) error {
 // NumericIdentity is the numeric representation of a security identity.
 //
 // Bits:
-//    0-15: identity identifier
-//   16-23: cluster identifier
-//      24: LocalIdentityFlag: Indicates that the identity has a local scope
+//
+//	 0-15: identity identifier
+//	16-23: cluster identifier
+//	   24: LocalIdentityFlag: Indicates that the identity has a local scope
 type NumericIdentity uint32
 
 // MaxNumericIdentity is the maximum value of a NumericIdentity.

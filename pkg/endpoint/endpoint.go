@@ -356,6 +356,9 @@ type Endpoint struct {
 	// Device type of the endpoint. If it's unset (empty), it's the normal veth endpoint.
 	deviceType multinicep.EndpointDeviceType
 
+	// nodeNetworkName is the name of the host network for a multinic L2 endpoint.
+	nodeNetworkName string
+
 	// parentDevName is the name of the parent interface for a multinic L2/L3 endpoint.
 	parentDevName string
 
@@ -1732,6 +1735,16 @@ func (e *Endpoint) InitWithNodeLabels(ctx context.Context, launchTime time.Durat
 	epLabels := labels.Labels{}
 	epLabels.MergeLabels(labels.LabelHost)
 
+	log.Info("InitWithNodeLabels() call")
+	if option.Config.EnableGoogleMultiNICHostFirewall {
+		nodeNetwork := node.DefaultNodeNetwork
+		if e.GetNodeNetworkName() != "" {
+			nodeNetwork = e.GetNodeNetworkName()
+		}
+		epLabels.MergeLabels(labels.ReservedMultiNICHostLabels(nodeNetwork))
+		epLabels.MergeLabels(labels.MultiNICHostLabels(nodeNetwork))
+	}
+
 	// Initialize with known node labels.
 	newLabels := labels.Map2Labels(node.GetLabels(), labels.LabelSourceK8s)
 	newIdtyLabels, _ := labelsfilter.Filter(newLabels)
@@ -2094,8 +2107,9 @@ type policySignal struct {
 
 // WaitForPolicyRevision returns a channel that is closed when one or more of
 // the following conditions have met:
-//  - the endpoint is disconnected state
-//  - the endpoint's policy revision reaches the wanted revision
+//   - the endpoint is disconnected state
+//   - the endpoint's policy revision reaches the wanted revision
+//
 // When the done callback is non-nil it will be called just before the channel is closed.
 func (e *Endpoint) WaitForPolicyRevision(ctx context.Context, rev uint64, done func(ts time.Time)) <-chan struct{} {
 	// NOTE: unconditionalLock is used here because this method handles endpoint in disconnected state on its own

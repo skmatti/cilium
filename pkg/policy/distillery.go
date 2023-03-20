@@ -198,6 +198,6 @@ func (cip *cachedSelectorPolicy) Consume(owner PolicyOwner) *EndpointPolicy {
 	// TODO: This currently computes the EndpointPolicy from SelectorPolicy
 	// on-demand, however in future the cip is intended to cache the
 	// EndpointPolicy for this Identity and emit datapath deltas instead.
-	isHost := cip.identity.ID == identityPkg.ReservedIdentityHost
+	isHost := cip.identity.ID == identityPkg.ReservedIdentityHost || identityPkg.IsMultiNICHostID(cip.identity.ID)
 	return cip.getPolicy().DistillPolicy(owner, isHost)
 }

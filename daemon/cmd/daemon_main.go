@@ -1082,6 +1082,13 @@ func initializeFlags() {
 	flags.Bool(option.EnableGoogleMultiNIC, false, "Enable google multi NIC support")
 	option.BindEnv(option.EnableGoogleMultiNIC)
 
+	flags.Bool(option.EnableGoogleMultiNICHostFirewall, false, "Enable google multi NIC host firewall support")
+	option.BindEnv(option.EnableGoogleMultiNICHostFirewall)
+
+	flags.Var(option.NewNamedMapOptions(option.GoogleMultiNICHostMapping, &option.Config.GoogleMultiNICHostMapping, option.Config.FixedIdentityMappingValidator),
+		option.GoogleMultiNICHostMapping, "Key-value for the host identity mapping which allows to use reserved label for host identities for node networks, e.g. 128=mgmt-network")
+	option.BindEnv(option.GoogleMultiNICHostMapping)
+
 	flags.Bool(option.EnableGoogleServiceSteering, false, "Enable google service steering support")
 	option.BindEnv(option.EnableGoogleServiceSteering)
 
@@ -1444,8 +1451,14 @@ func initEnv(cmd *cobra.Command) {
 		log.Warningf("%s is enabled. Network policy will not be enforced.", option.PolicyAuditMode)
 	}
 
-	if err := identity.AddUserDefinedNumericIdentitySet(option.Config.FixedIdentityMapping); err != nil {
-		log.WithError(err).Fatal("Invalid fixed identities provided")
+	if option.Config.EnableGoogleMultiNICHostFirewall {
+		if err := identity.AddMultiNICHostNumericIdentitySet(option.Config.GoogleMultiNICHostMapping); err != nil {
+			log.WithError(err).Fatal("Invalid host identities provided")
+		}
+	} else {
+		if err := identity.AddUserDefinedNumericIdentitySet(option.Config.FixedIdentityMapping); err != nil {
+			log.WithError(err).Fatal("Invalid fixed identities provided")
+		}
 	}
 
 	if !option.Config.EnableIPv4 && !option.Config.EnableIPv6 {

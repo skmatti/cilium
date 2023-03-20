@@ -191,6 +191,18 @@ func (d DummyOwner) PolicyDebug(fields logrus.Fields, msg string) {
 	log.WithFields(fields).Info(msg)
 }
 
+func (d DummyOwner) GetNodeNetworkName() string {
+	return "net1"
+}
+
+func (d DummyOwner) GetParentDevName() string {
+	return "dev1"
+}
+
+func (d DummyOwner) GetHostIdentity() identity.NumericIdentity {
+	return identity.ReservedIdentityHost
+}
+
 func bootstrapRepo(ruleGenFunc func(int) api.Rules, numRules int, c *C) *Repository {
 	mgr := cache.NewCachingIdentityAllocator(&testidentity.IdentityAllocatorOwnerMock{})
 	ids := mgr.GetIdentityCache()

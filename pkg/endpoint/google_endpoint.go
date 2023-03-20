@@ -6,9 +6,11 @@ import (
 
 	"github.com/cilium/cilium/pkg/bpf"
 	multinicep "github.com/cilium/cilium/pkg/gke/multinic/endpoint"
+	"github.com/cilium/cilium/pkg/identity"
 	"github.com/cilium/cilium/pkg/labels"
 	"github.com/cilium/cilium/pkg/mac"
 	"github.com/cilium/cilium/pkg/maps/localredirect"
+	"github.com/cilium/cilium/pkg/node"
 	"github.com/cilium/cilium/pkg/option"
 	"github.com/cilium/cilium/pkg/types"
 )
@@ -20,9 +22,19 @@ const (
 	maxNameLength = 253
 )
 
-// IsMultiNIC returns if the endpoint is a multi-networking endpoint.
+// IsMultiNIC returns true if the endpoint is a non veth pod endpoint.
 func (e *Endpoint) IsMultiNIC() bool {
-	return e.deviceType != multinicep.EndpointDeviceVETH
+	return e.deviceType != multinicep.EndpointDeviceVETH && !e.IsMultiNICHost()
+}
+
+// IsMultiNICHost returns true if the endpoint is a host multinic endpoint.
+func (e *Endpoint) IsMultiNICHost() bool {
+	return option.Config.EnableGoogleMultiNICHostFirewall && e.nodeNetworkName != "" && e.IsHost()
+}
+
+// IsDefaultHost returns true if the endpoint is the default host endpoint.
+func (e *Endpoint) IsDefaultHost() bool {
+	return e.IsHost() && (e.nodeNetworkName == "" || e.nodeNetworkName == node.DefaultNodeNetwork)
 }
 
 // GetDeviceType returns the device type of the endpoint.
@@ -192,4 +204,40 @@ func (e *Endpoint) GetNetworkID() uint32 {
 		return 0
 	}
 	return e.DatapathConfiguration.NetworkID
+}
+
+// GetParentDevName gets the parent device name.
+func (ep *Endpoint) GetParentDevName() string {
+	return ep.parentDevName
+}
+
+// SetNodeNetworkName sets the host network name.
+// If the endpoint is not multi nic host, this does nothing.
+func (ep *Endpoint) SetNodeNetworkName(network string) {
+	if !option.Config.EnableGoogleMultiNICHostFirewall {
+		return
+	}
+	ep.nodeNetworkName = network
+}
+
+// GetNodeNetworkName gets the host network name.
+func (ep *Endpoint) GetNodeNetworkName() string {
+	return ep.nodeNetworkName
+}
+
+// GetHostIdentity gets the host identity.
+func (ep *Endpoint) GetHostIdentity() identity.NumericIdentity {
+	if !option.Config.EnableGoogleMultiNICHostFirewall {
+		return identity.ReservedIdentityHost
+	}
+	if ep.isHost {
+		return ep.getIdentity()
+	}
+	nodeNetwork := node.GetNodeNetworkForDevice(ep.parentDevName)
+	lbl := labels.MultiNICHostLabels(nodeNetwork)[labels.IDNameMultiNICHost]
+	id := identity.GetReservedID(lbl.String())
+	if id == identity.IdentityUnknown {
+		return identity.ReservedIdentityHost
+	}
+	return id
 }

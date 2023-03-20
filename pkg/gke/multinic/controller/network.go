@@ -3,7 +3,6 @@ package controller
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"os"
 	"path"
@@ -185,20 +184,22 @@ func (r *NetworkReconciler) loadEBPFOnParent(ctx context.Context, network *netwo
 	}
 
 	scopedLog := r.Log.WithField(logfields.Interface, devToLoad)
-	if isCiliumManaged(devToLoad) {
+
+	if !option.Config.EnableGoogleMultiNICHostFirewall && isCiliumManaged(devToLoad) {
 		scopedLog.Info("The parent interface is already a cilium-managed device. No need to reconcile")
 		return nil
 	}
 
-	scopedLog.WithField("network", network.Name).Infof("Loading ebpf for network")
+	scopedLog.Info("Loading ebpf for network")
 	objDir := path.Join(multinicObjDir, devToLoad)
 	if err := os.MkdirAll(objDir, os.ModePerm); err != nil {
 		return fmt.Errorf("failed to create multinic object dir: %v", err)
 	}
 
-	hostEp := r.EndpointManager.GetHostEndpoint()
-	if hostEp == nil {
-		return errors.New("waiting for host endpoint to come up. Will retry.")
+	scopedLog.Info("Ensuring host endpoint")
+	hostEp, err := r.HostEndpointMgr.EnsureMultiNICHostEndpoint(network.Name, devToLoad)
+	if err != nil {
+		return fmt.Errorf("failed to ensure host endpoint for network %s (parent-device %s): %v", network.Name, devToLoad, err)
 	}
 	epInfo, err := hostEp.GetEpInfoCacheForCurrentDir()
 	if err != nil {
@@ -232,6 +233,11 @@ func (r *NetworkReconciler) unloadEBPFOnParent(ctx context.Context, network *net
 
 	if err := os.RemoveAll(path.Join(multinicObjDir, devToUnload)); err != nil {
 		return fmt.Errorf("failed to remove multinic object dir: %v", err)
+	}
+
+	scopedLog.Info("Deleting host endpoint")
+	if err := r.HostEndpointMgr.DeleteMultiNICHostEndpoint(network.Name); err != nil {
+		return err
 	}
 
 	scopedLog.Info("Datapath ebpf unloaded successfully")

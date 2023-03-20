@@ -8,6 +8,9 @@ import (
 	"net"
 
 	"github.com/cilium/cilium/pkg/labels"
+	"github.com/cilium/cilium/pkg/logging"
+	"github.com/cilium/cilium/pkg/logging/logfields"
+	"github.com/sirupsen/logrus"
 )
 
 const (
@@ -16,6 +19,8 @@ const (
 	ClusterLocalIdentityType = "cluster_local"
 	WellKnownIdentityType    = "well_known"
 )
+
+var log = logging.DefaultLogger.WithField(logfields.LogSubsys, "identity")
 
 // Identity is the representation of the security context for a particular set of
 // labels.
@@ -207,6 +212,14 @@ func LookupReservedIdentityByLabels(lbls labels.Labels) *Identity {
 		return identity
 	}
 
+	if id := reservedMultiNICHostIDForLabels(lbls); id != IdentityUnknown {
+		log.WithFields(logrus.Fields{
+			logfields.Labels: lbls,
+			"identity":       id.Uint32(),
+		}).Info("Created multi nic ID")
+		return NewIdentity(id, lbls)
+	}
+
 	for _, lbl := range lbls {
 		var createID bool
 		switch {
@@ -258,6 +271,7 @@ func LookupReservedIdentityByLabels(lbls labels.Labels) *Identity {
 			}
 
 			if createID {
+				log.WithField(logfields.Labels, lbls).Info("Created ID")
 				return NewIdentity(id, lbls)
 			}
 
@@ -276,6 +290,60 @@ func LookupReservedIdentityByLabels(lbls labels.Labels) *Identity {
 	return nil
 }
 
+// func LookupReservedIdentityByLabels(lbls labels.Labels) *Identity {
+// 	if identity := WellKnown.LookupByLabels(lbls); identity != nil {
+// 		return identity
+// 	}
+
+// 	lbl := lbls.FindLabelKey(labels.LabelKeyFixedIdentity)
+// 	if lbl != nil {
+// 		// If the set of labels contain a fixed identity then and exists in
+// 		// the map of reserved IDs then return the identity of that reserved ID.
+// 		id := GetReservedID(lbl.Value)
+// 		if id != IdentityUnknown && IsUserReservedIdentity(id) {
+// 			return LookupReservedIdentity(id)
+// 		}
+// 		// If a fixed identity was not found then we return nil to avoid
+// 		// falling to a reserved identity.
+// 		return nil
+// 	}
+
+// 	reservedLbls := lbls.FindReserved()
+// 	if reservedLbls == nil {
+// 		return nil
+// 	}
+
+// 	var nid NumericIdentity
+// 	if reservedLbls.Has(labels.LabelHost[labels.IDNameHost]) {
+// 		nid = ReservedIdentityHost
+// 	} else if reservedLbls.Has(labels.LabelHost[labels.IDNameKubeAPIServer]) {
+// 		nid = ReservedIdentityKubeAPIServer
+// 	} else if reservedLbls.Has(labels.LabelHost[labels.IDNameRemoteNode]) {
+// 		nid = ReservedIdentityRemoteNode
+// 	}
+
+// 	if nid != ReservedIdentityKubeAPIServer {
+// 		id, ok := reservedMultiNICHostIDForLabels(reservedLbls)
+// 		if ok {
+// 			nid = id
+// 		}
+// 	}
+
+// 	if nid != IdentityUnknown {
+// 		return NewIdentity(nid, lbls)
+// 	}
+
+// 	if len(reservedLbls) != 1 {
+// 		return nil
+// 	}
+
+// 	nid = GetReservedID(reservedLbls.ToSlice()[0].Key)
+// 	if nid != IdentityUnknown && !IsUserReservedIdentity(nid) {
+// 		return LookupReservedIdentity(nid)
+// 	}
+// 	return nil
+// }
+
 // IdentityAllocationIsLocal returns true if a call to AllocateIdentity with
 // the given labels would not require accessing the KV store to allocate the
 // identity.
@@ -285,5 +353,6 @@ func LookupReservedIdentityByLabels(lbls labels.Labels) *Identity {
 func IdentityAllocationIsLocal(lbls labels.Labels) bool {
 	// If there is only one label with the "reserved" source and a well-known
 	// key, the well-known identity for it can be allocated locally.
+	log.WithField(logfields.Labels, lbls).Info("IdentityAllocationIsLocal Resolving labels")
 	return LookupReservedIdentityByLabels(lbls) != nil
 }

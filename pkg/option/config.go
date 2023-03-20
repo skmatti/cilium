@@ -1106,6 +1106,14 @@ const (
 	// EnableGoogleMultiNIC is the name of the option to enable gogole multi NIC support.
 	EnableGoogleMultiNIC = "enable-google-multi-nic"
 
+	// EnableGoogleMultiNICHostFirewall is the name of the option to enable gogole
+	// multi NIC support for host firewall policies.
+	EnableGoogleMultiNICHostFirewall = "enable-google-multi-nic-host-firewall"
+
+	// GoogleMultiNICHostMapping is a mpa of host identities and host network
+	// name.
+	GoogleMultiNICHostMapping = "google-multi-nic-host-mapping"
+
 	// EnableGoogleServiceSteering is the name of the option to enable google service steering support.
 	EnableGoogleServiceSteering = "enable-google-service-steering"
 
@@ -2370,6 +2378,15 @@ type DaemonConfig struct {
 	// EnableGoogleMultiNIC is a feature flag for google multi NIC support, default is false.
 	EnableGoogleMultiNIC bool
 
+	// EnableGoogleMultiNICHostFirewall is a feature flag for google multi NIC
+	// support for host firewall policies, default is false. This option is
+	// true if both enable-google-multi-nic and enable-google-multi-nic-host-firewall
+	// are set to true.
+	EnableGoogleMultiNICHostFirewall bool
+
+	// GoogleMultiNICHostMapping is map of identity and node network name.
+	GoogleMultiNICHostMapping map[string]string
+
 	// EnableGoogleServiceSteering is a feature flag for google service steering support, default is false.
 	EnableGoogleServiceSteering bool
 
@@ -2500,6 +2517,7 @@ var (
 
 		EnableNodeNetworkPolicyCRD:    defaults.EnableNodeNetworkPolicyCRD,
 		EnableMergeCIDRPrefixIPLabels: defaults.EnableMergeCIDRPrefixIPLabels,
+		GoogleMultiNICHostMapping:     make(map[string]string),
 	}
 )
 
@@ -3065,6 +3083,7 @@ func (c *DaemonConfig) Populate() {
 	c.EnableLocalRedirectPolicy = viper.GetBool(EnableLocalRedirectPolicy)
 	c.EnableGoogleMultiNIC = viper.GetBool(EnableGoogleMultiNIC)
 	c.PopulateGCENICInfo = viper.GetBool(PopulateGCENICInfo)
+	c.EnableGoogleMultiNICHostFirewall = viper.GetBool(EnableGoogleMultiNIC) && viper.GetBool(EnableGoogleMultiNICHostFirewall)
 	c.EnableGoogleServiceSteering = viper.GetBool(EnableGoogleServiceSteering)
 	c.EnableGooglePersistentIP = viper.GetBool(EnableGooglePersistentIP)
 	c.EnableGDCILB = viper.GetBool(EnableGDCILB)
@@ -3349,6 +3368,12 @@ func (c *DaemonConfig) Populate() {
 		log.Fatalf("unable to parse %s: %s", FixedIdentityMapping, err)
 	} else if len(m) != 0 {
 		c.FixedIdentityMapping = m
+	}
+
+	if m := command.GetStringMapString(viper.GetViper(), GoogleMultiNICHostMapping); err != nil {
+		log.Fatalf("unable to parse %s: %s", GoogleMultiNICHostMapping, err)
+	} else if len(m) != 0 {
+		c.GoogleMultiNICHostMapping = m
 	}
 
 	c.ConntrackGCInterval = viper.GetDuration(ConntrackGCInterval)

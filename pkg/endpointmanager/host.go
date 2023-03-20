@@ -17,7 +17,7 @@ func (mgr *EndpointManager) GetHostEndpoint() *endpoint.Endpoint {
 	mgr.mutex.RLock()
 	defer mgr.mutex.RUnlock()
 	for _, ep := range mgr.endpoints {
-		if ep.IsHost() {
+		if ep.IsHost() && ep.IsDefaultHost() {
 			return ep
 		}
 	}
@@ -58,6 +58,12 @@ func (mgr *EndpointManager) OnUpdateNode(oldNode, newNode *v1.Node,
 	err := nodeEP.UpdateLabelsFrom(oldNodeLabels, newNodeLabels, labels.LabelSourceK8s)
 	if err != nil {
 		return err
+	}
+
+	for _, multinicNodeEP := range mgr.GetMultiNICHostEndpoints() {
+		if err := multinicNodeEP.UpdateLabelsFrom(oldNodeLabels, newNodeLabels, labels.LabelSourceK8s); err != nil {
+			return err
+		}
 	}
 
 	return nil

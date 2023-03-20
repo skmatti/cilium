@@ -207,6 +207,7 @@ func (m *CachingIdentityAllocator) isGlobalIdentityAllocatorInitialized() bool {
 // remote kvstores and finally fall back to the main kvstore.
 // May return nil for lookups if the allocator has not yet been synchronized.
 func (m *CachingIdentityAllocator) LookupIdentity(ctx context.Context, lbls labels.Labels) *identity.Identity {
+	log.WithField(logfields.Labels, lbls).Info("LookupIdentity Resolving labels")
 	if reservedIdentity := identity.LookupReservedIdentityByLabels(lbls); reservedIdentity != nil {
 		return reservedIdentity
 	}

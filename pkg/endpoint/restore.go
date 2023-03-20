@@ -159,7 +159,11 @@ func ReadEPsFromDirNames(ctx context.Context, owner regeneration.Owner, policyGe
 		// We need to save the host endpoint ID as we'll need it to regenerate
 		// other endpoints.
 		if isHost {
-			node.SetEndpointID(ep.GetID())
+			if ep.IsDefaultHost() {
+				node.SetEndpointID(ep.GetID())
+			} else {
+				node.AddMultiNICHost(ep.parentDevName, ep.GetNodeNetworkName(), uint32(ep.GetID()))
+			}
 		}
 	}
 	return possibleEPs
@@ -416,14 +420,12 @@ func (e *Endpoint) toSerializedEndpoint() *serializableEndpoint {
 // serializableEndpoint contains the fields from an Endpoint which are needed to be
 // restored if cilium-agent restarts.
 //
-//
 // WARNING - STABLE API
 // This structure is written as JSON to StateDir/{ID}/ep_config.h to allow to
 // restore endpoints when the agent is being restarted. The restore operation
 // will read the file and re-create all endpoints with all fields which are not
 // marked as private to JSON marshal. Do NOT modify this structure in ways which
 // is not JSON forward compatible.
-//
 type serializableEndpoint struct {
 	// ID of the endpoint, unique in the scope of the node
 	ID uint16

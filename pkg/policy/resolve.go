@@ -7,6 +7,7 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"github.com/cilium/cilium/pkg/identity"
+	"github.com/cilium/cilium/pkg/option"
 	"github.com/cilium/cilium/pkg/policy/trafficdirection"
 )
 
@@ -70,6 +71,8 @@ type PolicyOwner interface {
 	GetNamedPort(ingress bool, name string, proto uint8) uint16
 	GetNamedPortLocked(ingress bool, name string, proto uint8) uint16
 	PolicyDebug(fields logrus.Fields, msg string)
+	GetHostIdentity() identity.NumericIdentity
+	GetNodeNetworkName() string
 }
 
 // newSelectorPolicy returns an empty selectorPolicy stub.
@@ -140,7 +143,12 @@ func (p *selectorPolicy) DistillPolicy(policyOwner PolicyOwner, isHost bool) *En
 	// after the computation of PolicyMapState has started.
 	calculatedPolicy.computeDesiredL4PolicyMapEntries()
 	if !isHost {
-		calculatedPolicy.PolicyMapState.DetermineAllowLocalhostIngress()
+		if option.Config.EnableGoogleMultiNICHostFirewall {
+			hostId := policyOwner.GetHostIdentity()
+			calculatedPolicy.PolicyMapState.DetermineAllowLocalMultiNIChostIngress(hostId)
+		} else {
+			calculatedPolicy.PolicyMapState.DetermineAllowLocalhostIngress()
+		}
 	}
 
 	return calculatedPolicy

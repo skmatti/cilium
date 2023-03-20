@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"github.com/cilium/cilium/pkg/endpoint"
 	"github.com/cilium/cilium/pkg/endpointmanager"
 	"github.com/cilium/cilium/pkg/trigger"
 	"github.com/sirupsen/logrus"
@@ -17,6 +18,7 @@ type NetworkReconciler struct {
 	DeviceMgr       deviceManager
 	metricsTrigger  *trigger.Trigger
 	Log             *logrus.Entry
+	HostEndpointMgr hostEndpointManager
 }
 
 type ipamManager interface {
@@ -27,6 +29,15 @@ type ipamManager interface {
 
 type deviceManager interface {
 	ReloadOnDeviceChange(devices []string)
+}
+
+// hostEndpointManager defines methods to manage multi nic host endpoints.
+type hostEndpointManager interface {
+	// EnsureMultiNICHostEndpoint creates a host endpoint for given network. If
+	// the endpoint already exists, the endpoint labels are reinitialized.
+	EnsureMultiNICHostEndpoint(network, parentDevice string) (*endpoint.Endpoint, error)
+	// DeleteMultiNICHostEndpoint deletes the host endpoint for given network.
+	DeleteMultiNICHostEndpoint(network string) error
 }
 
 type nicMapValue struct {

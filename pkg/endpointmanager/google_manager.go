@@ -1,10 +1,15 @@
 package endpointmanager
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/cilium/cilium/pkg/endpoint"
 	endpointid "github.com/cilium/cilium/pkg/endpoint/id"
+	"github.com/cilium/cilium/pkg/endpoint/regeneration"
+	"github.com/cilium/cilium/pkg/identity/cache"
+	"github.com/cilium/cilium/pkg/ipcache"
+	"github.com/cilium/cilium/pkg/node"
 	"github.com/cilium/cilium/pkg/option"
 )
 
@@ -101,4 +106,59 @@ func (mgr *EndpointManager) removeFromMultiNICMapIfNeeded(ep *endpoint.Endpoint,
 			}
 		}
 	}
+}
+
+// GetMultiNICHostEndpoint returns the host endpoint for given node network.
+func (mgr *EndpointManager) GetMultiNICHostEndpoint(nodeNetwork string) *endpoint.Endpoint {
+	eps := mgr.GetMultiNICHostEndpoints()
+	for _, ep := range eps {
+		if ep.GetNodeNetworkName() == nodeNetwork {
+			return ep
+		}
+	}
+	return nil
+}
+
+// GetMultiNICHostEndpoints returns all multinic host endpoints.
+func (mgr *EndpointManager) GetMultiNICHostEndpoints() []*endpoint.Endpoint {
+	mgr.mutex.RLock()
+	defer mgr.mutex.RUnlock()
+	var eps []*endpoint.Endpoint
+	for _, ep := range mgr.endpoints {
+		if ep.IsHost() && ep.GetNodeNetworkName() != "" {
+			eps = append(eps, ep)
+		}
+	}
+	return eps
+}
+
+// InitEndpointWithNodeLablels initializes the host endpoint labels with the
+// node's known labels.
+func (mgr *EndpointManager) InitEndpointWithNodeLablels(ctx context.Context, ep *endpoint.Endpoint) {
+	ep.InitWithNodeLabels(ctx, launchTime)
+}
+
+// CreateMultiNICHostEndpoint adds a multinic host endpoint for given network.
+func (mgr *EndpointManager) CreateMultiNICHostEndpoint(
+	ctx context.Context,
+	owner regeneration.Owner,
+	policyGetter policyRepoGetter,
+	ipcache *ipcache.IPCache,
+	proxy endpoint.EndpointProxy,
+	allocator cache.IdentityAllocator,
+	reason, nodeNetwork, parentDevName string,
+) (*endpoint.Endpoint, error) {
+	ep, err := endpoint.CreateHostEndpoint(owner, policyGetter, ipcache, proxy, allocator)
+	if err != nil {
+		return nil, err
+	}
+	ep.SetNodeNetworkName(nodeNetwork)
+	node.AddMultiNICHost(parentDevName, nodeNetwork, uint32(ep.GetID()))
+
+	if err := mgr.AddEndpoint(owner, ep, reason); err != nil {
+		return nil, err
+	}
+
+	ep.InitWithNodeLabels(ctx, launchTime)
+	return ep, nil
 }

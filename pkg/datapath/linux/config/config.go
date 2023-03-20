@@ -890,6 +890,13 @@ func (h *HeaderfileWriter) writeStaticData(fw io.Writer, e datapath.EndpointConf
 	fmt.Fprint(fw, defineUint32("SECLABEL_NB", byteorder.HostToNetwork32(secID)))
 	fmt.Fprint(fw, defineUint32("POLICY_VERDICT_LOG_FILTER", e.GetPolicyVerdictLogFilter()))
 
+	if option.Config.EnableGoogleMultiNICHostFirewall {
+		// If multinic host firewall is enabled, the host endpoint ID is populated
+		// based on the node network name.
+		epID := uint32(node.GetEndpointIDForParentDevice(e.GetParentDevName()))
+		fmt.Fprint(fw, defineUint32("HOST_EP_ID", uint32(epID)))
+	}
+
 	epID := uint16(e.GetID())
 	fmt.Fprintf(fw, "#define POLICY_MAP %s\n", bpf.LocalMapName(policymap.MapName, epID))
 	callsMapName := callsmap.MapName
@@ -955,7 +962,9 @@ func (h *HeaderfileWriter) writeTemplateConfig(fw *bufio.Writer, e datapath.Endp
 		}
 	}
 
-	fmt.Fprintf(fw, "#define HOST_EP_ID %d\n", uint32(node.GetEndpointID()))
+	if !option.Config.EnableGoogleMultiNICHostFirewall {
+		fmt.Fprintf(fw, "#define HOST_EP_ID %d\n", uint32(node.GetEndpointID()))
+	}
 
 	if e.RequireARPPassthrough() {
 		fmt.Fprint(fw, "#define ENABLE_ARP_PASSTHROUGH 1\n")

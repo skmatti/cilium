@@ -11,7 +11,12 @@ func (e *epInfoCache) GetPodStackRedirectIfindex() int {
 
 // IsMultiNIC returns if the endpoint is a multinic endpoint.
 func (ep *epInfoCache) IsMultiNIC() bool {
-	return ep.deviceType != multinicep.EndpointDeviceVETH
+	return ep.deviceType != multinicep.EndpointDeviceVETH && !ep.IsMultiNICHost()
+}
+
+// IsMultiNICHost returns if the endpoint is a multinic host endpoint.
+func (ep *epInfoCache) IsMultiNICHost() bool {
+	return ep.IsHost() && ep.parentDevName != ""
 }
 
 // GetDeviceTypeIndex returns multinic endpoint type as int.
@@ -26,6 +31,11 @@ func (ep *epInfoCache) GetParentDevIndex() int {
 		return 0
 	}
 	return ep.parentDevIndex
+}
+
+// GetParentDevName returns the parent device name.
+func (ep *epInfoCache) GetParentDevName() string {
+	return ep.parentDevName
 }
 
 // GetParentDevMac returns the mac of the parent device.

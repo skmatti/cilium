@@ -5,6 +5,7 @@ import (
 	multinicep "github.com/cilium/cilium/pkg/gke/multinic/endpoint"
 	"github.com/cilium/cilium/pkg/logging/logfields"
 	"github.com/cilium/cilium/pkg/mac"
+	"github.com/cilium/cilium/pkg/node"
 	"github.com/vishvananda/netlink"
 )
 
@@ -57,7 +58,11 @@ func mtuOfMultiNICEndpoint(ep datapath.Endpoint) uint32 {
 // googleElfVariableSubstitutions fills in Elf substitutions in the template specifically for google.
 func googleElfVariableSubstitutions(ep datapath.Endpoint,
 	result map[string]uint32) {
-	if !ep.IsMultiNIC() {
+	if !ep.IsMultiNIC() && !ep.IsMultiNICHost() {
+		return
+	}
+	if ep.IsMultiNICHost() {
+		result["HOST_EP_ID"] = node.GetEndpointIDForParentDevice(ep.GetParentDevName())
 		return
 	}
 	result["MULTI_NIC_ENDPOINT_MTU"] = mtuOfMultiNICEndpoint(ep)

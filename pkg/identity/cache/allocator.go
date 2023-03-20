@@ -320,6 +320,9 @@ func (m *CachingIdentityAllocator) AllocateIdentity(ctx context.Context, lbls la
 
 	// If there is only one label with the "reserved" source and a well-known
 	// key, use the well-known identity for that key.
+	log.WithFields(logrus.Fields{
+		logfields.IdentityLabels: lbls.String(),
+	}).Info("AllocateIdentity Resolving labels")
 	if reservedIdentity := identity.LookupReservedIdentityByLabels(lbls); reservedIdentity != nil {
 		if option.Config.Debug {
 			log.WithFields(logrus.Fields{

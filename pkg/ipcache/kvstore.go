@@ -309,6 +309,10 @@ restart:
 					peerIdentity = identity.ReservedIdentityRemoteNode
 				}
 
+				if option.Config.EnableGoogleMultiNICHostFirewall && option.Config.EnableRemoteNodeIdentity && identity.IsMultiNICHostID(peerIdentity) {
+					peerIdentity = identity.RemoteMultiNICHostID(peerIdentity)
+				}
+
 				// There is no need to delete the "old" IP addresses from this
 				// ip ID pair. The only places where the ip ID pair are created
 				// is the clustermesh, where it sends a delete to the KVStore,
@@ -372,7 +376,7 @@ func (iw *IPIdentityWatcher) Close() {
 	})
 }
 
-//closeSynced the IPIdentityWathcer and case panic
+// closeSynced the IPIdentityWathcer and case panic
 func (iw *IPIdentityWatcher) closeSynced() {
 	iw.syncedOnce.Do(func() {
 		close(iw.synced)
