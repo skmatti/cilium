@@ -8,9 +8,20 @@ import (
 	networkv1 "github.com/GoogleCloudPlatform/gke-networking-api/apis/network/v1"
 	"github.com/cilium/cilium/pkg/cidr"
 	"github.com/cilium/cilium/pkg/endpoint"
+	"github.com/cilium/cilium/pkg/endpointmanager"
 	"github.com/cilium/cilium/pkg/ip"
 	"github.com/cilium/cilium/pkg/node"
 )
+
+// EndpointManager specifies the methods to manage endpoints.
+type EndpointManager interface {
+	// Subscribe to endpoint manager events.
+	Subscribe(endpointmanager.Subscriber)
+	// GetEndpoints returns a list of all endpoints.
+	GetEndpoints() []*endpoint.Endpoint
+	// GetHostEndpoint returns the default host endpoint.
+	GetHostEndpoint() *endpoint.Endpoint
+}
 
 // MultiNetworkIPAMManager defines methods to handle the multi-network allocators
 type MultiNetworkIPAMManager interface {
@@ -22,6 +33,16 @@ type MultiNetworkIPAMManager interface {
 
 type HighPerfDeviceManager interface {
 	ReloadOnDeviceChange(devices []string)
+}
+
+// HostEndpointManager specifies the methods to manage multi nic endpoints.
+type HostEndpointManager interface {
+	// EnsureMultiNICHostEndpoint creates a host endpoint for a given network.
+	// If the endpoint already exists, the endpoint labels are reinitialized.
+	EnsureMultiNICHostEndpoint(restoredHostEPs []*endpoint.Endpoint, network, parentDevice string) (*endpoint.Endpoint, error)
+	// DeleteMultiNICHostEndpoint deletes the host endpoint for a given network
+	// and parent device.
+	DeleteMultiNICHostEndpoint(network, parentDevice string) error
 }
 
 // BuildMultiNetworkCIDRs parses the multi-network annotation on a node and builds a name-cidr map per network.

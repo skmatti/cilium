@@ -19,6 +19,11 @@ func (ep *epInfoCache) GetDeviceTypeIndex() int {
 	return ep.deviceTypeIndex
 }
 
+// IsMultiNICHost returns if the endpoint is a multinic host endpoint.
+func (ep *epInfoCache) IsMultiNICHost() bool {
+	return ep.endpoint.IsMultiNICHost()
+}
+
 // GetParentDevIndex returns the parent device ifindex.
 // Returns 0 if it's not multinic endpoint.
 func (ep *epInfoCache) GetParentDevIndex() int {
@@ -46,6 +51,11 @@ func (ep *epInfoCache) GetNetworkID() uint32 {
 		return 0
 	}
 	return ep.endpoint.DatapathConfiguration.NetworkID
+}
+
+// GetParentDevName returns the parent device name of the endpoint.
+func (ep *epInfoCache) GetParentDevName() string {
+	return ep.endpoint.GetParentDevName()
 }
 
 // IsIPVlan returns if the endpoint is an ipvlan multinic endpoint.

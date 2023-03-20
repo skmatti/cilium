@@ -250,6 +250,10 @@ func LookupReservedIdentityByLabels(lbls labels.Labels) *Identity {
 		return identity
 	}
 
+	if id, ok := ReservedMultiNICHostIDForLabels(lbls); ok {
+		return NewIdentity(id, lbls)
+	}
+
 	// Check if a fixed identity exists.
 	if lbl, exists := lbls[labels.LabelKeyFixedIdentity]; exists {
 		// If the set of labels contain a fixed identity then and exists in

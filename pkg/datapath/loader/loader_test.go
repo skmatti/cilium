@@ -22,6 +22,7 @@ import (
 	"github.com/cilium/cilium/pkg/datapath/tables"
 	"github.com/cilium/cilium/pkg/defaults"
 	"github.com/cilium/cilium/pkg/maps/callsmap"
+	"github.com/cilium/cilium/pkg/node"
 	"github.com/cilium/cilium/pkg/option"
 	"github.com/cilium/cilium/pkg/testutils"
 )
@@ -110,6 +111,8 @@ func TestCompileOrLoadHostEndpoint(t *testing.T) {
 	callsmap.NetdevMapName = fmt.Sprintf("test_%s", callsmap.MapName)
 
 	hostEp := testutils.NewTestHostEndpoint()
+	node.SetEndpointIDIsSet(true)
+	defer node.SetEndpointIDIsSet(false)
 	initEndpoint(t, &hostEp)
 
 	testReloadDatapath(t, &hostEp)
@@ -188,6 +191,8 @@ func TestCompileFailureDefaultEndpoint(t *testing.T) {
 // TestCompileFailureDefaultEndpoint, but for the host endpoint.
 func TestCompileFailureHostEndpoint(t *testing.T) {
 	hostEp := testutils.NewTestHostEndpoint()
+	node.SetEndpointIDIsSet(true)
+	defer node.SetEndpointIDIsSet(false)
 	initEndpoint(t, &hostEp)
 	testCompileFailure(t, &hostEp)
 }

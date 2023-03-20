@@ -59,6 +59,7 @@ import (
 	"github.com/cilium/cilium/pkg/endpointstate"
 	"github.com/cilium/cilium/pkg/envoy"
 	"github.com/cilium/cilium/pkg/flowdebug"
+	"github.com/cilium/cilium/pkg/gke/features"
 	"github.com/cilium/cilium/pkg/hive"
 	"github.com/cilium/cilium/pkg/hubble/exporter/exporteroption"
 	"github.com/cilium/cilium/pkg/hubble/observer/observeroption"
@@ -1375,6 +1376,17 @@ func initEnv(vp *viper.Viper) {
 	policy.SetPolicyEnabled(option.Config.EnablePolicy)
 	if option.Config.PolicyAuditMode {
 		log.Warningf("%s is enabled. Network policy will not be enforced.", option.PolicyAuditMode)
+	}
+
+	if features.GlobalConfig.EnableGoogleMultiNICHostFirewall && len(option.Config.FixedIdentityMapping) > 0 {
+		log.Fatal("Fixed Identity Mapping must not be specified when multi nic host firewall feature is enabled")
+	}
+
+	if features.GlobalConfig.EnableGoogleMultiNICHostFirewall {
+		identity.InitDefaultHostIdentity()
+		if err := identity.InitMultiNICHostNumericIdentitySet(features.GlobalConfig.GoogleMultiNICHostMapping); err != nil {
+			log.WithError(err).Fatal("Invalid multi nic host identities provided")
+		}
 	}
 
 	if err := identity.AddUserDefinedNumericIdentitySet(option.Config.FixedIdentityMapping); err != nil {

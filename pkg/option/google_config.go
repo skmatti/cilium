@@ -15,6 +15,13 @@ const (
 	// EnableGoogleMultiNIC is the name of the option to enable gogole multi nic support.
 	EnableGoogleMultiNIC = "enable-google-multi-nic"
 
+	// EnableGoogleMultiNICHostFirewall is the name of the option to enable google
+	// multi NIC support for host firewall policies.
+	EnableGoogleMultiNICHostFirewall = "enable-google-multi-nic-host-firewall"
+	// GoogleMultiNICHostMapping is the name of the option to which maps
+	// numeric identities to a multi nic host network name.
+	GoogleMultiNICHostMapping = "google-multi-nic-host-mapping"
+
 	// EnableGoogleConfigOverrideName is the name for the option to enable
 	// overriding Cilium configuration by reading from
 	// cilium-config-emergency-override ConfigMap.

@@ -96,7 +96,7 @@ func ReadEPsFromDirNames(ctx context.Context, owner regeneration.Owner, policyGe
 
 		// We need to save the host endpoint ID as we'll need it to regenerate
 		// other endpoints.
-		if ep.IsHost() {
+		if ep.IsHost() && ep.IsDefaultHost() {
 			node.SetEndpointID(ep.GetID())
 		}
 	}

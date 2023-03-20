@@ -43,6 +43,11 @@ type Config struct {
 	EnableCiliumNodeConfig bool `mapstructure:"enable-cnc"`
 	// EnableGoogleMultiNIC enables multi-nic support
 	EnableGoogleMultiNIC bool `mapstructure:"enable-google-multi-nic"`
+
+	// EnableGoogleMultiNICHostFirewall enables multi-nic host firewall support
+	EnableGoogleMultiNICHostFirewall bool              `mapstructure:"enable-google-multi-nic-host-firewall"`
+	GoogleMultiNICHostMapping        map[string]string `mapstructure:"google-multi-nic-host-mapping"`
+
 	// EnableGoogleConfigOverride enables overriding Cilium configuration by
 	// reading from cilium-config-emergency-override ConfigMap.
 	EnableGoogleConfigOverride bool
@@ -59,7 +64,11 @@ type Config struct {
 
 var defaultConfig = Config{
 	// Add fields here. Do not delete this comment.
-	EnableGoogleMultiNIC:        false,
+	EnableGoogleMultiNIC: false,
+
+	EnableGoogleMultiNICHostFirewall: false,
+	GoogleMultiNICHostMapping:        make(map[string]string),
+
 	EnableGoogleConfigOverride:  false,
 	EnableGoogleMultiNICHairpin: false,
 	DevicePrefixesToExclude:     []string{},
@@ -80,6 +89,13 @@ func (cfg Config) Flags(flags *pflag.FlagSet) {
 	flags.MarkHidden(EnableCiliumNodeConfig)
 	flags.Bool(option.EnableGoogleMultiNIC, defaultConfig.EnableGoogleMultiNIC, "Enable google multi NIC support")
 	flags.MarkHidden(option.EnableGoogleMultiNIC)
+
+	flags.Bool(option.EnableGoogleMultiNICHostFirewall, defaultConfig.EnableGoogleMultiNICHostFirewall, "Enable google multi NIC local hairpin for local L2 broadcast")
+	flags.MarkHidden(option.EnableGoogleMultiNICHostFirewall)
+	flags.Var(option.NewNamedMapOptions(option.GoogleMultiNICHostMapping, &defaultConfig.GoogleMultiNICHostMapping, nil),
+		option.GoogleMultiNICHostMapping, "Key-value pairs of numeric identity (must be in range [128, 255]) and network object name, e.g. `128=node-network1` or `140=node-network2,142=node-network3`")
+	flags.MarkHidden(option.GoogleMultiNICHostMapping)
+
 	flags.Bool(option.EnableGoogleConfigOverrideName, defaultConfig.EnableGoogleConfigOverride, `Enable overriding Cilium configuration by reading from cilium-config-emergency-override ConfigMap`)
 	flags.MarkHidden(option.EnableGoogleConfigOverrideName)
 

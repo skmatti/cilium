@@ -488,6 +488,11 @@ func (ipc *IPCache) doInjectLabels(ctx context.Context, modifiedPrefixes []netip
 			}
 		}
 
+		// Inform SelectorCache about new multi nic host identity.
+		if newID != nil && identity.IsMultiNICHostID(newID.ID) {
+			idsToAdd[newID.ID] = newID.Labels.LabelArray()
+		}
+
 		// The reserved:host identity is special: the numeric ID is fixed,
 		// and the set of labels is mutable. Thus, whenever it changes,
 		// we must always update the SelectorCache (normally, this is elided
@@ -683,6 +688,10 @@ func (ipc *IPCache) resolveIdentity(ctx context.Context, prefix netip.Prefix, in
 			n = n.Remove(nodeLabels)
 		}
 		lbls = n
+	}
+
+	if id, ok := identity.ReservedMultiNICHostIDForLabels(lbls); ok {
+		return identity.LookupReservedIdentity(id), false, nil
 	}
 
 	if lbls.HasHostLabel() {

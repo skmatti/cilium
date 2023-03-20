@@ -9,6 +9,8 @@ import (
 	"github.com/cilium/cilium/pkg/bpf"
 	"github.com/cilium/cilium/pkg/gke/features"
 	multinicep "github.com/cilium/cilium/pkg/gke/multinic/endpoint"
+	"github.com/cilium/cilium/pkg/identity"
+	"github.com/cilium/cilium/pkg/labels"
 	"github.com/cilium/cilium/pkg/mac"
 	"golang.org/x/sys/unix"
 )
@@ -20,9 +22,19 @@ const (
 	maxNameLength = 253
 )
 
-// IsMultiNIC returns if the endpoint is a multi-networking endpoint.
+// IsMultiNIC returns true if the endpoint is a multi-networking endpoint.
 func (e *Endpoint) IsMultiNIC() bool {
 	return e.deviceType != multinicep.EndpointDeviceVETH
+}
+
+// IsMultiNICHost returns true if the endpoint is a multi nic host.
+func (e *Endpoint) IsMultiNICHost() bool {
+	return e.IsHost() && !e.IsDefaultHost()
+}
+
+// IsDefaultHost returns true for the default host endpoint.
+func (e *Endpoint) IsDefaultHost() bool {
+	return e.IsHost() && (e.nodeNetworkName == "" || e.nodeNetworkName == identity.DefaultMultiNICNodeNetwork)
 }
 
 // GetDeviceType returns the device type of the endpoint.
@@ -175,6 +187,48 @@ func (e *Endpoint) GetNetworkID() uint32 {
 		return 0
 	}
 	return e.DatapathConfiguration.NetworkID
+}
+
+// SetParentDevName sets the parent device name.
+func (ep *Endpoint) SetParentDevName(dev string) {
+	ep.parentDevName = dev
+}
+
+// GetParentDevName gets the parent device name.
+func (ep *Endpoint) GetParentDevName() string {
+	return ep.parentDevName
+}
+
+// SetNodeNetworkName sets the node network name.
+// If the endpoint is not multi nic host, this does nothing.
+func (ep *Endpoint) SetNodeNetworkName(network string) {
+	if !features.GlobalConfig.EnableGoogleMultiNICHostFirewall {
+		return
+	}
+	ep.nodeNetworkName = network
+}
+
+// GetNodeNetworkName gets the node network name.
+func (ep *Endpoint) GetNodeNetworkName() string {
+	return ep.nodeNetworkName
+}
+
+// populateNodeNetwork restores the node network from the reserved label
+// during the endpoint restoration from a directory on the node.
+func (ep *Endpoint) populateNodeNetwork() {
+	if !features.GlobalConfig.EnableGoogleMultiNICHostFirewall {
+		return
+	}
+	ep.unconditionalLock()
+	defer ep.unlock()
+
+	allEpLabels := ep.OpLabels.AllLabels()
+	for _, lbl := range allEpLabels {
+		if lbl.IsReservedSource() && lbl.Key == labels.IDNameMultiNICHost {
+			ep.SetNodeNetworkName(lbl.Value)
+			return
+		}
+	}
 }
 
 type bpfAttrFdFromId struct {

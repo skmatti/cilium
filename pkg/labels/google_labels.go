@@ -10,6 +10,10 @@ import (
 const (
 	// MultinicNetwork is the name of network where the multinic endpoint is in.
 	MultinicNetwork = "networking.gke.io/network"
+
+	// IDNameMultiNICHost is a label key used for reserved multi nic host
+	// identities.
+	IDNameMultiNICHost = "multinic-host"
 )
 
 // MergeMultiNICLabels merges multinic labels from into to.
@@ -36,6 +40,12 @@ func (l Labels) MergeMultiNICLabels(from Labels) {
 // the provided value in the format "k8s:networking.gke.io/network=value".
 func GetMultiNICNetworkLabel(v string) string {
 	return generateLabelString(LabelSourceK8s, MultinicNetwork, v)
+}
+
+// NewReservedMultiNICHostLabels return the reserved multi nic host labels
+// for given node network. e.g. "reserved:multinic-host=node-network1"
+func NewReservedMultiNICHostLabels(nodeNetwork string) Labels {
+	return Labels{IDNameMultiNICHost: NewLabel(IDNameMultiNICHost, nodeNetwork, LabelSourceReserved)}
 }
 
 // FetchMultiNICAnnotation returns the default interface name and interface annotation from the provided

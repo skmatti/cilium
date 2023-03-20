@@ -8,6 +8,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/cilium/cilium/pkg/gke/features"
 	"github.com/cilium/cilium/pkg/identity"
 	"github.com/cilium/cilium/pkg/labels"
 )
@@ -81,6 +82,40 @@ func TestHostIdentityLifecycle(t *testing.T) {
 	idm.RemoveOldAddNew(hostIdentity, newHostIdentity)
 	require.Equal(t, uint(1), idm.identities[hostIdentity.ID].refCount)
 	require.EqualValues(t, newHostIdentity, idm.identities[hostIdentity.ID].identity)
+}
+
+func TestMultiNICHostIdentityLifecycle(t *testing.T) {
+	features.GlobalConfig.EnableGoogleMultiNICHostFirewall = true
+	defer func() {
+		features.GlobalConfig.EnableGoogleMultiNICHostFirewall = false
+	}()
+	idm := NewIdentityManager()
+	require.NotNil(t, idm.identities)
+
+	testNetwork := "test-node-network1"
+	id := identity.NumericIdentity(135)
+
+	// Create multi nic host reserved identity.
+	err := identity.InitMultiNICHostNumericIdentitySet(map[string]string{
+		id.String(): testNetwork,
+	})
+	require.NoError(t, err)
+	defer identity.DelReservedNumericIdentity(id)
+
+	hostIdentity := identity.NewIdentity(identity.ReservedIdentityHost, labels.LabelHost)
+	_, exists := idm.identities[hostIdentity.ID]
+	require.Equal(t, false, exists)
+
+	idm.Add(hostIdentity)
+	require.Equal(t, uint(1), idm.identities[hostIdentity.ID].refCount)
+
+	// Update labels for the multi nic host endpoint.
+	newHostLabels := labels.NewLabelsFromModel([]string{"id=foo"})
+	newHostLabels.MergeLabels(labels.NewReservedMultiNICHostLabels(testNetwork))
+	newHostIdentity := identity.NewIdentity(id, newHostLabels)
+	idm.RemoveOldAddNew(hostIdentity, newHostIdentity)
+	require.Equal(t, uint(1), idm.identities[newHostIdentity.ID].refCount)
+	require.EqualValues(t, newHostIdentity, idm.identities[newHostIdentity.ID].identity)
 }
 
 type identityManagerObserver struct {

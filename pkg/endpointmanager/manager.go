@@ -778,6 +778,11 @@ func (mgr *endpointManager) initHostEndpointLabels(ctx context.Context, ep *endp
 
 	ep.InitWithNodeLabels(ctx, ln.Labels, launchTime)
 
+	// Do not start node label observer for multinic host enpdoints.
+	if ep.IsMultiNICHost() {
+		return
+	}
+
 	// Start the observer to keep the labels synchronized in case they change
 	mgr.startNodeLabelsObserver(ln.Labels)
 }

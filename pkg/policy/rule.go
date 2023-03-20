@@ -607,7 +607,7 @@ func (r *rule) resolveIngressPolicy(
 }
 
 func (r *rule) matchesSubject(securityIdentity *identity.Identity) bool {
-	subjectIsNode := securityIdentity.ID == identity.ReservedIdentityHost
+	subjectIsNode := securityIdentity.ID == identity.ReservedIdentityHost || identity.IsMultiNICHostID(securityIdentity.ID)
 	ruleSelectsNode := r.NodeSelector.LabelSelector != nil
 
 	// Short-circuit if the rule's selector type (node vs. endpoint) does not match the

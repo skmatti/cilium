@@ -38,6 +38,7 @@ import (
 	"github.com/cilium/cilium/pkg/mac"
 	"github.com/cilium/cilium/pkg/maps/callsmap"
 	"github.com/cilium/cilium/pkg/maps/policymap"
+	"github.com/cilium/cilium/pkg/node"
 	"github.com/cilium/cilium/pkg/option"
 	"github.com/cilium/cilium/pkg/time"
 	wgTypes "github.com/cilium/cilium/pkg/wireguard/types"
@@ -381,6 +382,17 @@ func (l *loader) reloadHostDatapath(ep datapath.Endpoint, spec *ebpf.CollectionS
 
 	// Replace programs on physical devices, ignoring devices that don't exist.
 	for _, device := range devices {
+
+		// Avoid loading default bpf programs on multinic host devices for
+		// default host endpoint.
+		if !ep.IsMultiNICHost() && node.IsMultiNICHostDevice(device) {
+			continue
+		}
+		// For a multi nic host endpoint, load bpf only on the associated device.
+		if ep.IsMultiNICHost() && ep.GetParentDevName() != device {
+			continue
+		}
+
 		iface, err := safenetlink.LinkByName(device)
 		if err != nil {
 			log.WithError(err).WithField("device", device).Warn("Link does not exist")

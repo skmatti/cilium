@@ -49,7 +49,7 @@ var (
 )
 
 // Init sets up the controller manager and reconcilers for multinic.
-func Init(ctx context.Context, endpointManager endpointmanager.EndpointManager, clientset k8sClient.Clientset, endpoints []*endpoint.Endpoint, mnwIPAMMgr types.MultiNetworkIPAMManager, deviceMgr types.HighPerfDeviceManager, devices statedb.Table[*tables.Device], db *statedb.DB) (K8sClient, *KubeletClient, dhcp.DHCPClient, error) {
+func Init(ctx context.Context, endpointManager endpointmanager.EndpointManager, hostEpMgr types.HostEndpointManager, clientset k8sClient.Clientset, endpoints []*endpoint.Endpoint, mnwIPAMMgr types.MultiNetworkIPAMManager, deviceMgr types.HighPerfDeviceManager, devices statedb.Table[*tables.Device], db *statedb.DB) (K8sClient, *KubeletClient, dhcp.DHCPClient, error) {
 	scheme := runtime.NewScheme()
 	// The controller runs on every node. Consider performance impact when adding new schemes.
 	if err := networkv1.AddToScheme(scheme); err != nil {
@@ -71,15 +71,25 @@ func Init(ctx context.Context, endpointManager endpointmanager.EndpointManager, 
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("create manager: %v", err)
 	}
+
+	// Filter host endpoints.
+	var hostEPs []*endpoint.Endpoint
+	for _, ep := range endpoints {
+		if ep.IsHost() {
+			hostEPs = append(hostEPs, ep)
+		}
+	}
 	reconciler := &controller.NetworkReconciler{
-		Client:          mgr.GetClient(),
-		EndpointManager: endpointManager,
-		NodeName:        nodeTypes.GetName(),
-		Devices:         devices,
-		DB:              db,
-		IPAMMgr:         mnwIPAMMgr,
-		DeviceMgr:       deviceMgr,
-		Log:             log,
+		Client:              mgr.GetClient(),
+		EndpointManager:     endpointManager,
+		HostEndpointManager: hostEpMgr,
+		RestoredHostEPs:     hostEPs,
+		NodeName:            nodeTypes.GetName(),
+		Devices:             devices,
+		DB:                  db,
+		IPAMMgr:             mnwIPAMMgr,
+		DeviceMgr:           deviceMgr,
+		Log:                 log,
 	}
 	if err := reconciler.SetupWithManager(mgr); err != nil {
 		return nil, nil, nil, fmt.Errorf("failed to setup network controller: %v", err)

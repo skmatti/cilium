@@ -37,6 +37,7 @@ import (
 	"github.com/cilium/cilium/pkg/eventqueue"
 	"github.com/cilium/cilium/pkg/fqdn"
 	"github.com/cilium/cilium/pkg/fqdn/restore"
+	"github.com/cilium/cilium/pkg/gke/features"
 	multinicep "github.com/cilium/cilium/pkg/gke/multinic/endpoint"
 	"github.com/cilium/cilium/pkg/identity"
 	"github.com/cilium/cilium/pkg/identity/cache"
@@ -442,6 +443,9 @@ type Endpoint struct {
 
 	// Device type of the endpoint. If it's unset (empty), it's the normal veth endpoint.
 	deviceType multinicep.EndpointDeviceType
+
+	// nodeNetworkName is the name of the host network for a multinic L2 endpoint.
+	nodeNetworkName string
 
 	// parentDevName is the name of the parent interface for a multinic L2/L3 endpoint.
 	parentDevName string
@@ -994,6 +998,10 @@ func parseEndpoint(owner regeneration.Owner, policyGetter policyRepoGetter, name
 	ep.isHost = ep.HasLabels(labels.LabelHost)
 	// If Ingress label is present, it's the Ingress endpoint.
 	ep.isIngress = ep.HasLabels(labels.LabelIngress)
+
+	if ep.isHost {
+		ep.populateNodeNetwork()
+	}
 
 	if ep.isHost || ep.isIngress {
 		// Overwrite datapath configuration with the current agent configuration.
@@ -2069,6 +2077,16 @@ func (e *Endpoint) InitWithNodeLabels(ctx context.Context, nodeLabels map[string
 	newLabels := labels.Map2Labels(nodeLabels, labels.LabelSourceK8s)
 	newIdtyLabels, _ := labelsfilter.Filter(newLabels)
 	epLabels.MergeLabels(newIdtyLabels)
+
+	if features.GlobalConfig.EnableGoogleMultiNICHostFirewall {
+		// Set node network name for default host endpoint.
+		if e.GetNodeNetworkName() == "" {
+			e.SetNodeNetworkName(identity.DefaultMultiNICNodeNetwork)
+		}
+		nodeNetwork := e.GetNodeNetworkName()
+		// Reserved identity labels.
+		epLabels.MergeLabels(labels.NewReservedMultiNICHostLabels(nodeNetwork))
+	}
 
 	// Give the endpoint a security identity
 	newCtx, cancel := context.WithTimeout(ctx, launchTime)

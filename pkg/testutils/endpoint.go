@@ -32,6 +32,7 @@ type TestEndpoint struct {
 	NetNsCookie             uint64
 	PodRedirectStackIfindex int
 	MultiNic                bool
+	MultiNicHost            bool
 }
 
 func NewTestEndpoint() TestEndpoint {
@@ -82,11 +83,12 @@ func (e *TestEndpoint) GetPodStackRedirectIfindex() int             { return e.P
 func (e *TestEndpoint) GetOptions() *option.IntOptions              { return e.Opts }
 func (e *TestEndpoint) IsHost() bool                                { return e.isHost }
 func (e *TestEndpoint) IsMultiNIC() bool                            { return e.MultiNic }
+func (e *TestEndpoint) IsMultiNICHost() bool                        { return e.MultiNicHost }
 func (e *TestEndpoint) EnableMulticast() bool                       { return false }
 func (e *TestEndpoint) GetDeviceTypeIndex() int                     { return 0 }
 func (e *TestEndpoint) GetParentDevIndex() int                      { return 0 }
 func (e *TestEndpoint) GetNetworkID() uint32                        { return 0 }
-
+func (e *TestEndpoint) GetParentDevName() string                    { return "dev1" }
 func (e *TestEndpoint) GetParentDevMac() mac.MAC {
 	return mac.MAC([]byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00})
 }

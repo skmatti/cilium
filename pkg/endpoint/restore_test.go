@@ -32,6 +32,7 @@ func (s *EndpointSuite) createEndpoints() ([]*Endpoint, map[uint16]*Endpoint) {
 		s.endpointCreator(258, identity.NumericIdentity(1258)),
 		s.endpointCreator(259, identity.NumericIdentity(1259)),
 		s.endpointCreatorMultiNIC(260, identity.NumericIdentity(1260)),
+		s.endpointCreatorMultiNICHostFirewall(261, identity.NumericIdentity(1261)),
 	}
 	epsMap := map[uint16]*Endpoint{
 		epsWanted[0].ID: epsWanted[0],
@@ -39,6 +40,7 @@ func (s *EndpointSuite) createEndpoints() ([]*Endpoint, map[uint16]*Endpoint) {
 		epsWanted[2].ID: epsWanted[2],
 		epsWanted[3].ID: epsWanted[3],
 		epsWanted[4].ID: epsWanted[4],
+		epsWanted[5].ID: epsWanted[5],
 	}
 	return epsWanted, epsMap
 }
@@ -88,6 +90,15 @@ func (ds *EndpointSuite) endpointCreatorMultiNIC(id uint16, secID identity.Numer
 	ep.deviceType = multinicep.EndpointDeviceMACVTAP
 	ep.parentDevIndex = int(id)
 	ep.parentDevName = "ens" + strID
+	return ep
+}
+
+func (ds *EndpointSuite) endpointCreatorMultiNICHostFirewall(id uint16, secID identity.NumericIdentity) *Endpoint {
+	ep := ds.endpointCreator(id, secID)
+	strID := getStrID(id)
+	ep.isHost = true
+	ep.parentDevName = "ens" + strID
+	ep.nodeNetworkName = "network" + strID
 	return ep
 }
 

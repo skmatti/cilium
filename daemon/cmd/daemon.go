@@ -915,7 +915,7 @@ func newDaemon(ctx context.Context, cleaner *daemonCleanup, params *daemonParams
 		if !params.Clientset.IsEnabled() {
 			log.Fatal("K8s needs to be enabled for multi nic support")
 		}
-		d.multinicClient, d.kubeletClient, d.dhcpClient, err = multinic.Init(d.ctx, d.endpointManager, params.Clientset, restoredEndpoints.restored, &d, &d, d.devices, d.db)
+		d.multinicClient, d.kubeletClient, d.dhcpClient, err = multinic.Init(d.ctx, d.endpointManager, &d, params.Clientset, restoredEndpoints.restored, &d, &d, d.devices, d.db)
 		if err != nil {
 			log.WithError(err).Fatal("Unable to init multinic")
 		}
