@@ -1198,6 +1198,14 @@ func initializeFlags() {
 	flags.Bool(option.EnableTransparentHealthChecks, false, "Enable Google LB health checks to pods to be answered by K8s status watcher")
 	option.BindEnv(option.EnableTransparentHealthChecks)
 
+	flags.Int(option.THCPort, 0, "The port for Transparent Health Checks")
+	flags.MarkHidden(option.THCPort)
+	option.BindEnv(option.THCPort)
+
+	flags.StringSlice(option.THCSourceRanges, []string{}, "Comma-separated list of Transparent Health Checks source IP ranges")
+	flags.MarkHidden(option.THCSourceRanges)
+	option.BindEnv(option.THCSourceRanges)
+
 	viper.BindPFlags(flags)
 }
 

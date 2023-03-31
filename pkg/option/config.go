@@ -1169,9 +1169,17 @@ const (
 	// stale CiliumEndpoints during init.
 	EnableStaleCiliumEndpointCleanup = "enable-stale-cilium-endpoint-cleanup"
 
-	// EnableTransparentHealthChecks enables Transparent Health Checks (go/1n-transparent-hc-design).
+	// Parameters for Transparent Health Checks
+
+	// EnableTransparentHealthChecks enables Transparent Health Checks.
 	// After enabling THC, the redirection to a new endpoint will be added.
 	EnableTransparentHealthChecks = "enable-transparent-health-checks"
+
+	// THCPort is the port for Transparent Health Checks.
+	THCPort = "thc-port"
+
+	// THCSourceRanges are CIDR IP ranges of Transparent Health Checks queries.
+	THCSourceRanges = "thc-source-ranges"
 )
 
 // Default string arguments
@@ -2392,6 +2400,12 @@ type DaemonConfig struct {
 	// This will attempt to remove local CiliumEndpoints that are not managed by Cilium
 	// following Endpoint restoration.
 	EnableStaleCiliumEndpointCleanup bool
+
+	// THCPort is the port for Transparent Health Checks.
+	THCPort uint16
+
+	// THCSourceRanges are source IP ranges of Transparent Health Checks queries.
+	THCSourceRanges []string
 }
 
 var (
@@ -3437,6 +3451,11 @@ func (c *DaemonConfig) Populate() {
 
 	// Enable Google LB health checks to pods to be answered by K8s status watcher
 	c.EnableTHC = viper.GetBool(EnableTransparentHealthChecks)
+	// Port for Transparent Health Checks.
+	c.THCPort = uint16(viper.GetInt(THCPort))
+	// Source IP ranges of Transparent Health Checks queries.
+	c.THCSourceRanges = viper.GetStringSlice(THCSourceRanges)
+
 }
 
 func (c *DaemonConfig) additionalMetrics() []string {
