@@ -53,6 +53,9 @@ static __always_inline bool is_sfc_encapped(struct __ctx_buff *ctx, const struct
 
 	if (ip4->protocol != IPPROTO_UDP)
 		return false;
+	// service steering can't handle fragmented packets after encapsulation.
+	if (unlikely(ipv4_is_fragment(ip4)))
+		return false;
 	if (IS_ERR(l4_load_port(ctx, dport_off, &dport)))
 		return false;
 	return dport == bpf_htons(GOOGLE_SFC_RESERVED_PORT);
@@ -263,10 +266,17 @@ sfc_select(struct __ctx_buff *ctx, struct iphdr *ip4, bool is_egress, nshpath *p
 	};
 
 	if (ip4->protocol == IPPROTO_UDP || ip4->protocol == IPPROTO_TCP) {
-		/* Port offsets for UDP, TCP are the same */
-		int off = ETH_HLEN + ipv4_hdrlen(ip4) + TCP_DPORT_OFF;
-		if (l4_load_port(ctx, off, &select_key.port) < 0)
-			return DROP_INVALID;
+		int l4_off = ETH_HLEN + ipv4_hdrlen(ip4);
+		enum ct_dir dir __maybe_unused = CT_INGRESS;
+		int ret;
+		struct l4hdr l4;
+
+		if (is_egress)
+			dir = CT_EGRESS;
+		ret = __extract_l4_ports(ctx, ip4, l4_off, dir, &l4);
+		if (IS_ERR(ret))
+			return ret;
+		select_key.port = l4.dport;
 	} else {
 		/* Protocol not supported */
 		return DROP_INVALID;
