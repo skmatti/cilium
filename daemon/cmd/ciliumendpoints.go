@@ -41,12 +41,17 @@ func (d *Daemon) cleanStaleCEPs(ctx context.Context, eps localEndpointCache, cil
 		return fmt.Errorf("could not get %s objects from localNode indexer: %w", crdType, err)
 	}
 	if enableCiliumEndpointSlice {
+		if option.Config.EnableGoogleMultiNIC {
+			if err := d.cleanStaleCEPinCESWhenMultiNIC(ctx, eps, ciliumClient, objs); err != nil {
+				return fmt.Errorf("error while cleaning stale CEPs in CESs: %v", err)
+			}
+			return nil
+		}
 		for _, cesObj := range objs {
 			ces, ok := cesObj.(*cilium_v2a1.CiliumEndpointSlice)
 			if !ok {
 				return fmt.Errorf("unexpected object type returned from ciliumendpointslice store: %T", cesObj)
 			}
-			// TODO(b/272832773): fix CES restoration after retrieving pod information from multi-network endpoints.
 			for _, cep := range ces.Endpoints {
 				if cep.Networking.NodeIP == node.GetCiliumEndpointNodeIP() && eps.LookupPodName(ces.Namespace+"/"+cep.Name) == nil {
 					d.deleteCiliumEndpoint(ctx, ces.Namespace, cep.Name, nil, ciliumClient, eps,
