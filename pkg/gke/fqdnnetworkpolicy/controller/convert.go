@@ -34,7 +34,7 @@ const (
 
 // dnsProxyRedirect adds an egress rule to proxy traffic sent
 // to kube-dns or node-local-dns on port 53 through the DNS Proxy.
-func dnsProxyRedirect() api.EgressRule {
+func dnsProxyRedirect() []api.EgressRule {
 	kubeDNSSelector := &slim_metav1.LabelSelector{
 		MatchLabels: map[string]string{
 			k8sCilium.PodNamespaceLabel: "kube-system",
@@ -47,24 +47,51 @@ func dnsProxyRedirect() api.EgressRule {
 			"k8s-app":                   "node-local-dns",
 		},
 	}
-	return api.EgressRule{
-		EgressCommonRule: api.EgressCommonRule{
-			ToEndpoints: []api.EndpointSelector{
-				api.NewESFromK8sLabelSelector(labels.LabelSourceK8sKeyPrefix, kubeDNSSelector),
-				api.NewESFromK8sLabelSelector(labels.LabelSourceK8sKeyPrefix, nodeLocalDNSSelector),
+	return []api.EgressRule{
+		{
+			EgressCommonRule: api.EgressCommonRule{
+				ToEndpoints: []api.EndpointSelector{
+					api.NewESFromK8sLabelSelector(labels.LabelSourceK8sKeyPrefix, kubeDNSSelector),
+					api.NewESFromK8sLabelSelector(labels.LabelSourceK8sKeyPrefix, nodeLocalDNSSelector),
+				},
 			},
-		},
-		ToPorts: []api.PortRule{
-			{
-				Ports: []api.PortProtocol{
-					{
-						Port:     "53",
-						Protocol: api.ProtoAny,
+			ToPorts: []api.PortRule{
+				{
+					Ports: []api.PortProtocol{
+						{
+							Port:     "53",
+							Protocol: api.ProtoAny,
+						},
+					},
+					Rules: &api.L7Rules{
+						DNS: []api.PortRuleDNS{
+							{MatchPattern: "*"},
+						},
 					},
 				},
-				Rules: &api.L7Rules{
-					DNS: []api.PortRuleDNS{
-						{MatchPattern: "*"},
+			},
+		},
+		{
+			EgressCommonRule: api.EgressCommonRule{
+				ToCIDRSet: []api.CIDRRule{
+					// 169.254.169.254/32 is the nameserver address when using Cloud DNS.
+					{Cidr: "169.254.169.254/32"},
+					// 169.254.20.10/32 is the nameserver address when using Cloud DNS and NodeLocal DNS.
+					{Cidr: "169.254.20.10/32"},
+				},
+			},
+			ToPorts: []api.PortRule{
+				{
+					Ports: []api.PortProtocol{
+						{
+							Port:     "53",
+							Protocol: api.ProtoAny,
+						},
+					},
+					Rules: &api.L7Rules{
+						DNS: []api.PortRuleDNS{
+							{MatchPattern: "*"},
+						},
 					},
 				},
 			},
@@ -101,7 +128,7 @@ func parseFQDNNetworkPolicy(fqdn *v1alpha1.FQDNNetworkPolicy) (*api.Rule, error)
 	if fqdn == nil {
 		return nil, errors.New("cannot parse nil object")
 	}
-	egresses := []api.EgressRule{dnsProxyRedirect()}
+	egresses := dnsProxyRedirect()
 	for _, egress := range fqdn.Spec.Egress {
 		fqdns := make([]api.FQDNSelector, 0, len(egress.Matches))
 		for _, sel := range egress.Matches {

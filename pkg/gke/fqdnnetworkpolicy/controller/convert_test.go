@@ -106,7 +106,7 @@ func TestDNSProxyRedirectKubeDNS(t *testing.T) {
 
 func TestDNSProxyRedirectNodeLocalDNS(t *testing.T) {
 	re.InitRegexCompileLRU(defaults.FQDNRegexCompileLRUSize)
-	// This policy only allows egress traffic to kube-dns
+	// This policy only allows egress traffic to kube-dns & node-local dns
 	emptyFQDNPolicy := &v1alpha1.FQDNNetworkPolicy{Spec: v1alpha1.FQDNNetworkPolicySpec{}}
 	rule, err := parseFQDNNetworkPolicy(emptyFQDNPolicy)
 	if err != nil {
@@ -362,14 +362,13 @@ func TestParseFQDNNetworkPolicy(t *testing.T) {
 			},
 			want: &api.Rule{
 				EndpointSelector: defaultNSSel,
-				Egress: []api.EgressRule{
-					dnsProxyRedirect(),
-					{
+				Egress: append(dnsProxyRedirect(),
+					api.EgressRule{
 						ToFQDNs: []api.FQDNSelector{
 							{MatchName: "www.google.com"},
 						},
 					},
-				},
+				),
 				Labels: defaultLabels,
 			},
 		},
@@ -394,9 +393,8 @@ func TestParseFQDNNetworkPolicy(t *testing.T) {
 			},
 			want: &api.Rule{
 				EndpointSelector: defaultNSSel,
-				Egress: []api.EgressRule{
-					dnsProxyRedirect(),
-					{
+				Egress: append(dnsProxyRedirect(),
+					api.EgressRule{
 						ToFQDNs: []api.FQDNSelector{
 							{MatchPattern: "*.googleapis.com"},
 						},
@@ -406,7 +404,7 @@ func TestParseFQDNNetworkPolicy(t *testing.T) {
 							{Port: "0", Protocol: api.ProtoUDP},
 						}}},
 					},
-				},
+				),
 				Labels: defaultLabels,
 			},
 		},
@@ -435,9 +433,8 @@ func TestParseFQDNNetworkPolicy(t *testing.T) {
 			},
 			want: &api.Rule{
 				EndpointSelector: defaultNSSel,
-				Egress: []api.EgressRule{
-					dnsProxyRedirect(),
-					{
+				Egress: append(dnsProxyRedirect(),
+					api.EgressRule{
 						ToFQDNs: []api.FQDNSelector{
 							{MatchPattern: "*.googleapis.com"},
 						},
@@ -445,13 +442,13 @@ func TestParseFQDNNetworkPolicy(t *testing.T) {
 							{Port: "443", Protocol: api.ProtoTCP},
 						}}},
 					},
-					{
+					api.EgressRule{
 						ToFQDNs: []api.FQDNSelector{
 							{MatchName: "www.github.com"},
 							{MatchName: "www.kubernetes.io"},
 						},
 					},
-				},
+				),
 				Labels: defaultLabels,
 			},
 		},
