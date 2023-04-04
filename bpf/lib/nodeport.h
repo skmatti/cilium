@@ -2708,6 +2708,10 @@ int tail_handle_snat_fwd_ipv4(struct __ctx_buff *ctx)
 
 	send_trace_notify(ctx, obs_point, 0, 0, 0, 0, trace.reason, trace.monitor);
 
+#if defined(ENABLE_GOOGLE_MULTI_NIC) && defined(IS_BPF_HOST)
+	return multinic_redirect_ipv4(ctx);
+#endif
+
 	return ret;
 }
 
