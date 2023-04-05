@@ -48,6 +48,7 @@ type NetworkReconciler struct {
 
 type ipamManager interface {
 	UpdateMultiNetworkIPAMAllocators(annotations map[string]string) error
+	ReserveGatewayIP(network *networkv1.Network) error
 }
 
 const (
@@ -406,6 +407,10 @@ func (r *NetworkReconciler) reconcileNetwork(ctx context.Context, node *corev1.N
 	}
 	if err := r.updateMultiNetworkIPAM(ctx, network, log); err != nil {
 		log.WithError(err).Error("Failed to update node multi-network IPAM")
+		return ctrl.Result{}, err
+	}
+	if err := r.IPAMMgr.ReserveGatewayIP(network); err != nil {
+		log.WithError(err).Error("Failed to reserve gateway IP")
 		return ctrl.Result{}, err
 	}
 	log.Info("Reconciled successfully")

@@ -55,8 +55,6 @@ type interfaceConfiguration struct {
 	Type                string
 	// When true, IFF_ALLMULTI is enabled for the interface.
 	EnableMulticast bool
-	// IP of the parent interface in root ns. This is the back up gw for the pod interface, configured for L3 multinic devices only
-	ParentIP *net.IP
 	// Network id in the google multinic context, configured for L3 multinic devices only
 	NetworkID uint32
 }
@@ -550,17 +548,6 @@ func SetupL3Interface(ifNameInPod, podName string, podResources map[string][]str
 	// TODO(yfshen): get MTU information from interface CR.
 	cfg.MTU = parentDevLink.Attrs().MTU
 
-	_, parentIP, err := anutils.InterfaceInfo(network, node.GetAnnotations())
-	ip := net.ParseIP(parentIP)
-	cfg.ParentIP = &ip
-	if err != nil {
-		if network.Spec.Gateway4 == nil {
-			return nil, fmt.Errorf("failed to fetch host ip for L3 interface: %v", err)
-		}
-		// Not a fatal error if network has gw configured
-		log.Warnf("Failed to fetch host ip for L3 interface: %v", err)
-	}
-
 	var peerIfName string
 	var peer netlink.Link
 	var veth *netlink.Veth
@@ -594,7 +581,6 @@ func SetupL3Interface(ifNameInPod, podName string, podResources map[string][]str
 		logfields.NetNSName:      ep.NetworkNamespace,
 		"sourceInterface":        peerIfName,
 		"parentInterface":        cfg.ParentInterfaceName,
-		"parentIP":               cfg.ParentIP,
 	}).Info("Set up L3 interface")
 
 	netNs, err := ns.GetNS(ep.NetworkNamespace)
@@ -724,7 +710,7 @@ func SetupNetworkRoutes(ifNameInPod string, intf *networkv1.NetworkInterface, ne
 		if err := addRoutes(destCIDRs, gw, l, mtu); err != nil {
 			return err
 		}
-		// No need to re-configure the default route for pod-network.
+		// No need to re-configure the default route for default pod-network.
 		if isDefaultInterface && !networkv1.IsDefaultNetwork(intf.Spec.NetworkName) {
 			if err := addDefaultRoute(gw, l); err != nil {
 				return err
@@ -901,8 +887,14 @@ func populateInterfaceStatus(intf *networkv1.NetworkInterface, network *networkv
 		intf.Status.Routes = routes
 		if intf.Status.Gateway4 == nil {
 			// For L3 network, if gateway is not specified in network,
-			// use the ParentIP which is the north interface IP for that network
-			intf.Status.Gateway4 = pointer.String(cfg.ParentIP.String())
+			// use the first IP from the network's pod CIDR on node as gateway IP.
+			podNetworks := node.GetPodNetworks()
+			cidr, ok := podNetworks[network.Name]
+			if !ok {
+				return fmt.Errorf("ipam cidr for network %s does not exist", network.Name)
+			}
+			gwIp := ipam.DeriveGatewayIP(cidr.String())
+			intf.Status.Gateway4 = &gwIp
 		}
 	}
 	return nil
