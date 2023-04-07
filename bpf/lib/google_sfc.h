@@ -46,6 +46,40 @@ struct encaphdr {
 /* Bytes added to packets due to SFC encap. */
 #define SFC_MTU_OVERHEAD (sizeof(struct encaphdr))
 
+// Return true if the NSH path has the maximum possible SI value for its SPI.
+static __always_inline bool nshpath_max_si(nshpath path) {
+	__u32 spi = nshpath_spi(path);
+	__u8 si = nshpath_si(path);
+	// If (SPI, SI+1) does not exist, then (SPI, SI) is either the first or last hop of the SFC,
+	// based on the direction.
+	struct sfc_path_key path_key = { .path = nshpath_init(spi, si+1) };
+	struct sfc_path_entry *path_entry = map_lookup_elem(&SFC_PATH_MAP, &path_key);
+	return path_entry == NULL;
+}
+
+// Set the next hop daddr in the `redirect_info`.
+static __always_inline int set_next_hop(struct iphdr *ip4, struct redirect_info *redir) {
+	if (redir->path && !redir->is_reply) {
+		__u8 si = nshpath_si(redir->path);
+		if (si == 0) {
+			// If SI is 0, then this is the last hop.
+			// So, forward the packet to it's destination.
+			redir->daddr = ip4->daddr;
+		} else {
+			struct sfc_path_key path_key = { .path = redir->path };
+			struct sfc_path_entry *path_entry = map_lookup_elem(&SFC_PATH_MAP, &path_key);
+			if (path_entry == NULL)
+				return DROP_NO_SERVICE;
+			redir->daddr = path_entry->address;
+		}
+	}
+	return CTX_ACT_OK;
+}
+
+static __always_inline bool is_protocol_supported(const struct iphdr *ip4) {
+	return ip4->protocol == IPPROTO_UDP || ip4->protocol == IPPROTO_TCP;
+}
+
 static __always_inline bool is_sfc_encapped(struct __ctx_buff *ctx, const struct iphdr *ip4) {
 	__be16 dport;
 	int l4_off = ETH_HLEN + ipv4_hdrlen(ip4);
@@ -250,14 +284,15 @@ static __always_inline __u32 mask_ipv4(__u32 ip, __u8 prefix_len) {
  * @arg ctx:       Packet
  * @arg ip4:       Pointer to L3 header
  * @arg is_egress: Boolean indicating whether packet is from egress or ingress direction from to the pod
- * @arg path:      Pointer to store the matching rule's SFC path key
+ * @arg redir:     Pointer to store redirection info for the matching rule's SFC
  *
  * Return negative `DROP_` codes if the packet can't be handled.
- * `path` will be set to a non-zero value if there's a matching traffic selection rule.
+ * `redir->path` will be set to a non-zero value if there's a matching traffic selection rule.
  */
 static __always_inline __maybe_unused int
-sfc_select(struct __ctx_buff *ctx, struct iphdr *ip4, bool is_egress, nshpath *path)
+sfc_select(struct __ctx_buff *ctx, struct iphdr *ip4, bool is_egress, struct redirect_info *redir)
 {
+	int ret;
 	struct sfc_path_key *path_key;
 	struct sfc_select_key select_key = {
 		.ep_id = LXC_ID,
@@ -265,10 +300,15 @@ sfc_select(struct __ctx_buff *ctx, struct iphdr *ip4, bool is_egress, nshpath *p
 		.protocol = ip4->protocol,
 	};
 
-	if (ip4->protocol == IPPROTO_UDP || ip4->protocol == IPPROTO_TCP) {
+	if (is_sfc_encapped(ctx, ip4))
+		return CTX_ACT_OK;
+
+	if (!is_protocol_supported(ip4))
+		return CTX_ACT_OK;
+
+	{
 		int l4_off = ETH_HLEN + ipv4_hdrlen(ip4);
 		enum ct_dir dir __maybe_unused = CT_INGRESS;
-		int ret;
 		struct l4hdr l4;
 
 		if (is_egress)
@@ -277,9 +317,6 @@ sfc_select(struct __ctx_buff *ctx, struct iphdr *ip4, bool is_egress, nshpath *p
 		if (IS_ERR(ret))
 			return ret;
 		select_key.port = l4.dport;
-	} else {
-		/* Protocol not supported */
-		return DROP_INVALID;
 	}
 
 	select_key.src_prefix_len = lookup_prefix_len(ip4->saddr, is_egress, false);
@@ -294,7 +331,12 @@ sfc_select(struct __ctx_buff *ctx, struct iphdr *ip4, bool is_egress, nshpath *p
 		path_key = map_lookup_elem(&SFC_SELECT_MAP, &select_key);
 	}
 	if (path_key != NULL)
-		*path = path_key->path;
+		redir->path = path_key->path;
+
+	ret = set_next_hop(ip4, redir);
+	if (IS_ERR(ret))
+		return ret;
+
 	return CTX_ACT_OK;
 }
 
@@ -419,10 +461,8 @@ sfc_flow_lookup4(struct __ctx_buff *ctx, struct iphdr *ip4, bool create, bool re
 	int ret;
 	int l4_off = ETH_HLEN + ipv4_hdrlen(ip4);
 
-	if (ip4->protocol != IPPROTO_UDP && ip4->protocol != IPPROTO_TCP) {
-		/* Protocol not supported */
+	if (!is_protocol_supported(ip4))
 		return DROP_CT_UNKNOWN_PROTO;
-	}
 
 	key.ep_id = LXC_ID;
 	key.saddr = ip4->saddr;
@@ -463,40 +503,34 @@ sfc_flow_lookup4(struct __ctx_buff *ctx, struct iphdr *ip4, bool create, bool re
 }
 
 /**
- * Encapuslate packet for SFC based on flow tracking and traffic selection.
- * @arg ctx: Packet
- * @arg ip4: Pointer to L3 header
+ * Check if packet matches existing SFC flow.
+ * @arg ctx:       Packet
+ * @arg ip4:       Pointer to L3 header
+ * @arg redir:     Pointer to store redirection info if there's a matching SFC flow
  *
- * Return negative `DROP_` codes if the packet can't be handled.
- * Return `CTX_ACT_REDIRECT` if the packet was encapsulated.
+ * Return negative `DROP_` codes if the packet can't be handled and `CTX_ACT_OK` otherwise.
  */
 static __always_inline int
-try_sfc_encap(struct __ctx_buff *ctx, struct iphdr *ip4)
+sfc_existing_flow(struct __ctx_buff *ctx, struct iphdr *ip4, struct redirect_info *redir)
 {
 	int ret;
-	struct redirect_info redir = {};
 	struct sfc_ipv4_flow_entry flow_entry = {};
 
-	if (is_sfc_encapped(ctx, ip4))
+	if (!is_protocol_supported(ip4))
 		return CTX_ACT_OK;
-
-	if (ip4->protocol != IPPROTO_UDP && ip4->protocol != IPPROTO_TCP) {
-		/* Protocol not supported */
-		return CTX_ACT_OK;
-	}
 
 	// reverse flow lookup
 	ret = sfc_flow_lookup4(ctx, ip4, false, true, &flow_entry);
 	if (IS_ERR(ret))
 		return ret;
 	if (ret == CT_ESTABLISHED) {
-		redir.path = flow_entry.path;
-		redir.daddr = flow_entry.previous_hop_addr;
-		redir.is_reply = true;
+		redir->path = flow_entry.path;
+		redir->daddr = flow_entry.previous_hop_addr;
+		redir->is_reply = true;
 	}
 
 	// forwards flow lookup
-	if (!redir.path) {
+	if (!redir->path) {
 		ret = sfc_flow_lookup4(ctx, ip4, false, false, &flow_entry);
 		if (IS_ERR(ret))
 			return ret;
@@ -505,37 +539,13 @@ try_sfc_encap(struct __ctx_buff *ctx, struct iphdr *ip4)
 			__u8 si = nshpath_si(flow_entry.path);
 			if (si == 0)
 				return DROP_INVALID;
-			redir.path = nshpath_init(spi, si-1);
+			redir->path = nshpath_init(spi, si-1);
 		}
 	}
 
-	// traffic selection
-	if (!redir.path) {
-		ret = sfc_select(ctx, ip4, true, &redir.path);
-		if (IS_ERR(ret))
-			return ret;
-	}
-
-	// set next hop dest IP
-	if (redir.path && !redir.is_reply) {
-		__u8 si = nshpath_si(redir.path);
-		if (si == 0) {
-			redir.daddr = ip4->daddr;
-		} else {
-			struct sfc_path_key path_key = { .path = redir.path };
-			struct sfc_path_entry *path_entry = map_lookup_elem(&SFC_PATH_MAP, &path_key);
-			if (path_entry == NULL)
-				return DROP_NO_SERVICE;
-			redir.daddr = path_entry->address;
-		}
-	}
-
-	if (redir.path) {
-		ret = sfc_encap(ctx, ip4, &redir);
-		if (IS_ERR(ret))
-			return ret;
-		return CTX_ACT_REDIRECT;
-	}
+	ret = set_next_hop(ip4, redir);
+	if (IS_ERR(ret))
+		return ret;
 
 	return CTX_ACT_OK;
 }
@@ -543,11 +553,12 @@ try_sfc_encap(struct __ctx_buff *ctx, struct iphdr *ip4)
 /**
  * Decapuslate SFC packet and update the flow-tracking map.
  * @arg ctx: Packet
+ * @arg skip_conntrack: Pointer to boolean that is set to true if connection tracking should be skipped
  *
  * Return negative `DROP_` codes if the packet can't be handled and `CTX_ACT_OK` otherwise.
  */
 static __always_inline int
-try_sfc_decap(struct __ctx_buff *ctx)
+try_sfc_decap(struct __ctx_buff *ctx, bool *skip_conntrack)
 {
 	void *data, *data_end;
 	struct iphdr *ip4;
@@ -556,8 +567,11 @@ try_sfc_decap(struct __ctx_buff *ctx)
 	if (!revalidate_data(ctx, &data, &data_end, &ip4))
 		return DROP_INVALID;
 
+	*skip_conntrack = false;
+
 	if (is_sfc_encapped(ctx, ip4)) {
 		__u16 sport;
+		bool is_reply;
 		struct encaphdr h_outer = {};
 		struct sfc_ipv4_flow_entry flow_entry = {};
 		ret = sfc_decap(ctx, &h_outer);
@@ -567,18 +581,25 @@ try_sfc_decap(struct __ctx_buff *ctx)
 			return DROP_INVALID;
 
 		sport = bpf_ntohs(h_outer.udp.source);
-		if ((sport & 0b1) == 0) {
+		is_reply = sport & 0b1;
+		if (is_reply) {
+			// Skip connection tracking if not at source (indicated by max SI).
+			*skip_conntrack = !nshpath_max_si(h_outer.nsh.path);
+		} else {
 			/* Create flow entry for non-reply traffic. */
 			flow_entry.path = h_outer.nsh.path;
 			flow_entry.previous_hop_addr = h_outer.ip.saddr;
 			ret = sfc_flow_lookup4(ctx, ip4, true, false, &flow_entry);
 			if (IS_ERR(ret))
 				return ret;
+			// Skip connection tracking if not at destination (indicated by SI of 0).
+			*skip_conntrack = !nshpath_si(h_outer.nsh.path);
 		}
 	}
 
 	return CTX_ACT_OK;
 }
+
 /**
  * Load balance (DNAT) the packet if the dst is a service.
  * @arg ctx: Packet
@@ -784,22 +805,27 @@ drop_err:
 }
 
  /**
-   * Convert the packet into a ICMP fragmentation needed packet.
+   * Convert the packet into a ICMP fragmentation needed packet and redirect it.
    *
    * @arg ctx: Packet
    * @arg ip4: Pointer to L3 header
    * @arg rev_nat_index: Used to find the original LB service the packet is sent to.
    *
-   *
    * Return negative `DROP_` codes if the packet can't be handled.
-   * Return `CTX_ACT_OK` if the ICMP packet is succesfully built.
+   * Return `CTX_ACT_REDIRECT` if the ICMP packet is succesfully built and redirected.
    */
 static __always_inline int
-sfc_build_icmp4(struct __ctx_buff *ctx, struct iphdr *ip4, __u16 rev_nat_index) {
+sfc_redirect_icmp4(struct __ctx_buff *ctx, struct iphdr *ip4, __u16 rev_nat_index) {
+	int ret;
+	__u32 redirect_dir = 0;
 	__u32 svc_addr = 0;
 	__u16 dport = 0;
-	// Need to do reverse DNAT in the innner headers when building the ICMP
-	// pkt.
+#if defined(MULTI_NIC_DEVICE_TYPE) && MULTI_NIC_DEVICE_TYPE != EP_DEV_TYPE_INDEX_MULTI_NIC_VETH
+	// L2 MultiNIC devices are in the pod namespace directly.
+	redirect_dir = BPF_F_INGRESS;
+#endif
+	// rev_nat_index is set if the packet has been service load balanced.
+	// Need to do reverse DNAT in the innner headers when building the ICMP pkt.
 	if (rev_nat_index) {
 		const struct lb4_reverse_nat *nat =
 		    map_lookup_elem(&LB4_REVERSE_NAT_MAP, &rev_nat_index);
@@ -809,7 +835,10 @@ sfc_build_icmp4(struct __ctx_buff *ctx, struct iphdr *ip4, __u16 rev_nat_index) 
 		svc_addr = nat->address;
 		dport = nat->port;
 	}
-	return __sfc_reply_icmp4(ctx, ip4, svc_addr, dport);
+	ret = __sfc_reply_icmp4(ctx, ip4, svc_addr, dport);
+	if (IS_ERR(ret))
+		return ret;
+	return ctx_redirect(ctx, ctx_get_ifindex(ctx), redirect_dir);
 }
 
 #endif /* ENABLE_GOOGLE_SERVICE_STEERING */

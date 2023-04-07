@@ -786,6 +786,17 @@ static __always_inline int handle_ipv4_from_lxc(struct __ctx_buff *ctx, __u32 *d
 	if (!revalidate_data(ctx, &data, &data_end, &ip4))
 		return DROP_INVALID;
 
+#ifdef ENABLE_GOOGLE_SERVICE_STEERING
+{
+	/* TODO (b/277275019): if encapsulation was done earlier (before the tail call to this
+	 * function), then try to use that information instead of checking the packet. Can use a
+	 * similar strategy to how conntrack info is passed into a tail call: via a PERCPU_ARRAY map.
+	 */
+	if (is_sfc_encapped(ctx, ip4))
+		goto skip_service_steering;
+}
+#endif /* ENABLE_GOOGLE_SERVICE_STEERING */
+
 	has_l4_header = ipv4_has_l4_header(ip4);
 
 	/* Determine the destination category for policy fallback. */
@@ -986,27 +997,17 @@ ct_recreate4:
 
 #ifdef ENABLE_GOOGLE_SERVICE_STEERING
 {
-	__be32 inner_saddr = ip4->saddr;
-
-	ret = try_sfc_encap(ctx, ip4);
-	if (unlikely(ret == DROP_FRAG_NEEDED)) {
-		__u32 redirect_dir = 0;
-#if defined(MULTI_NIC_DEVICE_TYPE) && MULTI_NIC_DEVICE_TYPE != EP_DEV_TYPE_INDEX_MULTI_NIC_VETH
-		// L2 MultiNIC devices are in the pod namespace
-		// directly.
-		redirect_dir = BPF_F_INGRESS;
-#endif
-		// ct_state_new.rev_nat_index is set if the packet has been
-		// service load balanced.
-		ret = sfc_build_icmp4(ctx, ip4, ct_state_new.rev_nat_index);
-		if (ret == CTX_ACT_OK) {
-			return ctx_redirect(ctx, ctx_get_ifindex(ctx),
-						redirect_dir);
-		}
-	}
+	struct redirect_info redir = {};
+	ret = sfc_select(ctx, ip4, true, &redir);
 	if (IS_ERR(ret))
 		return ret;
-	if (ret == CTX_ACT_REDIRECT) {
+	if (redir.path) {
+		__be32 inner_saddr = ip4->saddr;
+		ret = sfc_encap(ctx, ip4, &redir);
+		if (unlikely(ret == DROP_FRAG_NEEDED))
+			return sfc_redirect_icmp4(ctx, ip4, ct_state_new.rev_nat_index);
+		if (IS_ERR(ret))
+			return ret;
 		if (!revalidate_data_pull(ctx, &data, &data_end, &ip4))
 			return DROP_INVALID;
 		ret = sfc_lb4(ctx, ip4, inner_saddr);
@@ -1016,6 +1017,7 @@ ct_recreate4:
 			return DROP_INVALID;
 	}
 
+skip_service_steering:
 	if (unlikely(!is_valid_lxc_src_ipv4(ip4)))
 		return DROP_INVALID_SIP;
 }
@@ -1368,6 +1370,33 @@ static __always_inline int __tail_handle_ipv4(struct __ctx_buff *ctx)
 		}
 	}
 #endif /* ENABLE_GNG */
+
+#ifdef ENABLE_GOOGLE_SERVICE_STEERING
+	{
+		struct redirect_info redir = {};
+		ret = sfc_existing_flow(ctx, ip4, &redir);
+		if (IS_ERR(ret))
+			return ret;
+		if (redir.path) {
+			__be32 inner_saddr = ip4->saddr;
+			ret = sfc_encap(ctx, ip4, &redir);
+			if (unlikely(ret == DROP_FRAG_NEEDED))
+				return sfc_redirect_icmp4(ctx, ip4, 0);
+			if (IS_ERR(ret))
+				return ret;
+			if (!revalidate_data_pull(ctx, &data, &data_end, &ip4))
+				return DROP_INVALID;
+			ret = sfc_lb4(ctx, ip4, inner_saddr);
+			if (IS_ERR(ret))
+				return ret;
+			if (!revalidate_data(ctx, &data, &data_end, &ip4))
+				return DROP_INVALID;
+
+			// skip connection tracking
+			ep_tail_call(ctx, CILIUM_CALL_IPV4_FROM_LXC_CONT);
+		}
+	}
+#endif /* ENABLE_GOOGLE_SERVICE_STEERING */
 
 #ifdef MULTI_NIC_DEVICE_TYPE
 	// Examine packet sourcing from multi NIC endpoint.
@@ -2253,9 +2282,12 @@ int handle_policy(struct __ctx_buff *ctx)
 #ifdef ENABLE_IPV4
 	case bpf_htons(ETH_P_IP):
 #ifdef ENABLE_GOOGLE_SERVICE_STEERING
-		ret = try_sfc_decap(ctx);
-		if (IS_ERR(ret))
-			break;
+		{
+			bool skip_conntrack = false;
+			ret = try_sfc_decap(ctx, &skip_conntrack);
+			if (IS_ERR(ret) || skip_conntrack)
+				break;
+		}
 #endif /* ENABLE_GOOGLE_SERVICE_STEERING */
 		invoke_tailcall_if(__and(is_defined(ENABLE_IPV4), is_defined(ENABLE_IPV6)),
 				   CILIUM_CALL_IPV4_CT_INGRESS_POLICY_ONLY,
@@ -2397,9 +2429,12 @@ int handle_to_container(struct __ctx_buff *ctx)
 #ifdef ENABLE_IPV4
 	case bpf_htons(ETH_P_IP):
 #ifdef ENABLE_GOOGLE_SERVICE_STEERING
-		ret = try_sfc_decap(ctx);
-		if (IS_ERR(ret))
-			break;
+		{
+			bool skip_conntrack = false;
+			ret = try_sfc_decap(ctx, &skip_conntrack);
+			if (IS_ERR(ret) || skip_conntrack)
+				break;
+		}
 #endif /* ENABLE_GOOGLE_SERVICE_STEERING */
 		ep_tail_call(ctx, CILIUM_CALL_IPV4_CT_INGRESS);
 		ret = DROP_MISSED_TAIL_CALL;
