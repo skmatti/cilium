@@ -49,6 +49,7 @@ type NetworkReconciler struct {
 type ipamManager interface {
 	UpdateMultiNetworkIPAMAllocators(annotations map[string]string) error
 	ReserveGatewayIP(network *networkv1.Network) error
+	AllocateIP(ip, owner string) error
 }
 
 const (

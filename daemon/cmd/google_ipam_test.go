@@ -267,3 +267,69 @@ func TestReserveGatewayIP(t *testing.T) {
 		}
 	}
 }
+
+func TestAllocateIP(t *testing.T) {
+	option.Config.IPAM = ipamOption.IPAMKubernetes
+	d := Daemon{datapath: fake.NewDatapath(), nodeDiscovery: &nodediscovery.NodeDiscovery{}, k8sWatcher: &watchers.K8sWatcher{}, mtuConfig: mtu.Configuration{}}
+	d.startIPAM()
+
+	testCases := []struct {
+		desc               string
+		ip                 string
+		existingAllocators map[string]ipam.Allocator
+		wantError          string
+	}{
+		{
+			desc: "no allocators, return empty response",
+			ip:   "10.0.0.1",
+		},
+		{
+			desc: "failed to allocate IP",
+			existingAllocators: map[string]ipam.Allocator{
+				"test": ipam.NewHostScopeAllocator(&net.IPNet{IP: net.IPv4(20, 0, 0, 0), Mask: net.IPv4Mask(255, 255, 248, 0)}),
+			},
+			ip:        "10.0.0.1",
+			wantError: "could not find an allocator to allocate the IP",
+		},
+		{
+			desc: "successully allocates IP",
+			ip:   "10.0.0.1",
+			existingAllocators: map[string]ipam.Allocator{
+				"test": ipam.NewHostScopeAllocator(&net.IPNet{IP: net.IPv4(10, 0, 0, 0), Mask: net.IPv4Mask(255, 255, 248, 0)}),
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.desc, func(t *testing.T) {
+			// set existing allocators per test case
+			d.ipam.MultiNetworkAllocators = tc.existingAllocators
+			err := d.AllocateIP(tc.ip, "")
+			if len(tc.existingAllocators) == 0 && err != nil {
+				t.Fatalf("expected nil error but got %v", err)
+			} else {
+				if tc.wantError != "" {
+					if err == nil {
+						t.Fatalf("AllocateIP() returns nil but want error %v", tc.wantError)
+					}
+					if !strings.HasPrefix(err.Error(), tc.wantError) {
+						t.Fatalf("AllocateIP() returns error %v but want error %v", err, tc.wantError)
+					}
+				} else {
+					if len(d.ipam.MultiNetworkAllocators) == 0 {
+						if err != nil {
+							t.Fatalf("AllocateIP() returns error %v when there are no allocators but want error nil", err)
+						}
+					} else {
+						allocator, _ := d.ipam.MultiNetworkAllocators["test"]
+						allocatedIPs, _ := allocator.Dump()
+						if _, ok := allocatedIPs[tc.ip]; !ok {
+							t.Fatalf("expected gatewayIP %s to be allocated, but it didn't", tc.ip)
+						}
+					}
+				}
+			}
+			d.ipam.MultiNetworkAllocators = nil
+		})
+	}
+}

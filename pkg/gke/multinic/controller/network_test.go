@@ -67,6 +67,10 @@ func (t testIPAMMgr) ReserveGatewayIP(network *networkv1.Network) error {
 	return nil
 }
 
+func (t testIPAMMgr) AllocateIP(ip, owner string) error {
+	return nil
+}
+
 func TestEnsureInterface(t *testing.T) {
 	cr := &networkv1.Network{
 		ObjectMeta: metav1.ObjectMeta{

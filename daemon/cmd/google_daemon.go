@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/cilium/cilium/pkg/endpoint"
 	"github.com/cilium/cilium/pkg/gke/multinic"
 	multinicctrl "github.com/cilium/cilium/pkg/gke/multinic/controller"
 	dhcp "github.com/cilium/cilium/pkg/gke/multinic/dhcp"
@@ -41,7 +42,7 @@ func init() {
 	utilruntime.Must(networkv1alpha1.AddToScheme(scheme))
 }
 
-func (d *Daemon) initGoogleControllers(ctx context.Context) {
+func (d *Daemon) initGoogleControllers(ctx context.Context, endpoints []*endpoint.Endpoint) {
 	if !k8s.IsEnabled() {
 		if option.Config.EnableGoogleMultiNIC || option.Config.EnableGoogleServiceSteering {
 			log.Fatal("K8s needs to be enabled for multinic and service-steering support")
@@ -66,7 +67,7 @@ func (d *Daemon) initGoogleControllers(ctx context.Context) {
 
 	// Initialize and wait for multinic client cache to sync
 	if option.Config.EnableGoogleMultiNIC {
-		if err := d.initMultiNIC(ctx, mgr); err != nil {
+		if err := d.initMultiNIC(ctx, mgr, endpoints); err != nil {
 			log.WithError(err).Fatal("Unable to init multinic")
 		}
 	}
@@ -106,11 +107,7 @@ func initManager() (manager.Manager, error) {
 	return mgr, nil
 }
 
-func (d *Daemon) initMultiNIC(ctx context.Context, mgr manager.Manager) error {
-	if err := d.UpdateMultiNetworkIPAMAllocators(node.GetAnnotations()); err != nil {
-		return fmt.Errorf("failed to initialize multi-network allocators: %v", err)
-	}
-
+func (d *Daemon) initMultiNIC(ctx context.Context, mgr manager.Manager, endpoints []*endpoint.Endpoint) error {
 	if err := (&multinicctrl.NetworkReconciler{
 		Client:          mgr.GetClient(),
 		EndpointManager: d.endpointManager,
@@ -128,6 +125,9 @@ func (d *Daemon) initMultiNIC(ctx context.Context, mgr manager.Manager) error {
 	d.multinicClient = multinic.NewK8sClient(mgr.GetClient())
 	d.kubeletClient = kubeletClient
 	d.dhcpClient = dhcp.NewDHCPClient()
+	if err := d.setupMultiNetworkingIPAMAllocators(ctx, endpoints); err != nil {
+		return fmt.Errorf("failed to initialize multi-network allocators: %v", err)
+	}
 	return nil
 }
 
@@ -140,6 +140,19 @@ func (d *Daemon) initServiceSteering(ctx context.Context, mgr manager.Manager) e
 		return fmt.Errorf("failed to setup service steering controller: %v", err)
 	}
 	sslog.Info("Created service steering controller")
+	return nil
+}
+
+// setupMultiNetworkingIPAMAllocators performs the following actions:
+// 1. Initialises the IPAM allocators for the networks present on the node that is derived from the node annotations.
+// 2. Allocates the IPs associated with the given endpoints inside the allocators created in step 1.
+func (d *Daemon) setupMultiNetworkingIPAMAllocators(ctx context.Context, endpoints []*endpoint.Endpoint) error {
+	if err := d.UpdateMultiNetworkIPAMAllocators(node.GetAnnotations()); err != nil {
+		return fmt.Errorf("failed to initialize multi-network allocators: %v", err)
+	}
+	if err := d.PreAllocateIPsForRestoredMultiNICEndpoints(endpoints); err != nil {
+		return fmt.Errorf("failed to pre-allocate IPs in multinetworking IPAM allocators for restored endpoints: %v", err)
+	}
 	return nil
 }
 

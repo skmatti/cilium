@@ -78,3 +78,30 @@ func (d *Daemon) ReserveGatewayIP(network *networkv1.Network) error {
 	}
 	return nil
 }
+
+func (d *Daemon) AllocateIP(ip, owner string) error {
+	if ip == "" {
+		return fmt.Errorf("failed to allocate IP, IP cannot be empty string")
+	}
+	d.ipam.MultiNetworkAllocatorMutex.Lock()
+	defer d.ipam.MultiNetworkAllocatorMutex.Unlock()
+	// A no-op if there are no allocators to allocate the IP because of backward compatibility for kubevirt
+	// to handle cases like static IP endpoints. We do not have a way to check if endpoints were assigned an IP statically.
+	// TODO(b/264624818) - Update this once design around IPAM mode in network object is finalised.
+	if len(d.ipam.MultiNetworkAllocators) == 0 {
+		return nil
+	}
+	reserved := false
+	for _, alloc := range d.ipam.MultiNetworkAllocators {
+		// TODO - Add support for IPv6 in future.
+		_, err := alloc.Allocate(net.ParseIP(ip), owner)
+		if err == nil || err == ipallocator.ErrAllocated {
+			reserved = true
+			break
+		}
+	}
+	if !reserved {
+		return fmt.Errorf("could not find an allocator to allocate the IP %s", ip)
+	}
+	return nil
+}

@@ -1311,7 +1311,7 @@ func NewDaemon(ctx context.Context, cancel context.CancelFunc, epMgr *endpointma
 		return nil, nil, err
 	}
 
-	d.initGoogleControllers(ctx)
+	d.initGoogleControllers(ctx, restoredEndpoints.restored)
 
 	if err := loader.RestoreTemplates(option.Config.StateDir); err != nil {
 		log.WithError(err).Error("Unable to restore previous BPF templates")
