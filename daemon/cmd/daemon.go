@@ -1187,7 +1187,7 @@ func newDaemon(ctx context.Context, cleaner *daemonCleanup,
 		d.restoreCiliumHostIPs(true, router6FromK8s)
 	}
 
-	d.initGoogleControllers(ctx)
+	d.initGoogleControllers(ctx, restoredEndpoints.restored)
 
 	// restore endpoints before any IPs are allocated to avoid eventual IP
 	// conflicts later on, otherwise any IP conflict will result in the
