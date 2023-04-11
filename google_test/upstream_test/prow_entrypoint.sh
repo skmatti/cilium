@@ -45,6 +45,7 @@ TIMESTAMP=$(TZ=:America/Los_Angeles date +%Y-%m-%d-%H-%M-%S)
 PROJECT="${GCP_PROJECT:-gke-anthos-datapath-presubmits}"
 ZONE=us-west1-b
 TEST_VM_NAME="prow-${BUILD_ID}-${TIMESTAMP}-$(git rev-parse --short=5 HEAD)-ttl1d"
+TEST_VM_MACHINE_TYPE="${TEST_VM_MACHINE_TYPE:-n2-highcpu-32}"
 
 # Set up the OS images to create test VM, the script default to run upstream runtime and e2e test.
 IMAGE_PROJECT="${IMAGE_PROJECT:-ubuntu-os-cloud}"
@@ -86,6 +87,7 @@ if [[ "${IMAGE_PROJECT}" = anthos-baremetal-ci ]] || [[ "${IMAGE_PROJECT}" = cos
     TEST_TYPE="ebpf_${IMAGE_FAMILY}"
     TEST_SPECIFIC_RUN_TEST_SCRIPT=google_test/upstream_test/runEbpfUnitTest.sh
     TEST_RESULTS_NAME=bpf-coverage.html
+    TEST_VM_MACHINE_TYPE=n2-highcpu-2
 fi
 
 UPSTREAM_CILIUM_BRANCH="${UPSTREAM_CILIUM_BRANCH:-}"
@@ -129,7 +131,7 @@ function create_gce_instance_with_os {
         --metadata-from-file=startup-script=./google_test/countdown-and-self-destruct.sh \
         --image-project="${IMAGE_PROJECT}" \
         --image-family="${IMAGE_FAMILY}" \
-        --machine-type=n2-highcpu-32 \
+        --machine-type="${TEST_VM_MACHINE_TYPE}" \
         --boot-disk-size=256GB
 }
 
