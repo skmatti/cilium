@@ -276,22 +276,6 @@ func subTest(progSet programSet, resultMap *ebpf.Map) func(t *testing.T) {
 		// create ctx with the max allowed size(4k - head room - tailroom)
 		ctx := make([]byte, 4096-256-320)
 
-		if progSet.pktgenProg != nil {
-			statusCode, result, err := progSet.pktgenProg.Test(ctx)
-			if err != nil {
-				t.Fatalf("error while running pktgen prog: %s", err)
-			}
-
-			if *dumpCtx {
-				t.Log("Pktgen returned status: ")
-				t.Log(statusCode)
-				t.Log("Ctx after pktgen: ")
-				t.Log(spew.Sdump(result))
-			}
-
-			ctx = result
-		}
-
 		if progSet.setupProg != nil {
 			statusCode, result, err := progSet.setupProg.Test(ctx)
 			if err != nil {
