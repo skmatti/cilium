@@ -12,6 +12,7 @@ import (
 	"github.com/cilium/cilium/pkg/gke/multinic/nic"
 	k8s "github.com/cilium/cilium/pkg/k8s"
 	"github.com/cilium/cilium/pkg/node"
+	networkv1 "k8s.io/cloud-provider-gcp/crd/apis/network/v1"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	k8sTypes "k8s.io/apimachinery/pkg/types"
@@ -33,8 +34,7 @@ func PopulateNICInfoAnnotation(ctx context.Context, k8sClient *k8s.K8sClient) er
 		return fmt.Errorf("failed to get nic-info annotation from node: %v", err)
 	}
 	if existingAnnotation != nil {
-		log.Infof("Skipping populating %v, annotation %v already exists", NICInfoAnnotationKey, *existingAnnotation)
-		// TODO(cuiwl): Add device reconsiliation logic later.
+		log.Infof("Skipping populating %v, annotation %v already exists", networkv1.NICInfoAnnotationKey, *existingAnnotation)
 		return nil
 	}
 
@@ -48,7 +48,7 @@ func PopulateNICInfoAnnotation(ctx context.Context, k8sClient *k8s.K8sClient) er
 		return fmt.Errorf("no PCI NIC detected")
 	}
 
-	refs := make(NICInfoRefs, numNICs)
+	refs := make(networkv1.NICInfoAnnotation, numNICs)
 
 	timeoutCtx, cancel := context.WithTimeout(ctx, timeoutWaitForIP)
 	defer cancel()
@@ -69,7 +69,7 @@ func PopulateNICInfoAnnotation(ctx context.Context, k8sClient *k8s.K8sClient) er
 			if err != nil {
 				return err
 			}
-			refs[idx] = NICInfoRef{BirthIP: ip, PCIAddress: *nics[idx].PCIAddress, BirthName: devName}
+			refs[idx] = networkv1.NICInfoRef{BirthIP: ip, PCIAddress: *nics[idx].PCIAddress, BirthName: devName}
 			return nil
 		})
 	}
@@ -83,9 +83,9 @@ func PopulateNICInfoAnnotation(ctx context.Context, k8sClient *k8s.K8sClient) er
 		return fmt.Errorf("failed to get nic-info patch: %v", err)
 	}
 	if _, err := k8sClient.CoreV1().Nodes().Patch(ctx, nodeTypes.GetName(), k8sTypes.StrategicMergePatchType, patch, metav1.PatchOptions{}); err != nil {
-		return fmt.Errorf("unable to apply patch for %v annotation: %v", NICInfoAnnotationKey, err)
+		return fmt.Errorf("unable to apply patch for %v annotation: %v", networkv1.NICInfoAnnotationKey, err)
 	}
-	log.Infof("Successfully applied %v annotation: %v", NICInfoAnnotationKey, refs)
+	log.Infof("Successfully applied %v annotation: %v", networkv1.NICInfoAnnotationKey, refs)
 	return nil
 }
 
@@ -111,12 +111,12 @@ func waitForIP(ctx context.Context, link netlink.Link, family int, backoff backo
 	}
 }
 
-func getPatchForNICInfoAnnotation(refs *NICInfoRefs) ([]byte, error) {
+func getPatchForNICInfoAnnotation(refs *networkv1.NICInfoAnnotation) ([]byte, error) {
 	val, err := json.Marshal(refs)
 	if err != nil {
 		return nil, err
 	}
-	annotation := map[string]string{NICInfoAnnotationKey: string(val)}
+	annotation := map[string]string{networkv1.NICInfoAnnotationKey: string(val)}
 	raw, err := json.Marshal(annotation)
 	if err != nil {
 		return nil, err
@@ -124,17 +124,15 @@ func getPatchForNICInfoAnnotation(refs *NICInfoRefs) ([]byte, error) {
 	return []byte(fmt.Sprintf(`{"metadata":{"annotations":%s}}`, raw)), nil
 }
 
-func getNICInfoAnnotationFromNode() (*NICInfoRefs, error) {
-	annotation, exists := node.GetAnnotations()[NICInfoAnnotationKey]
+func getNICInfoAnnotationFromNode() (*networkv1.NICInfoAnnotation, error) {
+	annotation, exists := node.GetAnnotations()[networkv1.NICInfoAnnotationKey]
 	if !exists {
-		log.Infof("no %v annotation: %v", NICInfoAnnotationKey, node.GetAnnotations())
+		log.Infof("no %v annotation: %v", networkv1.NICInfoAnnotationKey, node.GetAnnotations())
 		return nil, nil
 	}
-	return parseNICInfoAnnotationFromNode(annotation)
-}
-
-func parseNICInfoAnnotationFromNode(annotation string) (*NICInfoRefs, error) {
-	var ret *NICInfoRefs
-	err := json.Unmarshal([]byte(annotation), &ret)
-	return ret, err
+	result, err := networkv1.ParseNICInfoAnnotation(annotation)
+	if err != nil {
+		return nil, err
+	}
+	return &result, nil
 }

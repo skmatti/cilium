@@ -18,6 +18,7 @@ import (
 	"github.com/cilium/cilium/pkg/option"
 	ssv1 "gke-internal.googlesource.com/anthos-networking/apis/v2/service-steering/v1"
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	networkv1 "k8s.io/cloud-provider-gcp/crd/apis/network/v1"
@@ -108,12 +109,14 @@ func initManager() (manager.Manager, error) {
 }
 
 func (d *Daemon) initMultiNIC(ctx context.Context, mgr manager.Manager, endpoints []*endpoint.Endpoint) error {
-	if err := (&multinicctrl.NetworkReconciler{
+	reconciler := &multinicctrl.NetworkReconciler{
 		Client:          mgr.GetClient(),
 		EndpointManager: d.endpointManager,
 		NodeName:        nodeTypes.GetName(),
 		IPAMMgr:         d,
-	}).SetupWithManager(mgr); err != nil {
+		DeviceMgr:       d,
+	}
+	if err := reconciler.SetupWithManager(mgr); err != nil {
 		return fmt.Errorf("failed to setup network controller: %v", err)
 	}
 	multiniclog.Info("Created Network controller")
@@ -132,7 +135,15 @@ func (d *Daemon) initMultiNIC(ctx context.Context, mgr manager.Manager, endpoint
 	// Populates nic-info node annotation
 	if option.Config.PopulateGCENICInfo {
 		if err := multinic.PopulateNICInfoAnnotation(d.ctx, k8s.Client()); err != nil {
-			log.WithError(err).Fatalf("unable to populate nic annotations, high-perf networks will not work: %v", err)
+			log.WithError(err).Fatalf("unable to populate nic annotations, high-perf networks will not work")
+		}
+		node, err := k8s.Client().CoreV1().Nodes().Get(ctx, nodeTypes.GetName(), metav1.GetOptions{})
+		if err != nil {
+			return fmt.Errorf("unable to get Node %s: %v", nodeTypes.GetName(), err)
+		}
+
+		if err := reconciler.RestoreDevices(ctx, node, log); err != nil {
+			return fmt.Errorf("unable to reconcile high-perf network state: %v", err)
 		}
 	}
 	return nil
