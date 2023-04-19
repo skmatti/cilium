@@ -289,7 +289,9 @@ func (n *linuxNodeHandler) updateDirectRoutes(oldCIDRs, newCIDRs []*cidr.CIDR, o
 
 	for _, cidr := range addedCIDRs {
 		if routeSpec, err := installDirectRoute(cidr, newIP); err != nil {
-			log.WithError(err).Warningf("Unable to install direct node route %s", routeSpec.String())
+			// b/267522878 - It should be logged for debugging purposes, however logging with a warning causes the
+			// logs to fill up when cluster spanning across multiple L2 domains is deployed in FlatIP Mode.
+			log.WithError(err).Debugf("Unable to install direct node route %s", routeSpec.String())
 			return err
 		}
 	}
