@@ -4,6 +4,7 @@
 package ciliumendpointslice
 
 import (
+	"strconv"
 	"time"
 
 	"github.com/sirupsen/logrus"
@@ -51,6 +52,10 @@ const (
 	// Default CES Synctime, multiple consecutive syncs with k8s-apiserver are
 	// batched and synced together after a short delay.
 	DefaultCESSyncTime = 500 * time.Millisecond
+)
+
+var (
+	ceSliceStore cache.Store
 )
 
 type CiliumEndpointSliceController struct {
@@ -127,6 +132,7 @@ func NewCESController(client *k8s.K8sCiliumClient,
 		manager = newCESManagerIdentity(rlQueue, maxCEPsInCES)
 	}
 	cesStore := ciliumEndpointSliceInit(client.CiliumV2alpha1(), wait.NeverStop)
+	ceSliceStore = cesStore
 
 	cesController := CiliumEndpointSliceController{
 		clientV2:                 client.CiliumV2(),
@@ -326,4 +332,33 @@ func ciliumEndpointSliceInit(client csv2a1.CiliumV2alpha1Interface, stopCh <-cha
 	go cesController.Run(stopCh)
 	cache.WaitForCacheSync(stopCh, cesController.HasSynced)
 	return cesStore
+}
+
+// UsedIdentitiesInCESs returns all Identities that are used in CESs.
+func UsedIdentitiesInCESs() map[string]bool {
+	return usedIdentitiesInCESs(ceSliceStore)
+}
+
+// usedIdentitiesInCESs returns all Identities that are used in CESs in the
+// specified store.
+func usedIdentitiesInCESs(cesStore cache.Store) map[string]bool {
+	usedIdentities := make(map[string]bool)
+	if cesStore == nil {
+		return usedIdentities
+	}
+
+	cesObjList := cesStore.List()
+	for _, cesObj := range cesObjList {
+		ces, ok := cesObj.(*v2alpha1.CiliumEndpointSlice)
+		if !ok {
+			continue
+		}
+
+		for _, cep := range ces.Endpoints {
+			id := strconv.FormatInt(cep.IdentityID, 10)
+			usedIdentities[id] = true
+		}
+	}
+
+	return usedIdentities
 }
