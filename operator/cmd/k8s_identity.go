@@ -8,6 +8,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/cilium/cilium/operator/pkg/ciliumendpointslice"
+	"github.com/cilium/cilium/pkg/option"
 	"github.com/sirupsen/logrus"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/cache"
@@ -91,6 +93,12 @@ func identityGCIteration(ctx context.Context, clientset k8sClient.Clientset) {
 		return
 	}
 
+	var idsInCESs map[string]bool
+	cesEnabled := option.Config.EnableCiliumEndpointSlice
+	if cesEnabled {
+		idsInCESs = ciliumendpointslice.UsedIdentitiesInCESs()
+	}
+
 	identityStoreList := identityStore.List()
 	totalEntries := len(identityStoreList)
 	deletedEntries := 0
@@ -104,8 +112,14 @@ func identityGCIteration(ctx context.Context, clientset k8sClient.Clientset) {
 			continue
 		}
 
-		// The identity is definitely alive if there's a CE using it.
-		if watchers.HasCEWithIdentity(identity.Name) {
+		foundInCES := false
+		if cesEnabled {
+			_, foundInCES = idsInCESs[identity.Name]
+		}
+		// The identity is definitely alive if there's a CE or CES using it.
+		alive := foundInCES || watchers.HasCEWithIdentity(identity.Name)
+
+		if alive {
 			// If the identity is alive then mark it as alive
 			identityHeartbeat.MarkAlive(identity.Name, timeNow)
 			continue
