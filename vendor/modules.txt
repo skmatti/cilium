@@ -1582,7 +1582,6 @@ k8s.io/client-go/util/workqueue
 # k8s.io/cloud-provider-gcp/crd v0.0.0-20230512124302-67d1fd9f7255
 ## explicit; go 1.19
 k8s.io/cloud-provider-gcp/crd/apis/network/v1
-k8s.io/cloud-provider-gcp/crd/apis/network/v1alpha1
 # k8s.io/code-generator v0.24.13
 ## explicit; go 1.19
 k8s.io/code-generator

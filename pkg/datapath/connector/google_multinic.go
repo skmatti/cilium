@@ -36,7 +36,6 @@ import (
 	"golang.org/x/sys/unix"
 	"k8s.io/apimachinery/pkg/types"
 	networkv1 "k8s.io/cloud-provider-gcp/crd/apis/network/v1"
-	networkv1alpha1 "k8s.io/cloud-provider-gcp/crd/apis/network/v1alpha1"
 	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -878,7 +877,7 @@ func extractRoutes(network *networkv1.Network, netParamsObj client.Object) ([]ne
 		return ret, nil
 	}
 	if network.Spec.Type == networkv1.L3NetworkType {
-		if gkeparam, ok := netParamsObj.(*networkv1alpha1.GKENetworkParamSet); ok {
+		if gkeparam, ok := netParamsObj.(*networkv1.GKENetworkParamSet); ok {
 			for _, cidr := range gkeparam.Status.PodCIDRs.CIDRBlocks {
 				ret = append(ret, networkv1.Route{To: cidr})
 			}
