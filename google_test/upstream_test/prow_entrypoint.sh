@@ -129,6 +129,7 @@ function create_gce_instance_with_os {
     --project "${PROJECT}" --zone "${ZONE}" \
     --enable-nested-virtualization \
     --metadata-from-file=startup-script=./google_test/countdown-and-self-destruct.sh \
+    --scopes=compute-rw \
     --image-project="${IMAGE_PROJECT}" \
     --image-family="${IMAGE_FAMILY}" \
     --machine-type="${TEST_VM_MACHINE_TYPE}" \
