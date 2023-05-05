@@ -175,13 +175,6 @@ func v4DefaultRoute(gw string) netlink.Route {
 	return dr
 }
 
-func macvtapLinkRoute() netlink.Route {
-	route := v4Route("172.168.10.0", "", macvtapLinkMask, 0, netlink.SCOPE_LINK)
-	route.Src = net.ParseIP(macvtapLinkIP)
-	route.Protocol = 2
-	return route
-}
-
 func TestGetInterfaceConfiguration(t *testing.T) {
 	parentDevName := "parent-dev"
 	parentDevNameEmpty := ""
@@ -483,10 +476,7 @@ func TestSetupNetworkRoutes(t *testing.T) {
 					Gateway4: &v4GW,
 				},
 			},
-			wantRoutes: []netlink.Route{
-				v4Route("10.10.10.0", v4GW, 24, 0, netlink.SCOPE_UNIVERSE),
-				v4Route("20.20.20.0", v4GW, 24, 0, netlink.SCOPE_UNIVERSE),
-			},
+			wantRoutes: nil,
 		},
 		{
 			desc: "apply routes without gw to multinic-network",
@@ -502,10 +492,7 @@ func TestSetupNetworkRoutes(t *testing.T) {
 					},
 				},
 			},
-			wantRoutes: []netlink.Route{
-				v4Route("10.10.10.0", "", 24, 0, netlink.SCOPE_LINK),
-				v4Route("20.20.20.0", "", 24, 0, netlink.SCOPE_LINK),
-			},
+			wantRoutes: nil,
 		},
 		{
 			desc: "apply default route with gw to multinic-network",
@@ -523,11 +510,7 @@ func TestSetupNetworkRoutes(t *testing.T) {
 				},
 			},
 			isDefaultInterface: true,
-			wantRoutes: []netlink.Route{
-				v4Route("10.10.10.0", v4GW, 24, 0, netlink.SCOPE_UNIVERSE),
-				v4Route("20.20.20.0", v4GW, 24, 0, netlink.SCOPE_UNIVERSE),
-				v4DefaultRoute(v4GW),
-			},
+			wantRoutes:         nil,
 		},
 		{
 			desc: "apply default route with gw to pod-network",
@@ -548,10 +531,7 @@ func TestSetupNetworkRoutes(t *testing.T) {
 				},
 			},
 			isDefaultInterface: true,
-			wantRoutes: []netlink.Route{
-				v4Route("10.10.10.0", v4GW, 24, 0, netlink.SCOPE_UNIVERSE),
-				v4Route("20.20.20.0", v4GW, 24, 0, netlink.SCOPE_UNIVERSE),
-			},
+			wantRoutes:         nil,
 		},
 		{
 			desc: "apply routes with mtu to multinic-network",
@@ -567,11 +547,8 @@ func TestSetupNetworkRoutes(t *testing.T) {
 					},
 				},
 			},
-			routeMTU: 1300,
-			wantRoutes: []netlink.Route{
-				v4Route("10.10.10.0", "", 24, 0, netlink.SCOPE_LINK),
-				v4Route("20.20.20.0", "", 24, 0, netlink.SCOPE_LINK),
-			},
+			routeMTU:   1300,
+			wantRoutes: nil,
 		},
 		{
 			desc: "apply routes with mtu to pod-network",
@@ -590,16 +567,13 @@ func TestSetupNetworkRoutes(t *testing.T) {
 					},
 				},
 			},
-			routeMTU: 1300,
-			wantRoutes: []netlink.Route{
-				v4Route("10.10.10.0", "", 24, 1300, netlink.SCOPE_LINK),
-				v4Route("20.20.20.0", "", 24, 1300, netlink.SCOPE_LINK),
-			},
+			routeMTU:   1300,
+			wantRoutes: nil,
 		},
 		{
 			desc:       "no routes to apply",
 			intf:       &networkv1.NetworkInterface{Status: networkv1.NetworkInterfaceStatus{}},
-			wantRoutes: []netlink.Route{},
+			wantRoutes: nil,
 		},
 		{
 			desc: "invalid routes",
@@ -669,12 +643,7 @@ func TestSetupNetworkRoutes(t *testing.T) {
 				},
 			},
 			isDefaultInterface: true,
-			wantRoutes: []netlink.Route{
-				v4Route("10.10.10.0", v4GW, 24, 0, netlink.SCOPE_UNIVERSE),
-				v4Route("20.20.20.0", v4GW, 24, 0, netlink.SCOPE_UNIVERSE),
-				v4Route(v4GW, "", 32, 0, netlink.SCOPE_LINK),
-				v4DefaultRoute(v4GW),
-			},
+			wantRoutes:         nil,
 		},
 	}
 
@@ -721,8 +690,6 @@ func TestSetupNetworkRoutes(t *testing.T) {
 			}); err != nil {
 				t.Fatalf("failed to list routes: %v", err)
 			}
-
-			tc.wantRoutes = append(tc.wantRoutes, macvtapLinkRoute())
 			if diff := cmp.Diff(gotRoutes, tc.wantRoutes, cmpopts.SortSlices(func(r1, r2 netlink.Route) bool {
 				return r1.String() < r2.String()
 			})); diff != "" {

@@ -267,8 +267,14 @@ func configureInterface(cfg *interfaceConfiguration, netNs ns.NetNS, ifName stri
 			}
 		}
 
-		if err := netlink.LinkSetUp(l); err != nil {
-			return fmt.Errorf("failed to set link %q UP: %v", ifName, err)
+		if cfg.Type != multinicep.EndpointDeviceMACVTAP {
+			if err := netlink.LinkSetUp(l); err != nil {
+				return fmt.Errorf("failed to set link %q UP: %v", ifName, err)
+			}
+		} else {
+			// b/280340190: keep the macvtap interface down so that it doesn't
+			// affect vm live migration.
+			log.Info("Skip turning on macvtap interface")
 		}
 		return nil
 	}
@@ -684,6 +690,16 @@ func SetupNetworkRoutes(ifNameInPod string, intf *networkv1.NetworkInterface, ne
 		l, err := netlink.LinkByName(ifNameInPod)
 		if err != nil {
 			return fmt.Errorf("failed to lookup interface %q: %v", ifNameInPod, err)
+		}
+
+		if l.Type() == multinicep.EndpointDeviceMACVTAP {
+			// b/280340190: skip the macvtap route installation as the link will
+			// be in down state to avoid affecting vm live migration.
+			log.Info("Skip setting routes for macvtap interface")
+			if isDefaultInterface && gw == nil {
+				return errors.New("default route must have a valid gateway address")
+			}
+			return nil
 		}
 		// Link needs to be up before applying routes.
 		if err := netlink.LinkSetUp(l); err != nil {
