@@ -2340,6 +2340,9 @@ type DaemonConfig struct {
 	// EnableGoogleMultiNIC is a feature flag for google multi nic support, default is false.
 	EnableGoogleMultiNIC bool
 
+	// DevicePrefixesToExclude is a list of google devices to exclude from being managed by Cilium
+	DevicePrefixesToExclude []string
+
 	// VLANBPFBypass list of explicitly allowed VLAN id's for bpf logic bypass
 	VLANBPFBypass []int
 
@@ -3144,6 +3147,9 @@ func (c *DaemonConfig) Populate(vp *viper.Viper) {
 	c.DisableIPv6Tunnel = vp.GetBool(DisableIPv6Tunnel)
 	c.EnableGNG = vp.GetBool(EnableGNG)
 	c.DisablePodToRemoteNodeTunneling = vp.GetBool(DisablePodToRemoteNodeTunneling)
+	// TODO(b/279040119) Filter out user-provided prefixes until we have a better solution
+	// for dynamic device detection (b/263520677)
+	c.DevicePrefixesToExclude = vp.GetStringSlice(DevicePrefixesToExclude)
 
 	vlanBPFBypassIDs := vp.GetStringSlice(VLANBPFBypass)
 	c.VLANBPFBypass = make([]int, 0, len(vlanBPFBypassIDs))

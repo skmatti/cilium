@@ -1015,6 +1015,10 @@ func initializeFlags() {
 	flags.MarkHidden(option.EnableGoogleMultiNIC)
 	option.BindEnv(Vp, option.EnableGoogleMultiNIC)
 
+	flags.StringSlice(option.DevicePrefixesToExclude, []string{}, "(Google-internal) List of prefixes of devices for Cilium to exclude")
+	flags.MarkHidden(option.DevicePrefixesToExclude)
+	option.BindEnv(Vp, option.DevicePrefixesToExclude)
+
 	flags.Bool(option.AllowDisableSourceIPValidation, false, "Allow disabling source IP validation on multi-nic endpoints")
 	flags.MarkHidden(option.AllowDisableSourceIPValidation)
 	option.BindEnv(Vp, option.AllowDisableSourceIPValidation)

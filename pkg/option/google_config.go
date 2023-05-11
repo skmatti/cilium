@@ -42,4 +42,7 @@ const (
 
 	// DisablePodToRemoteNodeTunneling disables tunneling for all traffic to the remote nodes.
 	DisablePodToRemoteNodeTunneling = "disable-pod-to-remote-node-tunneling"
+
+	// DevicePrefixesToExclude excludes google-managed devices with the provided prefixes.
+	DevicePrefixesToExclude = "device-prefixes-to-exclude"
 )
