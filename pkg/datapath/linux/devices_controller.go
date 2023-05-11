@@ -29,6 +29,7 @@ import (
 	"github.com/cilium/cilium/pkg/datapath/linux/safenetlink"
 	"github.com/cilium/cilium/pkg/datapath/tables"
 	"github.com/cilium/cilium/pkg/defaults"
+	"github.com/cilium/cilium/pkg/gke/features"
 	"github.com/cilium/cilium/pkg/inctimer"
 	"github.com/cilium/cilium/pkg/ip"
 	"github.com/cilium/cilium/pkg/logging/logfields"
@@ -578,8 +579,12 @@ func (dc *devicesController) isSelectedDevice(d *tables.Device, txn statedb.Writ
 		return false, "L3 device, kernel too old, >= 5.8 required"
 	}
 
+	// TODO(b/279040119) Filter out user-provided prefixes until we have a better solution
+	// for dynamic device detection (b/263520677)
+	devicePrefixesToExclude := append(defaults.ExcludedDevicePrefixes, features.GlobalConfig.DevicePrefixesToExclude...)
+
 	// Never consider devices with any of the excluded devices.
-	for _, p := range defaults.ExcludedDevicePrefixes {
+	for _, p := range devicePrefixesToExclude {
 		if strings.HasPrefix(d.Name, p) {
 			return false, fmt.Sprintf("excluded prefix %q", p)
 		}

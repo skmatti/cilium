@@ -39,6 +39,9 @@ const (
 	// EnableGoogleMultiNICHaipin is the name of the option to enable gogole multi nic hairpin support.
 	EnableGoogleMultiNICHairpin = "enable-google-multi-nic-hairpin"
 
+	// DevicePrefixesToExclude excludes google-managed devices with the provided prefixes.
+	DevicePrefixesToExclude = "device-prefixes-to-exclude"
+
 	// PopulateGCENICInfo is the name of the option to populate GCE NIC information as node annotation.
 	PopulateGCENICInfo = "populate-gce-nic-info"
 )

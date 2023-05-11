@@ -48,7 +48,9 @@ type Config struct {
 	EnableGoogleConfigOverride bool
 	// EnableGoogleMultiNICHairpin is a flag for google multi nic hairpin support, default is true.
 	EnableGoogleMultiNICHairpin bool
-	PopulateGCENICInfo          bool
+	// DevicePrefixesToExclude excludes google-managed devices with the provided prefixes.
+	DevicePrefixesToExclude []string
+	PopulateGCENICInfo      bool
 }
 
 var defaultConfig = Config{
@@ -56,6 +58,7 @@ var defaultConfig = Config{
 	EnableGoogleMultiNIC:        false,
 	EnableGoogleConfigOverride:  false,
 	EnableGoogleMultiNICHairpin: false,
+	DevicePrefixesToExclude:     []string{},
 	PopulateGCENICInfo:          false,
 	EnableMultiPoolIPAM:         false,
 }
@@ -77,6 +80,9 @@ func (cfg Config) Flags(flags *pflag.FlagSet) {
 
 	flags.Bool(option.EnableGoogleMultiNICHairpin, defaultConfig.EnableGoogleMultiNICHairpin, "Enable google multi NIC local hairpin for local L2 broadcast")
 	flags.MarkHidden(option.EnableGoogleMultiNICHairpin)
+
+	flags.StringSlice(option.DevicePrefixesToExclude, []string{}, "(Google-internal) List of prefixes of devices for Cilium to exclude")
+	flags.MarkHidden(option.DevicePrefixesToExclude)
 
 	flags.Bool(option.PopulateGCENICInfo, defaultConfig.PopulateGCENICInfo, "Populate GCE NIC information as node annotation.")
 	flags.MarkHidden(option.PopulateGCENICInfo)
