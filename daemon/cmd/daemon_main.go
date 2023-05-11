@@ -1088,6 +1088,9 @@ func initializeFlags() {
 	flags.Bool(option.EnableGDCILB, false, "Enable google GDC-H ILB Support")
 	option.BindEnv(option.EnableGDCILB)
 
+	flags.StringSlice(option.DevicePrefixesToExclude, []string{}, "(Google-internal) List of prefixes of devices for Cilium to exclude")
+	option.BindEnv(option.DevicePrefixesToExclude)
+
 	flags.Bool(option.AllowDisableSourceIPValidation, false, "Allow disabling source IP validation on multi-nic endpoints")
 	option.BindEnv(option.AllowDisableSourceIPValidation)
 

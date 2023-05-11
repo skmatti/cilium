@@ -1106,6 +1106,9 @@ const (
 	// EnableGoogleServiceSteering is the name of the option to enable google service steering support.
 	EnableGoogleServiceSteering = "enable-google-service-steering"
 
+	// DevicePrefixesToExclude excludes google-managed devices with the provided prefixes.
+	DevicePrefixesToExclude = "device-prefixes-to-exclude"
+
 	// PopulateGCENICInfo is the name of the option to populate GCE NIC information as node annotation.
 	PopulateGCENICInfo = "populate-gce-nic-info"
 
@@ -2363,6 +2366,9 @@ type DaemonConfig struct {
 	// EnableGDCILB is a feature flag for google GDC-H ILB Support, default is false
 	EnableGDCILB bool
 
+	// DevicePrefixesToExclude is a list of google devices to exclude from being managed by Cilium
+	DevicePrefixesToExclude []string
+
 	// VLANBPFBypass list of explicitly allowed VLAN id's for bpf logic bypass
 	VLANBPFBypass []int
 
@@ -3038,6 +3044,9 @@ func (c *DaemonConfig) Populate() {
 	c.PopulateGCENICInfo = viper.GetBool(PopulateGCENICInfo)
 	c.EnableGoogleServiceSteering = viper.GetBool(EnableGoogleServiceSteering)
 	c.EnableGDCILB = viper.GetBool(EnableGDCILB)
+	// TODO(b/279040119) Filter out user-provided prefixes until we have a better solution
+	// for dynamic device detection (b/263520677)
+	c.DevicePrefixesToExclude = viper.GetStringSlice(DevicePrefixesToExclude)
 	c.AllowDisableSourceIPValidation = viper.GetBool(AllowDisableSourceIPValidation)
 	c.EncryptInterface = viper.GetStringSlice(EncryptInterface)
 	c.EncryptNode = viper.GetBool(EncryptNode)

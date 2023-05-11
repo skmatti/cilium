@@ -197,8 +197,12 @@ var excludedIfFlagsMask uint32 = unix.IFF_SLAVE | unix.IFF_LOOPBACK
 func (dm *DeviceManager) isViableDevice(l3DevOK, hasDefaultRoute bool, link netlink.Link) bool {
 	name := link.Attrs().Name
 
+	// TODO(b/279040119) Filter out user-provided prefixes until we have a better solution
+	// for dynamic device detection (b/263520677)
+	devicePrefixesToExclude := append(excludedDevicePrefixes, option.Config.DevicePrefixesToExclude...)
+
 	// Do not consider any of the excluded devices.
-	for _, p := range excludedDevicePrefixes {
+	for _, p := range devicePrefixesToExclude {
 		if strings.HasPrefix(name, p) {
 			log.WithField(logfields.Device, name).
 				Debugf("Skipping device as it has excluded prefix '%s'", p)
