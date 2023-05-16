@@ -26,6 +26,7 @@ import (
 	multinicep "github.com/cilium/cilium/pkg/gke/multinic/endpoint"
 	"github.com/cilium/cilium/pkg/ipam"
 	"github.com/cilium/cilium/pkg/logging/logfields"
+	"github.com/cilium/cilium/pkg/metrics"
 	"github.com/cilium/cilium/pkg/netns"
 	"github.com/cilium/cilium/pkg/node"
 	"github.com/containernetworking/plugins/pkg/ns"
@@ -42,6 +43,11 @@ import (
 
 const (
 	kubevirtMacvtapResourcePrefix = "macvtap.network.kubevirt.io"
+
+	metricAllocate = "allocate"
+	metricRelease  = "release"
+	familyIPv4     = "ipv4"
+	familyIPv6     = "ipv6"
 )
 
 // interfaceConfiguration holds network properties needed to configure the interface.
@@ -820,6 +826,7 @@ func configureIPAMInfo(network *networkv1.Network, cfg *interfaceConfiguration, 
 		Mask: mask,
 	}
 	log.Infof("Reserved ip address %s with mask %s", cfg.IPV4Address.IP.String(), cfg.IPV4Address.Mask.String())
+	metrics.MultiNetworkIpamEvent.WithLabelValues(metricAllocate, network.Name, familyIPv4).Inc()
 	return nil
 }
 
@@ -840,6 +847,7 @@ func releaseIP(network *networkv1.Network, cfg *interfaceConfiguration, ipam *ip
 		log.WithError(err).Warningf("Unable to release IP %s in network %s", cfg.IPV4Address.IP.String(), network.Name)
 	} else {
 		log.Infof("Released IP %s that was reserved", cfg.IPV4Address.IP.String())
+		metrics.MultiNetworkIpamEvent.WithLabelValues(metricRelease, network.Name, familyIPv4).Inc()
 	}
 }
 

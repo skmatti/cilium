@@ -9,13 +9,18 @@ import (
 	"os"
 	"path"
 	"sort"
+	"time"
 
+	"github.com/cilium/cilium/pkg/datapath/connector"
 	"github.com/cilium/cilium/pkg/datapath/loader"
+	"github.com/cilium/cilium/pkg/endpoint"
 	"github.com/cilium/cilium/pkg/gke/multinic/nic"
 	"github.com/cilium/cilium/pkg/logging"
 	"github.com/cilium/cilium/pkg/logging/logfields"
+	"github.com/cilium/cilium/pkg/metrics"
 	ciliumNode "github.com/cilium/cilium/pkg/node"
 	"github.com/cilium/cilium/pkg/option"
+	"github.com/cilium/cilium/pkg/trigger"
 	"github.com/sirupsen/logrus"
 	"github.com/vishvananda/netlink"
 	"go.uber.org/multierr"
@@ -29,11 +34,17 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
+	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	"github.com/cilium/cilium/pkg/endpointmanager"
 	anutils "gke-internal.googlesource.com/anthos-networking/apis/v2/utils"
+)
+
+const (
+	listNetworkTimeout = time.Second * 5
+	minTriggerInternal = time.Second * 5
 )
 
 var (
@@ -57,6 +68,7 @@ type NetworkReconciler struct {
 	// For every nic where controllerManaged[nic]=false, the nic is in the hostns, bpf
 	// is loaded on nic, and nic is in the cilium devices list.
 	controllerManaged map[string]bool
+	metricsTrigger    *trigger.Trigger
 }
 
 type ipamManager interface {
@@ -73,11 +85,49 @@ const (
 	multinicObjDir = "/var/run/cilium/state/multinic"
 )
 
+func (r *NetworkReconciler) EndpointCreated(ep *endpoint.Endpoint) {
+	r.metricsTrigger.Trigger()
+}
+
+func (r *NetworkReconciler) EndpointDeleted(ep *endpoint.Endpoint, conf endpoint.DeleteConfig) {
+	r.metricsTrigger.Trigger()
+}
+
+func (r *NetworkReconciler) updateMultiNetMetrics(reasons []string) {
+	ctxTimeout, cancel := context.WithTimeout(context.TODO(), listNetworkTimeout)
+	defer cancel()
+
+	logger.Debug("Updating multi-network endpoint metrics")
+
+	// Construct a map of network ID -> number of endpoints
+	netEpCount := make(map[uint32]int)
+	eps := r.EndpointManager.GetEndpoints()
+	for _, ep := range eps {
+		id := ep.DatapathConfiguration.NetworkID
+		netEpCount[id] += 1
+	}
+
+	var networkList networkv1.NetworkList
+	if err := r.List(ctxTimeout, &networkList); err != nil {
+		logger.WithError(err).Warn("Failed to update multi-network endpoint metrics")
+		return
+	}
+	// For each network, export the number of endpoints
+	for _, network := range networkList.Items {
+		id := connector.GenerateNetworkID(&network)
+		netType := string(network.Spec.Type)
+		epCount := netEpCount[id]
+		metrics.MultiNetworkEndpoint.WithLabelValues(network.Name, netType).Set(float64(epCount))
+	}
+}
+
 func (r *NetworkReconciler) Reconcile(ctx context.Context, req ctrl.Request) (_ ctrl.Result, rerr error) {
 	if !option.Config.EnableGoogleMultiNIC {
 		return ctrl.Result{}, nil
 	}
 	log := logger.WithField("namespacedName", req.NamespacedName)
+
+	r.metricsTrigger.Trigger()
 
 	log.Info("Reconciling")
 	oldNode := &corev1.Node{}
@@ -141,6 +191,20 @@ func (r *NetworkReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	if err := os.MkdirAll(multinicObjDir, os.ModePerm); err != nil {
 		return err
 	}
+	t, err := trigger.NewTrigger(trigger.Parameters{
+		Name:        "multi-network-endpoint-metrics",
+		MinInterval: minTriggerInternal,
+		TriggerFunc: r.updateMultiNetMetrics,
+	})
+	if err != nil {
+		return fmt.Errorf("unable to initialize endpoint trigger function: %v", err)
+	}
+	r.metricsTrigger = t
+	// Only subscribe to endpoint manager when manager is started
+	mgr.Add(manager.RunnableFunc(func(context.Context) error {
+		r.EndpointManager.Subscribe(r)
+		return nil
+	}))
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&networkv1.Network{}).
 		Watches(&source.Kind{Type: &corev1.Node{}},

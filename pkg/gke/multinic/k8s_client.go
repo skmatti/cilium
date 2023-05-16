@@ -45,6 +45,9 @@ type K8sClient interface {
 	// GetNetworkInterface returns the specified Network CR
 	GetNetwork(ctx context.Context, name string) (*networkv1.Network, error)
 
+	// ListNetworks returns a list of all Network CRs
+	ListNetworks(ctx context.Context) ([]networkv1.Network, error)
+
 	// PatchNetworkInterfaceStatus updates the NetworkInterface status with the provided status.
 	PatchNetworkInterfaceStatus(ctx context.Context, obj *networkv1.NetworkInterface) error
 
@@ -95,6 +98,14 @@ func (c *k8sClientImpl) GetNetwork(ctx context.Context, name string) (*networkv1
 		return nil, err
 	}
 	return network, nil
+}
+
+func (c *k8sClientImpl) ListNetworks(ctx context.Context) ([]networkv1.Network, error) {
+	var networkList networkv1.NetworkList
+	if err := c.client.List(ctx, &networkList); err != nil {
+		return nil, err
+	}
+	return networkList.Items, nil
 }
 
 func (c *k8sClientImpl) PatchNetworkInterfaceStatus(ctx context.Context, obj *networkv1.NetworkInterface) error {

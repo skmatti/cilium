@@ -6,8 +6,10 @@ import (
 	"fmt"
 	"hash/crc32"
 	"sync"
+	"time"
 
 	v1 "github.com/cilium/cilium/pkg/k8s/slim/k8s/api/core/v1"
+	"github.com/cilium/cilium/pkg/metrics"
 	"github.com/containernetworking/plugins/pkg/ns"
 	"github.com/vishvananda/netlink"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -35,7 +37,8 @@ import (
 )
 
 const (
-	maxNameLength = 253
+	listNetworkTimeout = time.Second * 5
+	maxNameLength      = 253
 )
 
 // errorDuringMultiNICCreation deletes all exposed multinic endpoints when an error occurs during creation.
@@ -60,6 +63,7 @@ func (d *Daemon) errorDuringMultiNICCreation(primaryEp *endpoint.Endpoint, code 
 		}
 	}
 	primaryEp.Logger(daemonSubsys).WithError(err).Warning("Creation of multinic endpoint failed")
+	metrics.MultiNetworkPodCreation.WithLabelValues(metrics.LabelValueOutcomeFail).Inc()
 	return nil, code, err
 }
 
@@ -278,6 +282,7 @@ func (d *Daemon) createMultiNICEndpoints(ctx context.Context, owner regeneration
 		}
 	}
 
+	metrics.MultiNetworkPodCreation.WithLabelValues(metrics.LabelValueOutcomeSuccess).Inc()
 	return eps, PutEndpointIDCreatedCode, nil
 }
 
