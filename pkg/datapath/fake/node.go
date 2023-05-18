@@ -12,53 +12,57 @@ import (
 	nodeTypes "github.com/cilium/cilium/pkg/node/types"
 )
 
-type fakeNodeHandler struct{}
+type FakeNodeHandler struct {
+	Nodes map[string]nodeTypes.Node
+}
 
 // NewNodeHandler returns a fake NodeHandler that performs no actions
 func NewNodeHandler() datapath.NodeHandler {
-	return &fakeNodeHandler{}
+	return &FakeNodeHandler{make(map[string]nodeTypes.Node)}
 }
 
-func (n *fakeNodeHandler) NodeAdd(newNode nodeTypes.Node) error {
+func (n *FakeNodeHandler) NodeAdd(newNode nodeTypes.Node) error {
+	n.Nodes[newNode.Name] = newNode
 	return nil
 }
 
-func (n *fakeNodeHandler) NodeUpdate(oldNode, newNode nodeTypes.Node) error {
+func (n *FakeNodeHandler) NodeUpdate(oldNode, newNode nodeTypes.Node) error {
 	return nil
 }
 
-func (n *fakeNodeHandler) NodeDelete(node nodeTypes.Node) error {
+func (n *FakeNodeHandler) NodeDelete(node nodeTypes.Node) error {
+	delete(n.Nodes, node.Name)
 	return nil
 }
 
-func (n *fakeNodeHandler) NodeValidateImplementation(node nodeTypes.Node) error {
+func (n *FakeNodeHandler) NodeValidateImplementation(node nodeTypes.Node) error {
 	return nil
 }
 
-func (n *fakeNodeHandler) NodeConfigurationChanged(config datapath.LocalNodeConfiguration) error {
+func (n *FakeNodeHandler) NodeConfigurationChanged(config datapath.LocalNodeConfiguration) error {
 	return nil
 }
 
-func (n *fakeNodeHandler) NodeNeighDiscoveryEnabled() bool {
+func (n *FakeNodeHandler) NodeNeighDiscoveryEnabled() bool {
 	return false
 }
 
-func (n *fakeNodeHandler) NodeNeighborRefresh(ctx context.Context, node nodeTypes.Node) {
+func (n *FakeNodeHandler) NodeNeighborRefresh(ctx context.Context, node nodeTypes.Node) {
 	return
 }
 
-func (n *fakeNodeHandler) NodeCleanNeighbors(migrateOnly bool) {
+func (n *FakeNodeHandler) NodeCleanNeighbors(migrateOnly bool) {
 	return
 }
 
-func (n *fakeNodeHandler) AllocateNodeID(_ net.IP) uint16 {
+func (n *FakeNodeHandler) AllocateNodeID(_ net.IP) uint16 {
 	return 0
 }
 
-func (n *fakeNodeHandler) DumpNodeIDs() []*models.NodeID {
+func (n *FakeNodeHandler) DumpNodeIDs() []*models.NodeID {
 	return nil
 }
 
-func (n *fakeNodeHandler) RestoreNodeIDs() {
+func (n *FakeNodeHandler) RestoreNodeIDs() {
 	return
 }
