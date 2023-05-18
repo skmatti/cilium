@@ -1,0 +1,51 @@
+# Copyright Authors of Cilium
+# SPDX-License-Identifier: Apache-2.0
+
+# distroless images are signed by cosign. You should verify the image with the following public key:
+# $ cat cosign.pub
+# -----BEGIN PUBLIC KEY-----
+# MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEWZzVzkb8A+DbgDpaJId/bOmV8n7Q
+# OqxYbK0Iro6GzSmOzxkn+N2AKawLyXi84WSwJQBK//psATakCgAQKkNTAA==
+# -----END PUBLIC KEY-----
+# $ cosign verify --key cosign.pub $BASE_IMAGE
+# The key may be found at the following address:
+# https://raw.githubusercontent.com/GoogleContainerTools/distroless/main/cosign.pub
+ARG BASE_IMAGE=gcr.io/distroless/static-debian11:nonroot@sha256:149531e38c7e4554d4a6725d7d70593ef9f9881358809463800669ac89f3b0ec
+ARG GOLANG_IMAGE=docker.io/library/golang:1.20.3@sha256:403f48633fb5ebd49f9a2b6ad6719f912df23dae44974a0c9445be331e72ff5e
+
+# BUILDPLATFORM is an automatic platform ARG enabled by Docker BuildKit.
+# Represents the plataform where the build is happening, do not mix with
+# TARGETARCH
+FROM --platform=${BUILDPLATFORM} ${GOLANG_IMAGE} as builder
+
+# TARGETOS is an automatic platform ARG enabled by Docker BuildKit.
+ARG TARGETOS
+# TARGETARCH is an automatic platform ARG enabled by Docker BuildKit.
+ARG TARGETARCH
+ARG NOSTRIP
+ARG NOOPT
+ARG LOCKDEBUG
+ARG RACE
+
+WORKDIR /go/src/github.com/cilium/cilium/global-peer
+RUN --mount=type=bind,readwrite,target=/go/src/github.com/cilium/cilium --mount=target=/root/.cache,type=cache --mount=target=/go/pkg,type=cache \
+    make GOARCH=${TARGETARCH} RACE=${RACE} NOSTRIP=${NOSTRIP} NOOPT=${NOOPT} LOCKDEBUG=${LOCKDEBUG} \
+    && mkdir -p /out/${TARGETOS}/${TARGETARCH}/usr/bin && mv global-peer /out/${TARGETOS}/${TARGETARCH}/usr/bin
+
+WORKDIR /go/src/github.com/cilium/cilium
+# licenses-all is a "script" that executes "go run" so its ARCH should be set
+# to the same ARCH specified in the base image of this Docker stage (BUILDARCH)
+RUN --mount=type=bind,readwrite,target=/go/src/github.com/cilium/cilium --mount=target=/root/.cache,type=cache --mount=target=/go/pkg,type=cache \
+    make GOARCH=${BUILDARCH} licenses-all && mv LICENSE.all /out/${TARGETOS}/${TARGETARCH}
+
+FROM ${BASE_IMAGE} as release
+# TARGETOS is an automatic platform ARG enabled by Docker BuildKit.
+ARG TARGETOS
+# TARGETARCH is an automatic platform ARG enabled by Docker BuildKit.
+ARG TARGETARCH
+COPY --from=builder /out/${TARGETOS}/${TARGETARCH}/usr/bin/global-peer /usr/bin/global-peer
+COPY --from=builder /out/${TARGETOS}/${TARGETARCH}/LICENSE.all /LICENSE.all
+# use uid:gid for the nonroot user for compatibility with runAsNonRoot
+USER 65532:65532
+ENTRYPOINT ["/usr/bin/global-peer"]
+CMD ["serve"]

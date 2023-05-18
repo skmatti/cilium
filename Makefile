@@ -13,7 +13,7 @@ debug: all
 include Makefile.defs
 
 SUBDIRS_CILIUM_CONTAINER := proxylib envoy bpf cilium daemon cilium-health bugtool tools/mount tools/sysctlfix
-SUBDIRS := $(SUBDIRS_CILIUM_CONTAINER) operator plugins tools hubble-relay
+SUBDIRS := $(SUBDIRS_CILIUM_CONTAINER) operator plugins tools hubble-relay global-peer
 
 SUBDIRS_CILIUM_CONTAINER += plugins/cilium-cni
 ifdef LIBNETWORK_PLUGIN
@@ -645,6 +645,7 @@ help: ## Display help for the Makefile, from https://www.thapaliya.com/en/writin
 	$(call print_help_line,"docker-cilium-image","Build cilium-agent docker image")
 	$(call print_help_line,"dev-docker-image","Build cilium-agent development docker image")
 	$(call print_help_line,"docker-plugin-image","Build cilium-docker plugin image")
+	$(call print_help_line,"docker-global-peer-image","Build global-peer docker image")
 	$(call print_help_line,"docker-hubble-relay-image","Build hubble-relay docker image")
 	$(call print_help_line,"docker-clustermesh-apiserver-image","Build docker image for Cilium clustermesh APIServer")
 	$(call print_help_line,"docker-operator-image","Build cilium-operator docker image")

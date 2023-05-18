@@ -114,6 +114,9 @@ $(eval $(call DOCKER_IMAGE_TEMPLATE,dev-docker-image,images/cilium/Dockerfile,ci
 # docker-plugin-image
 $(eval $(call DOCKER_IMAGE_TEMPLATE,docker-plugin-image,images/cilium-docker-plugin/Dockerfile,docker-plugin,$(DOCKER_IMAGE_TAG)))
 
+# docker-global-peer-image
+$(eval $(call DOCKER_IMAGE_TEMPLATE,docker-global-peer-image,images/global-peer/Dockerfile,global-peer,$(DOCKER_IMAGE_TAG),release))
+
 # docker-hubble-relay-image
 $(eval $(call DOCKER_IMAGE_TEMPLATE,docker-hubble-relay-image,images/hubble-relay/Dockerfile,hubble-relay,$(DOCKER_IMAGE_TAG)))
 

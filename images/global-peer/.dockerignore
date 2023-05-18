@@ -1,0 +1,18 @@
+# Copyright Authors of Cilium
+# SPDX-License-Identifier: Apache-2.0
+
+*
+
+# must-have toplevel files
+!/Makefile*
+!/go.sum
+!/go.mod
+!/VERSION
+
+# directories
+!/.git
+!/api
+!/global-peer
+!/pkg
+!/tools
+!/vendor

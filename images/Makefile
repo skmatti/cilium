@@ -14,7 +14,7 @@ endif
 
 PLATFORMS=linux/amd64,linux/arm64
 
-all-images: lint update-alpine-image update-golang-image runtime-image builder-image cilium-image operator-image hubble-relay-image
+all-images: lint update-alpine-image update-golang-image runtime-image builder-image cilium-image operator-image hubble-relay-image global-peer-image
 
 lint:
 	scripts/lint.sh
@@ -59,3 +59,6 @@ operator-image: .buildx_builder
 
 hubble-relay-image: .buildx_builder
 	ROOT_CONTEXT=true scripts/build-image.sh hubble-relay-dev images/hubble-relay $(PLATFORMS) $(OUTPUT) "$$(cat .buildx_builder)" $(REGISTRIES)
+
+global-peer-image: .buildx_builder
+	ROOT_CONTEXT=true scripts/build-image.sh global-peer-dev images/global-peer $(PLATFORMS) $(OUTPUT) "$$(cat .buildx_builder)" $(REGISTRIES)
