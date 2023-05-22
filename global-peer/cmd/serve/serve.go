@@ -20,10 +20,13 @@ import (
 )
 
 const (
-	keyDebug         = "debug"
-	keyConfigPath    = "config"
-	keyClusterName   = "cluster-name"
-	keyListenAddress = "org-peer-listen-address"
+	keyDebug            = "debug"
+	keyConfigPath       = "config"
+	keyClusterName      = "cluster-name"
+	keyListenAddress    = "org-peer-listen-address"
+	keyDialTimeout      = "dial-timeout"
+	keyRetryTimeout     = "retry-timeout"
+	keyLocalPeerService = "local-peer-service"
 )
 
 // New creates a new serve command.
@@ -57,6 +60,21 @@ func New(vp *viper.Viper) *cobra.Command {
 		globalpeerdefaults.ListenAddress,
 		"Address on which to listen",
 	)
+	flags.Duration(
+		keyDialTimeout,
+		globalpeerdefaults.DialTimeout,
+		"Dial timeout when connecting to hubble peers",
+	)
+	flags.String(
+		keyLocalPeerService,
+		globalpeerdefaults.LocalPeerTarget,
+		"Address of the server that implements the peer gRPC service",
+	)
+	flags.Duration(
+		keyRetryTimeout,
+		globalpeerdefaults.RetryTimeout,
+		"Time to wait before attempting to reconnect to a hubble peer when the connection is lost",
+	)
 	vp.BindPFlags(flags)
 
 	return cmd
@@ -75,6 +93,9 @@ func runServe(ctx context.Context, vp *viper.Viper) error {
 	opts := server.Options{
 		ClusterName:   vp.GetString(keyClusterName),
 		ListenAddress: vp.GetString(keyListenAddress),
+		DialTimeout:   vp.GetDuration(keyDialTimeout),
+		RetryTimeout:  vp.GetDuration(keyRetryTimeout),
+		PeerTarget:    vp.GetString(keyLocalPeerService),
 	}
 
 	srv, err := server.New(logger, opts)

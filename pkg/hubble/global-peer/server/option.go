@@ -3,8 +3,13 @@
 
 package server
 
+import "time"
+
 // Options stores all the configuration values for the global-peer server.
 type Options struct {
 	ListenAddress string
 	ClusterName   string
+	PeerTarget    string
+	DialTimeout   time.Duration
+	RetryTimeout  time.Duration
 }

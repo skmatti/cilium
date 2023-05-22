@@ -5,6 +5,7 @@ package globalpeerdefaults
 
 import (
 	"fmt"
+	"time"
 
 	ciliumdefaults "github.com/cilium/cilium/pkg/defaults"
 	hubbledefaults "github.com/cilium/cilium/pkg/hubble/defaults"
@@ -15,10 +16,13 @@ const (
 	ConfigPath = "/etc/global-peer/config.yaml"
 	// ClusterName is the default cluster name
 	ClusterName = ciliumdefaults.ClusterName
-	// PeerTarget is the address of the peer service.
-	PeerTarget = "unix://" + ciliumdefaults.HubbleSockPath
-	// PeerServiceName is the name of the peer service, should it exist.
-	PeerServiceName = "hubble-peer"
+	// LocalPeerTarget is the address of the peer service.
+	LocalPeerTarget = "hubble-peer.kube-system.svc.cluster.local:443"
+	// DialTimeout is the timeout that is used when establishing a new
+	// connection.
+	DialTimeout = 5 * time.Second
+	// RetryTimeout is the duration to wait between reconnection attempts.
+	RetryTimeout = 30 * time.Second
 )
 
 var (

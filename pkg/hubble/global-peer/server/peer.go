@@ -9,22 +9,26 @@ import (
 	"net"
 	"time"
 
+	peerpb "github.com/cilium/cilium/api/v1/peer"
 	datapath "github.com/cilium/cilium/pkg/datapath"
 	v1 "github.com/cilium/cilium/pkg/gke/apis/nodepool/v1"
 	"github.com/cilium/cilium/pkg/gke/client/nodepool/clientset/versioned"
 	"github.com/cilium/cilium/pkg/gke/client/nodepool/informers/externalversions"
+	peertypes "github.com/cilium/cilium/pkg/hubble/peer/types"
 	"github.com/cilium/cilium/pkg/lock"
 	"github.com/cilium/cilium/pkg/node/addressing"
 	"github.com/cilium/cilium/pkg/node/manager"
 	"github.com/cilium/cilium/pkg/node/types"
 	"github.com/sirupsen/logrus"
+	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/tools/cache"
 )
 
 const informerSyncPeriod = 10 * time.Hour
 
 type globalPeerNotifier struct {
-	log logrus.FieldLogger
+	opts Options
+	log  logrus.FieldLogger
 	manager.Notifier
 	nodePoolInformer cache.SharedIndexInformer
 
@@ -47,9 +51,10 @@ func newGlobalPeerNotifier(log logrus.FieldLogger) *globalPeerNotifier {
 // watches ABM NodePool custom resources. When change is detected it calls
 // methods on registered handlers which are ongoing RPC requests to Hubble peer
 // service.
-func NewGlobalPeerNotifier(log logrus.FieldLogger, kc *versioned.Clientset) (*globalPeerNotifier, error) {
-	log.Info("Starting Hubble Global Peer agent")
+func NewGlobalPeerNotifier(log logrus.FieldLogger, kc *versioned.Clientset, opts Options) (*globalPeerNotifier, error) {
 	gp := newGlobalPeerNotifier(log)
+	gp.opts = opts
+	gp.log.Info("Starting Hubble Global Peer agent")
 
 	nodePoolInformerFactory := externalversions.NewSharedInformerFactory(kc, informerSyncPeriod)
 	gp.nodePoolInformer = nodePoolInformerFactory.Baremetal().V1().NodePools().Informer()
@@ -59,7 +64,6 @@ func NewGlobalPeerNotifier(log logrus.FieldLogger, kc *versioned.Clientset) (*gl
 		UpdateFunc: gp.nodePoolUpdate,
 		DeleteFunc: gp.nodePoolDelete,
 	})
-
 	return gp, nil
 }
 
@@ -271,4 +275,78 @@ func (gp *globalPeerNotifier) Unsubscribe(nh datapath.NodeHandler) {
 		}
 	}
 	gp.log.WithField("handler", fmt.Sprintf("%#v", nh)).Warn("Called unsubscribe on handler not on the list")
+}
+
+func (gp *globalPeerNotifier) watchNotifications(ctx context.Context, peerClientBuilder peertypes.ClientBuilder) error {
+	connectAndProcess := func(ctx context.Context) {
+		cl, err := peerClientBuilder.Client(gp.opts.PeerTarget)
+		if err != nil {
+			gp.log.WithFields(logrus.Fields{
+				"error":  err,
+				"target": gp.opts.PeerTarget,
+			}).Warn("Failed to create peer client for peers synchronization; will try again after the timeout has expired")
+			return
+		}
+		defer cl.Close()
+		gp.requestAndProcessNotifications(ctx, cl)
+	}
+
+	wait.UntilWithContext(ctx, connectAndProcess, gp.opts.RetryTimeout)
+	if err := ctx.Err(); err != nil {
+		return fmt.Errorf("notify for peer change notification: %w", err)
+	}
+	return nil
+}
+
+func (gp *globalPeerNotifier) requestAndProcessNotifications(ctx context.Context, cl peertypes.Client) {
+	client, err := cl.Notify(ctx, &peerpb.NotifyRequest{})
+	if err != nil {
+		gp.log.WithFields(logrus.Fields{
+			"error":             err,
+			"connectionTimeout": gp.opts.DialTimeout,
+		}).Warn("Failed to create peer notify client for peers change notification; will try again after the timeout has expired")
+		return
+	}
+	for {
+		cn, err := client.Recv()
+		if err != nil {
+			gp.log.WithFields(logrus.Fields{
+				"error":             err,
+				"connectionTimeout": gp.opts.DialTimeout,
+			}).Warn("Error while receiving peer change notification; will try again after the timeout has expired")
+			return
+		}
+		gp.log.WithField("changeNotification", cn).Info("Received peer change notification")
+		gp.processChangeNotification(cn)
+	}
+}
+
+func (gp *globalPeerNotifier) processChangeNotification(cn *peerpb.ChangeNotification) {
+	gp.mux.Lock()
+	defer gp.mux.Unlock()
+
+	p := peertypes.FromChangeNotification(cn)
+	addr := p.Address.(*net.TCPAddr).IP.String()
+	switch cn.GetType() {
+	case peerpb.ChangeNotificationType_PEER_ADDED:
+		if node, ok := gp.nodes[addr]; ok {
+			// Nothing to do.
+			gp.log.WithFields(logrus.Fields{
+				"nodeAddr":    addr,
+				"nodeName":    node.Name,
+				"clusterName": node.Cluster,
+			}).Info("Node with this address already exists")
+			return
+		}
+		gp.addNode(gp.opts.ClusterName, addr)
+	case peerpb.ChangeNotificationType_PEER_DELETED:
+		if _, ok := gp.nodes[addr]; !ok {
+			// Nothing to do.
+			gp.log.WithField("nodeAddr", addr).Info("Node with this address already doesn't exist")
+			return
+		}
+		gp.removeNode(gp.opts.ClusterName, addr)
+	case peerpb.ChangeNotificationType_PEER_UPDATED:
+		gp.log.WithField("nodeAddr", addr).Error("Unhandled PEER_UPDATE")
+	}
 }

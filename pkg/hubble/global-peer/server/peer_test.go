@@ -4,9 +4,11 @@
 package server
 
 import (
+	"context"
 	"testing"
 	"time"
 
+	peerpb "github.com/cilium/cilium/api/v1/peer"
 	"github.com/cilium/cilium/pkg/datapath/fake"
 	v1 "github.com/cilium/cilium/pkg/gke/apis/nodepool/v1"
 	"github.com/cilium/cilium/pkg/node/types"
@@ -325,4 +327,77 @@ func TestGlobalPeerNotifier_UnsubscribeNonExisting(t *testing.T) {
 	handler := fake.NewNodeHandler().(*fake.FakeNodeHandler)
 	gp.Unsubscribe(handler)
 	assert.Empty(t, gp.handlers)
+}
+
+func TestGlobalPeerNotifier_WithPeerNotifications(t *testing.T) {
+	logger, _ := test.NewNullLogger()
+	gp := newGlobalPeerNotifier(logger)
+
+	handler := fake.NewNodeHandler().(*fake.FakeNodeHandler)
+	gp.Subscribe(handler)
+
+	cn := make(chan *peerpb.ChangeNotification)
+	defer close(cn)
+	peerClientBuilder := newSpyPeerClientBuilder(cn)
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+	go gp.watchNotifications(ctx, peerClientBuilder)
+
+	hasNodeCount := func(count int) func() bool {
+		return func() bool { return count == len(handler.Nodes) }
+	}
+
+	t.Log("Add first peer")
+	cn <- &peerpb.ChangeNotification{
+		Address: "192.0.1.1",
+		Type:    peerpb.ChangeNotificationType_PEER_ADDED,
+	}
+	assert.Eventually(t, hasNodeCount(1), time.Minute, 10*time.Millisecond)
+	wantOne := map[string]types.Node{"node-192.0.1.1": v1ToNode("", "192.0.1.1")}
+	if diff := cmp.Diff(handler.Nodes, wantOne); diff != "" {
+		t.Fatalf("Mismatch after processing PEER_ADDED (-want, +got):\n%v", diff)
+	}
+
+	t.Log("Add first peer again and another one")
+	cn <- &peerpb.ChangeNotification{
+		Address: "192.0.1.1",
+		Type:    peerpb.ChangeNotificationType_PEER_ADDED,
+	}
+	cn <- &peerpb.ChangeNotification{
+		Address: "192.0.1.2",
+		Type:    peerpb.ChangeNotificationType_PEER_ADDED,
+	}
+	assert.Eventually(t, hasNodeCount(2), time.Minute, 10*time.Millisecond)
+	wantTwo := map[string]types.Node{
+		"node-192.0.1.1": v1ToNode("", "192.0.1.1"),
+		"node-192.0.1.2": v1ToNode("", "192.0.1.2"),
+	}
+	if diff := cmp.Diff(handler.Nodes, wantTwo); diff != "" {
+		t.Fatalf("Mismatch after processing PEER_ADDED again (-want, +got):\n%v", diff)
+	}
+
+	t.Log("Remove second peer")
+	cn <- &peerpb.ChangeNotification{
+		Address: "192.0.1.2",
+		Type:    peerpb.ChangeNotificationType_PEER_DELETED,
+	}
+	assert.Eventually(t, hasNodeCount(1), time.Minute, 10*time.Millisecond)
+	if diff := cmp.Diff(handler.Nodes, wantOne); diff != "" {
+		t.Fatalf("Mismatch after processing PEER_DELETED (-want, +got):\n%v", diff)
+	}
+
+	t.Log("Remove second peer again, first one, and nonexistent")
+	cn <- &peerpb.ChangeNotification{
+		Address: "192.0.1.2",
+		Type:    peerpb.ChangeNotificationType_PEER_DELETED,
+	}
+	cn <- &peerpb.ChangeNotification{
+		Address: "192.0.1.1",
+		Type:    peerpb.ChangeNotificationType_PEER_DELETED,
+	}
+	cn <- &peerpb.ChangeNotification{
+		Address: "192.0.1.0",
+		Type:    peerpb.ChangeNotificationType_PEER_DELETED,
+	}
+	assert.Eventually(t, hasNodeCount(0), time.Minute, 10*time.Millisecond)
 }
