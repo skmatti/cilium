@@ -1,19 +1,8 @@
-FROM golang:1.20 as anet-build
-
-WORKDIR /cilium
-
-COPY pkg /cilium/pkg
-COPY api /cilium/api
-COPY slim-daemon /cilium/slim-daemon
-COPY go.mod /cilium/go.mod
-COPY go.sum /cilium/go.sum
-COPY vendor /cilium/vendor
-
-RUN make -C /cilium/slim-daemon linux
-
 FROM ubuntu
 
-RUN apt-get update && apt-get upgrade -y
+RUN apt-get update && apt-get upgrade -y && rm -rf /var/lib/apt/lists/*
 
-COPY --from=anet-build /cilium/slim-daemon/anet-agent /
+ARG BIN=anet-agent__linux_amd64
+
+COPY ${BIN} /anet-agent
 
