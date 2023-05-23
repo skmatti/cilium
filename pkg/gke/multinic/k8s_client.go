@@ -41,6 +41,9 @@ type K8sClient interface {
 	// GetNetworkInterface returns the specified NetworkInterface CR
 	GetNetworkInterface(ctx context.Context, name, namespace string) (*networkv1.NetworkInterface, error)
 
+	// ListNetworkInterfaces returns a list of NetworkInterface CRs
+	ListNetworkInterfaces(ctx context.Context, opts ...client.ListOption) (*networkv1.NetworkInterfaceList, error)
+
 	// GetNetworkInterface returns the specified Network CR
 	GetNetwork(ctx context.Context, name string) (*networkv1.Network, error)
 
@@ -49,6 +52,9 @@ type K8sClient interface {
 
 	// PatchNetworkInterfaceStatus updates the NetworkInterface status with the provided status.
 	PatchNetworkInterfaceStatus(ctx context.Context, obj *networkv1.NetworkInterface) error
+
+	// PatchNetworkInterface updates the NetworkInterface.
+	PatchNetworkInterface(ctx context.Context, oldObj, newObj *networkv1.NetworkInterface) error
 
 	// CreateNetworkInterface creates the network interface object
 	CreateNetworkInterface(ctx context.Context, obj *networkv1.NetworkInterface) error
@@ -81,6 +87,15 @@ func namespacedName(name, namespace string) types.NamespacedName {
 		Name:      name,
 		Namespace: namespace,
 	}
+}
+
+func (c *k8sClientImpl) ListNetworkInterfaces(ctx context.Context, opts ...client.ListOption) (*networkv1.NetworkInterfaceList, error) {
+	intfList := &networkv1.NetworkInterfaceList{}
+	if err := c.client.List(ctx, intfList, opts...); err != nil {
+		return nil, err
+	}
+
+	return intfList, nil
 }
 
 func (c *k8sClientImpl) GetNetworkInterface(ctx context.Context, name, namespace string) (*networkv1.NetworkInterface, error) {
@@ -118,6 +133,9 @@ func (c *k8sClientImpl) PatchNetworkInterfaceStatus(ctx context.Context, obj *ne
 	return c.client.Status().Patch(ctx, intf, client.MergeFrom(intfClean))
 }
 
+func (c *k8sClientImpl) PatchNetworkInterface(ctx context.Context, oldObj, newObj *networkv1.NetworkInterface) error {
+	return c.client.Patch(ctx, newObj, client.MergeFrom(oldObj))
+}
 func (c *k8sClientImpl) CreateNetworkInterface(ctx context.Context, obj *networkv1.NetworkInterface) error {
 	return c.client.Create(ctx, obj)
 }

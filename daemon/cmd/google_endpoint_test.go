@@ -155,7 +155,12 @@ func (m *mockMultiNICClient) GetNetwork(ctx context.Context, name string) (*netw
 func (m *mockMultiNICClient) ListNetworks(ctx context.Context) ([]networkv1.Network, error) {
 	return []networkv1.Network{}, nil
 }
-
+func (m *mockMultiNICClient) ListNetworkInterfaces(ctx context.Context, opts ...client.ListOption) (*networkv1.NetworkInterfaceList, error) {
+	return nil, nil
+}
+func (m *mockMultiNICClient) PatchNetworkInterface(ctx context.Context, _, _ *networkv1.NetworkInterface) error {
+	return nil
+}
 func (m *mockMultiNICClient) PatchNetworkInterfaceStatus(ctx context.Context, obj *networkv1.NetworkInterface) error {
 	return nil
 }

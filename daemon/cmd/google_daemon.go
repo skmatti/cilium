@@ -24,6 +24,7 @@ import (
 	networkv1 "k8s.io/cloud-provider-gcp/crd/apis/network/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 )
 
@@ -96,9 +97,10 @@ func initManager() (manager.Manager, error) {
 		return nil, err
 	}
 	mgr, err := ctrl.NewManager(kubeConfig, ctrl.Options{
-		Scheme:             scheme,
-		MetricsBindAddress: "0",
-		NewCache:           filteredCache(),
+		Scheme:                scheme,
+		MetricsBindAddress:    "0",
+		NewCache:              filteredCache(),
+		ClientDisableCacheFor: []client.Object{&networkv1.NetworkInterface{}},
 	})
 	if err != nil {
 		return nil, err
