@@ -40,6 +40,8 @@ const (
 	// purpose. It uses "reserved:kube-apiserver" label if it's present in the identity label list.
 	// Otherwise, it uses the first label in the identity label list with "reserved:" prefix.
 	ContextReservedIdentity
+	// ContextWorkload uses the namespace and the pod's workload name for identification.
+	ContextWorkload
 	// ContextWorkloadName uses the pod's workload name for identification.
 	ContextWorkloadName
 )
@@ -52,7 +54,7 @@ const ContextOptionsHelp = `
  sourceIngressContext      ::= identifier , { "|", identifier }
  destinationEgressContext  ::= identifier , { "|", identifier }
  destinationIngressContext ::= identifier , { "|", identifier }
- identifier                ::= identity | namespace | pod | pod-short | dns | ip | reserved-identity | workload-name
+ identifier                ::= identity | namespace | pod | pod-short | dns | ip | reserved-identity | workload | workload-name
 `
 
 var (
@@ -79,6 +81,8 @@ func (c ContextIdentifier) String() string {
 		return "ip"
 	case ContextReservedIdentity:
 		return "reserved-identity"
+	case ContextWorkload:
+		return "workload"
 	case ContextWorkloadName:
 		return "workload-name"
 	}
@@ -133,6 +137,8 @@ func parseContextIdentifier(s string) (ContextIdentifier, error) {
 		return ContextIP, nil
 	case "reserved-identity":
 		return ContextReservedIdentity, nil
+	case "workload":
+		return ContextWorkload, nil
 	case "workload-name":
 		return ContextWorkloadName, nil
 	default:
@@ -260,6 +266,25 @@ func sourceIPContext(flow *pb.Flow) (context string) {
 	return
 }
 
+func sourceWorkloadNameContext(flow *pb.Flow) (context string) {
+	if id := flow.GetSource(); id != nil {
+		if workloads := id.GetWorkloads(); len(workloads) != 0 {
+			context = workloads[0].Name
+		}
+	}
+	return
+}
+
+func sourceWorkloadContext(flow *pb.Flow) (context string) {
+	if flow.GetSource() != nil {
+		context = sourceWorkloadNameContext(flow)
+		if context != "" && flow.GetSource().Namespace != "" {
+			context = flow.GetSource().Namespace + "/" + context
+		}
+	}
+	return
+}
+
 func destinationNamespaceContext(flow *pb.Flow) (context string) {
 	if flow.GetDestination() != nil {
 		context = flow.GetDestination().Namespace
@@ -329,6 +354,25 @@ func destinationIPContext(flow *pb.Flow) (context string) {
 	return
 }
 
+func destinationWorkloadNameContext(flow *pb.Flow) (context string) {
+	if id := flow.GetDestination(); id != nil {
+		if workloads := id.GetWorkloads(); len(workloads) != 0 {
+			context = workloads[0].Name
+		}
+	}
+	return
+}
+
+func destinationWorkloadContext(flow *pb.Flow) (context string) {
+	if flow.GetDestination() != nil {
+		context = destinationWorkloadNameContext(flow)
+		if context != "" && flow.GetDestination().Namespace != "" {
+			context = flow.GetDestination().Namespace + "/" + context
+		}
+	}
+	return
+}
+
 // GetLabelValues returns the values of the context relevant labels according
 // to the configured options. The order of the values is the same as the order
 // of the label names returned by GetLabelNames()
@@ -357,12 +401,10 @@ func (o *ContextOptions) GetLabelValues(flow *pb.Flow) (labels []string) {
 				context = sourceIPContext(flow)
 			case ContextReservedIdentity:
 				context = sourceReservedIdentityContext(flow)
+			case ContextWorkload:
+				context = sourceWorkloadContext(flow)
 			case ContextWorkloadName:
-				if id := flow.GetSource(); id != nil {
-					if workloads := id.GetWorkloads(); len(workloads) != 0 {
-						context = workloads[0].Name
-					}
-				}
+				context = sourceWorkloadNameContext(flow)
 			}
 			// always use first non-empty context
 			if context != "" {
@@ -396,12 +438,10 @@ func (o *ContextOptions) GetLabelValues(flow *pb.Flow) (labels []string) {
 				context = destinationIPContext(flow)
 			case ContextReservedIdentity:
 				context = destinationReservedIdentityContext(flow)
+			case ContextWorkload:
+				context = destinationWorkloadContext(flow)
 			case ContextWorkloadName:
-				if id := flow.GetDestination(); id != nil {
-					if workloads := id.GetWorkloads(); len(workloads) != 0 {
-						context = workloads[0].Name
-					}
-				}
+				context = destinationWorkloadNameContext(flow)
 			}
 			// always use first non-empty context
 			if context != "" {

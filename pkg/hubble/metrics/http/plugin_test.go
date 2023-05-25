@@ -28,7 +28,7 @@ Options:
  sourceIngressContext      ::= identifier , { "|", identifier }
  destinationEgressContext  ::= identifier , { "|", identifier }
  destinationIngressContext ::= identifier , { "|", identifier }
- identifier                ::= identity | namespace | pod | pod-short | dns | ip | reserved-identity | workload-name
+ identifier                ::= identity | namespace | pod | pod-short | dns | ip | reserved-identity | workload | workload-name
 `
 	assert.Equal(t, expected, plugin.HelpText())
 }
