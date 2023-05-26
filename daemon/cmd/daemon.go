@@ -1062,7 +1062,7 @@ func NewDaemon(ctx context.Context, cancel context.CancelFunc, epMgr *endpointma
 
 	// Node firewall needs to be initialized after the reserved entities and k8s
 	// are initialized.
-	if k8s.IsEnabled() && option.Config.EnableHostFirewall {
+	if k8s.IsEnabled() && option.Config.EnableHostFirewall && option.Config.EnableNodeNetworkPolicyCRD {
 		// Initialize anet node firewall agent workflow.
 		if err = nodefirewall.Init(&d); err != nil {
 			log.WithError(err).Error("Error while bootstrapping node firewall agent")

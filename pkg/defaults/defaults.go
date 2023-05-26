@@ -506,6 +506,9 @@ const (
 	// Enable BGP control plane features.
 	EnableBGPControlPlane = false
 
+	// EnableNodeNetworkPolicyCRD enables google node network policy CRD.
+	EnableNodeNetworkPolicyCRD = true
+
 	// EnableMergeCIDRPrefixIPLabels controls whether to merge labels for CIDR
 	// prefix IPs.
 	EnableMergeCIDRPrefixIPLabels = true

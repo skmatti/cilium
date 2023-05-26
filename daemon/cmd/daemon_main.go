@@ -1221,6 +1221,11 @@ func initializeFlags() {
 	flags.MarkHidden(option.THCSourceRanges)
 	option.BindEnv(option.THCSourceRanges)
 
+	// Default to true to preserve existing enablement behavior.
+	flags.Bool(option.EnableNodeNetworkPolicyCRD, defaults.EnableNodeNetworkPolicyCRD, fmt.Sprintf("Enable node network policy CRD. Enforcement requires %q to be enabled.", option.EnableHostFirewall))
+	flags.MarkHidden(option.EnableNodeNetworkPolicyCRD)
+	option.BindEnv(option.EnableNodeNetworkPolicyCRD)
+
 	viper.BindPFlags(flags)
 }
 

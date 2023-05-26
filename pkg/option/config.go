@@ -243,6 +243,9 @@ const (
 	// EnableHostFirewall enables network policies for the host
 	EnableHostFirewall = "enable-host-firewall"
 
+	// EnableNodeNetworkPolicyCRD enables google node network policy CRD.
+	EnableNodeNetworkPolicyCRD = "enable-node-network-policy-crd"
+
 	// DisablePodToRemoteNodeTunneling disables tunneling for all traffic to the
 	// remote nodes.
 	DisablePodToRemoteNodeTunneling = "disable-pod-to-remote-node-tunneling"
@@ -2053,6 +2056,9 @@ type DaemonConfig struct {
 	// EnableHostFirewall enables network policies for the host
 	EnableHostFirewall bool
 
+	// EnableNodeNetworkPolicyCRD enables google node network policy CRD.
+	EnableNodeNetworkPolicyCRD bool
+
 	// DisablePodToRemoteNodeTunneling disables tunneling for all traffic to the
 	// remote nodes. This option is used together with enable-host-firewall.
 	DisablePodToRemoteNodeTunneling bool
@@ -2486,6 +2492,7 @@ var (
 		EnableVTEP:            defaults.EnableVTEP,
 		EnableBGPControlPlane: defaults.EnableBGPControlPlane,
 
+		EnableNodeNetworkPolicyCRD:    defaults.EnableNodeNetworkPolicyCRD,
 		EnableMergeCIDRPrefixIPLabels: defaults.EnableMergeCIDRPrefixIPLabels,
 	}
 )
