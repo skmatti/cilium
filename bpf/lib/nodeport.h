@@ -92,17 +92,6 @@ static __always_inline bool nodeport_uses_dsr(__u8 nexthdr __maybe_unused)
 # endif
 }
 
-static __always_inline void
-bpf_mark_snat_done(struct __ctx_buff *ctx __maybe_unused)
-{
-	/* From XDP layer, we do not go through an egress hook from
-	 * here, hence nothing to be done.
-	 */
-#if __ctx_is == __ctx_skb
-	ctx->mark |= MARK_MAGIC_SNAT_DONE;
-#endif
-}
-
 static __always_inline bool
 bpf_skip_recirculation(const struct __ctx_buff *ctx __maybe_unused)
 {
@@ -193,7 +182,7 @@ static __always_inline int nodeport_nat_ipv6_fwd(struct __ctx_buff *ctx,
 		ret = CTX_ACT_OK;
 
 	/* See the equivalent v4 path for comment */
-	bpf_mark_snat_done(ctx);
+	ctx_snat_done_set(ctx);
 
 	return ret;
 }
@@ -683,7 +672,7 @@ int tail_nodeport_nat_ipv6(struct __ctx_buff *ctx)
 			goto drop_err;
 	}
 
-	bpf_mark_snat_done(ctx);
+	ctx_snat_done_set(ctx);
 
 	if (dir == NAT_DIR_INGRESS) {
 		ep_tail_call(ctx, CILIUM_CALL_IPV6_NODEPORT_REVNAT);
@@ -974,7 +963,7 @@ static __always_inline int rev_nodeport_lb6(struct __ctx_buff *ctx, int *ifindex
 		if (!revalidate_data(ctx, &data, &data_end, &ip6))
 			return DROP_INVALID;
 
-		bpf_mark_snat_done(ctx);
+		ctx_snat_done_set(ctx);
 
 		*ifindex = ct_state.ifindex;
 #ifdef TUNNEL_MODE
@@ -1176,7 +1165,7 @@ static __always_inline int nodeport_nat_ipv4_fwd(struct __ctx_buff *ctx)
 	 * be handled multiple times by the "to-netdev" section. This can lead
 	 * to multiple SNATs. To prevent from that, set the SNAT done flag.
 	 */
-	bpf_mark_snat_done(ctx);
+	ctx_snat_done_set(ctx);
 
 	return ret;
 }
@@ -1666,7 +1655,7 @@ int tail_nodeport_nat_ipv4(struct __ctx_buff *ctx)
 			goto drop_err;
 	}
 
-	bpf_mark_snat_done(ctx);
+	ctx_snat_done_set(ctx);
 
 	if (dir == NAT_DIR_INGRESS) {
 		/* At this point we know that a reverse SNAT mapping exists.
@@ -2012,7 +2001,7 @@ static __always_inline int rev_nodeport_lb4(struct __ctx_buff *ctx, int *ifindex
 		if (!revalidate_data(ctx, &data, &data_end, &ip4))
 			return DROP_INVALID;
 
-		bpf_mark_snat_done(ctx);
+		ctx_snat_done_set(ctx);
 
 		*ifindex = ct_state.ifindex;
 #if defined(TUNNEL_MODE) && __ctx_is != __ctx_xdp

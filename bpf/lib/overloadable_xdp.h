@@ -99,4 +99,16 @@ ctx_change_head(struct xdp_md *ctx __maybe_unused,
 	return 0; /* Only intended for SKB context. */
 }
 
+static __always_inline void ctx_snat_done_set(struct xdp_md *ctx __maybe_unused)
+{
+	/* From XDP layer, we do not go through an egress hook from
+	 * here, hence nothing to be done.
+	 */
+}
+
+static __always_inline bool ctx_snat_done(struct xdp_md *ctx __maybe_unused)
+{
+	return false;
+}
+
 #endif /* __LIB_OVERLOADABLE_XDP_H_ */
