@@ -581,7 +581,7 @@ static __always_inline bool snat_v4_prepare_state(struct __ctx_buff *ctx,
 		target->addr = IPV4_DIRECT_ROUTING;
 		return true;
 	}
-# ifdef ENABLE_GOOGLE_MULTI_NIC
+#if defined(ENABLE_GOOGLE_MULTI_NIC) && defined(IS_BPF_HOST)
 {
 	volatile __u32 ifindex = NATIVE_DEV_IFINDEX;
 	__be32 nodeport_ip = NODEPORT_IPV4_BY_IFINDEX(ifindex);
