@@ -77,27 +77,27 @@ var (
 	frontend1   = *lb.NewL3n4AddrID(lb.TCP, net.ParseIP("1.1.1.1"), 80, lb.ScopeExternal, 0)
 	frontend2   = *lb.NewL3n4AddrID(lb.TCP, net.ParseIP("1.1.1.2"), 80, lb.ScopeExternal, 0)
 	frontend3   = *lb.NewL3n4AddrID(lb.TCP, net.ParseIP("f00d::1"), 80, lb.ScopeExternal, 0)
-	backends1   = []lb.Backend{
-		*lb.NewBackend(0, lb.TCP, net.ParseIP("10.0.0.1"), 8080),
-		*lb.NewBackend(0, lb.TCP, net.ParseIP("10.0.0.2"), 8080),
+	backends1   = []*lb.Backend{
+		lb.NewBackend(0, lb.TCP, net.ParseIP("10.0.0.1"), 8080),
+		lb.NewBackend(0, lb.TCP, net.ParseIP("10.0.0.2"), 8080),
 	}
-	backends2 = []lb.Backend{
-		*lb.NewBackend(0, lb.TCP, net.ParseIP("10.0.0.2"), 8080),
-		*lb.NewBackend(0, lb.TCP, net.ParseIP("10.0.0.3"), 8080),
+	backends2 = []*lb.Backend{
+		lb.NewBackend(0, lb.TCP, net.ParseIP("10.0.0.2"), 8080),
+		lb.NewBackend(0, lb.TCP, net.ParseIP("10.0.0.3"), 8080),
 	}
-	backends3 = []lb.Backend{
-		*lb.NewBackend(0, lb.TCP, net.ParseIP("fd00::2"), 8080),
-		*lb.NewBackend(0, lb.TCP, net.ParseIP("fd00::3"), 8080),
+	backends3 = []*lb.Backend{
+		lb.NewBackend(0, lb.TCP, net.ParseIP("fd00::2"), 8080),
+		lb.NewBackend(0, lb.TCP, net.ParseIP("fd00::3"), 8080),
 	}
-	backends4 = []lb.Backend{
-		*lb.NewBackend(0, lb.TCP, net.ParseIP("10.0.0.4"), 8080),
+	backends4 = []*lb.Backend{
+		lb.NewBackend(0, lb.TCP, net.ParseIP("10.0.0.4"), 8080),
 	}
-	backends5 = []lb.Backend{
-		*lb.NewBackend(0, lb.TCP, net.ParseIP("10.0.0.5"), 8080),
-		*lb.NewBackend(0, lb.TCP, net.ParseIP("10.0.0.6"), 8080),
+	backends5 = []*lb.Backend{
+		lb.NewBackend(0, lb.TCP, net.ParseIP("10.0.0.5"), 8080),
+		lb.NewBackend(0, lb.TCP, net.ParseIP("10.0.0.6"), 8080),
 	}
-	backends6 = []lb.Backend{
-		*lb.NewBackend(0, lb.TCP, net.ParseIP("10.0.0.7"), 8080),
+	backends6 = []*lb.Backend{
+		lb.NewBackend(0, lb.TCP, net.ParseIP("10.0.0.7"), 8080),
 	}
 )
 
@@ -517,24 +517,24 @@ func (m *ManagerTestSuite) TestHealthCheckNodePort(c *C) {
 	clusterIP := *lb.NewL3n4AddrID(lb.TCP, net.ParseIP("10.20.30.40"), 80, lb.ScopeExternal, 0)
 
 	// Create two node-local backends
-	localBackend1 := *lb.NewBackend(0, lb.TCP, net.ParseIP("10.0.0.1"), 8080)
-	localBackend2 := *lb.NewBackend(0, lb.TCP, net.ParseIP("10.0.0.2"), 8080)
-	localTerminatingBackend3 := *lb.NewBackend(0, lb.TCP, net.ParseIP("10.0.0.3"), 8080)
+	localBackend1 := lb.NewBackend(0, lb.TCP, net.ParseIP("10.0.0.1"), 8080)
+	localBackend2 := lb.NewBackend(0, lb.TCP, net.ParseIP("10.0.0.2"), 8080)
+	localTerminatingBackend3 := lb.NewBackend(0, lb.TCP, net.ParseIP("10.0.0.3"), 8080)
 	localBackend1.NodeName = nodeTypes.GetName()
 	localBackend2.NodeName = nodeTypes.GetName()
 	localTerminatingBackend3.NodeName = nodeTypes.GetName()
-	localActiveBackends := []lb.Backend{localBackend1, localBackend2}
+	localActiveBackends := []*lb.Backend{localBackend1, localBackend2}
 
 	// Create three remote backends
-	remoteBackend1 := *lb.NewBackend(0, lb.TCP, net.ParseIP("10.0.0.3"), 8080)
-	remoteBackend2 := *lb.NewBackend(0, lb.TCP, net.ParseIP("10.0.0.4"), 8080)
-	remoteBackend3 := *lb.NewBackend(0, lb.TCP, net.ParseIP("10.0.0.5"), 8080)
+	remoteBackend1 := lb.NewBackend(0, lb.TCP, net.ParseIP("10.0.0.3"), 8080)
+	remoteBackend2 := lb.NewBackend(0, lb.TCP, net.ParseIP("10.0.0.4"), 8080)
+	remoteBackend3 := lb.NewBackend(0, lb.TCP, net.ParseIP("10.0.0.5"), 8080)
 	remoteBackend1.NodeName = "not-" + nodeTypes.GetName()
 	remoteBackend2.NodeName = "not-" + nodeTypes.GetName()
 	remoteBackend3.NodeName = "not-" + nodeTypes.GetName()
-	remoteBackends := []lb.Backend{remoteBackend1, remoteBackend2, remoteBackend3}
+	remoteBackends := []*lb.Backend{remoteBackend1, remoteBackend2, remoteBackend3}
 
-	allBackends := []lb.Backend{localBackend1, localBackend2, localTerminatingBackend3, remoteBackend1, remoteBackend2, remoteBackend3}
+	allBackends := []*lb.Backend{localBackend1, localBackend2, localTerminatingBackend3, remoteBackend1, remoteBackend2, remoteBackend3}
 
 	// Insert svc1 as type LoadBalancer with some local backends
 	p1 := &lb.SVC{
@@ -673,9 +673,9 @@ func (m *ManagerTestSuite) TestHealthCheckNodePortDisabled(c *C) {
 
 func (m *ManagerTestSuite) TestGetServiceNameByAddr(c *C) {
 	fe := frontend1.DeepCopy()
-	be := make([]lb.Backend, 0, len(backends1))
+	be := make([]*lb.Backend, 0, len(backends1))
 	for _, backend := range backends1 {
-		be = append(be, *backend.DeepCopy())
+		be = append(be, backend.DeepCopy())
 	}
 	name := "svc1"
 	namespace := "ns1"
@@ -706,14 +706,14 @@ func (m *ManagerTestSuite) TestLocalRedirectLocalBackendSelection(c *C) {
 	// Create a node-local backend.
 	localBackend := backends1[0]
 	localBackend.NodeName = nodeTypes.GetName()
-	localBackends := []lb.Backend{localBackend}
+	localBackends := []*lb.Backend{localBackend}
 	// Create two remote backends.
-	remoteBackends := make([]lb.Backend, 0, len(backends2))
+	remoteBackends := make([]*lb.Backend, 0, len(backends2))
 	for _, backend := range backends2 {
 		backend.NodeName = "not-" + nodeTypes.GetName()
 		remoteBackends = append(remoteBackends, backend)
 	}
-	allBackends := make([]lb.Backend, 0, 1+len(remoteBackends))
+	allBackends := make([]*lb.Backend, 0, 1+len(remoteBackends))
 	allBackends = append(allBackends, localBackend)
 	allBackends = append(allBackends, remoteBackends...)
 
@@ -751,14 +751,14 @@ func (m *ManagerTestSuite) TestLocalRedirectServiceOverride(c *C) {
 	// Create a node-local backend.
 	localBackend := backends1[0]
 	localBackend.NodeName = nodeTypes.GetName()
-	localBackends := []lb.Backend{localBackend}
+	localBackends := []*lb.Backend{localBackend}
 	// Create two remote backends.
-	remoteBackends := make([]lb.Backend, 0, len(backends2))
+	remoteBackends := make([]*lb.Backend, 0, len(backends2))
 	for _, backend := range backends2 {
 		backend.NodeName = "not-" + nodeTypes.GetName()
 		remoteBackends = append(remoteBackends, backend)
 	}
-	allBackends := make([]lb.Backend, 0, 1+len(remoteBackends))
+	allBackends := make([]*lb.Backend, 0, 1+len(remoteBackends))
 	allBackends = append(allBackends, localBackend)
 	allBackends = append(allBackends, remoteBackends...)
 
@@ -874,7 +874,7 @@ func (m *ManagerTestSuite) TestUpsertServiceWithTerminatingBackends(c *C) {
 	c.Assert(m.lbmap.DummyMaglevTable[uint16(id1)], Equals, len(backends1))
 
 	// Delete terminating backends.
-	p.Backends = []lb.Backend{}
+	p.Backends = []*lb.Backend{}
 
 	created, id1, err = m.svc.UpsertService(p)
 
@@ -1001,12 +1001,12 @@ func (m *ManagerTestSuite) TestL7LoadBalancerServiceOverride(c *C) {
 	localBackend := backends1[0]
 	localBackend.NodeName = nodeTypes.GetName()
 	// Create two remote backends.
-	remoteBackends := make([]lb.Backend, 0, len(backends2))
+	remoteBackends := make([]*lb.Backend, 0, len(backends2))
 	for _, backend := range backends2 {
 		backend.NodeName = "not-" + nodeTypes.GetName()
 		remoteBackends = append(remoteBackends, backend)
 	}
-	allBackends := make([]lb.Backend, 0, 1+len(remoteBackends))
+	allBackends := make([]*lb.Backend, 0, 1+len(remoteBackends))
 	allBackends = append(allBackends, localBackend)
 	allBackends = append(allBackends, remoteBackends...)
 
@@ -1120,7 +1120,7 @@ func (m *ManagerTestSuite) TestUpdateBackendsState(c *C) {
 	c.Assert(m.lbmap.BackendByID[2].State, Equals, lb.BackendStateActive)
 
 	// Update the state for one of the backends.
-	updated := []lb.Backend{backends[0]}
+	updated := []*lb.Backend{backends[0]}
 	updated[0].State = lb.BackendStateQuarantined
 
 	err := m.svc.UpdateBackendsState(updated)
@@ -1141,7 +1141,7 @@ func (m *ManagerTestSuite) TestUpdateBackendsState(c *C) {
 	c.Assert(m.lbmap.BackendByID[2].State, Equals, lb.BackendStateActive)
 
 	// Update the state again.
-	updated = []lb.Backend{backends[0]}
+	updated = []*lb.Backend{backends[0]}
 	updated[0].State = lb.BackendStateActive
 
 	err = m.svc.UpdateBackendsState(updated)
@@ -1183,7 +1183,7 @@ func (m *ManagerTestSuite) TestRestoreServiceWithBackendStates(c *C) {
 	c.Assert(len(m.svc.backendByHash), Equals, len(backends))
 
 	// Update backend states.
-	var updates []lb.Backend
+	var updates []*lb.Backend
 	backends[0].State = lb.BackendStateQuarantined
 	backends[1].State = lb.BackendStateMaintenance
 	updates = append(updates, backends[0], backends[1])
@@ -1225,7 +1225,7 @@ func Test_filterServiceBackends(t *testing.T) {
 					},
 				},
 			},
-			backends: []lb.Backend{
+			backends: []*lb.Backend{
 				{
 					FEPortName: "http",
 					L3n4Addr: lb.L3n4Addr{
@@ -1262,7 +1262,7 @@ func Test_filterServiceBackends(t *testing.T) {
 					},
 				},
 			},
-			backends: []lb.Backend{
+			backends: []*lb.Backend{
 				{
 					FEPortName: "http",
 					L3n4Addr: lb.L3n4Addr{
@@ -1421,7 +1421,9 @@ func (m *ManagerTestSuite) TestDeleteServiceWithTerminatingBackends(c *C) {
 }
 
 func (m *ManagerTestSuite) TestRestoreServicesWithLeakedBackends(c *C) {
-	backends := backends1
+	backends := make([]*lb.Backend, len(backends1))
+	backends[0] = backends1[0].DeepCopy()
+	backends[1] = backends1[1].DeepCopy()
 	p1 := &lb.SVC{
 		Frontend:  frontend1,
 		Backends:  backends,
@@ -1442,12 +1444,12 @@ func (m *ManagerTestSuite) TestRestoreServicesWithLeakedBackends(c *C) {
 	// that's associated with the service.
 	// Backend3 is a leaked backend with no associated service.
 	// Backend4 and Backend5 are duplicate leaked backends with no associated service.
-	backend2 := backends[0]
+	backend2 := backends[0].DeepCopy()
 	backend2.ID = lb.BackendID(10)
-	backend3 := backends2[0]
-	backend4 := backends6[0]
+	backend3 := backends2[0].DeepCopy()
+	backend4 := backends6[0].DeepCopy()
 	backend4.ID = lb.BackendID(20)
-	backend5 := backends6[0]
+	backend5 := backends6[0].DeepCopy()
 	backend5.ID = lb.BackendID(30)
 	m.svc.lbmap.AddBackend(backend2, backend2.L3n4Addr.IsIPv6())
 	m.svc.lbmap.AddBackend(backend3, backend3.L3n4Addr.IsIPv6())
