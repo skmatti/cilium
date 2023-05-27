@@ -61,7 +61,7 @@ require (
 	github.com/mattn/go-shellwords v1.0.12
 	github.com/mitchellh/mapstructure v1.5.0
 	github.com/onsi/ginkgo v1.16.5
-	github.com/onsi/gomega v1.24.1
+	github.com/onsi/gomega v1.24.2
 	github.com/optiopay/kafka v0.0.0-00010101000000-000000000000
 	github.com/osrg/gobgp/v3 v3.5.0
 	github.com/pmezard/go-difflib v1.0.0
@@ -118,7 +118,7 @@ require (
 	k8s.io/kube-openapi v0.0.0-20221012153701-172d655c2280
 	k8s.io/utils v0.0.0-20221107191617-1a15be271d1d
 	sigs.k8s.io/controller-runtime v0.13.1-0.20221201045826-d9912251cd81
-	sigs.k8s.io/controller-tools v0.7.0
+	sigs.k8s.io/controller-tools v0.11.3
 	sigs.k8s.io/gateway-api v0.5.1
 	sigs.k8s.io/yaml v1.3.0
 )
@@ -250,13 +250,14 @@ require (
 	// GKE specific dependencies.
 	gke-internal.googlesource.com/anthos-networking/apis/v2 v2.0.0-00010101000000-000000000000
 	gke-internal/gke-node-firewall v0.0.0-00010101000000-000000000000
-	k8s.io/cloud-provider-gcp/crd v0.0.0-20230209193419-9f8207133805
+	k8s.io/cloud-provider-gcp/crd v0.0.0-20230815220944-867a2a3c64ea
 	k8s.io/kubelet v0.23.0
 )
 
 replace (
 	gke-internal.googlesource.com/anthos-networking/apis/v2 => gke-internal.googlesource.com/anthos-networking.git/apis/v2 v2.4.0-gke.0.0.20230214041608-6f61ba18d27b
 	gke-internal/gke-node-firewall => gke-internal.googlesource.com/kubernetes/gke-node-firewall.git v0.0.20
+	k8s.io/cloud-provider-gcp/crd => gke-internal.googlesource.com/kubernetes/cloud-provider-gcp.git/crd v0.0.0-20230815220944-867a2a3c64ea
 )
 
 replace (

@@ -776,7 +776,7 @@ github.com/onsi/ginkgo/v2 v2.1.4/go.mod h1:um6tUpWM/cxCK3/FK8BXqEiUMUwRgSM4JXG47
 github.com/onsi/ginkgo/v2 v2.1.6/go.mod h1:MEH45j8TBi6u9BMogfbp0stKC5cdGjumZj5Y7AG4VIk=
 github.com/onsi/ginkgo/v2 v2.3.0/go.mod h1:Eew0uilEqZmIEZr8JrvYlvOM7Rr6xzTmMV8AyFNU9d0=
 github.com/onsi/ginkgo/v2 v2.4.0/go.mod h1:iHkDK1fKGcBoEHT5W7YBq4RFWaQulw+caOMkAt4OrFo=
-github.com/onsi/ginkgo/v2 v2.5.1 h1:auzK7OI497k6x4OvWq+TKAcpcSAlod0doAH72oIN0Jw=
+github.com/onsi/ginkgo/v2 v2.6.1 h1:1xQPCjcqYw/J5LchOcp4/2q/jzJFjiAOc25chhnDw+Q=
 github.com/onsi/gomega v0.0.0-20170829124025-dcabb60a477c/go.mod h1:C1qb7wdrVGGVU+Z6iS04AVkA3Q65CEZX59MT0QO5uiA=
 github.com/onsi/gomega v1.7.0/go.mod h1:ex+gbHU/CVuBBDIJjb2X0qEXbFg53c61hWP/1CpauHY=
 github.com/onsi/gomega v1.7.1/go.mod h1:XdKZgCCFLUoM/7CFJVPcG8C1xQ1AJ0vpAezJrB7JYyY=
@@ -788,8 +788,8 @@ github.com/onsi/gomega v1.20.1/go.mod h1:DtrZpjmvpn2mPm4YWQa0/ALMDj9v4YxLgojwPeR
 github.com/onsi/gomega v1.21.1/go.mod h1:iYAIXgPSaDHak0LCMA+AWBpIKBr8WZicMxnE8luStNc=
 github.com/onsi/gomega v1.22.1/go.mod h1:x6n7VNe4hw0vkyYUM4mjIXx3JbLiPaBPNgB7PRQ1tuM=
 github.com/onsi/gomega v1.23.0/go.mod h1:Z/NWtiqwBrwUt4/2loMmHL63EDLnYHmVbuBpDr2vQAg=
-github.com/onsi/gomega v1.24.1 h1:KORJXNNTzJXzu4ScJWssJfJMnJ+2QJqhoQSRwNlze9E=
-github.com/onsi/gomega v1.24.1/go.mod h1:3AOiACssS3/MajrniINInwbfOOtfZvplPzuRSmvt1jM=
+github.com/onsi/gomega v1.24.2 h1:J/tulyYK6JwBldPViHJReihxxZ+22FHs0piGjQAvoUE=
+github.com/onsi/gomega v1.24.2/go.mod h1:gs3J10IS7Z7r7eXRoNJIrNqU4ToQukCJhFtKrWgHWnk=
 github.com/opencontainers/go-digest v1.0.0 h1:apOUWs51W5PlhuyGyz9FCeeBIOUDA/6nW8Oi/yOhh5U=
 github.com/opencontainers/go-digest v1.0.0/go.mod h1:0JzlMkj0TRzQZfJkVvzbP0HBR3IKzErnv2BNG4W4MAM=
 github.com/opencontainers/image-spec v1.0.2 h1:9yCKha/T5XdGtO0q9Q9a6T5NUCsTn/DrBg0D7ufOcFM=
@@ -998,6 +998,8 @@ gitlab.com/golang-commonmark/puny v0.0.0-20191124015043-9f83538fa04f h1:Wku8eEde
 gitlab.com/golang-commonmark/puny v0.0.0-20191124015043-9f83538fa04f/go.mod h1:Tiuhl+njh/JIg0uS/sOJVYi0x2HEa5rc1OAaVsb5tAs=
 gke-internal.googlesource.com/anthos-networking.git/apis/v2 v2.4.0-gke.0.0.20230214041608-6f61ba18d27b h1:9Nf+3GZE2+QExh2vgGbO4/G3aTq4/lhZ0DXC8rJo5VA=
 gke-internal.googlesource.com/anthos-networking.git/apis/v2 v2.4.0-gke.0.0.20230214041608-6f61ba18d27b/go.mod h1:vkdj1YSmQfHFHnnY74sLGd9cgFpydx7SUHHGvUR8RTA=
+gke-internal.googlesource.com/kubernetes/cloud-provider-gcp.git/crd v0.0.0-20230815220944-867a2a3c64ea h1:gs7h98Oj+Iv2YMMRAclPf8u6aMK/Ez1hcxD0ywNePMw=
+gke-internal.googlesource.com/kubernetes/cloud-provider-gcp.git/crd v0.0.0-20230815220944-867a2a3c64ea/go.mod h1:A//VRRwQBcvAI20bbCc5jmxMSegf/DqxDI7XVK9oyYo=
 gke-internal.googlesource.com/kubernetes/gke-node-firewall.git v0.0.20 h1:1dNXjmCaKXzmYSJ4XbKCwU88xAfvkhLc18fd/ComnXA=
 gke-internal.googlesource.com/kubernetes/gke-node-firewall.git v0.0.20/go.mod h1:sx5oCrAbOgzExnFShTLrEyfZCwk2thL8XwJhO0jH+j0=
 go.etcd.io/bbolt v1.3.2/go.mod h1:IbVyRI1SCnLcuJnV2u8VeU0CEYM7e686BmAb1XKL+uU=
@@ -1642,8 +1644,6 @@ k8s.io/apimachinery v0.26.9 h1:5yAV9cFR7Z4gIorKcAjWnx4uxtxiFsERwq4Pvmx0CCg=
 k8s.io/apimachinery v0.26.9/go.mod h1:qYzLkrQ9lhrZRh0jNKo2cfvf/R1/kQONnSiyB7NUJU0=
 k8s.io/apiserver v0.21.3/go.mod h1:eDPWlZG6/cCCMj/JBcEpDoK+I+6i3r9GsChYBHSbAzU=
 k8s.io/apiserver v0.26.9 h1:G8D5XIXbhLzqdRY3FajzkKE2lt8hnAW5Vjq67mzEeR8=
-k8s.io/cloud-provider-gcp/crd v0.0.0-20230209193419-9f8207133805 h1:mQF8xE6r4e14iOgxn9dpqyF8bDZiB0MfOKgViDrg0Vk=
-k8s.io/cloud-provider-gcp/crd v0.0.0-20230209193419-9f8207133805/go.mod h1:YDxdayH9Du6f2XUhZiRfM2B0vsJ9b7qbrmI2J2dd89Y=
 k8s.io/code-generator v0.20.2/go.mod h1:UsqdF+VX4PU2g46NC2JRs4gc+IfrctnwHb76RNbWHJg=
 k8s.io/code-generator v0.21.3/go.mod h1:K3y0Bv9Cz2cOW2vXUrNZlFbflhuPvuadW6JdnN6gGKo=
 k8s.io/code-generator v0.26.9 h1:GiS9v3UE3bpE6Zp3sr9ooNJpZXwscjdyzMMVYWk6UmI=
