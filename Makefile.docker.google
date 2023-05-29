@@ -33,7 +33,7 @@ docker-cilium-runtime-image:
 	docker buildx build $(DOCKER_FLAGS) \
 		-t $(RUNTIME_IMAGE_TAG) $(ROOT_DIR)/images/runtime
 
-docker-cilium-builder-image:
+docker-cilium-builder-image: docker-cilium-runtime-image
 	docker buildx build $(DOCKER_FLAGS) \
 		--build-arg CILIUM_RUNTIME_IMAGE=$(RUNTIME_IMAGE_TAG) \
 		-t $(BUILDER_IMAGE_TAG) $(ROOT_DIR)/images/builder
