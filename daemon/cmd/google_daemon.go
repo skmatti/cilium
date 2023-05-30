@@ -19,6 +19,7 @@ import (
 	ssv1 "gke-internal.googlesource.com/anthos-networking/apis/v2/service-steering/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	networkv1 "k8s.io/cloud-provider-gcp/crd/apis/network/v1"
@@ -185,6 +186,9 @@ func filteredCache() cache.NewCacheFunc {
 			&ssv1.TrafficSelector{}:      {},
 			&ssv1.ServiceFunctionChain{}: {},
 			&networkv1.Network{}:         {},
+			&corev1.Node{}: {
+				Field: fields.SelectorFromSet(fields.Set{"metadata.name": nodeTypes.GetName()}),
+			},
 		},
 	})
 }
