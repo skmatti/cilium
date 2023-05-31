@@ -167,6 +167,7 @@ func (d *Daemon) createMultiNICEndpoints(ctx context.Context, owner regeneration
 	// parentDevInUse tracks the use of parent device for the L2 interface.
 	parentDevInUse := make(map[string]string)
 	for _, ref := range interfaceAnnotation {
+		skipEpCreation := false
 		intfLog := log.WithFields(logrus.Fields{
 			logfields.InterfaceInPod: ref.InterfaceName,
 			logfields.K8sPodName:     podID,
@@ -225,25 +226,44 @@ func (d *Daemon) createMultiNICEndpoints(ctx context.Context, owner regeneration
 				if cleanup, err = connector.SetupL3Interface(ref.InterfaceName, pod.Name, podResources, netCR, intfCR, multinicTemplate, d.ipam, netParamsRef); err != nil {
 					return d.errorWithMultiNICCleanup(primaryEp, PutEndpointIDInvalidCode, fmt.Errorf("failed setting up layer3 interface %q for pod %q: %v", intfCR.Name, podID, err), cleanup)
 				}
+			} else if netCR.Spec.Type == networkv1.DeviceNetworkType {
+				cleanup, isDPDK, err := connector.SetupDeviceInterface(ref.InterfaceName, pod.Name, podResources, netCR, intfCR, multinicTemplate, netParamsRef)
+				if err != nil {
+					return d.errorWithMultiNICCleanup(primaryEp, PutEndpointIDInvalidCode, fmt.Errorf("failed setting up device interface %q for pod %q: %v", intfCR.Name, podID, err), cleanup)
+				}
+				skipEpCreation = true
+				if isDPDK {
+					if isDefaultInterface {
+						return d.errorWithMultiNICCleanup(primaryEp, PutEndpointIDInvalidCode, fmt.Errorf("default interface for pod %q cannot be DPDK Device type interface %q", podID, intfCR.Name), cleanup)
+					}
+					skipRouteInstallation = true
+				}
 			} else {
 				return d.errorDuringMultiNICCreation(primaryEp, PutEndpointIDInvalidCode, fmt.Errorf("network %q has invalid network type %v of the multinic endpoint for pod %q", netCR.Name, netCR.Spec.Type, podID))
 			}
 
 			addNetworkLabelIfMultiNICEnabled(multinicTemplate, intfCR.Spec.NetworkName)
-			multinicEndpoint, code, err := d.createEndpoint(ctx, owner, multinicTemplate)
-			if err != nil {
-				return d.errorWithMultiNICCleanup(primaryEp, code, fmt.Errorf("failed creating multinic endpoint for pod %q with code %d: %v", podID, code, err), cleanup)
-			}
-			if multinicEndpoint.GetDeviceType() == multinicep.EndpointDeviceMACVTAP {
-				skipRouteInstallation = true
-			}
-			intfLog.WithField(logfields.EndpointID, multinicEndpoint.StringID()).Info("Successful multinic endpoint request")
-
-			for _, ip := range multinicEndpoint.IPs() {
-				podIP := networkv1.PodIP{IP: ip.String(), NetworkName: netCR.Name}
+			if !skipEpCreation {
+				multinicEndpoint, code, err := d.createEndpoint(ctx, owner, multinicTemplate)
+				if err != nil {
+					return d.errorWithMultiNICCleanup(primaryEp, code, fmt.Errorf("failed creating multinic endpoint for pod %q with code %d: %v", podID, code, err), cleanup)
+				}
+				if multinicEndpoint.GetDeviceType() == multinicep.EndpointDeviceMACVTAP {
+					skipRouteInstallation = true
+				}
+				intfLog.WithField(logfields.EndpointID, multinicEndpoint.StringID()).Info("Successful multinic endpoint request")
+				eps = append(eps, multinicEndpoint)
+				// TODO check if we need to do this for host-interface devices too
+				for _, ip := range multinicEndpoint.IPs() {
+					podIP := networkv1.PodIP{IP: ip.String(), NetworkName: netCR.Name}
+					podIPs = append(podIPs, podIP)
+				}
+			} else {
+				// the device typed networks pass out the ip using the multinicTemplate
+				podIP := networkv1.PodIP{IP: multinicTemplate.Addressing.IPV4, NetworkName: netCR.Name}
 				podIPs = append(podIPs, podIP)
 			}
-			eps = append(eps, multinicEndpoint)
+
 		}
 		if intfCR != nil {
 			networkName := intfCR.Spec.NetworkName
