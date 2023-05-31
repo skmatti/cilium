@@ -557,6 +557,26 @@ func (d *Daemon) deleteMultiNICEndpointQuiet(ep *endpoint.Endpoint, conf endpoin
 	return errs
 }
 
+func (d *Daemon) restoreInterfaceIfDeviceNetwork(ctx context.Context, ref networkv1.InterfaceRef, netns string) error {
+	netCR, err := d.multinicClient.GetNetwork(ctx, *ref.Network)
+	if err != nil {
+		return fmt.Errorf("Failed to fetch Network %s: %v", *ref.Network, err)
+	}
+	log.Debugf("got netCR: %v", netCR)
+	if netCR.Spec.Type != networkv1.DeviceNetworkType {
+		return nil
+	}
+	log.Infof("Restoring device for Device network %s.", netCR.Name)
+	netParamsRef, err := d.multinicClient.GetNetworkParamObject(ctx, netCR.Spec.ParametersRef)
+	if err != nil {
+		return fmt.Errorf("Error getting params object %s for network %s: %v", netCR.Spec.ParametersRef.Name, netCR.Name, err)
+	}
+	if err := connector.RevertDeviceInterface(ref.InterfaceName, netCR, netns, netParamsRef); err != nil {
+		return fmt.Errorf("Error reverting Device network %v: %v", netCR.Name, err)
+	}
+	return nil
+}
+
 // DeleteEndpoints deletes all the endpoints for the given id.
 // Only called when EnableGoogleMultiNIC is enabled.
 func (d *Daemon) DeleteEndpoints(ctx context.Context, id string) (int, error) {
@@ -602,6 +622,13 @@ func (d *Daemon) DeleteEndpoints(ctx context.Context, id string) (int, error) {
 			nerrs++
 		} else {
 			for _, ref := range interfaceAnnotation {
+				if ref.Network != nil {
+					err := d.restoreInterfaceIfDeviceNetwork(ctx, ref, eps[0].GetNetNS())
+					if err != nil {
+						log.Errorf("%v", err)
+						nerrs++
+					}
+				}
 				if ref.Network != nil && networkv1.IsDefaultNetwork(*ref.Network) {
 					continue
 				}

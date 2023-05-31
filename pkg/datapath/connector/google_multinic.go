@@ -18,6 +18,7 @@ import (
 	"errors"
 	"fmt"
 	"hash/crc32"
+	"math/rand"
 	"net"
 
 	"github.com/cilium/cilium/api/v1/models"
@@ -353,6 +354,79 @@ func RevertMacvtapSetup(ifNameInPod, ifName, nsPath string) error {
 	return nil
 }
 
+func RevertDeviceInterface(ifNameInPod string, network *networkv1.Network, nsPath string, paramsRef client.Object) error {
+	gkeparam, ok := paramsRef.(*networkv1.GKENetworkParamSet)
+	if !ok {
+		return fmt.Errorf("failed to cast to networkv1.GKENetworkparams, type is %T value: %v", paramsRef, paramsRef)
+	}
+	if gkeparam.Spec.DeviceMode == networkv1.DPDKVFIO {
+		//DPDK device will end up in root netns upon driver bind
+		log.Debugf("skipping reversion for DPDK network %s, ", network.Name)
+		return nil
+	}
+	netNs, err := ns.GetNS(nsPath)
+	if err != nil {
+		return fmt.Errorf("failed to open netns %q: %v", nsPath, err)
+	}
+	defer netNs.Close()
+
+	// Assume the caller is running in host global netns
+	// This works because we lock the OS thread, which means
+	// we (or any other netNs.Do) can't be preempted
+	globalNetNS, err := ns.GetCurrentNS()
+	if err != nil {
+		return fmt.Errorf("failed to open host global netns: %v", err)
+	}
+	defer globalNetNS.Close()
+	birthName, _, _, err := getNameIPAndPCIAddressFromNetwork(network, log)
+	var tempName string
+	if err != nil {
+		return fmt.Errorf("failed to get interface pci address from network %v, err: %v", network, err)
+	}
+	if err := netNs.Do(func(_ ns.NetNS) error {
+		// We use name here on the assumption that the interface has to be with the right name
+		iface, err := netlink.LinkByName(ifNameInPod)
+		if err != nil {
+			return fmt.Errorf("failed to get link %s, err: %v", ifNameInPod, err)
+		}
+
+		if err := netlink.LinkSetDown(iface); err != nil {
+			return fmt.Errorf("failed to set link %q DOWN: %v", iface.Attrs().Name, err)
+		}
+		tempName = "gketmp" + fmt.Sprint(rand.Intn(1000000))
+		log.Infof("Setting Device name to tempname %s in reverting Device network", tempName)
+		if err = netlink.LinkSetName(iface, tempName); err != nil {
+			return fmt.Errorf("failed to rename interface from %q to %q: %v", iface.Attrs().Name, tempName, err)
+		}
+
+		// Move the interface back to the global namespace on the host.
+		if err = netlink.LinkSetNsFd(iface, int(globalNetNS.Fd())); err != nil {
+			return fmt.Errorf("failed to move Device link %q back to global netns %q: %v", iface.Attrs().Name, globalNetNS.Path(), err)
+		}
+		return nil
+	}); err != nil {
+		return fmt.Errorf("failed to revert Device setup in container namespace %q: %v", nsPath, err)
+	}
+	iface, err := netlink.LinkByName(tempName)
+	if err != nil {
+		return fmt.Errorf("failed to lookup interface %q: %v", tempName, err)
+	}
+	if err = netlink.LinkSetName(iface, birthName); err != nil {
+		// systemd will race us with putting it back up, so we set it back down for rename
+		if err := netlink.LinkSetDown(iface); err != nil {
+			return fmt.Errorf("failed to set interface %s down %v", tempName, err)
+		}
+		if err = netlink.LinkSetName(iface, birthName); err != nil {
+			return fmt.Errorf("failed to rename interface from %q to %q: %s", tempName, birthName, err)
+		}
+	}
+	if err := netlink.LinkSetUp(iface); err != nil {
+		return fmt.Errorf("failed to set interface %s up", birthName)
+	}
+	log.Infof("Reverted device %s for Device network %s", birthName, network.Name)
+
+	return nil
+}
 func createMacvlanChild(ifName string, parentDevIndex int) error {
 	var err error
 
@@ -676,7 +750,6 @@ func getNorthInterfaces(log *logrus.Entry) (map[string]string, error) {
 		return result, nil
 	}
 	niAnnotation, err := networkv1.ParseNorthInterfacesAnnotation(niAnnotationString)
-	log.Debugf("North interfaces annotation after parsing: %v", niAnnotation)
 	if err != nil {
 		return nil, fmt.Errorf("error parsing north interfaces annotation: %v", err)
 	}
@@ -687,27 +760,25 @@ func getNorthInterfaces(log *logrus.Entry) (map[string]string, error) {
 	return result, nil
 }
 
-func getIPAndPCIAddressFromNetwork(network *networkv1.Network, log *logrus.Entry) (net.IP, string, error) {
+func getNameIPAndPCIAddressFromNetwork(network *networkv1.Network, log *logrus.Entry) (string, net.IP, string, error) {
 	networkName := network.Name
 	ni, err := getNorthInterfaces(log)
 
 	addr, exists := ni[networkName]
 	if !exists {
-		return nil, "", fmt.Errorf("couldn't find network %s in north interface annotation: %v", networkName, ni)
+		return "", nil, "", fmt.Errorf("couldn't find network %s in north interface annotation: %v", networkName, ni)
 	}
 
-	log.Debugf("looking in nic-info for a nic with ip: %s", addr)
 	nicInfo, err := getNicInfo()
 	if err != nil {
-		return nil, "", err
+		return "", nil, "", err
 	}
 	info, exists := nicInfo[addr]
 	if !exists {
-		return nil, "", fmt.Errorf("Could not find nic with ip %v in annotation", addr)
+		return "", nil, "", fmt.Errorf("Could not find nic with ip %v in annotation", addr)
 	}
-	log.Debugf("returning nic name: %s from Network", info.birthName)
 	netIP := net.ParseIP(addr)
-	return netIP, info.pciAddress, nil
+	return info.birthName, netIP, info.pciAddress, nil
 }
 
 func ifaceFromPCIAddress(addr string) (netlink.Link, error) {
@@ -743,13 +814,13 @@ func SetupDeviceInterface(ifNameInPod, podName string, podResources map[string][
 	localLog.Info("Setting up Device interface")
 	gkeparam, ok := paramsRef.(*networkv1.GKENetworkParamSet)
 	if !ok {
-		return cleanup, false, fmt.Errorf("failed to get GKENetworkparams from %v", paramsRef)
+		return cleanup, false, fmt.Errorf("failed to cast to networkv1.GKENetworkparams, type is %T value: %v", paramsRef, paramsRef)
 	}
 
 	// we use PCI address to handle cases where a CNI_DEL has crashed, and
 	// our device is stuck with either a customer provided name or
 	// a weird temp name.
-	ipAddr, ifacePCIAddr, err := getIPAndPCIAddressFromNetwork(network, log)
+	_, ipAddr, ifacePCIAddr, err := getNameIPAndPCIAddressFromNetwork(network, log)
 	if err != nil {
 		return cleanup, false, fmt.Errorf("failed to get interface pci address from network %v, err: %v", network, err)
 	}
@@ -760,7 +831,6 @@ func SetupDeviceInterface(ifNameInPod, podName string, podResources map[string][
 
 	// DPDK devices require no additional setup. The device will be unbound by pci address
 	if gkeparam.Spec.DeviceMode != networkv1.DPDKVFIO {
-		localLog.Debugf("found device with pci address %s for NetDevice network", ifacePCIAddr)
 		iface, err := ifaceFromPCIAddress(ifacePCIAddr)
 		if err != nil {
 			return cleanup, false, fmt.Errorf("failed to get link %s, err: %v", ifacePCIAddr, err)
@@ -808,11 +878,9 @@ func SetupDeviceInterface(ifNameInPod, podName string, podResources map[string][
 				return fmt.Errorf("failed to rename interface from %q to %q: %v", tempName, ifNameInPod, err)
 			}
 
-			localLog.Debugf("adding ip address %v to device %s in pod ns", ifaceAddr, iface.Attrs().Name)
 			if err = netlink.AddrAdd(iface, ifaceAddr); err != nil {
 				return fmt.Errorf("failed to add IP %v to interface %s", ipAddr, ifNameInPod)
 			}
-			localLog.Debugf("setting device %s up in podns", iface.Attrs().Name)
 			if err := netlink.LinkSetUp(iface); err != nil {
 				return fmt.Errorf("failed to set link %q UP: %v", ifNameInPod, err)
 			}
