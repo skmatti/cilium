@@ -557,37 +557,38 @@ func (r *NetworkReconciler) updateMultiNetworkIPAM(ctx context.Context, network 
 }
 
 func (r *NetworkReconciler) reconcileNetwork(ctx context.Context, node *corev1.Node, network *networkv1.Network, log *logrus.Entry) (_ ctrl.Result, rerr error) {
-	if network.Spec.Type != networkv1.DeviceNetworkType {
-		// Remove network from node if we fail along the way.
-		if err := deleteNodeNetworkAnnotation(ctx, node, network.Name, "", "", log); err != nil {
-			log.WithError(err).Error("Failed to update node network status annotation")
-			return ctrl.Result{}, err
-		}
-		if err := ensureInterface(network, log); err != nil {
-			log.WithError(err).Error("Unable to ensure network interface")
-			return ctrl.Result{}, err
-		}
-		if err := r.loadEBPFOnParent(ctx, network, node, log); err != nil {
-			log.WithError(err).Error("Unable to load ebpf on parent interface")
-			return ctrl.Result{}, err
-		}
-		// Obtain ip/subnet for node network
-		ipv4, ipv6, err := r.obtainSubnet(network, node, log)
-		if err != nil {
-			log.WithError(err).Error("Unable to read interface for subnets")
-		}
-		if err := addNodeNetworkAnnotation(ctx, node, network.Name, ipv4, ipv6, log); err != nil {
-			log.WithError(err).Error("Failed to update node network status annotation")
-			return ctrl.Result{}, err
-		}
-		if err := r.updateMultiNetworkIPAM(ctx, network, log); err != nil {
-			log.WithError(err).Error("Failed to update node multi-network IPAM")
-			return ctrl.Result{}, err
-		}
-		if err := r.IPAMMgr.ReserveGatewayIP(network); err != nil {
-			log.WithError(err).Error("Failed to reserve gateway IP")
-			return ctrl.Result{}, err
-		}
+	if network.Spec.Type == networkv1.DeviceNetworkType {
+		return ctrl.Result{}, nil
+	}
+	// Remove network from node if we fail along the way.
+	if err := deleteNodeNetworkAnnotation(ctx, node, network.Name, "", "", log); err != nil {
+		log.WithError(err).Error("Failed to update node network status annotation")
+		return ctrl.Result{}, err
+	}
+	if err := ensureInterface(network, log); err != nil {
+		log.WithError(err).Error("Unable to ensure network interface")
+		return ctrl.Result{}, err
+	}
+	if err := r.loadEBPFOnParent(ctx, network, node, log); err != nil {
+		log.WithError(err).Error("Unable to load ebpf on parent interface")
+		return ctrl.Result{}, err
+	}
+	// Obtain ip/subnet for node network
+	ipv4, ipv6, err := r.obtainSubnet(network, node, log)
+	if err != nil {
+		log.WithError(err).Error("Unable to read interface for subnets")
+	}
+	if err := addNodeNetworkAnnotation(ctx, node, network.Name, ipv4, ipv6, log); err != nil {
+		log.WithError(err).Error("Failed to update node network status annotation")
+		return ctrl.Result{}, err
+	}
+	if err := r.updateMultiNetworkIPAM(ctx, network, log); err != nil {
+		log.WithError(err).Error("Failed to update node multi-network IPAM")
+		return ctrl.Result{}, err
+	}
+	if err := r.IPAMMgr.ReserveGatewayIP(network); err != nil {
+		log.WithError(err).Error("Failed to reserve gateway IP")
+		return ctrl.Result{}, err
 	}
 	log.Info("Reconciled successfully")
 	return ctrl.Result{}, nil
@@ -666,6 +667,9 @@ func hasVlanTag(network *networkv1.Network) bool {
 }
 
 func ensureInterface(network *networkv1.Network, log *logrus.Entry) error {
+	if networkv1.IsDefaultNetwork(network.Name) {
+		return nil
+	}
 	intfName, _, err := anutils.InterfaceInfo(network, ciliumNode.GetAnnotations())
 	if err != nil {
 		// Log error but return nil here as this is mostly due to misconfiguration
@@ -726,6 +730,9 @@ func bestAddrMatch(addrs []netlink.Addr) *net.IPNet {
 }
 
 func (r *NetworkReconciler) obtainSubnet(network *networkv1.Network, node *corev1.Node, log *logrus.Entry) (string, string, error) {
+	if networkv1.IsDefaultNetwork(network.Name) {
+		return "", "", nil
+	}
 	intfName, _, err := anutils.InterfaceInfo(network, node.GetAnnotations())
 	if err != nil {
 		// Log error but return nil here as this is mostly due to misconfiguration
