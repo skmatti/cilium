@@ -471,6 +471,7 @@ func TestSetupNetworkRoutes(t *testing.T) {
 		net                *networkv1.Network
 		isDefaultInterface bool
 		routeMTU           int
+		skipInstallation   bool
 		wantRoutes         []netlink.Route
 		wantErr            string
 	}{
@@ -490,6 +491,7 @@ func TestSetupNetworkRoutes(t *testing.T) {
 				},
 			},
 			wantRoutes: []netlink.Route{
+				macvtapLinkRoute(),
 				v4Route("10.10.10.0", v4GW, 24, 0, netlink.SCOPE_UNIVERSE),
 				v4Route("20.20.20.0", v4GW, 24, 0, netlink.SCOPE_UNIVERSE),
 			},
@@ -509,6 +511,7 @@ func TestSetupNetworkRoutes(t *testing.T) {
 				},
 			},
 			wantRoutes: []netlink.Route{
+				macvtapLinkRoute(),
 				v4Route("10.10.10.0", "", 24, 0, netlink.SCOPE_LINK),
 				v4Route("20.20.20.0", "", 24, 0, netlink.SCOPE_LINK),
 			},
@@ -530,6 +533,7 @@ func TestSetupNetworkRoutes(t *testing.T) {
 			},
 			isDefaultInterface: true,
 			wantRoutes: []netlink.Route{
+				macvtapLinkRoute(),
 				v4Route("10.10.10.0", v4GW, 24, 0, netlink.SCOPE_UNIVERSE),
 				v4Route("20.20.20.0", v4GW, 24, 0, netlink.SCOPE_UNIVERSE),
 				v4DefaultRoute(v4GW),
@@ -555,6 +559,7 @@ func TestSetupNetworkRoutes(t *testing.T) {
 			},
 			isDefaultInterface: true,
 			wantRoutes: []netlink.Route{
+				macvtapLinkRoute(),
 				v4Route("10.10.10.0", v4GW, 24, 0, netlink.SCOPE_UNIVERSE),
 				v4Route("20.20.20.0", v4GW, 24, 0, netlink.SCOPE_UNIVERSE),
 			},
@@ -575,6 +580,7 @@ func TestSetupNetworkRoutes(t *testing.T) {
 			},
 			routeMTU: 1300,
 			wantRoutes: []netlink.Route{
+				macvtapLinkRoute(),
 				v4Route("10.10.10.0", "", 24, 0, netlink.SCOPE_LINK),
 				v4Route("20.20.20.0", "", 24, 0, netlink.SCOPE_LINK),
 			},
@@ -598,14 +604,17 @@ func TestSetupNetworkRoutes(t *testing.T) {
 			},
 			routeMTU: 1300,
 			wantRoutes: []netlink.Route{
+				macvtapLinkRoute(),
 				v4Route("10.10.10.0", "", 24, 1300, netlink.SCOPE_LINK),
 				v4Route("20.20.20.0", "", 24, 1300, netlink.SCOPE_LINK),
 			},
 		},
 		{
-			desc:       "no routes to apply",
-			intf:       &networkv1.NetworkInterface{Status: networkv1.NetworkInterfaceStatus{}},
-			wantRoutes: []netlink.Route{},
+			desc: "no routes to apply",
+			intf: &networkv1.NetworkInterface{Status: networkv1.NetworkInterfaceStatus{}},
+			wantRoutes: []netlink.Route{
+				macvtapLinkRoute(),
+			},
 		},
 		{
 			desc: "invalid routes",
@@ -652,7 +661,7 @@ func TestSetupNetworkRoutes(t *testing.T) {
 				},
 			},
 			isDefaultInterface: true,
-			wantErr:            "default route must have a valid gateway address",
+			wantErr:            "gateway must be configued for default interface network: ",
 		},
 		{
 			desc: "default route but without gw address",
@@ -676,11 +685,33 @@ func TestSetupNetworkRoutes(t *testing.T) {
 			},
 			isDefaultInterface: true,
 			wantRoutes: []netlink.Route{
+				macvtapLinkRoute(),
 				v4Route("10.10.10.0", v4GW, 24, 0, netlink.SCOPE_UNIVERSE),
 				v4Route("20.20.20.0", v4GW, 24, 0, netlink.SCOPE_UNIVERSE),
 				v4Route(v4GW, "", 32, 0, netlink.SCOPE_LINK),
 				v4DefaultRoute(v4GW),
 			},
+		},
+		{
+			desc: "skip route installation",
+			intf: &networkv1.NetworkInterface{
+				Status: networkv1.NetworkInterfaceStatus{
+					Routes: []networkv1.Route{
+						{
+							To: "10.10.10.0/24",
+						},
+					},
+					Gateway4: &v4GW,
+				},
+			},
+			net: &networkv1.Network{
+				Spec: networkv1.NetworkSpec{
+					Type: networkv1.L2NetworkType,
+				},
+			},
+			isDefaultInterface: true,
+			skipInstallation:   true,
+			wantRoutes:         nil,
 		},
 	}
 
@@ -706,7 +737,7 @@ func TestSetupNetworkRoutes(t *testing.T) {
 			}
 
 			// Run the test in the root ns.
-			gotErr := SetupNetworkRoutes(interfaceNameInPod, tc.intf, tc.net, testNS.Path(), tc.isDefaultInterface, tc.routeMTU)
+			gotErr := SetupNetworkRoutes(interfaceNameInPod, tc.intf, tc.net, testNS.Path(), tc.isDefaultInterface, tc.routeMTU, tc.skipInstallation)
 			if gotErr != nil {
 				if tc.wantErr == "" {
 					t.Fatalf("SetupNetworkRoutes() return error %v but want nil", gotErr)
@@ -727,8 +758,6 @@ func TestSetupNetworkRoutes(t *testing.T) {
 			}); err != nil {
 				t.Fatalf("failed to list routes: %v", err)
 			}
-
-			tc.wantRoutes = append(tc.wantRoutes, macvtapLinkRoute())
 			if diff := cmp.Diff(gotRoutes, tc.wantRoutes, cmpopts.SortSlices(func(r1, r2 netlink.Route) bool {
 				return r1.String() < r2.String()
 			})); diff != "" {

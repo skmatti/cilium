@@ -18,14 +18,17 @@ import (
 	"errors"
 	"fmt"
 	"hash/crc32"
+	"math/rand"
 	"net"
 
 	"github.com/cilium/cilium/api/v1/models"
 	"github.com/cilium/cilium/pkg/defaults"
 	dhcp "github.com/cilium/cilium/pkg/gke/multinic/dhcp"
 	multinicep "github.com/cilium/cilium/pkg/gke/multinic/endpoint"
+	"github.com/cilium/cilium/pkg/gke/multinic/nic"
 	"github.com/cilium/cilium/pkg/ipam"
 	"github.com/cilium/cilium/pkg/logging/logfields"
+	"github.com/cilium/cilium/pkg/metrics"
 	"github.com/cilium/cilium/pkg/netns"
 	"github.com/cilium/cilium/pkg/node"
 	"github.com/containernetworking/plugins/pkg/ns"
@@ -35,7 +38,6 @@ import (
 	"golang.org/x/sys/unix"
 	"k8s.io/apimachinery/pkg/types"
 	networkv1 "k8s.io/cloud-provider-gcp/crd/apis/network/v1"
-	networkv1alpha1 "k8s.io/cloud-provider-gcp/crd/apis/network/v1alpha1"
 	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -44,6 +46,11 @@ const (
 	kubevirtMacvtapResourcePrefix = "macvtap.network.kubevirt.io"
 	defaultGROMaxSize             = 65536
 	defaultGSOMaxSize             = 65536
+
+	metricAllocate = "allocate"
+	metricRelease  = "release"
+	familyIPv4     = "ipv4"
+	familyIPv6     = "ipv6"
 )
 
 // interfaceConfiguration holds network properties needed to configure the interface.
@@ -156,7 +163,7 @@ func getInterfaceConfiguration(intf *networkv1.NetworkInterface, network *networ
 		cfg.Type = multinicep.EndpointDeviceMACVTAP
 	} else if network.Spec.Type == networkv1.L3NetworkType {
 		cfg.Type = multinicep.EndpointDeviceMultinicVETH
-		cfg.NetworkID = generateNetworkID(network)
+		cfg.NetworkID = GenerateNetworkID(network)
 	} else {
 		cfg.Type = multinicep.EndpointDeviceMACVLAN
 	}
@@ -164,7 +171,7 @@ func getInterfaceConfiguration(intf *networkv1.NetworkInterface, network *networ
 	return &cfg, nil
 }
 
-func generateNetworkID(network *networkv1.Network) uint32 {
+func GenerateNetworkID(network *networkv1.Network) uint32 {
 	return crc32.ChecksumIEEE([]byte(network.UID))
 }
 
@@ -269,8 +276,14 @@ func configureInterface(cfg *interfaceConfiguration, netNs ns.NetNS, ifName stri
 			}
 		}
 
-		if err := netlink.LinkSetUp(l); err != nil {
-			return fmt.Errorf("failed to set link %q UP: %v", ifName, err)
+		if cfg.Type != multinicep.EndpointDeviceMACVTAP {
+			if err := netlink.LinkSetUp(l); err != nil {
+				return fmt.Errorf("failed to set link %q UP: %v", ifName, err)
+			}
+		} else {
+			// b/280340190: keep the macvtap interface down so that it doesn't
+			// affect vm live migration.
+			log.Info("Skip turning on macvtap interface")
 		}
 		return nil
 	}
@@ -343,6 +356,85 @@ func RevertMacvtapSetup(ifNameInPod, ifName, nsPath string) error {
 	return nil
 }
 
+func RevertDeviceInterface(ifNameInPod string, network *networkv1.Network, nsPath string, paramsRef client.Object) error {
+	gkeparam, ok := paramsRef.(*networkv1.GKENetworkParamSet)
+	if !ok {
+		return fmt.Errorf("failed to cast to networkv1.GKENetworkparams, type is %T value: %v", paramsRef, paramsRef)
+	}
+	if gkeparam.Spec.DeviceMode == networkv1.DPDKVFIO {
+		//DPDK device will end up in root netns upon driver bind
+		log.Debugf("skipping reversion for DPDK network %s, ", network.Name)
+		return nil
+	}
+	netNs, err := ns.GetNS(nsPath)
+	if err != nil {
+		return fmt.Errorf("failed to open netns %q: %v", nsPath, err)
+	}
+	defer netNs.Close()
+
+	// Assume the caller is running in host global netns
+	// This works because we lock the OS thread, which means
+	// we (or any other netNs.Do) can't be preempted
+	globalNetNS, err := ns.GetCurrentNS()
+	if err != nil {
+		return fmt.Errorf("failed to open host global netns: %v", err)
+	}
+	defer globalNetNS.Close()
+	birthName, _, _, err := getNameIPAndPCIAddressFromNetwork(network, log)
+	var tempName string
+	if err != nil {
+		return fmt.Errorf("failed to get interface pci address from network %v, err: %v", network, err)
+	}
+	if err := netNs.Do(func(_ ns.NetNS) error {
+		// We use name here on the assumption that the interface has to be with the right name
+		iface, err := netlink.LinkByName(ifNameInPod)
+		if err != nil {
+			return fmt.Errorf("failed to get link %s, err: %v", ifNameInPod, err)
+		}
+
+		if err := netlink.LinkSetDown(iface); err != nil {
+			return fmt.Errorf("failed to set link %q DOWN: %v", iface.Attrs().Name, err)
+		}
+		tempName = "gketmp" + fmt.Sprint(rand.Intn(1000000))
+		log.Infof("Setting Device name to tempname %s in reverting Device network", tempName)
+		if err = netlink.LinkSetName(iface, tempName); err != nil {
+			return fmt.Errorf("failed to rename interface from %q to %q: %v", iface.Attrs().Name, tempName, err)
+		}
+
+		// Move the interface back to the global namespace on the host.
+		if err = netlink.LinkSetNsFd(iface, int(globalNetNS.Fd())); err != nil {
+			return fmt.Errorf("failed to move Device link %q back to global netns %q: %v", iface.Attrs().Name, globalNetNS.Path(), err)
+		}
+		return nil
+	}); err != nil {
+		return fmt.Errorf("failed to revert Device setup in container namespace %q: %v", nsPath, err)
+	}
+	iface, err := netlink.LinkByName(tempName)
+	if err != nil {
+		return fmt.Errorf("failed to lookup interface %q: %v", tempName, err)
+	}
+	// we ignore error here because altname only matters for Ubuntu, but we call unconditionally
+	output, err := nic.RemoveAltnameFromInterface(iface.Attrs().Name, birthName)
+	if err != nil {
+		log.Infof("tried to remove altname %s from interface %s, got error %v, output %s", birthName, tempName, err, output)
+	}
+
+	if err = netlink.LinkSetName(iface, birthName); err != nil {
+		// systemd will race us with putting it back up, so we set it back down for rename
+		if err := netlink.LinkSetDown(iface); err != nil {
+			return fmt.Errorf("failed to set interface %s down %v", tempName, err)
+		}
+		if err = netlink.LinkSetName(iface, birthName); err != nil {
+			return fmt.Errorf("failed to rename interface from %q to %q: %s", tempName, birthName, err)
+		}
+	}
+	if err := netlink.LinkSetUp(iface); err != nil {
+		return fmt.Errorf("failed to set interface %s up", birthName)
+	}
+	log.Infof("Reverted device %s for Device network %s", birthName, network.Name)
+
+	return nil
+}
 func createMacvlanChild(ifName string, parentDevIndex int) error {
 	var err error
 
@@ -625,6 +717,201 @@ func SetupL3Interface(ifNameInPod, podName string, podResources map[string][]str
 	return cleanup, nil
 }
 
+// this section is a repeat of code in the controller, but an import would be a circular dependency
+type nicMapValue struct {
+	pciAddress string
+	birthName  string
+}
+
+// map from ip to pciaddress, birth name
+// Uses node.GetAnnotations(), does *not* make any api calls
+func getNicInfo() (map[string]nicMapValue, error) {
+	nicAnnotationString, ok := node.GetAnnotations()[networkv1.NICInfoAnnotationKey]
+	if !ok {
+		return nil, fmt.Errorf("nic-info annotation does not exist, looking for annotation with key %s", networkv1.NICInfoAnnotationKey)
+	}
+	result := make(map[string]nicMapValue)
+	if nicAnnotationString == "" {
+		return nil, fmt.Errorf("nic-info annotation is empty")
+	}
+	nicAnnotation, err := networkv1.ParseNICInfoAnnotation(nicAnnotationString)
+	if err != nil {
+		return nil, fmt.Errorf("error parsing nic-info annotation: %v", err)
+	}
+	for _, n := range nicAnnotation {
+		result[n.BirthIP] = nicMapValue{n.PCIAddress, n.BirthName}
+	}
+
+	return result, nil
+}
+
+// map from network to ip
+// Uses code.GetAnnotations(), does *not* make any api calls
+func getNorthInterfaces(log *logrus.Entry) (map[string]string, error) {
+	niAnnotationString, ok := node.GetAnnotations()[networkv1.NorthInterfacesAnnotationKey]
+	if !ok {
+		return nil, fmt.Errorf("north interfaces annotation does not exist, looking for annotation with key %s, node annotations: %v", networkv1.NorthInterfacesAnnotationKey, node.GetAnnotations())
+	}
+	result := make(map[string]string)
+	if niAnnotationString == "" {
+		log.Debugf("North interfaces annotation empty:")
+		return result, nil
+	}
+	niAnnotation, err := networkv1.ParseNorthInterfacesAnnotation(niAnnotationString)
+	if err != nil {
+		return nil, fmt.Errorf("error parsing north interfaces annotation: %v", err)
+	}
+	for _, n := range niAnnotation {
+		result[n.Network] = n.IpAddress
+	}
+
+	return result, nil
+}
+
+func getNameIPAndPCIAddressFromNetwork(network *networkv1.Network, log *logrus.Entry) (string, net.IP, string, error) {
+	networkName := network.Name
+	ni, err := getNorthInterfaces(log)
+
+	addr, exists := ni[networkName]
+	if !exists {
+		return "", nil, "", fmt.Errorf("couldn't find network %s in north interface annotation: %v", networkName, ni)
+	}
+
+	nicInfo, err := getNicInfo()
+	if err != nil {
+		return "", nil, "", err
+	}
+	info, exists := nicInfo[addr]
+	if !exists {
+		return "", nil, "", fmt.Errorf("Could not find nic with ip %v in annotation", addr)
+	}
+	netIP := net.ParseIP(addr)
+	return info.birthName, netIP, info.pciAddress, nil
+}
+
+func ifaceFromPCIAddress(addr string) (netlink.Link, error) {
+	links, err := netlink.LinkList()
+	if err != nil {
+		return nil, fmt.Errorf("failed to list links: %v", err)
+	}
+	for i := range links {
+		ifaceName := links[i].Attrs().Name
+		pciAddr, err := nic.ToPCIAddr(ifaceName)
+		if err != nil {
+			// we just ignore devices we can't get the address of
+			continue
+		}
+		if pciAddr == addr {
+			return links[i], nil
+		}
+	}
+	return nil, fmt.Errorf("could not find a device with address %s", addr)
+}
+
+// SetupDeviceInterface moves a Device into a pod and renames it. Does no setup on DPDK networks. Returns a cleanup function and a bool to indicate DPDK or not
+func SetupDeviceInterface(ifNameInPod, podName string, podResources map[string][]string, network *networkv1.Network, intf *networkv1.NetworkInterface, ep *models.EndpointChangeRequest, paramsRef client.Object) (func(), bool, error) {
+	// All the steps we do are replay-able because we use PCI address
+	// pretty sure we could remove this from our function signature
+	var cleanup func()
+	// we skip route creation on dpdk device creation
+	isDPDK := true
+	localLog := log.WithFields(logrus.Fields{
+		logfields.InterfaceInPod: ifNameInPod,
+		logfields.NetNSName:      ep.NetworkNamespace,
+	})
+	localLog.Info("Setting up Device interface")
+	gkeparam, ok := paramsRef.(*networkv1.GKENetworkParamSet)
+	if !ok {
+		return cleanup, false, fmt.Errorf("failed to cast to networkv1.GKENetworkparams, type is %T value: %v", paramsRef, paramsRef)
+	}
+
+	// we use PCI address to handle cases where a CNI_DEL has crashed, and
+	// our device is stuck with either a customer provided name or
+	// a weird temp name.
+	_, ipAddr, ifacePCIAddr, err := getNameIPAndPCIAddressFromNetwork(network, log)
+	if err != nil {
+		return cleanup, false, fmt.Errorf("failed to get interface pci address from network %v, err: %v", network, err)
+	}
+	var mac net.HardwareAddr = nil
+
+	ipNet := net.IPNet{IP: ipAddr, Mask: net.CIDRMask(32, 32)}
+	ifaceAddr := &netlink.Addr{IPNet: &ipNet}
+
+	// DPDK devices require no additional setup. The device will be unbound by pci address
+	if gkeparam.Spec.DeviceMode != networkv1.DPDKVFIO {
+		iface, err := ifaceFromPCIAddress(ifacePCIAddr)
+		if err != nil {
+			return cleanup, false, fmt.Errorf("failed to get link %s, err: %v", ifacePCIAddr, err)
+		}
+		localLog.Debugf("found device %s for NetDevice network", iface.Attrs().Name)
+		mac = iface.Attrs().HardwareAddr
+
+		isDPDK = false
+		localLog.Info("Configuring a NetDevice")
+		if err := netlink.LinkSetDown(iface); err != nil {
+			return cleanup, false, fmt.Errorf("failed to set link %q DOWN: %v", iface.Attrs().Name, err)
+		}
+		cid := ep.ContainerID
+		// use last 8B of container ID for a unique tempname
+		tempName := "gketmp"
+		if len(cid) > 8 {
+			tempName = tempName + cid[len(cid)-8:]
+		} else {
+			tempName = tempName + cid
+		}
+		// interface names have a limit of 15 chars
+		localLog.Debugf("setting device name to tempname: %s", tempName)
+		if err = netlink.LinkSetName(iface, tempName); err != nil {
+			return cleanup, false, fmt.Errorf("failed to rename interface from %q to %q: %v", iface.Attrs().Name, tempName, err)
+		}
+
+		netNs, err := ns.GetNS(ep.NetworkNamespace)
+		if err != nil {
+			return cleanup, false, fmt.Errorf("failed to open netns %q: %v", ep.NetworkNamespace, err)
+		}
+		defer netNs.Close()
+
+		// Move the link to the target network namespace.
+		if err = netlink.LinkSetNsFd(iface, int(netNs.Fd())); err != nil {
+			return cleanup, false, fmt.Errorf("failed to move link %q to netns %q: %v", iface.Attrs().Name, netNs.Path(), err)
+		}
+		if err := netNs.Do(func(_ ns.NetNS) error {
+			// We get the iface again in the new ns, as the handle is namespaced
+			iface, err := netlink.LinkByName(tempName)
+			if err != nil {
+				return fmt.Errorf("failed to get link %s, err: %v", tempName, err)
+			}
+			localLog.Debugf("setting device %s, name to final name: %s", tempName, ifNameInPod)
+			if err = netlink.LinkSetName(iface, ifNameInPod); err != nil {
+				return fmt.Errorf("failed to rename interface from %q to %q: %v", tempName, ifNameInPod, err)
+			}
+
+			if err = netlink.AddrAdd(iface, ifaceAddr); err != nil {
+				return fmt.Errorf("failed to add IP %v to interface %s", ipAddr, ifNameInPod)
+			}
+			if err := netlink.LinkSetUp(iface); err != nil {
+				return fmt.Errorf("failed to set link %q UP: %v", ifNameInPod, err)
+			}
+			return nil
+		}); err != nil {
+			return cleanup, false, err
+		}
+
+	}
+	ifcfg := interfaceConfiguration{
+		IPV4Address: &ipNet,
+		MacAddress:  mac,
+	}
+	err = populateInterfaceStatus(intf, network, &ifcfg, nil, podName, paramsRef)
+	if err != nil {
+		return cleanup, isDPDK, err
+	}
+	// we pass the IP out for purposes of setting the pod-ips annotation
+	ep.Addressing.IPV4 = ipAddr.String()
+
+	return cleanup, isDPDK, nil
+}
+
 // DeleteInterfaceInRemoteNs deletes the L2 interface (macvlan/ipvlan) in the remote network namespace.
 func DeleteInterfaceInRemoteNs(ifName, nsPath string) error {
 	netNs, err := ns.GetNS(nsPath)
@@ -644,7 +931,7 @@ func DeleteInterfaceInRemoteNs(ifName, nsPath string) error {
 // status on the interface in the pod namespace.
 // Route mtu is only set for the pod network. Otherwise, pass 0 to ignore the configuration.
 func SetupNetworkRoutes(ifNameInPod string, intf *networkv1.NetworkInterface, netCR *networkv1.Network, nsPath string,
-	isDefaultInterface bool, podNetworkMTU int) error {
+	isDefaultInterface bool, podNetworkMTU int, skipInstallation bool) error {
 	log.WithFields(logrus.Fields{
 		logfields.InterfaceInPod: ifNameInPod,
 		logfields.NetNSName:      nsPath,
@@ -676,6 +963,12 @@ func SetupNetworkRoutes(ifNameInPod string, intf *networkv1.NetworkInterface, ne
 		}
 		gw = &gwIPv4
 	}
+	if isDefaultInterface && !networkv1.IsDefaultNetwork(intf.Spec.NetworkName) && gw == nil {
+		return fmt.Errorf("gateway must be configued for default interface network: %s", intf.Spec.NetworkName)
+	}
+	if skipInstallation {
+		return nil
+	}
 	netNs, err := ns.GetNS(nsPath)
 	if err != nil {
 		return fmt.Errorf("failed to open netns %q: %v", nsPath, err)
@@ -687,15 +980,16 @@ func SetupNetworkRoutes(ifNameInPod string, intf *networkv1.NetworkInterface, ne
 		if err != nil {
 			return fmt.Errorf("failed to lookup interface %q: %v", ifNameInPod, err)
 		}
+
 		// Link needs to be up before applying routes.
 		if err := netlink.LinkSetUp(l); err != nil {
 			return fmt.Errorf("failed to set link %q UP: %v", ifNameInPod, err)
 		}
 
-		// Add a route to gateway for L3 network excepet the default network
-		if netCR != nil && netCR.Spec.Type == networkv1.L3NetworkType && !networkv1.IsDefaultNetwork(netCR.Name) {
+		// Add a route to gateway for L3 or Device network excepet the default network
+		if netCR != nil && (netCR.Spec.Type == networkv1.L3NetworkType || netCR.Spec.Type == networkv1.DeviceNetworkType) && !networkv1.IsDefaultNetwork(netCR.Name) {
 			if gw == nil {
-				return errors.New("gateway for L3 network should not be nil")
+				return errors.New("gateway for L3/Device network should not be nil")
 			}
 			log.WithFields(logrus.Fields{
 				logfields.InterfaceInPod: ifNameInPod,
@@ -704,7 +998,7 @@ func SetupNetworkRoutes(ifNameInPod string, intf *networkv1.NetworkInterface, ne
 				"network":                intf.Spec.NetworkName,
 				"isDefaultInterface":     isDefaultInterface,
 				"gateway":                *gw,
-			}).Info("Set up route to gateway for L3 network")
+			}).Info("Set up route to gateway for L3/Device network")
 			if err := addRoutes([]*net.IPNet{{IP: *gw, Mask: defaults.ContainerIPv4Mask}}, nil, l, mtu); err != nil {
 				return err
 			}
@@ -806,6 +1100,7 @@ func configureIPAMInfo(network *networkv1.Network, cfg *interfaceConfiguration, 
 		Mask: mask,
 	}
 	log.Infof("Reserved ip address %s with mask %s", cfg.IPV4Address.IP.String(), cfg.IPV4Address.Mask.String())
+	metrics.MultiNetworkIpamEvent.WithLabelValues(metricAllocate, network.Name, familyIPv4).Inc()
 	return nil
 }
 
@@ -826,6 +1121,7 @@ func releaseIP(network *networkv1.Network, cfg *interfaceConfiguration, ipam *ip
 		log.WithError(err).Warningf("Unable to release IP %s in network %s", cfg.IPV4Address.IP.String(), network.Name)
 	} else {
 		log.Infof("Released IP %s that was reserved", cfg.IPV4Address.IP.String())
+		metrics.MultiNetworkIpamEvent.WithLabelValues(metricRelease, network.Name, familyIPv4).Inc()
 	}
 }
 
@@ -855,8 +1151,8 @@ func extractRoutes(network *networkv1.Network, netParamsObj client.Object) ([]ne
 	if netParamsObj == nil {
 		return ret, nil
 	}
-	if network.Spec.Type == networkv1.L3NetworkType {
-		if gkeparam, ok := netParamsObj.(*networkv1alpha1.GKENetworkParamSet); ok {
+	if network.Spec.Type == networkv1.L3NetworkType || network.Spec.Type == networkv1.DeviceNetworkType {
+		if gkeparam, ok := netParamsObj.(*networkv1.GKENetworkParamSet); ok {
 			for _, cidr := range gkeparam.Status.PodCIDRs.CIDRBlocks {
 				ret = append(ret, networkv1.Route{To: cidr})
 			}
@@ -896,6 +1192,30 @@ func populateInterfaceStatus(intf *networkv1.NetworkInterface, network *networkv
 				return fmt.Errorf("ipam cidr for network %s does not exist", network.Name)
 			}
 			gwIp := ipam.DeriveGatewayIP(cidr.String())
+			intf.Status.Gateway4 = &gwIp
+		}
+	} else if network.Spec.Type == networkv1.DeviceNetworkType {
+		routes, err := extractRoutes(network, netParamsObj)
+		if err != nil {
+			return err
+		}
+		intf.Status.Routes = routes
+		if intf.Status.Gateway4 == nil {
+			gkeparam, ok := netParamsObj.(*networkv1.GKENetworkParamSet)
+			if !ok {
+				return fmt.Errorf("failed to get GKENetworkparams from %v", gkeparam)
+			}
+			if gkeparam.Status.PodCIDRs == nil {
+				return fmt.Errorf("No PodCIDR for pod %s found in gnp %v", podName, gkeparam)
+			}
+			ranges := gkeparam.Status.PodCIDRs.CIDRBlocks
+			if len(ranges) == 0 {
+				return fmt.Errorf("No CIDRBlocks for pod %s found in gnp %v", podName, gkeparam)
+			}
+			addrString := ranges[0]
+			// For Device network, if gateway is not specified in network,
+			// use the first IP from the network's pod CIDR on node as gateway IP.
+			gwIp := ipam.DeriveGatewayIP(addrString)
 			intf.Status.Gateway4 = &gwIp
 		}
 	}

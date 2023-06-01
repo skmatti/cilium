@@ -36,4 +36,7 @@ const (
 	// EnableGNG internal flag to enable GNG's eBPF code paths. This should be
 	// replaced with the ServiceChaining enablement.
 	EnableGNG = "enable-gng"
+
+	// PopulateGCENICInfo is the name of the option to populate GCE NIC information as node annotation.
+	PopulateGCENICInfo = "populate-gce-nic-info"
 )

@@ -20,6 +20,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	v1 "github.com/cilium/cilium/pkg/k8s/slim/k8s/api/core/v1"
 	"github.com/cilium/cilium/pkg/logging"
@@ -28,7 +29,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	networkv1 "k8s.io/cloud-provider-gcp/crd/apis/network/v1"
-	networkv1alpha1 "k8s.io/cloud-provider-gcp/crd/apis/network/v1alpha1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -45,8 +45,14 @@ type K8sClient interface {
 	// GetNetworkInterface returns the specified Network CR
 	GetNetwork(ctx context.Context, name string) (*networkv1.Network, error)
 
+	// ListNetworks returns a list of all Network CRs
+	ListNetworks(ctx context.Context) ([]networkv1.Network, error)
+
 	// PatchNetworkInterfaceStatus updates the NetworkInterface status with the provided status.
 	PatchNetworkInterfaceStatus(ctx context.Context, obj *networkv1.NetworkInterface) error
+
+	// PatchNetworkInterface updates the NetworkInterface.
+	PatchNetworkInterface(ctx context.Context, oldObj, newObj *networkv1.NetworkInterface) error
 
 	// CreateNetworkInterface creates the network interface object
 	CreateNetworkInterface(ctx context.Context, obj *networkv1.NetworkInterface) error
@@ -97,6 +103,14 @@ func (c *k8sClientImpl) GetNetwork(ctx context.Context, name string) (*networkv1
 	return network, nil
 }
 
+func (c *k8sClientImpl) ListNetworks(ctx context.Context) ([]networkv1.Network, error) {
+	var networkList networkv1.NetworkList
+	if err := c.client.List(ctx, &networkList); err != nil {
+		return nil, err
+	}
+	return networkList.Items, nil
+}
+
 func (c *k8sClientImpl) PatchNetworkInterfaceStatus(ctx context.Context, obj *networkv1.NetworkInterface) error {
 	intf := &networkv1.NetworkInterface{}
 	if err := c.client.Get(ctx, namespacedName(obj.Name, obj.Namespace), intf); err != nil {
@@ -108,6 +122,9 @@ func (c *k8sClientImpl) PatchNetworkInterfaceStatus(ctx context.Context, obj *ne
 	return c.client.Status().Patch(ctx, intf, client.MergeFrom(intfClean))
 }
 
+func (c *k8sClientImpl) PatchNetworkInterface(ctx context.Context, oldObj, newObj *networkv1.NetworkInterface) error {
+	return c.client.Patch(ctx, newObj, client.MergeFrom(oldObj))
+}
 func (c *k8sClientImpl) CreateNetworkInterface(ctx context.Context, obj *networkv1.NetworkInterface) error {
 	return c.client.Create(ctx, obj)
 }
@@ -139,11 +156,11 @@ func (c *k8sClientImpl) SetPodIPsAnnotation(ctx context.Context, obj *v1.Pod, po
 }
 
 func (c *k8sClientImpl) GetNetworkParamObject(ctx context.Context, ref *networkv1.NetworkParametersReference) (client.Object, error) {
-	if ref.Group != networkv1alpha1.GroupName || ref.Kind != "GKENetworkParamSet" {
+	if ref.Group != networkv1.GroupName || !strings.EqualFold(ref.Kind, "gkenetworkparamset") {
 		// Unsupported params ref kind
 		return nil, fmt.Errorf("unknown paramRef kind: %s/%s", ref.Group, ref.Kind)
 	}
-	ret := &networkv1alpha1.GKENetworkParamSet{}
+	ret := &networkv1.GKENetworkParamSet{}
 	ns := ""
 	if ref.Namespace != nil {
 		ns = *ref.Namespace

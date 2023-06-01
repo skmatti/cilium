@@ -1749,7 +1749,6 @@ k8s.io/client-go/util/workqueue
 # k8s.io/cloud-provider-gcp/crd v0.0.0-20230815220944-867a2a3c64ea => gke-internal.googlesource.com/kubernetes/cloud-provider-gcp.git/crd v0.0.0-20230815220944-867a2a3c64ea
 ## explicit; go 1.19
 k8s.io/cloud-provider-gcp/crd/apis/network/v1
-k8s.io/cloud-provider-gcp/crd/apis/network/v1alpha1
 # k8s.io/code-generator v0.26.9
 ## explicit; go 1.19
 k8s.io/code-generator

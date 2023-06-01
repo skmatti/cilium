@@ -8,11 +8,14 @@ import (
 	"net"
 	"net/netip"
 	"sync"
+	"time"
 
 	v1 "github.com/cilium/cilium/pkg/k8s/slim/k8s/api/core/v1"
+	"github.com/cilium/cilium/pkg/metrics"
 	"github.com/containernetworking/plugins/pkg/ns"
 	"github.com/vishvananda/netlink"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
 	"github.com/cilium/cilium/api/v1/models"
 	"github.com/cilium/cilium/pkg/api"
@@ -36,7 +39,11 @@ import (
 )
 
 const (
-	maxNameLength = 253
+	listNetworkTimeout        = time.Second * 5
+	maxNameLength             = 253
+	podNameLabel              = "podName"
+	networkLabel              = "network"
+	networkInterfaceFinalizer = "networking.gke.io/network-interface-finalizer"
 )
 
 // errorDuringMultiNICCreation deletes all exposed multinic endpoints when an error occurs during creation.
@@ -61,6 +68,7 @@ func (d *Daemon) errorDuringMultiNICCreation(primaryEp *endpoint.Endpoint, code 
 		}
 	}
 	primaryEp.Logger(daemonSubsys).WithError(err).Warning("Creation of multinic endpoint failed")
+	metrics.MultiNetworkPodCreation.WithLabelValues(metrics.LabelValueOutcomeFail).Inc()
 	return nil, code, err
 }
 
@@ -159,6 +167,7 @@ func (d *Daemon) createMultiNICEndpoints(ctx context.Context, owner regeneration
 	// parentDevInUse tracks the use of parent device for the L2 interface.
 	parentDevInUse := make(map[string]string)
 	for _, ref := range interfaceAnnotation {
+		skipEpCreation := false
 		intfLog := log.WithFields(logrus.Fields{
 			logfields.InterfaceInPod: ref.InterfaceName,
 			logfields.K8sPodName:     podID,
@@ -179,6 +188,7 @@ func (d *Daemon) createMultiNICEndpoints(ctx context.Context, owner regeneration
 
 		var cleanup func()
 		var netParamsRef client.Object
+		var skipRouteInstallation bool
 		// Update the interface status of the primary endpoint.
 		if intfCR != nil && networkv1.IsDefaultNetwork(intfCR.Spec.NetworkName) {
 			primaryEp.Logger(daemonSubsys).WithField("interfaceCR", intfCR.Name).Debug("Updating interface status")
@@ -216,23 +226,45 @@ func (d *Daemon) createMultiNICEndpoints(ctx context.Context, owner regeneration
 				if cleanup, err = connector.SetupL3Interface(ref.InterfaceName, pod.Name, podResources, netCR, intfCR, multinicTemplate, d.ipam, netParamsRef); err != nil {
 					return d.errorWithMultiNICCleanup(primaryEp, PutEndpointIDInvalidCode, fmt.Errorf("failed setting up layer3 interface %q for pod %q: %v", intfCR.Name, podID, err), cleanup)
 				}
+			} else if netCR.Spec.Type == networkv1.DeviceNetworkType {
+				cleanup, isDPDK, err := connector.SetupDeviceInterface(ref.InterfaceName, pod.Name, podResources, netCR, intfCR, multinicTemplate, netParamsRef)
+				if err != nil {
+					return d.errorWithMultiNICCleanup(primaryEp, PutEndpointIDInvalidCode, fmt.Errorf("failed setting up device interface %q for pod %q: %v", intfCR.Name, podID, err), cleanup)
+				}
+				skipEpCreation = true
+				if isDPDK {
+					if isDefaultInterface {
+						return d.errorWithMultiNICCleanup(primaryEp, PutEndpointIDInvalidCode, fmt.Errorf("default interface for pod %q cannot be DPDK Device type interface %q", podID, intfCR.Name), cleanup)
+					}
+					skipRouteInstallation = true
+				}
 			} else {
 				return d.errorDuringMultiNICCreation(primaryEp, PutEndpointIDInvalidCode, fmt.Errorf("network %q has invalid network type %v of the multinic endpoint for pod %q", netCR.Name, netCR.Spec.Type, podID))
 			}
 
 			addNetworkLabelIfMultiNICEnabled(multinicTemplate, intfCR.Spec.NetworkName)
-			multinicEndpoint, code, err := d.createEndpoint(ctx, owner, multinicTemplate)
-			if err != nil {
-				return d.errorWithMultiNICCleanup(primaryEp, code, fmt.Errorf("failed creating multinic endpoint for pod %q with code %d: %v", podID, code, err), cleanup)
-			}
 
-			intfLog.WithField(logfields.EndpointID, multinicEndpoint.StringID()).Info("Successful multinic endpoint request")
-
-			for _, ip := range []netip.Addr{multinicEndpoint.IPv4, multinicEndpoint.IPv6} {
-				podIP := networkv1.PodIP{IP: ip.String(), NetworkName: netCR.Name}
+			if !skipEpCreation {
+				multinicEndpoint, code, err := d.createEndpoint(ctx, owner, multinicTemplate)
+				if err != nil {
+					return d.errorWithMultiNICCleanup(primaryEp, code, fmt.Errorf("failed creating multinic endpoint for pod %q with code %d: %v", podID, code, err), cleanup)
+				}
+				if multinicEndpoint.GetDeviceType() == multinicep.EndpointDeviceMACVTAP {
+					skipRouteInstallation = true
+				}
+				intfLog.WithField(logfields.EndpointID, multinicEndpoint.StringID()).Info("Successful multinic endpoint request")
+				eps = append(eps, multinicEndpoint)
+				// TODO check if we need to do this for host-interface devices too
+				for _, ip := range []netip.Addr{multinicEndpoint.IPv4, multinicEndpoint.IPv6} {
+					podIP := networkv1.PodIP{IP: ip.String(), NetworkName: netCR.Name}
+					podIPs = append(podIPs, podIP)
+				}
+			} else {
+				// the device typed networks pass out the ip using the multinicTemplate
+				podIP := networkv1.PodIP{IP: multinicTemplate.Addressing.IPV4, NetworkName: netCR.Name}
 				podIPs = append(podIPs, podIP)
 			}
-			eps = append(eps, multinicEndpoint)
+
 		}
 		if intfCR != nil {
 			networkName := intfCR.Spec.NetworkName
@@ -240,14 +272,14 @@ func (d *Daemon) createMultiNICEndpoints(ctx context.Context, owner regeneration
 				defaultPodNetworkConfigured = true
 			}
 			if err := connector.SetupNetworkRoutes(ref.InterfaceName, intfCR, netCR, multinicTemplate.NetworkNamespace,
-				isDefaultInterface, defaultPodNetworkMTU); err != nil {
+				isDefaultInterface, defaultPodNetworkMTU, skipRouteInstallation); err != nil {
 				return d.errorWithMultiNICCleanup(primaryEp, PutEndpointIDInvalidCode, fmt.Errorf("failed setting up network %q for pod %q: %v", networkName, podID, err), nil)
 			}
 			intfLog.Infof("Successfully configure network %s", networkName)
 
 			// Patch interface CR via multinicClient
 			if err = d.multinicClient.PatchNetworkInterfaceStatus(ctx, intfCR); err != nil {
-				return d.errorWithMultiNICCleanup(primaryEp, PutEndpointIDInvalidCode, fmt.Errorf("failed updating interface CR %q for pod %q: %v", intfCR.Name, podID, err), nil)
+				return d.errorWithMultiNICCleanup(primaryEp, PutEndpointIDInvalidCode, fmt.Errorf("failed updating status of interface CR %q for pod %q: %v", intfCR.Name, podID, err), nil)
 			}
 			intfLog.Debugf("Successfully update interface CR %+v", intfCR)
 		}
@@ -262,7 +294,7 @@ func (d *Daemon) createMultiNICEndpoints(ctx context.Context, owner regeneration
 		}
 		podInterfaceCR := convertNetworkSpecToInterface(defaultPodNetworkCR)
 		if err := connector.SetupNetworkRoutes(primaryVethNameInPod, podInterfaceCR, nil, epTemplate.NetworkNamespace,
-			false, defaultPodNetworkMTU); err != nil {
+			false, defaultPodNetworkMTU, false); err != nil {
 			return d.errorDuringMultiNICCreation(primaryEp, PutEndpointIDInvalidCode, fmt.Errorf("failed setting up default network %q for pod %q: %v", defaultPodNetworkCR.Name, podID, err))
 		}
 		primaryEp.Logger(daemonSubsys).Info("Pod network is configured")
@@ -279,6 +311,7 @@ func (d *Daemon) createMultiNICEndpoints(ctx context.Context, owner regeneration
 		}
 	}
 
+	metrics.MultiNetworkPodCreation.WithLabelValues(metrics.LabelValueOutcomeSuccess).Inc()
 	return eps, PutEndpointIDCreatedCode, nil
 }
 
@@ -351,7 +384,7 @@ func (d *Daemon) getInterfaceAndNetworkCR(ctx context.Context, ref *networkv1.In
 			log.Infof("Done constructing interface CR based on network info, interfaceObjName: %s", intfCR.Name)
 		}
 	} else if ref.Interface != nil {
-		intfCR, err = d.getInterfaceCR(ctx, *ref, pod.Namespace)
+		intfCR, err = d.getInterfaceCR(ctx, *ref.Interface, pod.Namespace)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -365,16 +398,33 @@ func (d *Daemon) getInterfaceAndNetworkCR(ctx context.Context, ref *networkv1.In
 	return intfCR, netCR, nil
 }
 
-// getInterfaceCR gets interface by querying multinicClient object.
-func (d *Daemon) getInterfaceCR(ctx context.Context, ref networkv1.InterfaceRef, ns string) (*networkv1.NetworkInterface, error) {
-	if ref.Interface == nil {
-		return nil, fmt.Errorf("interface is not set for the interface %q", ref.InterfaceName)
+// getInterfaceCRForPod fetches the NetworkInterface object for the pod and network.
+func (d *Daemon) getInterfaceCRForPod(ctx context.Context, ref networkv1.InterfaceRef, ns, podName string) (*networkv1.NetworkInterface, error) {
+	if ref.Interface == nil && ref.Network == nil {
+		return nil, fmt.Errorf("interface or network is not set for the interface %q", ref.InterfaceName)
+	}
+	var intfName string
+	if ref.Interface != nil {
+		intfName = *ref.Interface
+	} else {
+		// auto-generated NI
+		intfName = generateInterfaceObjName(podName, *ref.Network)
 	}
 
-	intfCR, err := d.multinicClient.GetNetworkInterface(ctx, *ref.Interface, ns)
+	intfCR, err := d.getInterfaceCR(ctx, intfName, ns)
 	if err != nil {
-		return nil, fmt.Errorf("failed getting interface CR %s/%s: %v", ns, *ref.Interface, err)
+		return nil, err
 	}
+	return intfCR, nil
+}
+
+// getInterfaceCR gets interface by querying multinicClient object.
+func (d *Daemon) getInterfaceCR(ctx context.Context, name, ns string) (*networkv1.NetworkInterface, error) {
+	intfCR, err := d.multinicClient.GetNetworkInterface(ctx, name, ns)
+	if err != nil {
+		return nil, fmt.Errorf("failed getting interface CR %s/%s: %v", ns, name, err)
+	}
+
 	return intfCR, nil
 }
 
@@ -384,7 +434,11 @@ func constructNetworkInterfaceObject(ctx context.Context, networkName string, po
 			Name:      generateInterfaceObjName(pod.Name, networkName),
 			Namespace: pod.Namespace,
 			Labels: map[string]string{
-				"podName": pod.Name,
+				podNameLabel: pod.Name,
+				networkLabel: networkName,
+			},
+			Finalizers: []string{
+				networkInterfaceFinalizer,
 			},
 			Annotations: map[string]string{
 				networkv1.AutoGenAnnotationKey: networkv1.AutoGenAnnotationValTrue,
@@ -491,6 +545,26 @@ func (d *Daemon) deleteMultiNICEndpointQuiet(ep *endpoint.Endpoint, conf endpoin
 	return errs
 }
 
+func (d *Daemon) restoreInterfaceIfDeviceNetwork(ctx context.Context, ref networkv1.InterfaceRef, netns string) error {
+	netCR, err := d.multinicClient.GetNetwork(ctx, *ref.Network)
+	if err != nil {
+		return fmt.Errorf("Failed to fetch Network %s: %v", *ref.Network, err)
+	}
+	log.Debugf("got netCR: %v", netCR)
+	if netCR.Spec.Type != networkv1.DeviceNetworkType {
+		return nil
+	}
+	log.Infof("Restoring device for Device network %s.", netCR.Name)
+	netParamsRef, err := d.multinicClient.GetNetworkParamObject(ctx, netCR.Spec.ParametersRef)
+	if err != nil {
+		return fmt.Errorf("Error getting params object %s for network %s: %v", netCR.Spec.ParametersRef.Name, netCR.Name, err)
+	}
+	if err := connector.RevertDeviceInterface(ref.InterfaceName, netCR, netns, netParamsRef); err != nil {
+		return fmt.Errorf("Error reverting Device network %v: %v", netCR.Name, err)
+	}
+	return nil
+}
+
 // DeleteEndpoints deletes all the endpoints for the given id.
 // Only called when EnableGoogleMultiNIC is enabled.
 func (d *Daemon) DeleteEndpoints(ctx context.Context, id string) (int, error) {
@@ -525,7 +599,7 @@ func (d *Daemon) DeleteEndpoints(ctx context.Context, id string) (int, error) {
 	}
 	var nerrs int
 	var interfaceAnnotation networkv1.InterfaceAnnotation
-	ifNameToPodName := map[string]string{}
+	ifNameToInterfaceCR := map[string]*networkv1.NetworkInterface{}
 	if len(annotations) > 0 {
 		_, interfaceAnnotation, err = fetchMultiNICAnnotation(annotations)
 		if err == nil && interfaceAnnotation == nil {
@@ -536,18 +610,23 @@ func (d *Daemon) DeleteEndpoints(ctx context.Context, id string) (int, error) {
 			nerrs++
 		} else {
 			for _, ref := range interfaceAnnotation {
-				intfCR, err := d.getInterfaceCR(ctx, ref, podNS)
+				if ref.Network != nil {
+					err := d.restoreInterfaceIfDeviceNetwork(ctx, ref, eps[0].GetNetNS())
+					if err != nil {
+						log.Errorf("%v", err)
+						nerrs++
+					}
+				}
+				if ref.Network != nil && networkv1.IsDefaultNetwork(*ref.Network) {
+					continue
+				}
+				intfCR, err := d.getInterfaceCRForPod(ctx, ref, podNS, podName)
 				if err != nil {
-					log.Warningf("Errored getting interface during endpoint deletion: %q", err)
+					log.Errorf("Errored getting interface during endpoint deletion: %q", err)
+					nerrs++
 					continue
 				}
-				if intfCR.Status.MacAddress == "" {
-					log.Warningf("interface CR %s/%s status does not have mac address set ", intfCR.Namespace, intfCR.Name)
-					continue
-				}
-				if intfCR.Status.PodName != nil {
-					ifNameToPodName[ref.InterfaceName] = *(intfCR.Status.PodName)
-				}
+				ifNameToInterfaceCR[ref.InterfaceName] = intfCR
 			}
 		}
 	}
@@ -563,17 +642,39 @@ func (d *Daemon) DeleteEndpoints(ctx context.Context, id string) (int, error) {
 			return 0, api.Error(DeleteEndpointIDInvalidCode, err)
 		}
 		if ep.IsMultiNIC() {
-			// In case we were unable to gather the interface, the map will return an empty string which will not match the podName.
-			// This will result in podChanged=true which will mean that the lease will expire. We rather let the lease expire if
+			intfCR := ifNameToInterfaceCR[ep.GetInterfaceNameInPod()]
+			// In case we were unable to gather the interface or the podName is not set,
+			// we treat it the same as podChanged=true which will mean that the lease will expire. We rather let the lease expire if
 			// we do not know whether it is a pod shutdown or not
-			podChanged := ifNameToPodName[ep.GetInterfaceNameInPod()] != ep.GetK8sPodName()
+
+			var currentPod string
+			if intfCR != nil && intfCR.Status.PodName != nil {
+				currentPod = *intfCR.Status.PodName
+			}
+			podChanged := currentPod != ep.GetK8sPodName()
+			if intfCR != nil && intfCR.Status.MacAddress == "" {
+				log.Warningf("interface CR %s/%s status does not have mac address set ", intfCR.Namespace, intfCR.Name)
+				// Let the lease expire to be on the safe side.
+				podChanged = true
+			}
 			log.WithFields(logrus.Fields{
 				"previousPod": ep.GetK8sPodName(),
-				"currentPod":  ifNameToPodName[ep.GetInterfaceNameInPod()],
+				"currentPod":  currentPod,
 			}).Info("Deleting multinic endpoint")
 			nerrs += d.deleteMultiNICEndpoint(ep, podChanged)
 		} else {
 			nerrs += d.deleteEndpoint(ep)
+		}
+	}
+
+	for _, intfCR := range ifNameToInterfaceCR {
+		if controllerutil.ContainsFinalizer(intfCR, networkInterfaceFinalizer) {
+			newIntfCR := intfCR.DeepCopy()
+			controllerutil.RemoveFinalizer(newIntfCR, networkInterfaceFinalizer)
+			if err := d.multinicClient.PatchNetworkInterface(ctx, intfCR, newIntfCR); err != nil {
+				log.Errorf("Patching NetworkInterface %s/%s failed: %v", intfCR.Namespace, intfCR.Name, err)
+				nerrs++
+			}
 		}
 	}
 	return nerrs, nil

@@ -25,6 +25,7 @@ import (
 func (ds *DaemonSuite) TestCreateMultiNICEndpointsNoK8sEnabled(c *C) {
 	testutils.PrivilegedCheck(c)
 
+	ds.d.multinicClient = &mockMultiNICClient{}
 	option.Config.EnableGoogleMultiNIC = true
 	defer func() {
 		option.Config.EnableGoogleMultiNIC = false
@@ -49,6 +50,7 @@ func (ds *DaemonSuite) TestCreateMultiNICEndpointsNoK8sEnabled(c *C) {
 func (ds *DaemonSuite) TestCreateMultiNICEndpointsNoK8sPodName(c *C) {
 	testutils.PrivilegedCheck(c)
 
+	ds.d.multinicClient = &mockMultiNICClient{}
 	option.Config.EnableGoogleMultiNIC = true
 	defer func() {
 		option.Config.EnableGoogleMultiNIC = false
@@ -157,6 +159,12 @@ func (m *mockMultiNICClient) GetNetwork(ctx context.Context, name string) (*netw
 	return nil, apierrors.NewNotFound(schema.GroupResource{}, name)
 }
 
+func (m *mockMultiNICClient) ListNetworks(ctx context.Context) ([]networkv1.Network, error) {
+	return []networkv1.Network{}, nil
+}
+func (m *mockMultiNICClient) PatchNetworkInterface(ctx context.Context, _, _ *networkv1.NetworkInterface) error {
+	return nil
+}
 func (m *mockMultiNICClient) PatchNetworkInterfaceStatus(ctx context.Context, obj *networkv1.NetworkInterface) error {
 	return nil
 }

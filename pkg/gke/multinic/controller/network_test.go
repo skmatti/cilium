@@ -29,6 +29,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/vishvananda/netlink"
 	"github.com/vishvananda/netns"
+	anutils "gke-internal.googlesource.com/anthos-networking/apis/v2/utils"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	k8sruntime "k8s.io/apimachinery/pkg/runtime"
@@ -164,7 +165,11 @@ func TestEnsureInterface(t *testing.T) {
 				}
 			}
 
-			err := ensureInterface(tc.networkCR, log)
+			intfName, _, err := anutils.InterfaceInfo(tc.networkCR, map[string]string{})
+			if err != nil {
+				t.Fatalf("InterfaceInfo returned an unexpected error: %s", err)
+			}
+			err = ensureInterface(tc.networkCR, intfName, log)
 			if err != nil {
 				t.Fatalf("ensureVlanID returned an unexpected error: %s", err)
 			}
@@ -279,7 +284,11 @@ func TestEnsureInterfaceErrors(t *testing.T) {
 				}
 			}
 
-			err := ensureInterface(tc.networkCR, log)
+			intfName, _, err := anutils.InterfaceInfo(tc.networkCR, map[string]string{})
+			if err != nil {
+				t.Fatalf("InterfaceInfo returned an unexpected error: %s", err)
+			}
+			err = ensureInterface(tc.networkCR, intfName, log)
 			if err == nil {
 				t.Fatal("ensureVlanID returns nil but want error")
 			}
@@ -447,7 +456,7 @@ func cleanupLinks(t *testing.T, linkNames ...string) {
 	}
 }
 
-func TestUpdateNodeNetworkAnnotation(t *testing.T) {
+func TestUpdateNodeNetworkStatusAnnotation(t *testing.T) {
 	testutils.PrivilegedTest(t)
 
 	scheme := k8sruntime.NewScheme()
@@ -640,18 +649,18 @@ func TestUpdateNodeNetworkAnnotation(t *testing.T) {
 				IPAMMgr:  testIPAMMgr{},
 			}
 			oldNode := testNode.DeepCopy()
-			gotErr := updateNodeNetworkAnnotation(ctx, testNode, tc.network, tc.ipv4Subnet, tc.ipv6Subnet, logger, tc.isAdd)
+			gotErr := updateNodeNetworkStatusAnnotation(ctx, testNode, tc.network, tc.ipv4Subnet, tc.ipv6Subnet, logger, tc.isAdd)
 			if gotErr != nil {
 				if tc.wantErr == "" {
-					t.Fatalf("updateNodeNetworkAnnotation() return error %v but want nil", gotErr)
+					t.Fatalf("updateNodeNetworkStatusAnnotation() return error %v but want nil", gotErr)
 				}
 				if gotErr.Error() != tc.wantErr {
-					t.Fatalf("updateNodeNetworkAnnotation() return error %v but want %v", gotErr, tc.wantErr)
+					t.Fatalf("updateNodeNetworkStatusAnnotation() return error %v but want %v", gotErr, tc.wantErr)
 				}
 				return
 			}
 
-			patchErr := testReconciler.patchNodeAnnotations(ctx, log, oldNode, testNode)
+			patchErr := testReconciler.patchNodeAnnotations(ctx, oldNode, testNode)
 			if patchErr != nil {
 				if tc.wantPatchErr == "" {
 					t.Fatalf("patchNodeAnnotations() return error %v but want nil", patchErr)
@@ -803,8 +812,9 @@ func TestUpdateNodeMultiNetworkIPAM(t *testing.T) {
 				Client:   k8sClient,
 				NodeName: nodeName,
 				IPAMMgr:  testIPAMMgr{},
+				Log:      log,
 			}
-			gotErr := testReconciler.updateMultiNetworkIPAM(ctx, tc.network, log)
+			gotErr := testReconciler.updateMultiNetworkIPAM(ctx, tc.network)
 			if gotErr != nil {
 				if tc.wantErr == "" {
 					t.Fatalf("updateMultiNetworkIPAM() returns error %v but want nil", gotErr)

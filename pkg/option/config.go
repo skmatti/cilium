@@ -2327,6 +2327,9 @@ type DaemonConfig struct {
 	// ARPPingKernelManaged denotes whether kernel can auto-refresh Neighbor entries
 	ARPPingKernelManaged bool
 
+	// PopulateGCENICInfo is a feature flag for google high performance multinetworking support, default is false.
+	PopulateGCENICInfo bool
+
 	// EnableGDCILB is a feature flag for google GDC-H ILB Support, default is false
 	EnableGDCILB bool
 
@@ -3004,6 +3007,7 @@ func (c *DaemonConfig) Populate(vp *viper.Viper) {
 	c.DisablePolicyEventCountMetric = vp.GetBool(DisablePolicyEventCountMetric)
 	c.EnableLocalRedirectPolicy = vp.GetBool(EnableLocalRedirectPolicy)
 	c.EnableGoogleMultiNIC = vp.GetBool(EnableGoogleMultiNIC)
+	c.PopulateGCENICInfo = vp.GetBool(PopulateGCENICInfo)
 	c.AllowDisableSourceIPValidation = vp.GetBool(AllowDisableSourceIPValidation)
 	c.EncryptInterface = vp.GetStringSlice(EncryptInterface)
 	c.EncryptNode = vp.GetBool(EncryptNode)

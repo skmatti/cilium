@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/cilium/cilium/pkg/endpoint"
 	"github.com/cilium/cilium/pkg/gke/multinic"
@@ -14,11 +15,13 @@ import (
 	nodeTypes "github.com/cilium/cilium/pkg/node/types"
 	"github.com/cilium/cilium/pkg/option"
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	networkv1 "k8s.io/cloud-provider-gcp/crd/apis/network/v1"
-	networkv1alpha1 "k8s.io/cloud-provider-gcp/crd/apis/network/v1alpha1"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/cache"
 	ctrlClient "sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 )
@@ -34,7 +37,6 @@ func init() {
 	// The controller runs on every node. Consider performance impact when adding new schemes.
 	utilruntime.Must(corev1.AddToScheme(scheme))
 	utilruntime.Must(networkv1.AddToScheme(scheme))
-	utilruntime.Must(networkv1alpha1.AddToScheme(scheme))
 }
 
 func (d *Daemon) initGoogleControllers(ctx context.Context, endpoints []*endpoint.Endpoint) {
@@ -78,6 +80,7 @@ func (d *Daemon) initManager() (manager.Manager, error) {
 		Scheme:                scheme,
 		MetricsBindAddress:    "0",
 		ClientDisableCacheFor: []ctrlClient.Object{&networkv1.NetworkInterface{}},
+		NewCache:              filteredCache(),
 	})
 	if err != nil {
 		return nil, err
@@ -86,12 +89,15 @@ func (d *Daemon) initManager() (manager.Manager, error) {
 }
 
 func (d *Daemon) initMultiNIC(ctx context.Context, mgr manager.Manager, endpoints []*endpoint.Endpoint) error {
-	if err := (&multinicctrl.NetworkReconciler{
+	reconciler := &multinicctrl.NetworkReconciler{
 		Client:          mgr.GetClient(),
 		EndpointManager: d.endpointManager,
 		NodeName:        nodeTypes.GetName(),
 		IPAMMgr:         d,
-	}).SetupWithManager(mgr); err != nil {
+		DeviceMgr:       d,
+		Log:             log,
+	}
+	if err := reconciler.SetupWithManager(mgr); err != nil {
 		return fmt.Errorf("failed to setup network controller: %v", err)
 	}
 	multiniclog.Info("Created Network controller")
@@ -105,6 +111,22 @@ func (d *Daemon) initMultiNIC(ctx context.Context, mgr manager.Manager, endpoint
 	d.dhcpClient = dhcp.NewDHCPClient()
 	if err := d.setupMultiNetworkingIPAMAllocators(ctx, endpoints); err != nil {
 		return fmt.Errorf("failed to initialize multi-network allocators: %v", err)
+	}
+
+	// Populates nic-info node annotation
+	if option.Config.PopulateGCENICInfo {
+		if err := multinic.PopulateNICInfoAnnotation(d.ctx, d.clientset); err != nil {
+			log.WithError(err).Fatalf("unable to populate nic annotations, high-perf networks will not work: %v", err)
+		}
+
+		node, err := d.clientset.CoreV1().Nodes().Get(ctx, nodeTypes.GetName(), metav1.GetOptions{})
+		if err != nil {
+			return fmt.Errorf("unable to get Node %s: %v", nodeTypes.GetName(), err)
+		}
+
+		if err := reconciler.RestoreDevices(ctx, node); err != nil {
+			return fmt.Errorf("unable to reconcile high-perf network state: %v", err)
+		}
 	}
 	return nil
 }
@@ -120,4 +142,19 @@ func (d *Daemon) setupMultiNetworkingIPAMAllocators(ctx context.Context, endpoin
 		return fmt.Errorf("failed to pre-allocate IPs in multinetworking IPAM allocators for restored endpoints: %v", err)
 	}
 	return nil
+}
+
+// filteredCache returns a cache with a ListWatch that's restricted to the desired fields in order
+// to reduce memory consumption.
+func filteredCache() cache.NewCacheFunc {
+	resyncInterval := time.Minute * 10
+	return cache.BuilderWithOptions(cache.Options{
+		Resync: &resyncInterval,
+		SelectorsByObject: cache.SelectorsByObject{
+			&networkv1.Network{}: {},
+			&corev1.Node{}: {
+				Field: fields.SelectorFromSet(fields.Set{"metadata.name": nodeTypes.GetName()}),
+			},
+		},
+	})
 }
