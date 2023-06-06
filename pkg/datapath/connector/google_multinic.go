@@ -653,7 +653,7 @@ func DeleteInterfaceInRemoteNs(ifName, nsPath string) error {
 // status on the interface in the pod namespace.
 // Route mtu is only set for the pod network. Otherwise, pass 0 to ignore the configuration.
 func SetupNetworkRoutes(ifNameInPod string, intf *networkv1.NetworkInterface, netCR *networkv1.Network, nsPath string,
-	isDefaultInterface bool, podNetworkMTU int) error {
+	isDefaultInterface bool, podNetworkMTU int, skipInstallation bool) error {
 	log.WithFields(logrus.Fields{
 		logfields.InterfaceInPod: ifNameInPod,
 		logfields.NetNSName:      nsPath,
@@ -685,6 +685,12 @@ func SetupNetworkRoutes(ifNameInPod string, intf *networkv1.NetworkInterface, ne
 		}
 		gw = &gwIPv4
 	}
+	if isDefaultInterface && !networkv1.IsDefaultNetwork(intf.Spec.NetworkName) && gw == nil {
+		return fmt.Errorf("gateway must be configued for default interface network: %s", intf.Spec.NetworkName)
+	}
+	if skipInstallation {
+		return nil
+	}
 	netNs, err := ns.GetNS(nsPath)
 	if err != nil {
 		return fmt.Errorf("failed to open netns %q: %v", nsPath, err)
@@ -697,15 +703,6 @@ func SetupNetworkRoutes(ifNameInPod string, intf *networkv1.NetworkInterface, ne
 			return fmt.Errorf("failed to lookup interface %q: %v", ifNameInPod, err)
 		}
 
-		if l.Type() == multinicep.EndpointDeviceMACVTAP {
-			// b/280340190: skip the macvtap route installation as the link will
-			// be in down state to avoid affecting vm live migration.
-			log.Info("Skip setting routes for macvtap interface")
-			if isDefaultInterface && gw == nil {
-				return errors.New("default route must have a valid gateway address")
-			}
-			return nil
-		}
 		// Link needs to be up before applying routes.
 		if err := netlink.LinkSetUp(l); err != nil {
 			return fmt.Errorf("failed to set link %q UP: %v", ifNameInPod, err)

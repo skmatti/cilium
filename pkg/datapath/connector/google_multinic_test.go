@@ -175,6 +175,13 @@ func v4DefaultRoute(gw string) netlink.Route {
 	return dr
 }
 
+func macvtapLinkRoute() netlink.Route {
+	route := v4Route("172.168.10.0", "", macvtapLinkMask, 0, netlink.SCOPE_LINK)
+	route.Src = net.ParseIP(macvtapLinkIP)
+	route.Protocol = 2
+	return route
+}
+
 func TestGetInterfaceConfiguration(t *testing.T) {
 	parentDevName := "parent-dev"
 	parentDevNameEmpty := ""
@@ -458,6 +465,7 @@ func TestSetupNetworkRoutes(t *testing.T) {
 		net                *networkv1.Network
 		isDefaultInterface bool
 		routeMTU           int
+		skipInstallation   bool
 		wantRoutes         []netlink.Route
 		wantErr            string
 	}{
@@ -476,7 +484,11 @@ func TestSetupNetworkRoutes(t *testing.T) {
 					Gateway4: &v4GW,
 				},
 			},
-			wantRoutes: nil,
+			wantRoutes: []netlink.Route{
+				macvtapLinkRoute(),
+				v4Route("10.10.10.0", v4GW, 24, 0, netlink.SCOPE_UNIVERSE),
+				v4Route("20.20.20.0", v4GW, 24, 0, netlink.SCOPE_UNIVERSE),
+			},
 		},
 		{
 			desc: "apply routes without gw to multinic-network",
@@ -492,7 +504,11 @@ func TestSetupNetworkRoutes(t *testing.T) {
 					},
 				},
 			},
-			wantRoutes: nil,
+			wantRoutes: []netlink.Route{
+				macvtapLinkRoute(),
+				v4Route("10.10.10.0", "", 24, 0, netlink.SCOPE_LINK),
+				v4Route("20.20.20.0", "", 24, 0, netlink.SCOPE_LINK),
+			},
 		},
 		{
 			desc: "apply default route with gw to multinic-network",
@@ -510,7 +526,12 @@ func TestSetupNetworkRoutes(t *testing.T) {
 				},
 			},
 			isDefaultInterface: true,
-			wantRoutes:         nil,
+			wantRoutes: []netlink.Route{
+				macvtapLinkRoute(),
+				v4Route("10.10.10.0", v4GW, 24, 0, netlink.SCOPE_UNIVERSE),
+				v4Route("20.20.20.0", v4GW, 24, 0, netlink.SCOPE_UNIVERSE),
+				v4DefaultRoute(v4GW),
+			},
 		},
 		{
 			desc: "apply default route with gw to pod-network",
@@ -531,7 +552,11 @@ func TestSetupNetworkRoutes(t *testing.T) {
 				},
 			},
 			isDefaultInterface: true,
-			wantRoutes:         nil,
+			wantRoutes: []netlink.Route{
+				macvtapLinkRoute(),
+				v4Route("10.10.10.0", v4GW, 24, 0, netlink.SCOPE_UNIVERSE),
+				v4Route("20.20.20.0", v4GW, 24, 0, netlink.SCOPE_UNIVERSE),
+			},
 		},
 		{
 			desc: "apply routes with mtu to multinic-network",
@@ -547,8 +572,12 @@ func TestSetupNetworkRoutes(t *testing.T) {
 					},
 				},
 			},
-			routeMTU:   1300,
-			wantRoutes: nil,
+			routeMTU: 1300,
+			wantRoutes: []netlink.Route{
+				macvtapLinkRoute(),
+				v4Route("10.10.10.0", "", 24, 0, netlink.SCOPE_LINK),
+				v4Route("20.20.20.0", "", 24, 0, netlink.SCOPE_LINK),
+			},
 		},
 		{
 			desc: "apply routes with mtu to pod-network",
@@ -567,13 +596,19 @@ func TestSetupNetworkRoutes(t *testing.T) {
 					},
 				},
 			},
-			routeMTU:   1300,
-			wantRoutes: nil,
+			routeMTU: 1300,
+			wantRoutes: []netlink.Route{
+				macvtapLinkRoute(),
+				v4Route("10.10.10.0", "", 24, 1300, netlink.SCOPE_LINK),
+				v4Route("20.20.20.0", "", 24, 1300, netlink.SCOPE_LINK),
+			},
 		},
 		{
-			desc:       "no routes to apply",
-			intf:       &networkv1.NetworkInterface{Status: networkv1.NetworkInterfaceStatus{}},
-			wantRoutes: nil,
+			desc: "no routes to apply",
+			intf: &networkv1.NetworkInterface{Status: networkv1.NetworkInterfaceStatus{}},
+			wantRoutes: []netlink.Route{
+				macvtapLinkRoute(),
+			},
 		},
 		{
 			desc: "invalid routes",
@@ -620,7 +655,7 @@ func TestSetupNetworkRoutes(t *testing.T) {
 				},
 			},
 			isDefaultInterface: true,
-			wantErr:            "default route must have a valid gateway address",
+			wantErr:            "gateway must be configued for default interface network: ",
 		},
 		{
 			desc: "default route but without gw address",
@@ -643,6 +678,33 @@ func TestSetupNetworkRoutes(t *testing.T) {
 				},
 			},
 			isDefaultInterface: true,
+			wantRoutes: []netlink.Route{
+				macvtapLinkRoute(),
+				v4Route("10.10.10.0", v4GW, 24, 0, netlink.SCOPE_UNIVERSE),
+				v4Route("20.20.20.0", v4GW, 24, 0, netlink.SCOPE_UNIVERSE),
+				v4Route(v4GW, "", 32, 0, netlink.SCOPE_LINK),
+				v4DefaultRoute(v4GW),
+			},
+		},
+		{
+			desc: "skip route installation",
+			intf: &networkv1.NetworkInterface{
+				Status: networkv1.NetworkInterfaceStatus{
+					Routes: []networkv1.Route{
+						{
+							To: "10.10.10.0/24",
+						},
+					},
+					Gateway4: &v4GW,
+				},
+			},
+			net: &networkv1.Network{
+				Spec: networkv1.NetworkSpec{
+					Type: networkv1.L2NetworkType,
+				},
+			},
+			isDefaultInterface: true,
+			skipInstallation:   true,
 			wantRoutes:         nil,
 		},
 	}
@@ -669,7 +731,7 @@ func TestSetupNetworkRoutes(t *testing.T) {
 			}
 
 			// Run the test in the root ns.
-			gotErr := SetupNetworkRoutes(interfaceNameInPod, tc.intf, tc.net, testNS.Path(), tc.isDefaultInterface, tc.routeMTU)
+			gotErr := SetupNetworkRoutes(interfaceNameInPod, tc.intf, tc.net, testNS.Path(), tc.isDefaultInterface, tc.routeMTU, tc.skipInstallation)
 			if gotErr != nil {
 				if tc.wantErr == "" {
 					t.Fatalf("SetupNetworkRoutes() return error %v but want nil", gotErr)

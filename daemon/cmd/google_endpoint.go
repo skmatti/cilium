@@ -187,6 +187,7 @@ func (d *Daemon) createMultiNICEndpoints(ctx context.Context, owner regeneration
 
 		var cleanup func()
 		var netParamsRef client.Object
+		var skipRouteInstallation bool
 		// Update the interface status of the primary endpoint.
 		if intfCR != nil && networkv1.IsDefaultNetwork(intfCR.Spec.NetworkName) {
 			primaryEp.Logger(daemonSubsys).WithField("interfaceCR", intfCR.Name).Debug("Updating interface status")
@@ -233,7 +234,9 @@ func (d *Daemon) createMultiNICEndpoints(ctx context.Context, owner regeneration
 			if err != nil {
 				return d.errorWithMultiNICCleanup(primaryEp, code, fmt.Errorf("failed creating multinic endpoint for pod %q with code %d: %v", podID, code, err), cleanup)
 			}
-
+			if multinicEndpoint.GetDeviceType() == multinicep.EndpointDeviceMACVTAP {
+				skipRouteInstallation = true
+			}
 			intfLog.WithField(logfields.EndpointID, multinicEndpoint.StringID()).Info("Successful multinic endpoint request")
 
 			for _, ip := range multinicEndpoint.IPs() {
@@ -248,7 +251,7 @@ func (d *Daemon) createMultiNICEndpoints(ctx context.Context, owner regeneration
 				defaultPodNetworkConfigured = true
 			}
 			if err := connector.SetupNetworkRoutes(ref.InterfaceName, intfCR, netCR, multinicTemplate.NetworkNamespace,
-				isDefaultInterface, defaultPodNetworkMTU); err != nil {
+				isDefaultInterface, defaultPodNetworkMTU, skipRouteInstallation); err != nil {
 				return d.errorWithMultiNICCleanup(primaryEp, PutEndpointIDInvalidCode, fmt.Errorf("failed setting up network %q for pod %q: %v", networkName, podID, err), nil)
 			}
 			intfLog.Infof("Successfully configure network %s", networkName)
@@ -270,7 +273,7 @@ func (d *Daemon) createMultiNICEndpoints(ctx context.Context, owner regeneration
 		}
 		podInterfaceCR := convertNetworkSpecToInterface(defaultPodNetworkCR)
 		if err := connector.SetupNetworkRoutes(primaryVethNameInPod, podInterfaceCR, nil, epTemplate.NetworkNamespace,
-			false, defaultPodNetworkMTU); err != nil {
+			false, defaultPodNetworkMTU, false); err != nil {
 			return d.errorDuringMultiNICCreation(primaryEp, PutEndpointIDInvalidCode, fmt.Errorf("failed setting up default network %q for pod %q: %v", defaultPodNetworkCR.Name, podID, err))
 		}
 		primaryEp.Logger(daemonSubsys).Info("Pod network is configured")
