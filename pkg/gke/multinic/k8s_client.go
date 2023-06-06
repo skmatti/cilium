@@ -20,6 +20,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	v1 "github.com/cilium/cilium/pkg/k8s/slim/k8s/api/core/v1"
 	"github.com/cilium/cilium/pkg/logging"
@@ -167,7 +168,7 @@ func (c *k8sClientImpl) SetPodIPsAnnotation(ctx context.Context, obj *v1.Pod, po
 }
 
 func (c *k8sClientImpl) GetNetworkParamObject(ctx context.Context, ref *networkv1.NetworkParametersReference) (client.Object, error) {
-	if ref.Group != networkv1.GroupName || ref.Kind != "GKENetworkParamSet" {
+	if ref.Group != networkv1.GroupName || !strings.EqualFold(ref.Kind, "gkenetworkparamset") {
 		// Unsupported params ref kind
 		return nil, fmt.Errorf("unknown paramRef kind: %s/%s", ref.Group, ref.Kind)
 	}
