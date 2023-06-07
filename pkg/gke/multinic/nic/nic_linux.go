@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -97,4 +98,12 @@ func FindPCINICs() ([]*NIC, error) {
 		nics = append(nics, nic)
 	}
 	return nics, nil
+}
+
+// RemoveAltnameFromInterface runs `ip link property del dev <name> altname <altname>`
+func RemoveAltnameFromInterface(ifaceName string, altname string) (string, error) {
+	cmd := exec.Command("ip", "link", "property", "del", "dev", ifaceName, "altname", altname)
+	output, err := cmd.CombinedOutput()
+	// we return output regardless of error
+	return string(output[:]), err
 }

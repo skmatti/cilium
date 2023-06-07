@@ -187,6 +187,13 @@ func (r *NetworkReconciler) RestoreDevices(ctx context.Context, node *corev1.Nod
 			return err
 		}
 		if needsRename {
+			// the device could have had an altname applied from when we did a rename
+			// in CNI_ADD if we're on ubuntu. DEL removes it normally, but
+			// need to recover here if anetd restarts in the middle
+			output, err := nic.RemoveAltnameFromInterface(dev, birthname)
+			if err != nil {
+				r.Log.Infof("Failed removing altname from device %s, expected on COS. err: %v, output: %s", birthname, err, output)
+			}
 			r.Log.Infof("Renaming %s to %s during RestoreDevices", dev, birthname)
 			if err := setLinkName(link, birthname); err != nil {
 				return err

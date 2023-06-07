@@ -411,6 +411,12 @@ func RevertDeviceInterface(ifNameInPod string, network *networkv1.Network, nsPat
 	if err != nil {
 		return fmt.Errorf("failed to lookup interface %q: %v", tempName, err)
 	}
+	// we ignore error here because altname only matters for Ubuntu, but we call unconditionally
+	output, err := nic.RemoveAltnameFromInterface(iface.Attrs().Name, birthName)
+	if err != nil {
+		log.Infof("tried to remove altname %s from interface %s, got error %v, output %s", birthName, tempName, err, output)
+	}
+
 	if err = netlink.LinkSetName(iface, birthName); err != nil {
 		// systemd will race us with putting it back up, so we set it back down for rename
 		if err := netlink.LinkSetDown(iface); err != nil {
