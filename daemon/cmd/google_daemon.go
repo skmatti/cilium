@@ -116,6 +116,7 @@ func (d *Daemon) initMultiNIC(ctx context.Context, mgr manager.Manager, endpoint
 		NodeName:        nodeTypes.GetName(),
 		IPAMMgr:         d,
 		DeviceMgr:       d,
+		Log:             log,
 	}
 	if err := reconciler.SetupWithManager(mgr); err != nil {
 		return fmt.Errorf("failed to setup network controller: %v", err)
@@ -143,7 +144,7 @@ func (d *Daemon) initMultiNIC(ctx context.Context, mgr manager.Manager, endpoint
 			return fmt.Errorf("unable to get Node %s: %v", nodeTypes.GetName(), err)
 		}
 
-		if err := reconciler.RestoreDevices(ctx, node, log); err != nil {
+		if err := reconciler.RestoreDevices(ctx, node); err != nil {
 			return fmt.Errorf("unable to reconcile high-perf network state: %v", err)
 		}
 	}
