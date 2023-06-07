@@ -3,6 +3,7 @@ package controller
 import (
 	"context"
 	"fmt"
+	"reflect"
 	"sort"
 
 	"github.com/cilium/cilium/pkg/gke/multinic/nic"
@@ -10,13 +11,13 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/vishvananda/netlink"
 	corev1 "k8s.io/api/core/v1"
+	k8sErrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/types"
 	networkv1 "k8s.io/cloud-provider-gcp/crd/apis/network/v1"
 )
 
 func (r *NetworkReconciler) handleHighPerfNetworks(ctx context.Context, node *corev1.Node, oldNode *corev1.Node) (rerr error) {
-	oldNetworkStatus, err := getNetworkStatusMap(node)
-	add, remove, err := r.reconcileHighPerfNetworks(ctx, oldNetworkStatus, oldNode)
+	add, remove, err := r.reconcileHighPerfNetworks(ctx, oldNode)
 	if err != nil {
 		r.Log.WithError(err).Error("Failed to reconcile device-typed networks")
 		return err
@@ -40,60 +41,59 @@ func (r *NetworkReconciler) handleHighPerfNetworks(ctx context.Context, node *co
 
 // reconcileHighPerfNetworks Returns two lists, one of new networks that should be in network-status,
 // and one of networks that should not be in network-status.
-// Tramples oldNetworkStatus.
 // oldNode is read-only
-func (r *NetworkReconciler) reconcileHighPerfNetworks(ctx context.Context, oldNetworkStatus map[string]networkv1.NodeNetworkStatus, node *corev1.Node) ([]string, []string, error) {
-
-	r.Log.Debugf("Node annotations: %s", node.GetAnnotations())
-	r.Log.Debugf("north interface annotation: %s", node.GetAnnotations()[networkv1.NorthInterfacesAnnotationKey])
-
+func (r *NetworkReconciler) reconcileHighPerfNetworks(ctx context.Context, node *corev1.Node) ([]string, []string, error) {
 	links, err := netlink.LinkList()
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to list links: %v", err)
 	}
 
-	northInterfaces, err := getNorthInterfaces(node, r.Log)
+	northInterfaces, err := getNorthInterfaces(node)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to get north interfaces: %v", err)
 	}
-	r.Log.Debugf("got north interfaces: %v", northInterfaces)
+	r.Log.Infof("Got north interfaces: %v", northInterfaces)
 	nicInfo, err := getNicInfo(node)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to get nic-info: %v", err)
 	}
-	r.Log.Debugf("got nic info: %v", nicInfo)
+	r.Log.Infof("Got nic info: %v", nicInfo)
 	// network names. Will return to indicate what needs updating on the network-status annotation
 	toAdd := make([]string, 0)
 	toRemove := make([]string, 0)
 	// device names. Just for us to track
 	ownedDevices := make([]string, 0)
-	oldCiliumDevices := option.Config.GetDevices()
+	oldCiliumDevices := copySlice(option.Config.GetDevices())
+	sort.Strings(oldCiliumDevices)
 	newCiliumDevices := append(make([]string, 0), oldCiliumDevices...)
 	for netName, ipAddr := range northInterfaces {
 		network := &networkv1.Network{}
 		if err := r.Get(ctx, types.NamespacedName{Name: netName}, network); err != nil {
+			if !k8sErrors.IsNotFound(err) {
+				return nil, nil, fmt.Errorf("failed to fetch network %s: %v", netName, err)
+			}
 			// Network was likely deleted, we will deal with the iface in the for loop
 			// below
 			r.Log.WithError(err).Warnf("Network not found but is in north-interfaces, likely deleted")
 			continue
 		}
-		// ignore networks that are not ready or being deleted
-		if !checkNetworkAlive(network) {
-			continue
-		}
-		// we delete all entries corresponding to *any* alive Network, not just a Device network
-		delete(oldNetworkStatus, network.Name)
 		if network.Spec.Type != networkv1.DeviceNetworkType {
 			continue
 		}
+		// ignore networks that are not ready or being deleted
+		if !checkNetworkAlive(network) {
+			toRemove = append(toRemove, network.Name)
+			r.Log.Infof("Skipped Network %s that is not alive", network.Name)
+			continue
+		}
+		// we delete all entries corresponding to *any* alive Network, not just a Device network
 		info, exists := nicInfo[ipAddr]
 		if !exists {
 			return nil, nil, fmt.Errorf("IP address %s not found in nic-info annotation: %v", ipAddr, nicInfo)
 		}
 		devName := info.birthName
 		if err := r.takeDevice(ctx, devName, &newCiliumDevices); err != nil {
-			r.Log.Debugf("Error trying to take device %s: %v", devName, err)
-			return nil, nil, err
+			return nil, nil, fmt.Errorf("failed to take devcie %s: %v", devName, err)
 		}
 		toAdd = append(toAdd, network.Name)
 		ownedDevices = append(ownedDevices, devName)
@@ -102,7 +102,7 @@ func (r *NetworkReconciler) reconcileHighPerfNetworks(ctx context.Context, oldNe
 		dev := link.Attrs().Name
 		isVirt, err := nic.IsVirtual(dev)
 		if err != nil {
-			return nil, nil, fmt.Errorf("Unable to find interface %s in sysfs: %v", dev, err)
+			return nil, nil, fmt.Errorf("unable to find interface %s in sysfs: %v", dev, err)
 		}
 		if isVirt || dev == nic.LoopbackDevName {
 			continue
@@ -119,18 +119,12 @@ func (r *NetworkReconciler) reconcileHighPerfNetworks(ctx context.Context, oldNe
 	// the existing codepaths sort the cilium devices, so we do too
 	sort.Strings(newCiliumDevices)
 	// only update if we've made a change
-	if !slicesEqual(newCiliumDevices, oldCiliumDevices) {
-		r.Log.Debugf("Setting cilium devices to %v", newCiliumDevices)
+	if !reflect.DeepEqual(newCiliumDevices, oldCiliumDevices) {
+		r.Log.Infof("Setting cilium devices from %v to %v", oldCiliumDevices, newCiliumDevices)
 		r.DeviceMgr.ReloadOnDeviceChange(newCiliumDevices)
 	}
 
-	// we took out every entry with a Network when looping over north interfaces above,
-	// so everything remaining must be stale
-	for network := range oldNetworkStatus {
-		toRemove = append(toRemove, network)
-	}
-
-	r.Log.Debugf("returning from dev-network reconcile: %v, %v.", toAdd, toRemove)
+	r.Log.Infof("returning from reconcileHighPerfNetworks. toAdd %v, toRemove: %v.", toAdd, toRemove)
 	return toAdd, toRemove, nil
 }
 
@@ -139,26 +133,14 @@ func (r *NetworkReconciler) reconcileHighPerfNetworks(ctx context.Context, oldNe
 // Only call with devices in the nic-info annotation.
 // Idempotent.
 func (r *NetworkReconciler) takeDevice(ctx context.Context, dev string, ciliumDevs *[]string) error {
-	r.Log.Debugf("Taking control of device device %s", dev)
-	owned, exists := r.controllerManaged[dev]
-	if !exists {
-		return fmt.Errorf("trying to find dev not in controller cache: %s, %v", dev, r.controllerManaged)
-	}
-	if owned {
-		r.Log.Debugf("We already own device %s, ignoring", dev)
-		return nil
-	}
-	r.Log.Debugf("Taking control of device %s, removing from cilium devs before: %v", dev, *ciliumDevs)
 	idx := findInSlice(*ciliumDevs, dev)
 	// this check should be unnecessary, as we should never be trying
 	// to remove something from the list twice. However, getting it wrong would
 	// break us pretty bad so we play it safe here
 	if idx != -1 {
 		*ciliumDevs = append((*ciliumDevs)[:idx], (*ciliumDevs)[idx+1:]...)
+		r.Log.Infof("removed %s from cilium devs: %v", dev, *ciliumDevs)
 	}
-	r.Log.Debugf("Taking control of device %s, removing from cilium devs after: %v", dev, *ciliumDevs)
-	r.controllerManaged[dev] = true
-	r.Log.Debugf("took control of device device %s", dev)
 	return nil
 }
 
@@ -182,8 +164,8 @@ func (r *NetworkReconciler) RestoreDevices(ctx context.Context, node *corev1.Nod
 		controllerMap[val.birthName] = true
 	}
 	// we take a copy of the list so we can make one atomic change
-	ciliumDevicesList := make([]string, len(option.Config.GetDevices()))
-	copy(ciliumDevicesList, option.Config.GetDevices())
+	ciliumDevicesList := copySlice(option.Config.GetDevices())
+	r.Log.Infof("Existing cilium devices during RestoreDevices: %v", ciliumDevicesList)
 	for _, link := range links {
 		dev := link.Attrs().Name
 		isVirt, err := nic.IsVirtual(dev)
@@ -198,6 +180,7 @@ func (r *NetworkReconciler) RestoreDevices(ctx context.Context, node *corev1.Nod
 			return err
 		}
 		if needsRename {
+			r.Log.Infof("Renaming %s to %s during RestoreDevices", dev, birthname)
 			if err := setLinkName(link, birthname); err != nil {
 				return err
 			}
@@ -210,9 +193,8 @@ func (r *NetworkReconciler) RestoreDevices(ctx context.Context, node *corev1.Nod
 		controllerMap[dev] = false
 	}
 	sort.Strings(ciliumDevicesList)
+	r.Log.Infof("Updating cilium devices during RestoreDevices: %v", ciliumDevicesList)
 	option.Config.SetDevices(ciliumDevicesList)
-	r.controllerManaged = controllerMap
-	r.Log.Infof("initialized map with current device state: %v", r.controllerManaged)
 
 	return nil
 }
@@ -221,16 +203,11 @@ func (r *NetworkReconciler) RestoreDevices(ctx context.Context, node *corev1.Nod
 // Only call with devices in the nic-info annotation.
 // Idempotent.
 func (r *NetworkReconciler) returnDevice(ctx context.Context, dev string, ciliumDevs *[]string) error {
-	controllerOwned, exists := r.controllerManaged[dev]
-	if !exists {
-		return fmt.Errorf("trying to find dev not in nic-info: %s", dev)
+	idx := findInSlice(*ciliumDevs, dev)
+	if idx == -1 {
+		*ciliumDevs = append(*ciliumDevs, dev)
+		r.Log.Infof("added %s into cilium devs: %v", dev, *ciliumDevs)
 	}
-	if !controllerOwned {
-		r.Log.Debugf("Cilium already owns device %s, ignoring", dev)
-		return nil
-	}
-	*ciliumDevs = append(*ciliumDevs, dev)
-	r.controllerManaged[dev] = false
 	return nil
 }
 

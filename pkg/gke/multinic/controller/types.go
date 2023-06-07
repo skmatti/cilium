@@ -15,18 +15,8 @@ type NetworkReconciler struct {
 	NodeName        string
 	IPAMMgr         ipamManager
 	DeviceMgr       deviceManager
-	// invariant: at the end of every reconcile, the keys to this map are every nic listed in
-	// nic-info.
-	//
-	// For every nic where controllerManaged[nic]=true, nic is in the host netns and
-	// bpf is unloaded on the device, or the device doesn't exist in host netns (has been moved
-	// into pod). The network corresponding to nic is in the network-status annotation
-	//
-	// For every nic where controllerManaged[nic]=false, the nic is in the hostns, bpf
-	// is loaded on nic, and nic is in the cilium devices list.
-	controllerManaged map[string]bool
-	metricsTrigger    *trigger.Trigger
-	Log               *logrus.Entry
+	metricsTrigger  *trigger.Trigger
+	Log             *logrus.Entry
 }
 
 type ipamManager interface {

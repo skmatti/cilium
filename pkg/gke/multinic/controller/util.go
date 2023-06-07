@@ -5,7 +5,6 @@ import (
 	"net"
 	"sort"
 
-	"github.com/sirupsen/logrus"
 	"github.com/vishvananda/netlink"
 	corev1 "k8s.io/api/core/v1"
 	networkv1 "k8s.io/cloud-provider-gcp/crd/apis/network/v1"
@@ -26,17 +25,6 @@ func findNetworkInSlice(arr []networkv1.Network, s string) int {
 		}
 	}
 	return -1
-}
-func slicesEqual(a1 []string, a2 []string) bool {
-	if len(a1) != len(a2) {
-		return false
-	}
-	for i := range a1 {
-		if a1[i] == a2[i] {
-			return false
-		}
-	}
-	return true
 }
 
 // bestAddrMatch scans the given list of IP addresses and returns the one that
@@ -98,18 +86,16 @@ func marshalNodeNetworkAnnotation(statusMap map[string]networkv1.NodeNetworkStat
 }
 
 // getNorthInterfaces returns a map from network to ip.
-func getNorthInterfaces(node *corev1.Node, log *logrus.Entry) (map[string]string, error) {
+func getNorthInterfaces(node *corev1.Node) (map[string]string, error) {
 	niAnnotationString, ok := node.GetAnnotations()[networkv1.NorthInterfacesAnnotationKey]
 	if !ok {
 		return nil, fmt.Errorf("north interfaces annotation does not exist, looking for annotation with key %s, node annotations: %v", networkv1.NorthInterfacesAnnotationKey, node.GetAnnotations())
 	}
 	result := make(map[string]string)
 	if niAnnotationString == "" {
-		log.Debugf("North interfaces annotation empty:")
 		return result, nil
 	}
 	niAnnotation, err := networkv1.ParseNorthInterfacesAnnotation(niAnnotationString)
-	log.Debugf("North interfaces annotation after parsing: %v", niAnnotation)
 	if err != nil {
 		return nil, fmt.Errorf("error parsing north interfaces annotation: %v", err)
 	}
@@ -118,4 +104,10 @@ func getNorthInterfaces(node *corev1.Node, log *logrus.Entry) (map[string]string
 	}
 
 	return result, nil
+}
+
+func copySlice(src []string) []string {
+	dst := make([]string, len(src))
+	copy(dst, src)
+	return dst
 }
