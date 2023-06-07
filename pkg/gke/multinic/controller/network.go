@@ -212,6 +212,9 @@ func (r *NetworkReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			builder.WithPredicates(
 				predicate.Funcs{
 					UpdateFunc: func(e event.UpdateEvent) bool {
+						if e.ObjectOld.GetAnnotations()[networkv1.NorthInterfacesAnnotationKey] != e.ObjectNew.GetAnnotations()[networkv1.NorthInterfacesAnnotationKey] {
+							return true
+						}
 						if e.ObjectOld.GetAnnotations()[networkv1.MultiNetworkAnnotationKey] != e.ObjectNew.GetAnnotations()[networkv1.MultiNetworkAnnotationKey] {
 							return true
 						}
