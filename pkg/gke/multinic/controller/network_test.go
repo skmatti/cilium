@@ -31,6 +31,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/vishvananda/netlink"
 	"github.com/vishvananda/netns"
+	anutils "gke-internal.googlesource.com/anthos-networking/apis/v2/utils"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	k8sruntime "k8s.io/apimachinery/pkg/runtime"
@@ -164,7 +165,11 @@ func TestEnsureInterface(t *testing.T) {
 				}
 			}
 
-			err := ensureInterface(tc.networkCR, log)
+			intfName, _, err := anutils.InterfaceInfo(tc.networkCR, map[string]string{})
+			if err != nil {
+				t.Fatalf("InterfaceInfo returned an unexpected error: %s", err)
+			}
+			err = ensureInterface(tc.networkCR, intfName, log)
 			if err != nil {
 				t.Fatalf("ensureVlanID returned an unexpected error: %s", err)
 			}
@@ -277,7 +282,11 @@ func TestEnsureInterfaceErrors(t *testing.T) {
 				}
 			}
 
-			err := ensureInterface(tc.networkCR, log)
+			intfName, _, err := anutils.InterfaceInfo(tc.networkCR, map[string]string{})
+			if err != nil {
+				t.Fatalf("InterfaceInfo returned an unexpected error: %s", err)
+			}
+			err = ensureInterface(tc.networkCR, intfName, log)
 			if err == nil {
 				t.Fatal("ensureVlanID returns nil but want error")
 			}

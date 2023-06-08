@@ -134,9 +134,9 @@ func (r *NetworkReconciler) mapNodeToNetwork(obj client.Object) []ctrl.Request {
 	log.Info("mapNodeToNetwork")
 	// The default pod-network is always expected to be present. Hence, we reconcile on the default pod-network
 	// whenever multi-network annotation changes. Note that the default pod-network is not a part of multi-network
-	// annotation. The reconcilation flow parses through the multi-network annotation and builds the allocators
+	// annotation. The reconciliation flow parses through the multi-network annotation and builds the allocators
 	// accordingly.
-	return []ctrl.Request{
+	req := []ctrl.Request{
 		{
 			// TODO(b/269187538): Remove request from the list once DefaultNetworkName is deprecated.
 			NamespacedName: types.NamespacedName{Name: networkv1.DefaultNetworkName},
@@ -145,6 +145,19 @@ func (r *NetworkReconciler) mapNodeToNetwork(obj client.Object) []ctrl.Request {
 			NamespacedName: types.NamespacedName{Name: networkv1.DefaultPodNetworkName},
 		},
 	}
+
+	// Add networks from north-interface annotation, if present
+	// we add all since we do not know what was changed.
+	items, err := getNorthInterfaces(node)
+	if err != nil {
+		// not logging the error since not every Node will have this annotation
+		return req
+	}
+	for name := range items {
+		req = append(req, ctrl.Request{NamespacedName: types.NamespacedName{Name: name}})
+	}
+
+	return req
 }
 
 func isCiliumManaged(dev string) bool {
@@ -337,13 +350,29 @@ func (r *NetworkReconciler) patchNodeAnnotations(ctx context.Context, oldNode, n
 }
 
 func (r *NetworkReconciler) reconcileNetwork(ctx context.Context, node *corev1.Node, network *networkv1.Network) (_ ctrl.Result, rerr error) {
+	var err error
+
 	if network.Spec.Type == networkv1.DeviceNetworkType {
 		return ctrl.Result{}, nil
 	}
-	if err := ensureInterface(network, r.Log); err != nil {
-		r.Log.WithError(err).Error("Unable to ensure network interface")
-		return ctrl.Result{}, err
+
+	var intfName string
+	if !networkv1.IsDefaultNetwork(network.Name) {
+		intfName, _, err = anutils.InterfaceInfo(network, ciliumNode.GetAnnotations())
+		if err != nil {
+			// Log error and stop processing this event (no requeue), as this is
+			// mostly due to misconfiguration in the network CR object and is unlikely
+			// to reconcile. If missing north-interface annotation, new event will be
+			// trigger on that annotation update (used by GKE).
+			r.Log.Errorf("unable to discover interface name for network %s: %v", network.Name, err)
+			return ctrl.Result{}, nil
+		}
+		if err := ensureInterface(network, intfName, r.Log); err != nil {
+			r.Log.WithError(err).Error("Unable to ensure network interface")
+			return ctrl.Result{}, err
+		}
 	}
+
 	if err := r.loadEBPFOnParent(ctx, network, node); err != nil {
 		r.Log.WithError(err).Error("Unable to load ebpf on parent interface")
 		return ctrl.Result{}, err
@@ -442,17 +471,7 @@ func hasVlanTag(network *networkv1.Network) bool {
 
 }
 
-func ensureInterface(network *networkv1.Network, log *logrus.Entry) error {
-	if networkv1.IsDefaultNetwork(network.Name) {
-		return nil
-	}
-	intfName, _, err := anutils.InterfaceInfo(network, ciliumNode.GetAnnotations())
-	if err != nil {
-		// Log error but return nil here as this is mostly due to misconfiguration
-		// in the network CR object and is unlikely to reconcile.
-		log.Errorf("ensureInterface: Errored generating interface name for network %s: %v", network.Name, err)
-		return nil
-	}
+func ensureInterface(network *networkv1.Network, intfName string, log *logrus.Entry) error {
 	scopedLog := log.WithField(logfields.Interface, intfName)
 	parentIntName := intfName
 	if network.Spec.L2NetworkConfig != nil && network.Spec.L2NetworkConfig.VlanID != nil {
