@@ -58,16 +58,8 @@ func (r *NetworkReconciler) Reconcile(ctx context.Context, req ctrl.Request) (_ 
 	if err := r.Get(ctx, types.NamespacedName{Name: r.NodeName}, oldNode); err != nil {
 		return ctrl.Result{}, fmt.Errorf("failed to get k8s node %q: %v", r.NodeName, err)
 	}
-	// Reset annotations so we don't override anything outside of anetd's scope.
 	node := oldNode.DeepCopy()
-	node.Annotations = make(map[string]string)
-	if oldNode.Annotations != nil {
-		node.Annotations[networkv1.NodeNetworkAnnotationKey] = oldNode.Annotations[networkv1.NodeNetworkAnnotationKey]
-		// TODO(b/269187538): Remove once DefaultNetworkName is deprecated.
-		if len(node.Annotations[networkv1.NodeNetworkAnnotationKey]) == 0 {
-			node.Annotations[networkv1.NodeNetworkAnnotationKey] = "[]"
-		}
-	}
+
 	defer func() {
 		err := r.patchNodeAnnotations(ctx, oldNode, node)
 		rerr = multierr.Append(rerr, err)
@@ -81,6 +73,11 @@ func (r *NetworkReconciler) Reconcile(ctx context.Context, req ctrl.Request) (_ 
 	if err := r.Get(ctx, req.NamespacedName, network); err != nil {
 		if k8sErrors.IsNotFound(err) {
 			r.Log.Info("Network not found. Ignoring because it was probably deleted.")
+			// If Network IsNotFound, remove it from status
+			if err := deleteFromNetworkStatus(ctx, node, req.NamespacedName.Name, "", "", r.Log); err != nil {
+				r.Log.WithError(err).Errorf("Failed to update node network status annotation")
+				return ctrl.Result{}, err
+			}
 			return ctrl.Result{}, nil
 		}
 		r.Log.WithError(err).Error("Unable to get network object")
@@ -318,34 +315,23 @@ func deleteFromNetworkStatus(ctx context.Context, node *corev1.Node, networkName
 }
 
 func (r *NetworkReconciler) patchNodeAnnotations(ctx context.Context, oldNode, node *corev1.Node) error {
-	// Do not patch if node annotations are all contained in old Nodes
-	// annotation.
-	doPatch := false
-	// If annotations the same length, check each annotation and ensure that
-	// they match.
+	var oldVal, newVal string
+	if node.Annotations != nil {
+		newVal = node.Annotations[networkv1.NodeNetworkAnnotationKey]
+	}
 	if oldNode.Annotations != nil {
-		for key, value := range node.Annotations {
-			oldValue, ok := oldNode.Annotations[key]
-			if oldValue != value || !ok {
-				doPatch = true
-				break
-			}
+		oldVal = oldNode.Annotations[networkv1.NodeNetworkAnnotationKey]
+	}
+	if oldVal != newVal {
+		annotation := map[string]string{networkv1.NodeNetworkAnnotationKey: node.Annotations[networkv1.NodeNetworkAnnotationKey]}
+		raw, err := json.Marshal(annotation)
+		if err != nil {
+			return fmt.Errorf("failed to build patch bytes for multi-networking: %w", err)
 		}
-	} else {
-		doPatch = true
-	}
-
-	if !doPatch {
-		return nil
-	}
-	raw, err := json.Marshal(node.Annotations)
-	if err != nil {
-		return fmt.Errorf("failed to marshall node annotations for node %q: %v", node.Name, err)
-	}
-
-	patch := []byte(fmt.Sprintf(`{"metadata":{"annotations":%s}}`, raw))
-	if err := r.Client.Status().Patch(ctx, node, client.RawPatch(types.StrategicMergePatchType, patch)); err != nil {
-		return fmt.Errorf("failed to patch k8s node %q: %v", node.Name, err)
+		patch := []byte(fmt.Sprintf(`{"metadata":{"annotations":%s}}`, raw))
+		if err := r.Client.Status().Patch(ctx, node, client.RawPatch(types.StrategicMergePatchType, patch)); err != nil {
+			return fmt.Errorf("failed to patch k8s node %q: %v", node.Name, err)
+		}
 	}
 	return nil
 }
@@ -404,7 +390,7 @@ func (r *NetworkReconciler) reconcileNetworkDelete(ctx context.Context, node *co
 		r.Log.WithError(err).Errorf("Unable to delete tagged interface")
 		return ctrl.Result{}, err
 	}
-	if err := updateNodeNetworkStatusAnnotation(ctx, node, network.Name, "", "", r.Log, false); err != nil {
+	if err := deleteFromNetworkStatus(ctx, node, network.Name, "", "", r.Log); err != nil {
 		r.Log.WithError(err).Errorf("Failed to update node network status annotation")
 		return ctrl.Result{}, err
 	}
