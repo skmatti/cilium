@@ -87,11 +87,12 @@ func marshalNodeNetworkAnnotation(statusMap map[string]networkv1.NodeNetworkStat
 
 // getNorthInterfaces returns a map from network to ip.
 func getNorthInterfaces(node *corev1.Node) (map[string]string, error) {
+	result := make(map[string]string)
 	niAnnotationString, ok := node.GetAnnotations()[networkv1.NorthInterfacesAnnotationKey]
 	if !ok {
-		return nil, fmt.Errorf("north interfaces annotation does not exist, looking for annotation with key %s, node annotations: %v", networkv1.NorthInterfacesAnnotationKey, node.GetAnnotations())
+		// north-interface will be missing if there is no non-default network
+		return result, nil
 	}
-	result := make(map[string]string)
 	if niAnnotationString == "" {
 		return result, nil
 	}
