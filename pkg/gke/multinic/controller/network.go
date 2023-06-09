@@ -21,7 +21,6 @@ import (
 	"go.uber.org/multierr"
 	corev1 "k8s.io/api/core/v1"
 	k8sErrors "k8s.io/apimachinery/pkg/api/errors"
-	meta "k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/types"
 	networkv1 "k8s.io/cloud-provider-gcp/crd/apis/network/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -396,10 +395,6 @@ func (r *NetworkReconciler) reconcileNetwork(ctx context.Context, node *corev1.N
 	}
 	r.Log.Info("Reconciled successfully")
 	return ctrl.Result{}, nil
-}
-
-func checkNetworkAlive(network *networkv1.Network) bool {
-	return meta.IsStatusConditionTrue(network.Status.Conditions, "Ready") && network.ObjectMeta.DeletionTimestamp.IsZero()
 }
 
 func (r *NetworkReconciler) reconcileNetworkDelete(ctx context.Context, node *corev1.Node, network *networkv1.Network) (_ ctrl.Result, rerr error) {

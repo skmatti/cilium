@@ -12,8 +12,15 @@ import (
 	"github.com/vishvananda/netlink"
 	corev1 "k8s.io/api/core/v1"
 	k8sErrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/types"
 	networkv1 "k8s.io/cloud-provider-gcp/crd/apis/network/v1"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+)
+
+const (
+	// TODO: consider moving to cloud-provider-gcp to share a single definition with NCM
+	highPerfFinalizer = "networking.gke.io/high-perf-finalizer"
 )
 
 func (r *NetworkReconciler) handleHighPerfNetworks(ctx context.Context, node *corev1.Node, oldNode *corev1.Node) (rerr error) {
@@ -262,4 +269,13 @@ func getNicInfo(node *corev1.Node) (map[string]nicMapValue, error) {
 	}
 
 	return result, nil
+}
+
+// checkNetworkAlive returns if the Device network is "alive" and should be reconciled
+// The rules are:
+//   * The network has Ready status
+//   * AND
+//   * The network is not being deleted OR there is still high perf finalizer.
+func checkNetworkAlive(network *networkv1.Network) bool {
+	return meta.IsStatusConditionTrue(network.Status.Conditions, string(networkv1.NetworkConditionStatusReady)) && (network.ObjectMeta.DeletionTimestamp.IsZero() || controllerutil.ContainsFinalizer(network, highPerfFinalizer))
 }
