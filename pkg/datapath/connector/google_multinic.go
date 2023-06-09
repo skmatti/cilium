@@ -1143,7 +1143,7 @@ func extractRoutes(network *networkv1.Network, netParamsObj client.Object) ([]ne
 	if netParamsObj == nil {
 		return ret, nil
 	}
-	if network.Spec.Type == networkv1.L3NetworkType {
+	if network.Spec.Type == networkv1.L3NetworkType || network.Spec.Type == networkv1.DeviceNetworkType {
 		if gkeparam, ok := netParamsObj.(*networkv1.GKENetworkParamSet); ok {
 			for _, cidr := range gkeparam.Status.PodCIDRs.CIDRBlocks {
 				ret = append(ret, networkv1.Route{To: cidr})
