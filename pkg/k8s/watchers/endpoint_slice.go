@@ -8,7 +8,6 @@ import (
 
 	v1 "k8s.io/api/core/v1"
 	v1meta "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -24,7 +23,7 @@ import (
 )
 
 // endpointSlicesInit returns true if the cluster contains endpoint slices.
-func (k *K8sWatcher) endpointSlicesInit(k8sClient kubernetes.Interface, swgEps *lock.StoppableWaitGroup) bool {
+func (k *K8sWatcher) endpointSlicesInit(k8sClient kubernetes.Interface, swgEps *lock.StoppableWaitGroup, optsModifier func(*v1meta.ListOptions)) bool {
 	var (
 		hasEndpointSlices = make(chan struct{})
 		once              sync.Once
@@ -140,8 +139,8 @@ func (k *K8sWatcher) endpointSlicesInit(k8sClient kubernetes.Interface, swgEps *
 	}
 
 	_, endpointController := informer.NewInformer(
-		cache.NewListWatchFromClient(esClient,
-			"endpointslices", v1.NamespaceAll, fields.Everything()),
+		cache.NewFilteredListWatchFromClient(esClient,
+			"endpointslices", v1.NamespaceAll, optsModifier),
 		objType,
 		0,
 		cache.ResourceEventHandlerFuncs{
@@ -228,9 +227,10 @@ func (k *K8sWatcher) initEndpointsOrSlices(k8sClient kubernetes.Interface, servi
 	swgEps := lock.NewStoppableWaitGroup()
 	switch {
 	case k8s.SupportsEndpointSlice():
-		// We don't add the service option modifier here, as endpointslices do not
-		// mirror service proxy name label present in the corresponding service.
-		connected := k.endpointSlicesInit(k8sClient, swgEps)
+		// Adding service option modifier here to filter out EndpointSlices corresponding
+		// to the headless services. Filtering out slices with the service proxy name label
+		// is fine, too, as kube-proxy already does the same.
+		connected := k.endpointSlicesInit(k8sClient, swgEps, serviceOptModifier)
 		// The cluster has endpoint slices so we should not check for v1.Endpoints
 		if connected {
 			break
