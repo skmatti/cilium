@@ -18,8 +18,8 @@ const (
 )
 
 var (
-	// Possible padding with 0-4 zeros for domain
-	bdfMatcher = regexp.MustCompile(`\b(0{0,4}:\d{2}:\d{2}.\d)`)
+	// Possible padding with 4 hex char for domain
+	bdfMatcher = regexp.MustCompile(`\b([[:xdigit:]]{0,4}:[[:xdigit:]]{2}:[[:xdigit:]]{2}.\d)`)
 )
 
 type NIC struct {
@@ -32,8 +32,8 @@ func ToPCIAddr(iface string) (string, error) {
 		return "", nil
 	}
 	// We do readlink on something like /sys/class/net/eth0
-	// We get something like ../../devices/pci0000:00/0000:00:04.0/virtio1/net/eth0
-	// for virtio or  ../../devices/pci0000:00/0000:00:04.0/net/eth1 for gve
+	// We get something like ../../devices/pci0000:00/0000:00:0a.0/0000:00:04.0/virtio1/net/eth0
+	// for virtio or  ../../devices/pci0000:00/0000:00:0a.0/0000:00:04.0/net/eth1 for gve
 	dest, err := os.Readlink(filepath.Join(pathSysClassNet, iface))
 	if err != nil {
 		return "", err
@@ -43,13 +43,21 @@ func ToPCIAddr(iface string) (string, error) {
 	if strings.Contains(dest, "devices/virtual/net") {
 		return "", nil
 	}
-	// We get something like /sys/devices/pci0000:00/0000:00:04.0/virtio1/net/eth0
-	// or for gve /sys/devices/pci0000:00/0000:00:04.0/net/eth1
+
+	// We get something like /sys/devices/pci0000:00/0000:00:0a.0/0000:00:04.0/virtio1/net/eth0
+	// or for gve /sys/devices/pci0000:00/0000:00:0a.0/0000:00:04.0/net/eth1
 	absPath, err := filepath.Abs(dest)
 	if err != nil {
 		return "", err
 	}
-	return bdfMatcher.FindString(absPath), nil
+
+	// Might have pci switches in the path, so could have multiple BDFs
+	addrs := bdfMatcher.FindAllString(absPath, -1)
+	if len(addrs) == 0 {
+		return "", fmt.Errorf("failed find BDF in path %v", absPath)
+	}
+	// The BDF of the device is the last segment.
+	return addrs[len(addrs)-1], nil
 }
 
 func IsVirtual(iface string) (bool, error) {
