@@ -24,7 +24,7 @@ import (
 )
 
 // endpointSlicesInit returns true if the cluster contains endpoint slices.
-func (k *K8sWatcher) endpointSlicesInit(slimClient slimclientset.Interface, swgEps *lock.StoppableWaitGroup) bool {
+func (k *K8sWatcher) endpointSlicesInit(slimClient slimclientset.Interface, swgEps *lock.StoppableWaitGroup, optsModifier func(*v1meta.ListOptions)) bool {
 	var (
 		hasEndpointSlices = make(chan struct{})
 		once              sync.Once
@@ -37,8 +37,8 @@ func (k *K8sWatcher) endpointSlicesInit(slimClient slimclientset.Interface, swgE
 
 	if k8s.SupportsEndpointSliceV1() {
 		apiGroup = resources.K8sAPIGroupEndpointSliceV1Discovery
-		esLW = utils.ListerWatcherFromTyped[*slim_discover_v1.EndpointSliceList](
-			slimClient.DiscoveryV1().EndpointSlices(""))
+		esLW = utils.ListerWatcherWithModifier(utils.ListerWatcherFromTyped[*slim_discover_v1.EndpointSliceList](
+			slimClient.DiscoveryV1().EndpointSlices("")), optsModifier)
 		objType = &slim_discover_v1.EndpointSlice{}
 		addFunc = func(obj interface{}) {
 			once.Do(func() {
@@ -89,8 +89,8 @@ func (k *K8sWatcher) endpointSlicesInit(slimClient slimclientset.Interface, swgE
 		}
 	} else {
 		apiGroup = resources.K8sAPIGroupEndpointSliceV1Beta1Discovery
-		esLW = utils.ListerWatcherFromTyped[*slim_discover_v1beta1.EndpointSliceList](
-			slimClient.DiscoveryV1beta1().EndpointSlices(""))
+		esLW = utils.ListerWatcherWithModifier(utils.ListerWatcherFromTyped[*slim_discover_v1beta1.EndpointSliceList](
+			slimClient.DiscoveryV1beta1().EndpointSlices("")), optsModifier)
 		objType = &slim_discover_v1beta1.EndpointSlice{}
 		addFunc = func(obj interface{}) {
 			once.Do(func() {
@@ -237,9 +237,10 @@ func (k *K8sWatcher) initEndpointsOrSlices(slimClient slimclientset.Interface, s
 	swgEps := lock.NewStoppableWaitGroup()
 	switch {
 	case k8s.SupportsEndpointSlice():
-		// We don't add the service option modifier here, as endpointslices do not
-		// mirror service proxy name label present in the corresponding service.
-		connected := k.endpointSlicesInit(slimClient, swgEps)
+		// Adding service option modifier here to filter out EndpointSlices corresponding
+		// to the headless services. Filtering out slices with the service proxy name label
+		// is fine, too, as kube-proxy already does the same.
+		connected := k.endpointSlicesInit(slimClient, swgEps, serviceOptModifier)
 		// The cluster has endpoint slices so we should not check for v1.Endpoints
 		if connected {
 			break
