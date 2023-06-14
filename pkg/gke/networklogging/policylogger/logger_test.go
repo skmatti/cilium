@@ -205,9 +205,8 @@ var (
 	}
 
 	ccnpPolicy = &Policy{
-		Kind:      "CiliumClusterwideNetworkPolicy",
-		Name:      "ccnp",
-		Namespace: "default",
+		Kind: "CiliumClusterwideNetworkPolicy",
+		Name: "ccnp",
 	}
 )
 
@@ -549,9 +548,8 @@ func TestNetworkPolicyLogger_allowedPoliciesForDelegate(t *testing.T) {
 		Namespace: cnpPolicy.Namespace,
 	}
 	ccnpNotAnnotated := &Policy{
-		Kind:      "CiliumClusterwideNetworkPolicy",
-		Name:      "not-annotated",
-		Namespace: ccnpPolicy.Namespace,
+		Kind: "CiliumClusterwideNetworkPolicy",
+		Name: "not-annotated",
 	}
 
 	testCases := []struct {
@@ -643,8 +641,7 @@ func seedStores(t testing.TB, getter *testStoreGetter) {
 
 	if err := getter.ccnpStore.Add(k8s.ConvertToCCNP(&v2.CiliumClusterwideNetworkPolicy{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      ccnpPolicy.Name,
-			Namespace: ccnpPolicy.Namespace,
+			Name: ccnpPolicy.Name,
 			Annotations: map[string]string{
 				AnnotationEnableAllowLogging: "true",
 			},
@@ -655,8 +652,7 @@ func seedStores(t testing.TB, getter *testStoreGetter) {
 
 	if err := getter.ccnpStore.Add(k8s.ConvertToCCNP(&v2.CiliumClusterwideNetworkPolicy{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "not-annotated",
-			Namespace: ccnpPolicy.Namespace,
+			Name: "not-annotated",
 		},
 	})); err != nil {
 		t.Fatalf("Unable to initialize network policy store: %v", err)

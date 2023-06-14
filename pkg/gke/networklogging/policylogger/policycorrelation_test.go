@@ -458,12 +458,6 @@ func TestK8sResouceForPolicyLabelSet(t *testing.T) {
 				fmt.Sprintf("k8s:%s=foo", k8sConst.PolicyLabelName)),
 		},
 		{
-			desc: "missing ks8 resource namespace label",
-			labelArray: labels.ParseLabelArray(
-				fmt.Sprintf("k8s:%s=NetworkPolicy", k8sConst.PolicyLabelDerivedFrom),
-				fmt.Sprintf("k8s:%s=foo", k8sConst.PolicyLabelName)),
-		},
-		{
 			desc: "missing ks8 resource name label",
 			labelArray: labels.ParseLabelArray(
 				fmt.Sprintf("k8s:%s=NetworkPolicy", k8sConst.PolicyLabelDerivedFrom),
@@ -476,6 +470,14 @@ func TestK8sResouceForPolicyLabelSet(t *testing.T) {
 				fmt.Sprintf("k8s:%s=foo", k8sConst.PolicyLabelName),
 				fmt.Sprintf("k8s:%s=ns", k8sConst.PolicyLabelNamespace)),
 			wantPolicy: Policy{Kind: "NetworkPolicy", Namespace: "ns", Name: "foo"},
+			wantOk:     true,
+		},
+		{
+			desc: "cluster-scope policy",
+			labelArray: labels.ParseLabelArray(
+				fmt.Sprintf("k8s:%s=AdminNetworkPolicy", k8sConst.PolicyLabelDerivedFrom),
+				fmt.Sprintf("k8s:%s=foo", k8sConst.PolicyLabelName)),
+			wantPolicy: Policy{Kind: "AdminNetworkPolicy", Name: "foo"},
 			wantOk:     true,
 		},
 	} {

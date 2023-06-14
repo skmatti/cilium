@@ -195,7 +195,9 @@ func lookupPoliciesForKey(ep endpointPolicyGetter, key policy.Key) []*Policy {
 }
 
 // k8sResourceForPolicyLabelSet converts a given policy rule label set into
-// a k8s policy resource (e.g. NetworkPolicy, CiliumNetworkPolicy)
+// a k8s policy resource.
+//
+// This function supports namespaced and cluster-scoped resources.
 func k8sResourceForPolicyLabelSet(labelSet labels.LabelArray) (Policy, bool) {
 	var kind, ns, name string
 	for _, l := range labelSet {
@@ -214,6 +216,9 @@ func k8sResourceForPolicyLabelSet(labelSet labels.LabelArray) (Policy, bool) {
 		if kind != "" && name != "" && ns != "" {
 			return Policy{Kind: kind, Namespace: ns, Name: name}, true
 		}
+	}
+	if kind != "" && name != "" {
+		return Policy{Kind: kind, Name: name}, true
 	}
 	return Policy{}, false
 }
