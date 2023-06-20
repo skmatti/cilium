@@ -27,6 +27,7 @@ import (
 	observerTypes "github.com/cilium/cilium/pkg/hubble/observer/types"
 	"github.com/cilium/cilium/pkg/hubble/parser"
 	parserErrors "github.com/cilium/cilium/pkg/hubble/parser/errors"
+	"github.com/cilium/cilium/pkg/hubble/parser/fieldmask"
 	nodeTypes "github.com/cilium/cilium/pkg/node/types"
 )
 
@@ -276,15 +277,15 @@ func (s *LocalObserverServer) GetFlows(
 		return err
 	}
 
-	mask, err := createFilter(req.Experimental.GetFieldMask())
+	mask, err := fieldmask.New(req.Experimental.GetFieldMask())
 	if err != nil {
 		return err
 	}
 
 	var flow *flowpb.Flow
-	if mask.active() {
+	if mask.Active() {
 		flow = new(flowpb.Flow)
-		mask.alloc(flow.ProtoReflect())
+		mask.Alloc(flow.ProtoReflect())
 	}
 
 nextEvent:
@@ -311,9 +312,9 @@ nextEvent:
 					continue nextEvent
 				}
 			}
-			if mask.active() {
+			if mask.Active() {
 				// Copy only fields in the mask
-				mask.copy(flow.ProtoReflect(), ev.ProtoReflect())
+				mask.Copy(flow.ProtoReflect(), ev.ProtoReflect())
 				ev = flow
 			}
 			resp = &observerpb.GetFlowsResponse{
