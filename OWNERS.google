@@ -1,0 +1,18 @@
+dordel@google.com
+jrife@google.com
+markstjohn@google.com
+pkrishn@google.com
+sugangli@google.com
+jingyuanliang@google.com
+
+# exec
+borgione@google.com
+mchodor@google.com
+bannai@google.com
+pvenu@google.com
+
+# Automation
+louhi-prod-1-4776754326011904@louhi-prod-1.iam.gserviceaccount.com # Anthos Bare Metal Louhi: CVE Bot
+louhi-prod-1-4742621836738560@louhi-prod-1.iam.gserviceaccount.com # Anthos Automation Louhi: Auto VC
+louhi-prod-1-5192261319262208@louhi-prod-1.iam.gserviceaccount.com # Anthos Networking Louhi
+louhi-prod-1-5749275141079040@louhi-prod-1.iam.gserviceaccount.com # GKE Networking Louhi
