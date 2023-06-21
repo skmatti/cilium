@@ -13,7 +13,7 @@ script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${script_dir}/cni-version.sh"
 
 for arch in amd64 arm64 ; do
-  curl --fail --show-error --silent --location "https://github.com/containernetworking/plugins/releases/download/v${cni_version}/cni-plugins-linux-${arch}-v${cni_version}.tgz" --output "/tmp/cni-${arch}.tgz"
+  curl --fail --show-error --silent --location "https://storage.googleapis.com/gke-release/cni-plugins/v${cni_version}/cni-plugins-linux-${arch}-v${cni_version}.tgz" --output "/tmp/cni-${arch}.tgz"
   printf "%s %s" "${cni_sha512[${arch}]}" "/tmp/cni-${arch}.tgz" | sha512sum -c
   mkdir -p "/out/linux/${arch}/bin"
   tar -C "/out/linux/${arch}/bin" -xf "/tmp/cni-${arch}.tgz" ./loopback

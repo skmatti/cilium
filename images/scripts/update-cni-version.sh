@@ -27,7 +27,7 @@ cni_sha512=()
 for arch in amd64 arm64 ; do
   tmpout="$(mktemp)"
   curl --fail --show-error --silent --location \
-    "https://github.com/containernetworking/plugins/releases/download/v${cni_version}/cni-plugins-linux-${arch}-v${cni_version}.tgz.sha512" \
+    "https://storage.googleapis.com/gke-release/cni-plugins/v${cni_version}/cni-plugins-linux-${arch}-v${cni_version}.tgz.sha512" \
     --output "${tmpout}"
   read -ra sha512 < "${tmpout}"
   rm -f "${tmpout}"
