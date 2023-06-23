@@ -1112,6 +1112,9 @@ const (
 	// DevicePrefixesToExclude excludes google-managed devices with the provided prefixes.
 	DevicePrefixesToExclude = "device-prefixes-to-exclude"
 
+	// EnableGooglePersistentIP is the name of the option to enable google persistent ip support.
+	EnableGooglePersistentIP = "enable-google-persistent-ip"
+
 	// PopulateGCENICInfo is the name of the option to populate GCE NIC information as node annotation.
 	PopulateGCENICInfo = "populate-gce-nic-info"
 
@@ -2370,6 +2373,9 @@ type DaemonConfig struct {
 	// EnableGoogleServiceSteering is a feature flag for google service steering support, default is false.
 	EnableGoogleServiceSteering bool
 
+	// EnableGooglePersistentIP is a feature flag for google persistent IP support, default is false.
+	EnableGooglePersistentIP bool
+
 	// PopulateGCENICInfo is a feature flag for google high performance multinetworking support, default is false.
 	PopulateGCENICInfo bool
 
@@ -3060,6 +3066,7 @@ func (c *DaemonConfig) Populate() {
 	c.EnableGoogleMultiNIC = viper.GetBool(EnableGoogleMultiNIC)
 	c.PopulateGCENICInfo = viper.GetBool(PopulateGCENICInfo)
 	c.EnableGoogleServiceSteering = viper.GetBool(EnableGoogleServiceSteering)
+	c.EnableGooglePersistentIP = viper.GetBool(EnableGooglePersistentIP)
 	c.EnableGDCILB = viper.GetBool(EnableGDCILB)
 	// TODO(b/279040119) Filter out user-provided prefixes until we have a better solution
 	// for dynamic device detection (b/263520677)

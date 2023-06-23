@@ -1085,6 +1085,9 @@ func initializeFlags() {
 	flags.Bool(option.EnableGoogleServiceSteering, false, "Enable google service steering support")
 	option.BindEnv(option.EnableGoogleServiceSteering)
 
+	flags.Bool(option.EnableGooglePersistentIP, false, "Enable google persistent IP support")
+	option.BindEnv(option.EnableGooglePersistentIP)
+
 	flags.Bool(option.EnableGDCILB, false, "Enable google GDC-H ILB Support")
 	option.BindEnv(option.EnableGDCILB)
 

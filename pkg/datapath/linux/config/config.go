@@ -626,6 +626,10 @@ func (h *HeaderfileWriter) WriteNodeConfig(w io.Writer, cfg *datapath.LocalNodeC
 		cDefinesMap["SFC_FLOW_MAP_ANY4"] = sfc.FlowMapAny4Name
 	}
 
+	if option.Config.EnableGooglePersistentIP {
+		cDefinesMap["ENABLE_GOOGLE_PERSISTENT_IP"] = "1"
+	}
+
 	if option.Config.DisableIPv6Tunnel {
 		cDefinesMap["DISABLE_IPV6_TUNNEL"] = "1"
 	}
