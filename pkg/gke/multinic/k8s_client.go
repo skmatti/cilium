@@ -42,9 +42,6 @@ type K8sClient interface {
 	// GetNetworkInterface returns the specified NetworkInterface CR
 	GetNetworkInterface(ctx context.Context, name, namespace string) (*networkv1.NetworkInterface, error)
 
-	// ListNetworkInterfaces returns a list of NetworkInterface CRs
-	ListNetworkInterfaces(ctx context.Context, opts ...client.ListOption) (*networkv1.NetworkInterfaceList, error)
-
 	// GetNetworkInterface returns the specified Network CR
 	GetNetwork(ctx context.Context, name string) (*networkv1.Network, error)
 
@@ -88,15 +85,6 @@ func namespacedName(name, namespace string) types.NamespacedName {
 		Name:      name,
 		Namespace: namespace,
 	}
-}
-
-func (c *k8sClientImpl) ListNetworkInterfaces(ctx context.Context, opts ...client.ListOption) (*networkv1.NetworkInterfaceList, error) {
-	intfList := &networkv1.NetworkInterfaceList{}
-	if err := c.client.List(ctx, intfList, opts...); err != nil {
-		return nil, err
-	}
-
-	return intfList, nil
 }
 
 func (c *k8sClientImpl) GetNetworkInterface(ctx context.Context, name, namespace string) (*networkv1.NetworkInterface, error) {

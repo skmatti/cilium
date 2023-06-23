@@ -29,7 +29,6 @@ import (
 	"github.com/cilium/cilium/pkg/option"
 	"github.com/sirupsen/logrus"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	k8slabels "k8s.io/apimachinery/pkg/labels"
 	networkv1 "k8s.io/cloud-provider-gcp/crd/apis/network/v1"
 	"k8s.io/utils/pointer"
 	utilpointer "k8s.io/utils/pointer"
@@ -402,32 +401,19 @@ func (d *Daemon) getInterfaceCRForPod(ctx context.Context, ref networkv1.Interfa
 	if ref.Interface == nil && ref.Network == nil {
 		return nil, fmt.Errorf("interface or network is not set for the interface %q", ref.InterfaceName)
 	}
+	var intfName string
 	if ref.Interface != nil {
-		intfCR, err := d.getInterfaceCR(ctx, *ref.Interface, ns)
-		if err != nil {
-			return nil, err
-		}
-		return intfCR, nil
+		intfName = *ref.Interface
+	} else {
+		// auto-generated NI
+		intfName = generateInterfaceObjName(podName, *ref.Network)
 	}
 
-	// Find the auto-generated NetworkInterface
-	intfList, err := d.multinicClient.ListNetworkInterfaces(ctx, &client.ListOptions{
-		Namespace: ns,
-		LabelSelector: k8slabels.Set(map[string]string{
-			podNameLabel: podName,
-			networkLabel: *ref.Network,
-		}).AsSelector(),
-	})
+	intfCR, err := d.getInterfaceCR(ctx, intfName, ns)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get interface CR for pod %s/%s with network %s: %v", ns, podName, *ref.Network, err)
+		return nil, err
 	}
-	if len(intfList.Items) == 0 {
-		return nil, fmt.Errorf("NetworkInterface for pod %s/%s with network %s is not found", ns, podName, *ref.Network)
-	}
-	if len(intfList.Items) > 1 {
-		return nil, fmt.Errorf("more than one NetworkInterface for pod %s/%s with network %s is found", ns, podName, *ref.Network)
-	}
-	return &intfList.Items[0], nil
+	return intfCR, nil
 }
 
 // getInterfaceCR gets interface by querying multinicClient object.
