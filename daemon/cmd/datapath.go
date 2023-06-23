@@ -41,6 +41,7 @@ import (
 	"github.com/cilium/cilium/pkg/maps/nat"
 	"github.com/cilium/cilium/pkg/maps/neighborsmap"
 	"github.com/cilium/cilium/pkg/maps/nodemap"
+	"github.com/cilium/cilium/pkg/maps/pip"
 	"github.com/cilium/cilium/pkg/maps/policymap"
 	"github.com/cilium/cilium/pkg/maps/sfc"
 	"github.com/cilium/cilium/pkg/maps/signalmap"
@@ -377,6 +378,12 @@ func (d *Daemon) initMaps() error {
 
 		sfc.InitFlowMap(option.Config.CTMapEntriesGlobalTCP)
 		if _, err := sfc.FlowMapAny4.OpenOrCreate(); err != nil {
+			return err
+		}
+	}
+
+	if option.Config.EnableGooglePersistentIP {
+		if _, err := pip.RoutingMap.OpenOrCreate(); err != nil {
 			return err
 		}
 	}

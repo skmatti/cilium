@@ -89,6 +89,26 @@ struct sfc_ipv4_flow_entry {
 	      reserved:11;
 };
 
+struct pip_cidr_key {
+	struct bpf_lpm_trie_key lpm_key;
+	__u8 family;
+	__u16 pad0;
+	union {
+		struct {
+			__u32 ip4;
+			__u32 pad1;
+			__u32 pad2;
+			__u32 pad3;
+		};
+		union v6addr ip6;
+	};
+};
+
+struct pip_routing_entry {
+	__u32 ifindex;
+	__u16 ep_id;
+};
+
 #ifdef ENABLE_GOOGLE_MULTI_NIC
 
 #ifndef MULTI_NIC_DEV_MAP_SIZE
@@ -169,5 +189,22 @@ struct {
 } SFC_FLOW_MAP_ANY4 __section_maps_btf;
 
 #endif /* ENABLE_GOOGLE_SERVICE_STEERING */
+
+#ifdef ENABLE_GOOGLE_PERSISTENT_IP
+
+#ifndef PIP_ROUTING_MAP_SIZE
+#define PIP_ROUTING_MAP_SIZE 16384
+#endif
+
+struct {
+	__uint(type, BPF_MAP_TYPE_LPM_TRIE);
+	__type(key, struct pip_cidr_key);
+	__type(value, struct pip_routing_entry);
+	__uint(pinning, LIBBPF_PIN_BY_NAME);
+	__uint(max_entries, PIP_ROUTING_MAP_SIZE);
+	__uint(map_flags, CONDITIONAL_PREALLOC);
+} PIP_ROUTING_MAP __section_maps_btf;
+
+#endif /* ENABLE_GOOGLE_PERSISTENT_IP */
 
 #endif // __GOOGLE_MAPS_H_

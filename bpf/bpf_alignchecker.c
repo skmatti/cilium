@@ -107,6 +107,8 @@ int main(void)
 	DECLARE(struct capture_rule);
 	DECLARE(struct tunnel_key);
 	DECLARE(struct tunnel_value);
+	DECLARE(struct pip_cidr_key);
+	DECLARE(struct pip_routing_entry);
 
 	return 0;
 }

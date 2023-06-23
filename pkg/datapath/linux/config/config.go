@@ -48,6 +48,7 @@ import (
 	"github.com/cilium/cilium/pkg/maps/nat"
 	"github.com/cilium/cilium/pkg/maps/neighborsmap"
 	"github.com/cilium/cilium/pkg/maps/nodemap"
+	"github.com/cilium/cilium/pkg/maps/pip"
 	"github.com/cilium/cilium/pkg/maps/policymap"
 	"github.com/cilium/cilium/pkg/maps/recorder"
 	"github.com/cilium/cilium/pkg/maps/sfc"
@@ -628,6 +629,8 @@ func (h *HeaderfileWriter) WriteNodeConfig(w io.Writer, cfg *datapath.LocalNodeC
 
 	if option.Config.EnableGooglePersistentIP {
 		cDefinesMap["ENABLE_GOOGLE_PERSISTENT_IP"] = "1"
+		cDefinesMap["PIP_ROUTING_MAP"] = pip.RoutingMapName
+		cDefinesMap["PIP_ROUTING_MAP_SIZE"] = strconv.Itoa(pip.RoutingMaxEntries)
 	}
 
 	if option.Config.DisableIPv6Tunnel {
