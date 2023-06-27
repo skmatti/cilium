@@ -14,7 +14,7 @@ var bpfPersistentIPRoutingDeleteCmd = &cobra.Command{
 		common.RequireRootPrivilege("cilium bpf piprouting delete <cidr>")
 
 		cidr := ParseCIDR(args[0])
-		key := pip.NewCIDRKey(*cidr)
+		key := pip.NewCIDRKey(cidr)
 		if err := pip.RoutingMap.Delete(key); err != nil {
 			Fatalf("error deleting contents of map: %s\n", err)
 		}

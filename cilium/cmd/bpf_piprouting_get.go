@@ -19,7 +19,7 @@ var persistentIPRoutingGetCmd = &cobra.Command{
 		common.RequireRootPrivilege("cilium bpf piprouting get <cidr>")
 
 		cidr := ParseCIDR(args[0])
-		key := pip.NewCIDRKey(*cidr)
+		key := pip.NewCIDRKey(cidr)
 		value, err := pip.RoutingMap.Lookup(key)
 		if err != nil {
 			if errors.Is(err, unix.ENOENT) {

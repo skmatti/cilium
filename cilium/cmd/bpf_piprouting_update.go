@@ -27,7 +27,7 @@ var bpfPersistentIPRoutingUpdateCmd = &cobra.Command{
 		if err != nil {
 			Fatalf("Unable to parse ifindex %q: %v", args[2], err)
 		}
-		key := pip.NewCIDRKey(*cidr)
+		key := pip.NewCIDRKey(cidr)
 		value := &pip.RoutingEntry{
 			EndpointID: uint16(epID),
 			IfIndex:    uint32(ifindex),

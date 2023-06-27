@@ -92,13 +92,14 @@ struct sfc_ipv4_flow_entry {
 struct pip_cidr_key {
 	struct bpf_lpm_trie_key lpm_key;
 	__u8 family;
-	__u16 pad0;
+	__u8 pad0;
+	__u16 pad1;
 	union {
 		struct {
 			__u32 ip4;
-			__u32 pad1;
 			__u32 pad2;
 			__u32 pad3;
+			__u32 pad4;
 		};
 		union v6addr ip6;
 	};
