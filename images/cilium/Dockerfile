@@ -6,6 +6,11 @@
 ARG CILIUM_BUILDER_IMAGE=quay.io/cilium/cilium-builder:25f6617e23a5a721fea192d6ace7201e4925d4a2@sha256:ac0680ffdf67e6cca0d754657053978902ce83e1c1586961163f5512a464547f
 ARG CILIUM_RUNTIME_IMAGE=quay.io/cilium/cilium-runtime:4aaee59d84ed83e5f350c27cb804474874af0731@sha256:47e7b8e59e87b5a7d916a4e9503bd3864105459043ae392eadad6b2f7928312b
 
+# Specify Hubble version inside Cilium image for Google builds.
+# Try to keep in sync with OSS specs in images/cilium/download-hubble.sh;
+# or images/cilium/hubble-version.sh in older versions.
+ARG HUBBLE_CLI_IMAGE=gcr.io/gke-release-staging/cilium/hubble-cli:v0.11.6-gke.0@sha256:bb9733fb92705f1527e502ff81ce7fa7a45bad766323713179c3778c1c3a1715
+
 
 # cilium-envoy from github.com/cilium/proxy
 #
@@ -14,11 +19,17 @@ FROM quay.io/cilium/cilium-envoy:v1.23-0c056b5821621f5407fd4844a333f25b1157556f@
 #
 # Hubble CLI
 #
-FROM --platform=${BUILDPLATFORM} ${CILIUM_BUILDER_IMAGE} as hubble
+FROM --platform=${BUILDPLATFORM} ${CILIUM_BUILDER_IMAGE} as hubble-oss
 ARG BUILDPLATFORM
 COPY images/cilium/download-hubble.sh /tmp/download-hubble.sh
 RUN /tmp/download-hubble.sh
 RUN /out/${BUILDPLATFORM}/bin/hubble completion bash > /out/linux/bash_completion
+
+FROM --platform=${BUILDPLATFORM} ${HUBBLE_CLI_IMAGE} as hubble
+ARG BUILDPLATFORM
+RUN mkdir -p /out/${BUILDPLATFORM}/bin
+RUN cp -pf /usr/bin/hubble /out/${BUILDPLATFORM}/bin/hubble
+RUN /usr/bin/hubble completion bash > /out/linux/bash_completion
 
 #
 # Cilium incremental build. Should be fast given builder-deps is up-to-date!
