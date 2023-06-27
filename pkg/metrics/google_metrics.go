@@ -21,7 +21,6 @@ var (
 )
 
 func init() {
-	log.Info("Initializing Google metrics")
 	collectors := initGoogleMetrics()
 	MustRegister(collectors...)
 }
