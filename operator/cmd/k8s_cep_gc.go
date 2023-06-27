@@ -106,7 +106,7 @@ func doCiliumEndpointSyncGC(ctx context.Context, clientset k8sClient.Clientset, 
 				switch owner.Kind {
 				case "Pod":
 					if operatorOption.Config.EnableGoogleMultiNIC && multiniccep.IsMultiNICCEP(cep) {
-						log.WithField("ciliumEndpointName", cep.Name).Info("Constructing full pod name for multi NIC CEP")
+						log.WithField("ciliumEndpointName", cep.Name).Debug("Constructing full pod name for multi NIC CEP")
 						cepFullName = cep.Namespace + "/" + owner.Name
 					}
 					podObj, exists, err = watchers.PodStore.GetByKey(cepFullName)
