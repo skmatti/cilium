@@ -3,6 +3,9 @@
 # Copyright Authors of Cilium
 # SPDX-License-Identifier: Apache-2.0
 
+# Version specs in this file are not used as an interm solution to b/288302403.
+# Bump Hubble version using ARG HUBBLE_CLI_IMAGE in images/cilium/Dockerfile.
+
 set -o xtrace
 set -o errexit
 set -o pipefail
