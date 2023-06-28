@@ -25,10 +25,10 @@ COPY images/cilium/download-hubble.sh /tmp/download-hubble.sh
 RUN /tmp/download-hubble.sh
 RUN /out/${BUILDPLATFORM}/bin/hubble completion bash > /out/linux/bash_completion
 
-FROM --platform=${BUILDPLATFORM} ${HUBBLE_CLI_IMAGE} as hubble
-ARG BUILDPLATFORM
-RUN mkdir -p /out/${BUILDPLATFORM}/bin
-RUN cp -pf /usr/bin/hubble /out/${BUILDPLATFORM}/bin/hubble
+FROM ${HUBBLE_CLI_IMAGE} as hubble
+ARG TARGETPLATFORM
+RUN mkdir -p /out/${TARGETPLATFORM}/bin
+RUN cp -pf /usr/bin/hubble /out/${TARGETPLATFORM}/bin/hubble
 RUN /usr/bin/hubble completion bash > /out/linux/bash_completion
 
 #
