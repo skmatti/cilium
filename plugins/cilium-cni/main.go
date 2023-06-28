@@ -409,16 +409,21 @@ func cmdAdd(args *skel.CmdArgs) (err error) {
 		return
 	}
 
+	conf, err = getConfigFromCiliumAgent(c)
+	if err != nil {
+		return err
+	}
 	if len(n.NetConf.RawPrevResult) != 0 && n.Name != chainingapi.DefaultConfigName {
 		if chainAction := chainingapi.Lookup(n.Name); chainAction != nil {
 			var (
 				res *cniTypesV1.Result
 				ctx = chainingapi.PluginContext{
-					Logger:  logger,
-					Args:    args,
-					CniArgs: cniArgs,
-					NetConf: n,
-					Client:  c,
+					Logger:     logger,
+					Args:       args,
+					CniArgs:    cniArgs,
+					NetConf:    n,
+					CiliumConf: conf,
+					Client:     c,
 				}
 			)
 
@@ -450,11 +455,6 @@ func cmdAdd(args *skel.CmdArgs) (err error) {
 	}
 
 	addLabels := models.Labels{}
-
-	conf, err = getConfigFromCiliumAgent(c)
-	if err != nil {
-		return
-	}
 
 	var releaseIPsFunc func(context.Context)
 	if conf.IpamMode == ipamOption.IPAMDelegatedPlugin {
