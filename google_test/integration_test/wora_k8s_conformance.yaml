@@ -1,0 +1,30 @@
+apiVersion: sut.tailorbird.io/v1alpha1
+kind: Rookery
+metadata:
+  name: # Insert name here. See guidelines above. Sample: username-rookery
+  namespace: tailorbird-users
+spec:
+  applications:
+  - apiVersion: sut.tailorbird.io/v1alpha1
+    kind: Application
+    metadata:
+      name: # Insert name here. See guidelines above. Sample: username-application
+      namespace: tailorbird-users
+    spec:
+      componentName: e2e-conformance
+      directives:
+      - apiVersion: sut.tailorbird.io/v1alpha1
+        kind: ExecutionDirective
+        metadata:
+          name: # Insert name here. See guidelines above. Sample: username-execution
+        spec:
+          targets:
+          - namePrefix: oob # This should match prefix of cluster name in `--upload-external-clusters`
+            kind: Cluster
+            namespace: tailorbird-users
+          args: []
+          env:
+            E2E_DRYRUN: "true" # Added to make the example test pass in ABM.
+            E2E_FOCUS: "Pods should be submitted and removed" # Equivalent of --mode=quick in Sonobuoy.
+            RESULTS_DIR: '{{ RuntimePath "." }}' # Write results to root of artifacts dir.
+            KUBECONFIG: '{{ KubeconfigPath "user" ((Ref "Cluster" "oob").Name) }}'
