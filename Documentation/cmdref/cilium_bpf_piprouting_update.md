@@ -5,7 +5,7 @@
 Update persistent IP routing entries
 
 ```
-cilium bpf piprouting update [flags]
+cilium bpf piprouting update <cidr> <ep_ip> [flags]
 ```
 
 ### Options

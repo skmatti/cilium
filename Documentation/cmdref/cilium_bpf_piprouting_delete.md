@@ -5,7 +5,7 @@
 Delete persistent IP routing entries
 
 ```
-cilium bpf piprouting delete [flags]
+cilium bpf piprouting delete <cidr> [flags]
 ```
 
 ### Options

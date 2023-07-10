@@ -32,7 +32,7 @@ var bpfPersistentIPRoutingListCmd = &cobra.Command{
 		if len(bpfPersistentIPRoutesList) == 0 {
 			fmt.Fprint(os.Stderr, "No entries found.\n")
 		} else {
-			TablePrinter("CIDR", "Endpoint Info", bpfPersistentIPRoutesList)
+			TablePrinter("CIDR", "Endpoint", bpfPersistentIPRoutesList)
 		}
 	},
 }

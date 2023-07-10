@@ -8,10 +8,10 @@ import (
 
 var bpfPersistentIPRoutingDeleteCmd = &cobra.Command{
 	Args:  cobra.ExactArgs(1),
-	Use:   "delete",
+	Use:   "delete <cidr>",
 	Short: "Delete persistent IP routing entries",
 	Run: func(cmd *cobra.Command, args []string) {
-		common.RequireRootPrivilege("cilium bpf piprouting delete <cidr>")
+		common.RequireRootPrivilege("cilium bpf piprouting delete")
 
 		cidr := ParseCIDR(args[0])
 		key := pip.NewCIDRKey(cidr)

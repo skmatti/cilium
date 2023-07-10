@@ -106,8 +106,18 @@ struct pip_cidr_key {
 };
 
 struct pip_routing_entry {
-	__u32 ifindex;
-	__u16 ep_id;
+	union {
+		struct {
+			__u32 ip4;
+			__u32 pad0;
+			__u32 pad1;
+			__u32 pad2;
+		};
+		union v6addr ip6;
+	};
+	__u8 family;
+	__u8 pad3;
+	__u16 pad4;
 };
 
 #ifdef ENABLE_GOOGLE_MULTI_NIC

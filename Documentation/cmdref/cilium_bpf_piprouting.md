@@ -22,7 +22,6 @@ Manage the persistent ip routes of L3 multinic endpoints
 
 * [cilium bpf](cilium_bpf.md)	 - Direct access to local BPF maps
 * [cilium bpf piprouting delete](cilium_bpf_piprouting_delete.md)	 - Delete persistent IP routing entries
-* [cilium bpf piprouting get](cilium_bpf_piprouting_get.md)	 - Get persistent ip routing entries
 * [cilium bpf piprouting list](cilium_bpf_piprouting_list.md)	 - List persistent IP routing entries
 * [cilium bpf piprouting update](cilium_bpf_piprouting_update.md)	 - Update persistent IP routing entries
 
