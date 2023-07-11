@@ -74,43 +74,68 @@ multinic_redirect_ipv4(struct __ctx_buff *ctx __maybe_unused)
 	return CTX_ACT_OK;
 }
 
-static __always_inline __maybe_unused int google_needs_L3_fast_redirect(struct iphdr *ip4 __maybe_unused)
+static __always_inline __maybe_unused int try_google_L3_fast_redirect(struct __ctx_buff *ctx __maybe_unused,
+																	  __u32 seclabel __maybe_unused,
+																	  struct iphdr *ip4 __maybe_unused)
 {
 	return CTX_ACT_OK;
 }
 
 #else
 
+/** A trimmed version of ipv4_local_delivery that forces bpf_redirect. */
+static __always_inline int __redirect_multinic_ep(struct __ctx_buff *ctx, int l3_off,
+					       __u32 seclabel, struct iphdr *ip4,
+					       const struct endpoint_info *ep)
+{
+	mac_t router_mac = ep->node_mac;
+	mac_t lxc_mac = ep->mac;
+	int ret;
+
+
+	ret = ipv4_l3(ctx, l3_off, (__u8 *) &router_mac, (__u8 *) &lxc_mac, ip4);
+	if (ret != CTX_ACT_OK)
+		return ret;
+
+	ctx->mark |= MARK_MAGIC_IDENTITY;
+	set_identity_mark(ctx, seclabel);
+	return redirect_ep(ctx, ep->ifindex, false);
+}
+
 /**
  * Redirect packets from host to L3 multinic endpoints if IP is found
  * in local ep map and is intended for the correct native dev index.
- * @arg ip4:      dst IP address
+ * @arg ctx:      packet
+ * @arg seclabel: identity of the source
+ * @arg ip4:      ipv4 header
  *
- * Return CTX_ACT_OK if dst is not local L3 multinic ep,
- *        DROP_UNROUTABLE if packets is intended to be from a different native device,
- *        CTX_ACT_REDIRECT if packet should be redirected to a local L3 ep.
+ * Return CTX_ACT_OK if the packet needs further processing (not redirected).
+ *        Or a possitive code returned by bpf_redirect where no futher processing needed.
+ *        DROP_UNROUTABLE if packets is intended to be from a different native device.
  */
-static __always_inline int google_needs_L3_fast_redirect(struct iphdr *ip4)
+static __always_inline int try_google_L3_fast_redirect(struct __ctx_buff *ctx, __u32 seclabel,
+													   struct iphdr *ip4)
 {
 	struct endpoint_info *ep;
 	const struct multi_nic_dev_info __maybe_unused *dev;
 	union macaddr __maybe_unused *dmac;
 	/* Lookup IPv4 address in list of local endpoints and host IPs */
 	ep = lookup_ip4_endpoint(ip4);
-	if (ep && ep->flags & ENDPOINT_F_MULTI_NIC_VETH)
-	{
-		dmac = (union macaddr *)&ep->mac;
-		dev = lookup_multi_nic_dev(dmac);
-		if (dev == NULL || dev->ifindex != NATIVE_DEV_IFINDEX)
-		{
-			// Recieved traffic intended for a multinic veth endpoint,
-			// but packet is sent to the wrong native/parent device. Drop it.
-			return DROP_UNROUTABLE;
-		}
-		return CTX_ACT_REDIRECT;
+	if (!(ep && ep->flags & ENDPOINT_F_MULTI_NIC_VETH)) {
+		// Not a multinic-veth ep, pass through
+		return CTX_ACT_OK;
 	}
-	// Not a multinic-veth ep, pass through
-	return CTX_ACT_OK;
+
+	dmac = (union macaddr *)&ep->mac;
+	dev = lookup_multi_nic_dev(dmac);
+	if (dev == NULL || dev->ifindex != NATIVE_DEV_IFINDEX)
+	{
+		// Recieved traffic intended for a multinic veth endpoint,
+		// but packet is sent to the wrong native/parent device. Drop it.
+		return DROP_UNROUTABLE;
+	}
+
+	return __redirect_multinic_ep(ctx, ETH_HLEN, seclabel, ip4, ep);
 }
 
 static int BPF_FUNC(clone_redirect, struct __sk_buff *skb, int ifindex,

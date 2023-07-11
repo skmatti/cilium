@@ -583,13 +583,10 @@ handle_ipv4(struct __ctx_buff *ctx, __u32 secctx,
 		ctx->mark = MARK_MAGIC_HOST;
 	// Here we enable the rediret datapath to deliver traffic
 	// from netdev to local L3 multi-nic endpoints, for which
-	// we either drop the packet if wrong device, or allow it to
-	// be redirected via ipv4_local_delivery below.
-	ret = google_needs_L3_fast_redirect(ip4);
-	if (unlikely(ret == DROP_UNROUTABLE))
-		return DROP_UNROUTABLE;
-	if (unlikely(ret == CTX_ACT_REDIRECT))
-		skip_redirect = false;
+	// we either drop the packet if wrong device, or redirect it to the endpoint.
+	ret = try_google_L3_fast_redirect(ctx, secctx, ip4);
+	if (ret != CTX_ACT_OK)
+		return ret;
 }
 #endif /* ENABLE_GOOGLE_MULTI_NIC */
 
