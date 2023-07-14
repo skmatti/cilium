@@ -22,6 +22,7 @@ import (
 	"github.com/cilium/cilium/pkg/gke/apis/fqdnnetworkpolicy/v1alpha1"
 	"github.com/cilium/cilium/pkg/gke/client/fqdnnetworkpolicy/clientset/versioned"
 	"github.com/cilium/cilium/pkg/gke/client/fqdnnetworkpolicy/informers/externalversions"
+	fqdnconvert "github.com/cilium/cilium/pkg/gke/fqdnnetworkpolicy/convert"
 	k8sUtils "github.com/cilium/cilium/pkg/k8s/utils"
 	"github.com/cilium/cilium/pkg/labels"
 	"github.com/cilium/cilium/pkg/logging"
@@ -85,24 +86,8 @@ func (c *Controller) Stop() {
 	close(c.stopCh)
 }
 
-func objToFQDNNetworkPolicy(obj interface{}) (*v1alpha1.FQDNNetworkPolicy, error) {
-	fqdn, ok := obj.(*v1alpha1.FQDNNetworkPolicy)
-	if ok {
-		return fqdn, nil
-	}
-	dfsu, ok := obj.(*cache.DeletedFinalStateUnknown)
-	if !ok {
-		return nil, fmt.Errorf("invalid object type %T", obj)
-	}
-	fqdn, ok = dfsu.Obj.(*v1alpha1.FQDNNetworkPolicy)
-	if !ok {
-		return nil, fmt.Errorf("invalid object type in DeletedFinalStateUnknown %T", obj)
-	}
-	return fqdn, nil
-}
-
 func (c *Controller) addFQDNPolicy(obj interface{}) {
-	fqdn, err := objToFQDNNetworkPolicy(obj)
+	fqdn, err := fqdnconvert.ObjToFQDNNetworkPolicy(obj)
 	if err != nil {
 		log.Errorf("Unable to parse retrieved object: %v", err)
 		return
@@ -115,7 +100,7 @@ func (c *Controller) addFQDNPolicy(obj interface{}) {
 }
 
 func (c *Controller) updateFQDNPolicy(curr interface{}) {
-	fqdn, err := objToFQDNNetworkPolicy(curr)
+	fqdn, err := fqdnconvert.ObjToFQDNNetworkPolicy(curr)
 	if err != nil {
 		log.Errorf("Unable to parse retrieved object: %v", err)
 		return
@@ -144,7 +129,7 @@ func (c *Controller) updatePolicyManager(fqdn *v1alpha1.FQDNNetworkPolicy) {
 }
 
 func (c *Controller) deleteFQDNPolicy(obj interface{}) {
-	fqdn, err := objToFQDNNetworkPolicy(obj)
+	fqdn, err := fqdnconvert.ObjToFQDNNetworkPolicy(obj)
 	if err != nil {
 		log.Errorf("Unable to parse retrieved object: %v", err)
 		return
@@ -160,4 +145,11 @@ func (c *Controller) deleteFQDNPolicy(obj interface{}) {
 	} else {
 		scopedLog.Info("Deleted rule from policy manager")
 	}
+}
+
+func (c *Controller) GetK8sStore(name string) cache.Store {
+	if name != fqdnconvert.ResourceTypeFQDNNetworkPolicy || c == nil || !c.informer.HasSynced() {
+		return nil
+	}
+	return c.informer.GetStore()
 }

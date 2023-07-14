@@ -27,7 +27,6 @@ import (
 	"github.com/cilium/cilium/pkg/monitor/api"
 	"github.com/cilium/cilium/pkg/policy"
 	"github.com/cilium/cilium/pkg/policy/trafficdirection"
-	"github.com/cilium/cilium/pkg/testutils"
 	"github.com/cilium/cilium/pkg/u8proto"
 	"github.com/golang/protobuf/ptypes/timestamp"
 	"github.com/google/go-cmp/cmp"
@@ -129,7 +128,6 @@ var (
 )
 
 func TestLookUpPoliciesForKey(t *testing.T) {
-	testutils.PrivilegedTest(t)
 	const (
 		tcp       = uint8(u8proto.TCP)
 		udp       = uint8(u8proto.UDP)
@@ -436,7 +434,6 @@ func TestLookUpPoliciesForKey(t *testing.T) {
 }
 
 func TestPolicyCorrelation_correlatePolicy(t *testing.T) {
-	testutils.PrivilegedTest(t)
 	correlator := &PolicyCorrelator{
 		endpointGetter: &hubbleutils.FakeEndpointGetter{
 			OnGetEndpointInfo: func(ip net.IP) (endpoint v1.EndpointInfo, ok bool) {
@@ -490,7 +487,6 @@ func TestPolicyCorrelation_correlatePolicy(t *testing.T) {
 }
 
 func TestK8sResouceForPolicyLabelSet(t *testing.T) {
-	testutils.PrivilegedTest(t)
 	for _, tc := range []struct {
 		desc       string
 		labelArray labels.LabelArray

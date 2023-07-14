@@ -105,6 +105,8 @@ func (e *exporter) isFlowValid(f *flow.Flow) (metricLabels, bool) {
 	switch f.GetVerdict() {
 	case flow.Verdict_FORWARDED:
 		labels.verdict = "allow"
+	case flow.Verdict_REDIRECTED:
+		labels.verdict = "allow"
 	case flow.Verdict_DROPPED:
 		labels.verdict = "deny"
 	default:

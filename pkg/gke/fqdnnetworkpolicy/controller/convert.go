@@ -19,6 +19,7 @@ import (
 	"fmt"
 
 	"github.com/cilium/cilium/pkg/gke/apis/fqdnnetworkpolicy/v1alpha1"
+	fqdnconvert "github.com/cilium/cilium/pkg/gke/fqdnnetworkpolicy/convert"
 	"github.com/cilium/cilium/pkg/gke/util/ciliumconvert"
 	k8sCilium "github.com/cilium/cilium/pkg/k8s/apis/cilium.io"
 	k8sCiliumUtils "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/utils"
@@ -26,10 +27,6 @@ import (
 	k8sUtils "github.com/cilium/cilium/pkg/k8s/utils"
 	"github.com/cilium/cilium/pkg/labels"
 	"github.com/cilium/cilium/pkg/policy/api"
-)
-
-const (
-	resourceTypeFQDNNetworkPolicy = "FQDNNetworkPolicy"
 )
 
 // dnsProxyRedirect adds an egress rule to proxy traffic sent
@@ -118,7 +115,7 @@ func policyLabels(fqdn *v1alpha1.FQDNNetworkPolicy) []labels.Label {
 	ns := k8sUtils.ExtractNamespaceOrDefault(&fqdn.ObjectMeta)
 	policyName := fqdn.Name
 	policyUID := fqdn.UID
-	return k8sCiliumUtils.GetPolicyLabels(ns, policyName, policyUID, resourceTypeFQDNNetworkPolicy)
+	return k8sCiliumUtils.GetPolicyLabels(ns, policyName, policyUID, fqdnconvert.ResourceTypeFQDNNetworkPolicy)
 }
 
 // parseFQDNNetworkPolicy converts the FQDNNetworkPolicy object into the

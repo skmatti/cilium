@@ -24,6 +24,7 @@ import (
 	"github.com/cilium/cilium/api/v1/flow"
 	"github.com/cilium/cilium/pkg/gke/apis/networklogging/v1alpha1"
 	"github.com/cilium/cilium/pkg/gke/dispatcher"
+	fqdnconvert "github.com/cilium/cilium/pkg/gke/fqdnnetworkpolicy/convert"
 	"github.com/cilium/cilium/pkg/gke/util/aggregator"
 	"github.com/cilium/cilium/pkg/gke/util/ratelimiter"
 	"github.com/cilium/cilium/pkg/gke/util/writer"
@@ -34,6 +35,7 @@ import (
 	"github.com/cilium/cilium/pkg/monitor/api"
 	policyapi "github.com/cilium/cilium/pkg/policy/api"
 	"github.com/cilium/cilium/pkg/policy/correlation"
+	"k8s.io/client-go/tools/cache"
 )
 
 const (
@@ -105,6 +107,23 @@ func (s *logSpec) getLogAction(node, allow bool) logAction {
 	return s.actions[logKey{node: node, allow: allow}]
 }
 
+type compositeStore struct {
+	daemonStoreGetter getters.StoreGetter
+	fqdnStoreGetter   getters.StoreGetter
+}
+
+func (cs *compositeStore) GetK8sStore(name string) cache.Store {
+	switch name {
+	case fqdnconvert.ResourceTypeFQDNNetworkPolicy:
+		if cs.fqdnStoreGetter == nil {
+			return nil
+		}
+		return cs.fqdnStoreGetter.GetK8sStore(name)
+	default:
+		return cs.daemonStoreGetter.GetK8sStore(name)
+	}
+}
+
 // getCfg gets the current network policy logging spec.
 func (n *networkPolicyLogger) getSpec() *logSpec {
 	n.lock.Lock()
@@ -152,13 +171,13 @@ func (n *networkPolicyLogger) UpdateLoggingSpec(spec *v1alpha1.NetworkLoggingSpe
 
 // Start the network policy logger. It returns a callback function to set the policy_logging_ready.
 // state to be true after the caller is ready when error is nil.
-func (n *networkPolicyLogger) Start() (error, func()) {
+func (n *networkPolicyLogger) Start() (func(), error) {
 	n.cfg = loadInternalConfig(n.configFilePath)
 	w, err := writer.NewFileWriter(n.cfg.logFilePath, n.cfg.logFileName,
 		int(n.cfg.logFileMaxSize), int(n.cfg.logFileMaxBackups))
 	if err != nil {
 		err = fmt.Errorf("failed to create FileWriter (path = %q, name = %q): %w", n.cfg.logFilePath, n.cfg.logFileName, err)
-		return err, nil
+		return nil, err
 	}
 	n.writer = w
 
@@ -186,9 +205,9 @@ func (n *networkPolicyLogger) Start() (error, func()) {
 		err = fmt.Errorf("failed to add policy verdict listener: type %d, %w", api.MessageTypePolicyVerdict, err)
 		log.Error(err)
 		n.Stop()
-		return err, nil
+		return nil, err
 	}
-	return nil, func() { policyLoggingReady.Set(1) }
+	return func() { policyLoggingReady.Set(1) }, nil
 }
 
 // Stop stops network policy logger.
@@ -274,6 +293,14 @@ func (n *networkPolicyLogger) allowedPoliciesForDelegate(policies []*flow.Policy
 				continue
 			}
 			annotations = cnp.GetAnnotations()
+		case fqdnconvert.ResourceTypeFQDNNetworkPolicy:
+			fqdnnp, err := fqdnconvert.ObjToFQDNNetworkPolicy(obj)
+			if err != nil {
+				log.WithField("kind", p.Kind).WithField("key", key).Errorf("Error converting object to FQDN Network Policy: %v", err)
+				policyLoggingErrorCount.WithLabelValues(errorReasonObjectConversion).Inc()
+				continue
+			}
+			annotations = fqdnnp.GetAnnotations()
 		default:
 			log.WithField("kind", p.Kind).WithField("key", key).Errorf("Unsupported policy kind %s", p.Kind)
 			policyLoggingErrorCount.WithLabelValues(errorReasonObjectConversion).Inc()
@@ -304,10 +331,7 @@ func (n *networkPolicyLogger) shouldLogNamespace(name string) bool {
 		return false
 	}
 	namespace := k8s.ObjToV1Namespace(obj)
-	if namespace.Annotations[AnnotationEnableDenyLogging] == "true" {
-		return true
-	}
-	return false
+	return namespace.Annotations[AnnotationEnableDenyLogging] == "true"
 }
 
 func (n *networkPolicyLogger) processFlow(f *flow.Flow) {
@@ -372,7 +396,7 @@ func (n *networkPolicyLogger) processFlow(f *flow.Flow) {
 				return
 			}
 			policyLoggingLogCount.WithLabelValues(enforcementLabel(isNode), verdictLabel(allow)).Inc()
-			delay := float64(time.Now().Sub(e.Timestamp).Microseconds())
+			delay := float64(time.Since(e.Timestamp).Microseconds())
 			policyLoggingAllowLatencies.Observe(delay)
 		}
 	} else {
@@ -433,7 +457,7 @@ func (n *networkPolicyLogger) processAggregatedEntry(ae *aggregator.AggregatorEn
 				return
 			}
 			policyLoggingLogCount.WithLabelValues(enforcementLabel(isNode), verdictLabel(false)).Inc()
-			delay := time.Now().Sub(e.Timestamp).Seconds()
+			delay := time.Since(e.Timestamp).Seconds()
 			policyLoggingDenyLatencies.Observe(delay)
 		}
 	} else {

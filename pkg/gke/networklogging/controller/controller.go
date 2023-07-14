@@ -81,7 +81,7 @@ func WithHubblePolicyCorrelation(v bool) func(*Controller) {
 }
 
 // newController returns a new controller for network logging.
-func NewController(clientset k8sClient.Clientset, networkLoggingClient versioned.Interface, dispatcher dispatcher.Dispatcher, endpointGetter getters.EndpointGetter, storeGetter getters.StoreGetter, opts ...func(*Controller)) *Controller {
+func NewController(clientset k8sClient.Clientset, networkLoggingClient versioned.Interface, dispatcher dispatcher.Dispatcher, endpointGetter getters.EndpointGetter, storeGetter, fqdnStoreGetter getters.StoreGetter, opts ...func(*Controller)) *Controller {
 	log.Info("New network logging controller")
 	broadcaster := record.NewBroadcaster()
 	broadcaster.StartLogging(klog.Infof)
@@ -105,7 +105,7 @@ func NewController(clientset k8sClient.Clientset, networkLoggingClient versioned
 	for _, opt := range opts {
 		opt(c)
 	}
-	c.policyLogger = policylogger.NewLogger(dispatcher, endpointGetter, storeGetter, policylogger.WithHubblePolicyCorrelation(c.hubblePolicyCorrelation))
+	c.policyLogger = policylogger.NewLogger(dispatcher, endpointGetter, storeGetter, fqdnStoreGetter, policylogger.WithHubblePolicyCorrelation(c.hubblePolicyCorrelation))
 
 	c.networkLoggingInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc:    func(obj interface{}) { c.updateHandler(obj) },
@@ -216,7 +216,7 @@ func (c *Controller) Start(ctx context.Context) {
 	// Start the policy logger first so that if something is wrong informer doesn't need
 	// to start. After the informer cache is synced, call the readyCb function to notify
 	// the policyLogger
-	err, readyCb := c.policyLogger.Start()
+	readyCb, err := c.policyLogger.Start()
 	if err != nil {
 		log.Errorf("Failed to start policy logger: %v", err)
 		return

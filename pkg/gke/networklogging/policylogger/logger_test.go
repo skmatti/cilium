@@ -16,6 +16,7 @@ package policylogger
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path"
@@ -24,6 +25,7 @@ import (
 	"time"
 
 	"github.com/cilium/cilium/api/v1/flow"
+	fqdnv1alpha1 "github.com/cilium/cilium/pkg/gke/apis/fqdnnetworkpolicy/v1alpha1"
 	"github.com/cilium/cilium/pkg/gke/apis/networklogging/v1alpha1"
 	"github.com/cilium/cilium/pkg/gke/dispatcher"
 	"github.com/cilium/cilium/pkg/k8s"
@@ -35,7 +37,6 @@ import (
 	"github.com/cilium/cilium/pkg/monitor/api"
 	policyapi "github.com/cilium/cilium/pkg/policy/api"
 	"github.com/cilium/cilium/pkg/policy/correlation"
-	"github.com/cilium/cilium/pkg/testutils"
 	"github.com/golang/protobuf/ptypes/timestamp"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
@@ -445,6 +446,32 @@ func (c *testStoreGetter) GetK8sStore(name string) cache.Store {
 	return nil
 }
 
+type fakeFQDNStoreGetter struct {
+	fqdnStore cache.Store
+}
+
+func (c *fakeFQDNStoreGetter) GetK8sStore(name string) cache.Store {
+	return c.fqdnStore
+}
+
+func newFakeFQDNStoreGetter() *fakeFQDNStoreGetter {
+	fqdnStore := cache.NewStore(cache.DeletionHandlingMetaNamespaceKeyFunc)
+	fqdnStore.Add(&fqdnv1alpha1.FQDNNetworkPolicy{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:        fqdnPolicy.Name,
+			Namespace:   fqdnPolicy.Namespace,
+			Annotations: map[string]string{AnnotationEnableAllowLogging: "true"},
+		},
+	})
+	fqdnStore.Add(&fqdnv1alpha1.FQDNNetworkPolicy{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "not-annotated",
+			Namespace: "default",
+		},
+	})
+	return &fakeFQDNStoreGetter{fqdnStore: fqdnStore}
+}
+
 func createConfigFile(t *testing.T, fp string, cfg []byte) {
 	t.Helper()
 	if _, err := os.Stat(fp); !os.IsNotExist(err) {
@@ -463,7 +490,7 @@ func createConfigFile(t *testing.T, fp string, cfg []byte) {
 }
 
 func setupConfig(t *testing.T, loggerConfig *PolicyLoggerConfiguration) string {
-	testutils.PrivilegedTest(t)
+	t.Helper()
 	tmpDir, err := os.MkdirTemp(os.TempDir(), "test-")
 	if err != nil {
 		t.Fatalf("Cannot create temp dir %v", err)
@@ -490,7 +517,6 @@ func setupConfig(t *testing.T, loggerConfig *PolicyLoggerConfiguration) string {
 
 // TestLogger tests the quick state changes of logging spec when flow keeps coming in.
 func TestLoggerQuickStateChange(t *testing.T) {
-	testutils.PrivilegedTest(t)
 	t.Parallel()
 	cfg := testCfg
 	configFilePath := setupConfig(t, &cfg)
@@ -535,7 +561,6 @@ func TestLoggerQuickStateChange(t *testing.T) {
 
 // TestLogger tests the logging configuration change flow.
 func TestLogger(t *testing.T) {
-	testutils.PrivilegedTest(t)
 	t.Parallel()
 	cfg := testCfg
 	configFilePath := setupConfig(t, &cfg)
@@ -549,7 +574,7 @@ func TestLogger(t *testing.T) {
 		spec:             getLogSpec(nil),
 		configFilePath:   configFilePath,
 	}
-	err, cb := logger.Start()
+	cb, err := logger.Start()
 	if err != nil {
 		t.Fatalf("Unexpected error returned by logger.Start(): %v", err)
 	}
@@ -558,7 +583,7 @@ func TestLogger(t *testing.T) {
 	defer logger.Stop()
 	fp := path.Join(logger.cfg.logFilePath, logger.cfg.logFileName)
 
-	// Start from log disabled with should be the default state.
+	// Start with logging disabled which should be the default state.
 	spec := v1alpha1.NetworkLoggingSpec{}
 	if update := logger.UpdateLoggingSpec(&spec); update {
 		t.Fatalf("UpdateLoggingSpec(%v) = (%v), want false", spec, update)
@@ -605,7 +630,6 @@ func TestLogger(t *testing.T) {
 
 // TestDenyLogAggregation tests the deny logs are correctly aggregated.
 func TestDenyLogAggregation(t *testing.T) {
-	testutils.PrivilegedTest(t)
 	t.Parallel()
 	cfg := testCfg
 	configFilePath := setupConfig(t, &cfg)
@@ -619,7 +643,7 @@ func TestDenyLogAggregation(t *testing.T) {
 		spec:             getLogSpec(nil),
 		configFilePath:   configFilePath,
 	}
-	err, cb := logger.Start()
+	cb, err := logger.Start()
 	if err != nil {
 		t.Fatalf("Unexpected error returned by logger.Start(): %v", err)
 	}
@@ -644,7 +668,6 @@ func TestDenyLogAggregation(t *testing.T) {
 
 // TestLogDelegate tests the log delegate mode.
 func TestLogDelegate(t *testing.T) {
-	testutils.PrivilegedTest(t)
 	t.Parallel()
 	cfg := testCfg
 	configFilePath := setupConfig(t, &cfg)
@@ -660,7 +683,7 @@ func TestLogDelegate(t *testing.T) {
 		spec:             getLogSpec(nil),
 		configFilePath:   configFilePath,
 	}
-	err, cb := logger.Start()
+	cb, err := logger.Start()
 	if err != nil {
 		t.Fatalf("Unexpected error returned by logger.Start(): %v", err)
 	}
@@ -706,7 +729,6 @@ func TestLogDelegate(t *testing.T) {
 }
 
 func TestNetworkPolicyLogger_allowedPoliciesForDelegate(t *testing.T) {
-	testutils.PrivilegedTest(t)
 	t.Parallel()
 	cfg := testCfg
 	configFilePath := setupConfig(t, &cfg)
@@ -717,7 +739,7 @@ func TestNetworkPolicyLogger_allowedPoliciesForDelegate(t *testing.T) {
 
 	logger := &networkPolicyLogger{
 		dispatcher:     dispatcher.NewDispatcher(),
-		storeGetter:    getter,
+		storeGetter:    &compositeStore{daemonStoreGetter: getter, fqdnStoreGetter: newFakeFQDNStoreGetter()},
 		spec:           getLogSpec(nil),
 		configFilePath: configFilePath,
 	}
@@ -736,6 +758,11 @@ func TestNetworkPolicyLogger_allowedPoliciesForDelegate(t *testing.T) {
 	ccnpNotAnnotated := &flow.Policy{
 		Kind: "CiliumClusterwideNetworkPolicy",
 		Name: "not-annotated",
+	}
+	fqdnNotAnnotated := &flow.Policy{
+		Kind:      "FQDNNetworkPolicy",
+		Name:      "not-annotated",
+		Namespace: "default",
 	}
 
 	testCases := []struct {
@@ -762,6 +789,11 @@ func TestNetworkPolicyLogger_allowedPoliciesForDelegate(t *testing.T) {
 			want:     []*flow.Policy{ccnpPolicy},
 		},
 		{
+			name:     "fqdnnp",
+			policies: []*flow.Policy{fqdnPolicy, fqdnNotAnnotated},
+			want:     []*flow.Policy{fqdnPolicy},
+		},
+		{
 			name:     "all",
 			policies: []*flow.Policy{npPolicy, npNotAnnotated, cnpPolicy, cnpNotAnnotated, ccnpPolicy, ccnpNotAnnotated},
 			want:     []*flow.Policy{npPolicy, cnpPolicy, ccnpPolicy},
@@ -779,7 +811,6 @@ func TestNetworkPolicyLogger_allowedPoliciesForDelegate(t *testing.T) {
 }
 
 func TestNetworkPolicyLogger_NodeTraffic(t *testing.T) {
-	testutils.PrivilegedTest(t)
 	t.Parallel()
 	cfg := testCfg
 	configFilePath := setupConfig(t, &cfg)
@@ -796,7 +827,7 @@ func TestNetworkPolicyLogger_NodeTraffic(t *testing.T) {
 		spec:             getLogSpec(nil),
 		configFilePath:   configFilePath,
 	}
-	err, cb := logger.Start()
+	cb, err := logger.Start()
 	if err != nil {
 		t.Fatalf("Unexpected error returned by logger.Start(): %v", err)
 	}
@@ -844,7 +875,6 @@ func TestNetworkPolicyLogger_NodeTraffic(t *testing.T) {
 }
 
 func TestNetworkPolicyLogger_DontLogDisabledTraffic(t *testing.T) {
-	testutils.PrivilegedTest(t)
 	t.Parallel()
 	cfg := testCfg
 	configFilePath := setupConfig(t, &cfg)
@@ -861,7 +891,7 @@ func TestNetworkPolicyLogger_DontLogDisabledTraffic(t *testing.T) {
 		spec:             getLogSpec(nil),
 		configFilePath:   configFilePath,
 	}
-	err, cb := logger.Start()
+	cb, err := logger.Start()
 	if err != nil {
 		t.Fatalf("Unexpected error returned by logger.Start(): %v", err)
 	}
@@ -942,13 +972,27 @@ func retryCheckFileContent(t *testing.T, path string, want string, maxRetry int)
 		if _, err := os.Stat(path); err != nil {
 			return fmt.Errorf("fail to stat file: %v", err)
 		}
-		b, err := os.ReadFile(path)
+		f, err := os.Open(path)
 		if err != nil {
-			return fmt.Errorf("Readfile() returned err=%v, want nil", err)
+			return fmt.Errorf("os.Open(%s) returned err=%v, want nil", path, err)
 		}
 
-		if diff := cmp.Diff(want, string(b)); diff != "" {
-			return fmt.Errorf("ReadFile() string diff (-want +got):\n%s", diff)
+		var gotJSON []interface{}
+		for d := json.NewDecoder(f); d.More(); {
+			var t any
+			d.Decode(&t)
+			gotJSON = append(gotJSON, t)
+		}
+
+		var wantJSON []interface{}
+		for d := json.NewDecoder(strings.NewReader(want)); d.More(); {
+			var t any
+			d.Decode(&t)
+			wantJSON = append(wantJSON, t)
+		}
+
+		if diff := cmp.Diff(wantJSON, gotJSON); diff != "" {
+			return fmt.Errorf("ReadFile() had a diff (-want +got):\n%v", diff)
 		}
 		return nil
 	}
@@ -1032,7 +1076,6 @@ func seedStores(t testing.TB, getter *testStoreGetter) {
 }
 
 func TestLogger_LogUncorrelatedEntries(t *testing.T) {
-	testutils.PrivilegedTest(t)
 	t.Parallel()
 	cfg := testCfg
 	cfg.LogUncorrelatedEntry = proto.Bool(true)
@@ -1049,7 +1092,7 @@ func TestLogger_LogUncorrelatedEntries(t *testing.T) {
 		spec:           getLogSpec(nil),
 		configFilePath: configFilePath,
 	}
-	err, cb := logger.Start()
+	cb, err := logger.Start()
 	if err != nil {
 		t.Fatalf("Unexpected error returned by logger.Start(): %v", err)
 	}
@@ -1058,7 +1101,7 @@ func TestLogger_LogUncorrelatedEntries(t *testing.T) {
 	defer logger.Stop()
 	fp := path.Join(logger.cfg.logFilePath, logger.cfg.logFileName)
 
-	// Start from log disabled with should be the default state.
+	// Start with logging disabled which should be the default state.
 	spec := v1alpha1.NetworkLoggingSpec{
 		Cluster: v1alpha1.ClusterLogSpec{Allow: v1alpha1.LogAction{Log: true}},
 		Node:    v1alpha1.NodeLogSpec{Allow: v1alpha1.LogAction{Log: true}},
@@ -1071,7 +1114,6 @@ func TestLogger_LogUncorrelatedEntries(t *testing.T) {
 }
 
 func TestLogger_DontLogUncorrelatedEntries(t *testing.T) {
-	testutils.PrivilegedTest(t)
 	cfg := testCfg
 	configFilePath := setupConfig(t, &cfg)
 
@@ -1084,7 +1126,7 @@ func TestLogger_DontLogUncorrelatedEntries(t *testing.T) {
 		spec:             getLogSpec(nil),
 		configFilePath:   configFilePath,
 	}
-	err, cb := logger.Start()
+	cb, err := logger.Start()
 	if err != nil {
 		t.Fatalf("Unexpected error returned by logger.Start(): %v", err)
 	}
@@ -1093,7 +1135,7 @@ func TestLogger_DontLogUncorrelatedEntries(t *testing.T) {
 	defer logger.Stop()
 	fp := path.Join(logger.cfg.logFilePath, logger.cfg.logFileName)
 
-	// Start from log disabled with should be the default state.
+	// Start with logging disabled which should be the default state.
 	spec := v1alpha1.NetworkLoggingSpec{
 		Cluster: v1alpha1.ClusterLogSpec{Allow: v1alpha1.LogAction{Log: true}},
 		Node:    v1alpha1.NodeLogSpec{Allow: v1alpha1.LogAction{Log: true}},
@@ -1104,11 +1146,179 @@ func TestLogger_DontLogUncorrelatedEntries(t *testing.T) {
 	retryCheckFileContent(t, fp, "", maxRetry)
 }
 
-func TestLogger_HubbleCorrelationEnabled(t *testing.T) {
-	testutils.PrivilegedTest(t)
+func TestFQDNNetworkPolicyLogs(t *testing.T) {
+	t.Parallel()
 	cfg := testCfg
 	configFilePath := setupConfig(t, &cfg)
 
+	dpatcher := dispatcher.NewDispatcher()
+	observer := dpatcher.(dispatcher.Observer)
+	logger := &networkPolicyLogger{
+		dispatcher:       dpatcher,
+		policyCorrelator: testCorrelator(),
+		storeGetter:      &testStoreGetter{},
+		spec:             getLogSpec(nil),
+		configFilePath:   configFilePath,
+	}
+	cb, err := logger.Start()
+	if err != nil {
+		t.Fatalf("Unexpected error returned by logger.Start(): %v", err)
+	}
+	cb()
+
+	defer logger.Stop()
+	fp := path.Join(logger.cfg.logFilePath, logger.cfg.logFileName)
+
+	// Start with logging disabled which should be the default state.
+	spec := v1alpha1.NetworkLoggingSpec{}
+	if update := logger.UpdateLoggingSpec(&spec); update {
+		t.Fatalf("UpdateLoggingSpec(%v) = (%v), want false", spec, update)
+	}
+
+	// Test updating configuration to log allow traffic.
+	spec.Cluster.Allow.Log = true
+	if update := logger.UpdateLoggingSpec(&spec); !update {
+		t.Fatalf("UpdateLoggingSpec(%v) = %v, want true", spec, update)
+	}
+	observer.OnDecodedFlow(context.Background(), redirectedFlow)
+	want := redirectedLog
+	retryCheckFileContent(t, fp, want, maxRetry)
+
+	// Test updating configuration to log both allowed and denied traffic. Just
+	// logs allow twice.
+	spec.Cluster.Deny.Log = true
+	if update := logger.UpdateLoggingSpec(&spec); !update {
+		t.Fatalf("UpdateLoggingSpec(%v) = %v, want true", spec, update)
+	}
+	observer.OnDecodedFlow(context.Background(), redirectedFlow)
+	want = want + redirectedLog
+	retryCheckFileContent(t, fp, want, maxRetry)
+
+	// Disable allow logging and now nothing new is logged.
+	spec.Cluster.Allow.Log = false
+	if update := logger.UpdateLoggingSpec(&spec); !update {
+		t.Fatalf("UpdateLoggingSpec(%v) = %v, want true", spec, update)
+	}
+	observer.OnDecodedFlow(context.Background(), redirectedFlow)
+	retryCheckFileContent(t, fp, want, maxRetry)
+
+	// Disable all logging and still nothing is logged.
+	if update := logger.UpdateLoggingSpec(nil); !update {
+		t.Fatalf("UpdateLoggingSpec(nil) = %v, want true", update)
+	}
+	observer.OnDecodedFlow(context.Background(), redirectedFlow)
+	retryCheckFileContent(t, fp, want, maxRetry)
+}
+
+func TestFQDNNetworkPolicy_NilStore(t *testing.T) {
+	t.Parallel()
+	cfg := testCfg
+	configFilePath := setupConfig(t, &cfg)
+
+	dpatcher := dispatcher.NewDispatcher()
+	observer := dpatcher.(dispatcher.Observer)
+	correlator := correlation.NewFakePolicyCorrelator(
+		correlation.WithEntry(redirectedUUID, correlation.NewFakePolicyCorrelatorResult(correlation.WithPolicies(fqdnPolicy))))
+	logger := &networkPolicyLogger{
+		dispatcher:       dpatcher,
+		policyCorrelator: correlator,
+		storeGetter:      &compositeStore{daemonStoreGetter: &testStoreGetter{}},
+		spec:             getLogSpec(nil),
+		configFilePath:   configFilePath,
+	}
+	cb, err := logger.Start()
+	if err != nil {
+		t.Fatalf("Unexpected error returned by logger.Start(): %v", err)
+	}
+	cb()
+
+	defer logger.Stop()
+	fp := path.Join(logger.cfg.logFilePath, logger.cfg.logFileName)
+
+	// Start with logging disabled which should be the default state.
+	spec := v1alpha1.NetworkLoggingSpec{}
+	if update := logger.UpdateLoggingSpec(&spec); update {
+		t.Fatalf("UpdateLoggingSpec(%v) = (%v), want false", spec, update)
+	}
+
+	// Test updating configuration to log allow traffic.
+	spec.Cluster.Allow.Log = true
+	if update := logger.UpdateLoggingSpec(&spec); !update {
+		t.Fatalf("UpdateLoggingSpec(%v) = %v, want true", spec, update)
+	}
+	observer.OnDecodedFlow(context.Background(), redirectedFlow)
+	want := redirectedLog
+	retryCheckFileContent(t, fp, want, maxRetry)
+
+	// Test updating configuration to delegate allow traffic, nothing new should
+	// be logged since we can't fetch the policy to verify its annotations.
+	spec.Cluster.Allow.Delegate = true
+	if update := logger.UpdateLoggingSpec(&spec); !update {
+		t.Fatalf("UpdateLoggingSpec(%v) = %v, want true", spec, update)
+	}
+	observer.OnDecodedFlow(context.Background(), redirectedFlow)
+	retryCheckFileContent(t, fp, want, maxRetry)
+}
+
+func TestFQDNNetworkPolicy_Delegate(t *testing.T) {
+	t.Parallel()
+	cfg := testCfg
+	configFilePath := setupConfig(t, &cfg)
+
+	dpatcher := dispatcher.NewDispatcher()
+	observer := dpatcher.(dispatcher.Observer)
+	correlator := correlation.NewFakePolicyCorrelator(
+		correlation.WithEntry(redirectedUUID, correlation.NewFakePolicyCorrelatorResult(
+			correlation.WithPolicies(
+				fqdnPolicy,
+				&flow.Policy{
+					Kind:      "NetworkPolicy",
+					Name:      "not-annotated",
+					Namespace: npPolicy.Namespace,
+				},
+			))),
+	)
+	logger := &networkPolicyLogger{
+		dispatcher:       dpatcher,
+		policyCorrelator: correlator,
+		storeGetter: &compositeStore{
+			daemonStoreGetter: &testStoreGetter{},
+			fqdnStoreGetter:   newFakeFQDNStoreGetter(),
+		},
+		spec:           getLogSpec(nil),
+		configFilePath: configFilePath,
+	}
+	logger.UpdateLoggingSpec(&v1alpha1.NetworkLoggingSpec{})
+
+	cb, err := logger.Start()
+	if err != nil {
+		t.Fatalf("Unexpected error returned by logger.Start(): %v", err)
+	}
+	cb()
+
+	defer logger.Stop()
+	fp := path.Join(logger.cfg.logFilePath, logger.cfg.logFileName)
+
+	// Start with logging disabled which should be the default state.
+	spec := v1alpha1.NetworkLoggingSpec{}
+	if update := logger.UpdateLoggingSpec(&spec); update {
+		t.Fatalf("UpdateLoggingSpec(%v) = (%v), want false", spec, update)
+	}
+
+	// Test updating configuration to log allow traffic.
+	spec.Cluster.Allow.Log = true
+	spec.Cluster.Allow.Delegate = true
+	if update := logger.UpdateLoggingSpec(&spec); !update {
+		t.Fatalf("UpdateLoggingSpec(%v) = %v, want true", spec, update)
+	}
+	observer.OnDecodedFlow(context.Background(), redirectedFlow)
+	want := redirectedLog
+	retryCheckFileContent(t, fp, want, maxRetry)
+}
+
+func TestLogger_HubbleCorrelationEnabled(t *testing.T) {
+	cfg := testCfg
+	configFilePath := setupConfig(t, &cfg)
 	dpatcher := dispatcher.NewDispatcher()
 	observer := dpatcher.(dispatcher.Observer)
 	logger := &networkPolicyLogger{
@@ -1120,21 +1330,18 @@ func TestLogger_HubbleCorrelationEnabled(t *testing.T) {
 		configFilePath:          configFilePath,
 		hubblePolicyCorrelation: true,
 	}
-	err, cb := logger.Start()
+	cb, err := logger.Start()
 	if err != nil {
 		t.Fatalf("Unexpected error returned by logger.Start(): %v", err)
 	}
 	cb()
-
 	defer logger.Stop()
 	fp := path.Join(logger.cfg.logFilePath, logger.cfg.logFileName)
-
 	spec := v1alpha1.NetworkLoggingSpec{
 		Cluster: v1alpha1.ClusterLogSpec{Allow: v1alpha1.LogAction{Log: true}},
 		Node:    v1alpha1.NodeLogSpec{Allow: v1alpha1.LogAction{Log: true}},
 	}
 	logger.UpdateLoggingSpec(&spec)
-
 	observer.OnDecodedFlow(context.Background(), allowFlow)
 	retryCheckFileContent(t, fp, allowLog, maxRetry)
 }

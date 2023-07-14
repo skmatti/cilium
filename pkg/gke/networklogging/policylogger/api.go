@@ -36,7 +36,7 @@ type Logger interface {
 	// Start starts the logger, and returns the error if any and a callback function.
 	// The callback function is for the controller to notify the logger that it is
 	// ready to watch user configurations.
-	Start() (error, func())
+	Start() (func(), error)
 	Stop()
 }
 
@@ -47,13 +47,13 @@ func WithHubblePolicyCorrelation(v bool) func(*networkPolicyLogger) {
 }
 
 // NewLogger create a new network policy logger.
-func NewLogger(dispatcher dispatcher.Dispatcher, endpointGetter getters.EndpointGetter, storeGetter getters.StoreGetter, opts ...func(*networkPolicyLogger)) Logger {
+func NewLogger(dispatcher dispatcher.Dispatcher, endpointGetter getters.EndpointGetter, storeGetter, fqdnStoreGetter getters.StoreGetter, opts ...func(*networkPolicyLogger)) Logger {
 	log.Infof("New policy logger")
 	n := &networkPolicyLogger{
 		dispatcher:       dispatcher,
 		policyCorrelator: correlation.NewPolicyCorrelator(endpointGetter),
 		endpointGetter:   endpointGetter,
-		storeGetter:      storeGetter,
+		storeGetter:      &compositeStore{daemonStoreGetter: storeGetter, fqdnStoreGetter: fqdnStoreGetter},
 		cfg:              &defaultConfig,
 		spec:             getLogSpec(nil),
 		configFilePath:   configFile,

@@ -23,7 +23,8 @@ var Cell = cell.Module(
 
 	cell.Provide(fqdnClient),
 	cell.Config(defaultConfig),
-	cell.Invoke(registerFQDNNetPol),
+	cell.Provide(fqdnNetPolController),
+	cell.Invoke(func(_ promise.Promise[*controller.Controller]) {}), // Force instantiation.
 )
 
 type fqdnNetPolParams struct {
@@ -52,16 +53,19 @@ func (cfg Config) Flags(flags *pflag.FlagSet) {
 func fqdnClient(clientset k8sClient.Clientset) (versioned.Interface, error) {
 	fqdnClient, err := versioned.NewForConfig(clientset.RestConfig())
 	if err != nil {
-		return nil, fmt.Errorf("failed to create FQDN client: %v", err)
+		return nil, fmt.Errorf("create FQDN client: %v", err)
 	}
 	return fqdnClient, nil
 }
 
-func registerFQDNNetPol(params fqdnNetPolParams) {
+func fqdnNetPolController(params fqdnNetPolParams) promise.Promise[*controller.Controller] {
+	fqdnCtrlResolver, fqdnCtrlPromise := promise.New[*controller.Controller]()
+
 	// Do not enable FQDN if wireguard is enabled
 	if !params.Config.EnableFQDNNetworkPolicy || option.Config.EnableWireguard {
-		logging.DefaultLogger.WithField(logfields.LogSubsys, "fqdnnetworkpolicy").Info("cannot register FQDN  Network Policy since it is not enabled or wireguard is enabled")
-		return
+		logging.DefaultLogger.WithField(logfields.LogSubsys, "fqdnnetworkpolicy").Info("cannot register FQDN Network Policy since it is not enabled or wireguard is enabled")
+		fqdnCtrlResolver.Resolve(nil)
+		return fqdnCtrlPromise
 	}
 	if !params.DaemonConfig.EnableL7Proxy {
 		log.Fatalf(`FQDN Network Policy requires --%s=true`, option.EnableL7Proxy)
@@ -72,10 +76,12 @@ func registerFQDNNetPol(params fqdnNetPolParams) {
 		OnStart: func(ctx hive.HookContext) error {
 			policyManager, err := params.PmPromise.Await(ctx)
 			if err != nil {
-				return fmt.Errorf("failed to get policy manager: %v", err)
+				fqdnCtrlResolver.Reject(err)
+				return fmt.Errorf("get policy manager: %v", err)
 			}
 
 			c = controller.NewController(params.FQDNClient, policyManager)
+			fqdnCtrlResolver.Resolve(c)
 			return c.Start(ctx)
 		},
 		OnStop: func(_ hive.HookContext) error {
@@ -85,4 +91,5 @@ func registerFQDNNetPol(params fqdnNetPolParams) {
 			return nil
 		},
 	})
+	return fqdnCtrlPromise
 }

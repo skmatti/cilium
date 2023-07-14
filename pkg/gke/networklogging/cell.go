@@ -5,6 +5,7 @@ import (
 
 	"github.com/cilium/cilium/pkg/gke/client/networklogging/clientset/versioned"
 	gkeflow "github.com/cilium/cilium/pkg/gke/flow"
+	fqdnCtrl "github.com/cilium/cilium/pkg/gke/fqdnnetworkpolicy/controller"
 	"github.com/cilium/cilium/pkg/gke/networklogging/controller"
 	"github.com/cilium/cilium/pkg/gke/networkpolicy/metrics"
 	"github.com/cilium/cilium/pkg/hive"
@@ -12,6 +13,7 @@ import (
 	"github.com/cilium/cilium/pkg/hubble/parser/getters"
 	"github.com/cilium/cilium/pkg/k8s/client"
 	"github.com/cilium/cilium/pkg/option"
+	"github.com/cilium/cilium/pkg/promise"
 )
 
 var Cell = cell.Module(
@@ -27,11 +29,12 @@ var Cell = cell.Module(
 
 type netpolLoggingParams struct {
 	cell.In
-	Lifecycle    hive.Lifecycle
-	DaemonConfig *option.DaemonConfig
-	Clientset    client.Clientset
-	NLClient     *versioned.Clientset
-	FlowPlugin   gkeflow.FlowPlugin
+	Lifecycle             hive.Lifecycle
+	DaemonConfig          *option.DaemonConfig
+	Clientset             client.Clientset
+	NLClient              *versioned.Clientset
+	FlowPlugin            gkeflow.FlowPlugin
+	FQDNNetPolCtrlPromise promise.Promise[*fqdnCtrl.Controller]
 }
 
 func netpolLoggingClient(clientset client.Clientset) (*versioned.Clientset, error) {
@@ -56,6 +59,11 @@ func registerNetpolLogging(params netpolLoggingParams) {
 				return fmt.Errorf("get hubble server: %v", err)
 			}
 
+			fqdnNetPolCtrl, err := params.FQDNNetPolCtrlPromise.Await(ctx)
+			if err != nil {
+				return fmt.Errorf("get FQDN network policy controller: %v", err)
+			}
+
 			endpointGetter, ok := hubble.GetOptions().CiliumDaemon.(getters.EndpointGetter)
 			if !ok || endpointGetter == nil {
 				return fmt.Errorf("invalid type, expected EndpointGetter, got %T", hubble.GetOptions().CiliumDaemon)
@@ -66,7 +74,7 @@ func registerNetpolLogging(params netpolLoggingParams) {
 				return fmt.Errorf("invalid type, expected StoreGetter, got %T", hubble.GetOptions().CiliumDaemon)
 			}
 
-			c = controller.NewController(params.Clientset, params.NLClient, params.FlowPlugin.Dispatcher, endpointGetter, storeGetter, policyCorrelationOpt)
+			c = controller.NewController(params.Clientset, params.NLClient, params.FlowPlugin.Dispatcher, endpointGetter, storeGetter, fqdnNetPolCtrl, policyCorrelationOpt)
 			c.Start(ctx)
 			return nil
 		},

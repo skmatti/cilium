@@ -21,6 +21,7 @@ import (
 	"github.com/cilium/cilium/pkg/defaults"
 	"github.com/cilium/cilium/pkg/fqdn/re"
 	"github.com/cilium/cilium/pkg/gke/apis/fqdnnetworkpolicy/v1alpha1"
+	"github.com/cilium/cilium/pkg/gke/fqdnnetworkpolicy/convert"
 	ciliumK8s "github.com/cilium/cilium/pkg/k8s"
 	ciliumConst "github.com/cilium/cilium/pkg/k8s/apis/cilium.io"
 	slim_corev1 "github.com/cilium/cilium/pkg/k8s/slim/k8s/api/core/v1"
@@ -195,7 +196,7 @@ func TestPolicyLabels(t *testing.T) {
 			want := []ciliumLbls.Label{
 				{
 					Key:    ciliumConst.PolicyLabelDerivedFrom,
-					Value:  resourceTypeFQDNNetworkPolicy,
+					Value:  convert.ResourceTypeFQDNNetworkPolicy,
 					Source: ciliumLbls.LabelSourceK8s,
 				},
 				{
@@ -313,7 +314,7 @@ func TestParseFQDNNetworkPolicy(t *testing.T) {
 	defaultLabels := []ciliumLbls.Label{
 		{
 			Key:    ciliumConst.PolicyLabelDerivedFrom,
-			Value:  resourceTypeFQDNNetworkPolicy,
+			Value:  convert.ResourceTypeFQDNNetworkPolicy,
 			Source: ciliumLbls.LabelSourceK8s,
 		},
 		{
