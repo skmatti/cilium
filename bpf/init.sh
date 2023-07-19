@@ -260,7 +260,8 @@ function bpf_load_cgroups()
 	MIGRATE=${10}
 
 	OPTS="${OPTS} -DCALLS_MAP=${CALLS_MAP}"
-	bpf_compile "$IN" "$OUT" obj "$OPTS"
+	$BPF_SOCK_COMPILED || bpf_compile "$IN" "$OUT" obj "$OPTS"
+	BPF_SOCK_COMPILED=true
 
 	TMP_FILE="$BPFMNT/tc/globals/cilium_cgroups_$WHERE"
 	rm -f "$TMP_FILE"
@@ -553,6 +554,7 @@ if [ "$SOCKETLB" = "true" ]; then
 
 	CALLS_MAP="cilium_calls_lb"
 	COPTS=""
+	BPF_SOCK_COMPILED=false
 	if [ "$IP6_HOST" != "<nil>" ] || [ "$IP4_HOST" != "<nil>" ] && [ -f "${PROCSYSNETDIR}/ipv6/conf/all/forwarding" ]; then
 		bpf_load_cgroups "$COPTS" bpf_sock.c bpf_sock.o sockaddr connect6 "$CALLS_MAP" "$CGROUP_ROOT" "$BPFFS_ROOT" cil_sock6_connect migrate
 		if [ "$SOCKETLB_PEER" = "true" ]; then
