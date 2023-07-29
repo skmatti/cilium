@@ -19,7 +19,7 @@ set -u
 set -o pipefail
 
 # Set up job variables
-SHA="$(git log -1 --format=%H | cut -c -7)"
+SHA="$(git rev-parse --verify HEAD)"
 CILIUM_CLI_VERSION=v0.14.8
 K8S_VERSION=v1.27.3
 export DOCKER_BUILD_KIT=1
