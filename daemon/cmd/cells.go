@@ -21,6 +21,8 @@ var (
 		Infrastructure,
 		ControlPlane,
 		Datapath,
+
+		googleCell,
 	)
 
 	// Infrastructure provides access and services to the outside.
