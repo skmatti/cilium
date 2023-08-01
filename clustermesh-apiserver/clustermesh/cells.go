@@ -77,4 +77,6 @@ var Cell = cell.Module(
 	usersManagementCell,
 	cell.Invoke(registerHooks),
 	externalWorkloadsCell,
+
+	googleCell,
 )

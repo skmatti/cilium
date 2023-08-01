@@ -244,6 +244,8 @@ var (
 			// configuration to describe, in form of prometheus metrics, which
 			// features are enabled on the operator.
 			features.Cell,
+
+			googleCell,
 		),
 	)
 
