@@ -2563,6 +2563,10 @@ static __always_inline int rev_nodeport_lb4(struct __ctx_buff *ctx, __u32 *ifind
 		}
 #endif
 
+#if defined(MULTI_NIC_DEVICE_TYPE) && MULTI_NIC_DEVICE_TYPE == EP_DEV_TYPE_INDEX_MULTI_NIC_VETH
+		// MN veth type do not use fib lookup for CT_REPLY nodeport traffic
+		fib_ret = BPF_FIB_LKUP_RET_NO_NEIGH;
+#else
 		fib_params.family = AF_INET;
 		fib_params.ifindex = ctx_get_ifindex(ctx);
 
@@ -2579,6 +2583,7 @@ static __always_inline int rev_nodeport_lb4(struct __ctx_buff *ctx, __u32 *ifind
 			 * request.
 			 */
 			*ifindex = fib_params.ifindex;
+#endif
 
 		ret = maybe_add_l2_hdr(ctx, *ifindex, &l2_hdr_required);
 		if (ret != 0)
