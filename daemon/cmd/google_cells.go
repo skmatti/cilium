@@ -1,15 +1,20 @@
 package cmd
 
 import (
+	"fmt"
+
 	"github.com/cilium/cilium/pkg/gke/fqdnnetworkpolicy"
 	"github.com/cilium/cilium/pkg/gke/nodefirewall"
 	"github.com/cilium/cilium/pkg/gke/nodefirewall/types"
 	"github.com/cilium/cilium/pkg/gke/subnet"
 	"github.com/cilium/cilium/pkg/gke/trafficsteering"
+	"github.com/cilium/cilium/pkg/gke/trafficsteering/controller"
 	"github.com/cilium/cilium/pkg/hive"
 	"github.com/cilium/cilium/pkg/hive/cell"
+	"github.com/cilium/cilium/pkg/maps/egressmap"
 	"github.com/cilium/cilium/pkg/node"
 	nodeTypes "github.com/cilium/cilium/pkg/node/types"
+	"github.com/cilium/cilium/pkg/option"
 	"github.com/cilium/cilium/pkg/promise"
 )
 
@@ -19,6 +24,7 @@ var googleCell = cell.Module(
 
 	cell.Provide(newPolicyManagerPromise),
 	cell.Provide(newLocalNodePromise),
+	cell.Provide(newEgressMapPromise),
 	nodefirewall.Cell,
 	subnet.Cell,
 	trafficsteering.Cell,
@@ -35,6 +41,10 @@ func newPolicyManagerPromise(dp promise.Promise[*Daemon], lc hive.Lifecycle) pro
 				return err
 			}
 			pmResolver.Resolve(daemon)
+			return nil
+		},
+		OnStop: func(_ hive.HookContext) error {
+			pmResolver.Reject(fmt.Errorf("failed to initialize policy manager"))
 			return nil
 		},
 	})
@@ -57,6 +67,35 @@ func newLocalNodePromise(dp promise.Promise[*Daemon], lc hive.Lifecycle) promise
 			})
 			return nil
 		},
+		OnStop: func(_ hive.HookContext) error {
+			nodeResolver.Reject(fmt.Errorf("failed to complete local node discovery"))
+			return nil
+		},
 	})
 	return nodePromise
+}
+
+func newEgressMapPromise(dp promise.Promise[*Daemon], lc hive.Lifecycle, config *option.DaemonConfig) promise.Promise[controller.EgressMapInterface] {
+	if config.EnableIPv4EgressGateway {
+	}
+	emResolver, emPromise := promise.New[controller.EgressMapInterface]()
+	if config.EnableIPv4EgressGateway {
+		lc.Append(hive.Hook{
+			OnStart: func(hc hive.HookContext) error {
+				// Daemon initialization has to complete before egress map is initialized
+				if _, err := dp.Await(hc); err != nil {
+					return err
+				}
+				emResolver.Resolve(egressmap.EgressPolicyMap.Map)
+				return nil
+			},
+			OnStop: func(_ hive.HookContext) error {
+				emResolver.Reject(fmt.Errorf("failed to initialize egress map"))
+				return nil
+			},
+		})
+	} else {
+		emResolver.Reject(fmt.Errorf("egress map requires %s to be set", option.EnableIPv4EgressGateway))
+	}
+	return emPromise
 }

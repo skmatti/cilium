@@ -9,6 +9,7 @@ import (
 	"github.com/cilium/cilium/pkg/hive/cell"
 	k8sClient "github.com/cilium/cilium/pkg/k8s/client"
 	"github.com/cilium/cilium/pkg/option"
+	"github.com/cilium/cilium/pkg/promise"
 	"github.com/spf13/pflag"
 )
 
@@ -24,11 +25,12 @@ var Cell = cell.Module(
 type trafficSteeringParams struct {
 	cell.In
 
-	Lifecycle    hive.Lifecycle
-	Config       Config
-	DaemonConfig *option.DaemonConfig
-	Clientset    k8sClient.Clientset
-	TsClient     *versioned.Clientset
+	Lifecycle        hive.Lifecycle
+	Config           Config
+	DaemonConfig     *option.DaemonConfig
+	Clientset        k8sClient.Clientset
+	TsClient         *versioned.Clientset
+	EgressMapPromise promise.Promise[controller.EgressMapInterface]
 }
 
 type Config struct {
@@ -57,16 +59,27 @@ func initTrafficSteering(params trafficSteeringParams) error {
 		return nil
 	}
 	if !params.DaemonConfig.EnableIPv4EgressGateway {
-		return fmt.Errorf("traffic Steering requires --%s=\"true\"", option.EnableIPv4EgressGateway)
-	}
-	controller, err := controller.NewController(params.Clientset, params.TsClient)
-	if err != nil {
-		return fmt.Errorf("failed to instantiate traffic steering controller %v", err)
+		return fmt.Errorf("traffic steering requires --%s=\"true\"", option.EnableIPv4EgressGateway)
 	}
 
+	var c *controller.Controller
 	params.Lifecycle.Append(hive.Hook{
-		OnStart: func(_ hive.HookContext) error {
-			controller.Run()
+		OnStart: func(ctx hive.HookContext) error {
+			em, err := params.EgressMapPromise.Await(ctx)
+			if err != nil {
+				return fmt.Errorf("failed to get egress map: %v", err)
+			}
+
+			c, err := controller.NewController(params.Clientset, params.TsClient, em)
+			if err != nil {
+				return fmt.Errorf("failed to instantiate traffic steering controller %v", err)
+			}
+			return c.Start(ctx)
+		},
+		OnStop: func(_ hive.HookContext) error {
+			if c != nil {
+				c.Stop()
+			}
 			return nil
 		},
 	})

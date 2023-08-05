@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"reflect"
@@ -18,7 +19,6 @@ import (
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/record"
@@ -58,10 +58,12 @@ type Controller struct {
 	mu         lock.Mutex
 	m          *manager
 	nodeLabels map[string]string
+
+	stopCh chan struct{}
 }
 
 // NewController returns a new controller for traffic steering.
-func NewController(kubeClient kubernetes.Interface, tsClient versioned.Interface) (*Controller, error) {
+func NewController(kubeClient kubernetes.Interface, tsClient versioned.Interface, egressMap EgressMapInterface) (*Controller, error) {
 
 	broadcaster := record.NewBroadcaster()
 	broadcaster.StartLogging(klog.Infof)
@@ -76,7 +78,8 @@ func NewController(kubeClient kubernetes.Interface, tsClient versioned.Interface
 		tsInformer:       informerFactory.Networking().V1alpha1().TrafficSteerings().Informer(),
 		eventBroadcaster: broadcaster,
 		eventRecorder:    recorder,
-		m:                newManager(),
+		m:                newManager(egressMap),
+		stopCh:           make(chan struct{}),
 	}
 
 	_, c.nodeController = informer.NewInformer(
@@ -224,7 +227,7 @@ func (c *Controller) handlePod(curr interface{}) {
 	scopedLog := log.WithField("name", pod.Name).WithField("namespace", pod.Namespace)
 	podIP, err := ipOf(pod)
 	if err != nil {
-		scopedLog.WithError(err).Error("failed to extract pod IP")
+		scopedLog.WithError(err).Debug("failed to extract pod IP")
 		return
 	}
 
@@ -246,7 +249,7 @@ func (c *Controller) delPod(obj interface{}) {
 	scopedLog := log.WithField("name", pod.Name).WithField("namespace", pod.Namespace)
 	podIP, err := ipOf(pod)
 	if err != nil {
-		scopedLog.WithError(err).Error("failed to extract pod IP")
+		scopedLog.WithError(err).Debug("failed to extract pod IP")
 		return
 	}
 
@@ -309,25 +312,24 @@ func (c *Controller) handleNode(curr interface{}) {
 	c.nodeLabels = currNode.GetLabels()
 }
 
-// Run starts the controller and waits for stop.
-func (c *Controller) Run() {
+func (c *Controller) Start(ctx context.Context) error {
 	log.Info("Starting traffic steering controller")
-	go c.nodeController.Run(wait.NeverStop)
-	if ok := cache.WaitForNamedCacheSync("nodes", wait.NeverStop, c.nodeController.HasSynced); !ok {
-		log.Error("Failed to wait for node caches to sync")
-		return
+	go c.nodeController.Run(c.stopCh)
+	if ok := cache.WaitForNamedCacheSync("nodes", ctx.Done(), c.nodeController.HasSynced); !ok {
+		return fmt.Errorf("failed to wait for node caches to sync")
 	}
-	go c.tsInformer.Run(wait.NeverStop)
-	if ok := cache.WaitForNamedCacheSync("trafficsteering", wait.NeverStop, c.tsInformer.HasSynced); !ok {
-		log.Error("Failed to wait for trafficsteering caches to sync")
-		return
+	go c.tsInformer.Run(c.stopCh)
+	if ok := cache.WaitForNamedCacheSync("trafficsteering", ctx.Done(), c.tsInformer.HasSynced); !ok {
+		return fmt.Errorf("failed to wait for trafficsteering caches to sync")
 	}
-	go c.podController.Run(wait.NeverStop)
-	if ok := cache.WaitForNamedCacheSync("pods", wait.NeverStop, c.podController.HasSynced); !ok {
-		log.Error("Failed to wait for pod caches to sync")
-		return
+	go c.podController.Run(c.stopCh)
+	if ok := cache.WaitForNamedCacheSync("pods", ctx.Done(), c.podController.HasSynced); !ok {
+		return fmt.Errorf("failed to wait for pod caches to sync")
 	}
-	<-wait.NeverStop
+	return nil
+}
+
+func (c *Controller) Stop() {
 	log.Info("Shutting down traffic steering controller")
-	return
+	close(c.stopCh)
 }

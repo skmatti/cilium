@@ -11,7 +11,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 )
 
-type egressMapInterface interface {
+type EgressMapInterface interface {
 	Update(key, value interface{}, flags ebpf.MapUpdateFlags) error
 	Delete(key interface{}) error
 }
@@ -21,14 +21,14 @@ type egressMapInterface interface {
 type manager struct {
 	tsConfigs map[types.NamespacedName]*tsConfig
 	podIPs    map[string]net.IP
-	egressMap egressMapInterface
+	egressMap EgressMapInterface
 }
 
-func newManager() *manager {
+func newManager(egressMap EgressMapInterface) *manager {
 	return &manager{
 		tsConfigs: make(map[types.NamespacedName]*tsConfig),
 		podIPs:    make(map[string]net.IP),
-		egressMap: egressmap.EgressPolicyMap.Map,
+		egressMap: egressMap,
 	}
 }
 
