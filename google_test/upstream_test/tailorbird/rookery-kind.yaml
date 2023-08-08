@@ -4,7 +4,7 @@ metadata:
   name: gke-advanced-datapath-k8s-conformance-test-rookery
   namespace: tailorbird-users
 spec:
-  ttlSeconds: 172800 # 2 days
+  ttlSeconds: 7200 # 2 hrs
   knests:
   - apiVersion: sut.tailorbird.io/v1alpha1
     kind: Knest
