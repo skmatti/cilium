@@ -3,7 +3,7 @@
 
 QUIET ?= @
 GO_BUILD_SLIM := go build -mod=vendor
-GO_BUILD_IMAGE := golang:1.20
+GO_BUILD_IMAGE := golang:1.19.12
 IMAGE_VERSION ?= latest
 DOCKER_IMAGE_TAG ?= $(IMAGE_VERSION)
 
