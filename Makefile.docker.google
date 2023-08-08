@@ -5,6 +5,9 @@
 # $(3) image name stem (e.g., cilium, cilium-operator, etc)
 # $(4) image tag
 #
+
+GOLANG_IMAGE:=docker.io/library/golang:1.19.12@sha256:6b3fa4b908676231b50acbbc00e84d8cee9c6ce072b1175c0ff352c57d8a612f
+
 define DPV2_IMAGE_TEMPLATE
 .PHONY: $(1)
 $(1):
@@ -13,6 +16,7 @@ $(1):
 	$(QUIET) $(CONTAINER_ENGINE) buildx build -f $(subst %,$$*,$(2)) \
 		$(DOCKER_BUILD_FLAGS) $(DOCKER_FLAGS) \
 		--build-arg BASE_IMAGE=${BASE_IMAGE} \
+		--build-arg GOLANG_IMAGE=${GOLANG_IMAGE} \
 		--build-arg NOSTRIP=$${NOSTRIP} \
 		--build-arg NOOPT=${NOOPT} \
 		--build-arg LOCKDEBUG=${LOCKDEBUG} \
@@ -31,11 +35,13 @@ $(eval $(call DPV2_IMAGE_TEMPLATE,docker-dpv2-image,images/cilium/Dockerfile,cil
 
 docker-cilium-runtime-image:
 	docker buildx build $(DOCKER_FLAGS) \
+		--build-arg GOLANG_IMAGE=${GOLANG_IMAGE} \
 		-t $(RUNTIME_IMAGE_TAG) $(ROOT_DIR)/images/runtime
 
 docker-cilium-builder-image:
 	docker buildx build $(DOCKER_FLAGS) \
 		--build-arg CILIUM_RUNTIME_IMAGE=$(RUNTIME_IMAGE_TAG) \
+		--build-arg GOLANG_IMAGE=${GOLANG_IMAGE} \
 		-t $(BUILDER_IMAGE_TAG) $(ROOT_DIR)/images/builder
 
 # variables to be passed into docker-dpv2-image target
