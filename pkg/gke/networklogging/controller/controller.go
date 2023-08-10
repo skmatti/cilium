@@ -147,6 +147,14 @@ func (c *Controller) validateObj(obj interface{}) (*v1alpha1.NetworkLogging, err
 		return nl, fmt.Errorf("cluster deny log action is invalid: %v", err)
 	}
 
+	if err := validateLogAction(nl.Spec.Node.Allow); err != nil {
+		return nl, fmt.Errorf("node allow log action is invalid: %v", err)
+	}
+
+	if err := validateLogAction(nl.Spec.Node.Deny); err != nil {
+		return nl, fmt.Errorf("node deny log action is invalid: %v", err)
+	}
+
 	return nl, nil
 }
 

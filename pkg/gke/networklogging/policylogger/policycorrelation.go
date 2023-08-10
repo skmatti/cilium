@@ -223,6 +223,9 @@ func k8sResourceForPolicyLabelSet(labelSet labels.LabelArray) (Policy, bool) {
 	return Policy{}, false
 }
 
+// correlatePolicy attempts to resolve the policies that match the flow.
+// This method should only return an empty, non-nil slice of policies if
+// LogClusterMeshRemoteEndpoint configuration value is true.
 func (p *policyCorrelation) correlatePolicy(f *flow.Flow) ([]*Policy, error) {
 	if f.GetEventType().GetType() != int32(api.MessageTypePolicyVerdict) ||
 		f.GetVerdict() != flow.Verdict_FORWARDED {
@@ -237,7 +240,7 @@ func (p *policyCorrelation) correlatePolicy(f *flow.Flow) ([]*Policy, error) {
 	epInfo, ok := p.endpointGetter.GetEndpointInfo(endpointIP)
 	if !ok {
 		log.WithField(logfields.IPAddr, endpointIP).
-			Warn("dropping policy verdict notification for unknown endpoint")
+			Debug("could not resolve endpointInfo from IP")
 		return nil, nil
 	}
 	ep, ok := epInfo.(endpointPolicyGetter)

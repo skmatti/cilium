@@ -27,6 +27,10 @@ const (
 	verdictLabelAllow = "allow"
 	verdictLabelDeny  = "deny"
 
+	// Correlated values for verdict.
+	policyCorrelatedLabel   = "correlated"
+	policyUncorrelatedLabel = "uncorrelated"
+
 	// Label value for error reason.
 	// These errors should happen very rarely.
 	errorReasonParsing          = "parse_flow_fail"
@@ -76,6 +80,12 @@ var (
 		Name:      "log_count",
 		Help:      "Total policy logs written to the disk.",
 	}, []string{"enforcement", "verdict"})
+	policyLoggingAllowedFlowProcessedCount = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "",
+		Subsystem: "policy_logging",
+		Name:      "allowed_flow_processed_count",
+		Help:      "Total allowed flows processed.",
+	}, []string{"correlated"})
 	policyLoggingDropCount = prometheus.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "",
 		Subsystem: "policy_logging",
@@ -103,6 +113,7 @@ func metricsCollectors() []prometheus.Collector {
 		policyLoggingEnabled,
 		policyLoggingReady,
 		policyLoggingLogCount,
+		policyLoggingAllowedFlowProcessedCount,
 		policyLoggingEventCount,
 		policyLoggingErrorCount,
 		policyLoggingDropCount,
@@ -123,4 +134,11 @@ func enforcementLabel(isNode bool) string {
 		return enforcementLabelNode
 	}
 	return enforcementLabelPod
+}
+
+func correlatedLabel(correlated bool) string {
+	if correlated {
+		return policyCorrelatedLabel
+	}
+	return policyUncorrelatedLabel
 }

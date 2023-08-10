@@ -26,11 +26,6 @@ func isAllow(f *flow.Flow) bool {
 	return f.GetVerdict() == flow.Verdict_FORWARDED
 }
 
-func isNodeTraffic(entry *PolicyActionLogEntry) bool {
-	// GKE node network policy is enabled for ingress connections only.
-	return entry.Connection.Direction == ConnectionDirectionIngress && entry.Dest.PodName == ""
-}
-
 func (n *networkPolicyLogger) flowToPolicyActionLogEntry(f *flow.Flow) (*PolicyActionLogEntry, error) {
 	var entry PolicyActionLogEntry
 	var conn = &entry.Connection
@@ -66,8 +61,7 @@ func (n *networkPolicyLogger) flowToPolicyActionLogEntry(f *flow.Flow) (*PolicyA
 		conn.Protocol = "unknown"
 	}
 
-	wl := f.GetSource()
-	if wl != nil && wl.GetPodName() != "" {
+	if wl := f.GetSource(); wl != nil && wl.GetPodName() != "" {
 		if len(wl.Workloads) != 0 {
 			entry.Src = Workload{
 				PodName:      wl.GetPodName(),
@@ -83,14 +77,13 @@ func (n *networkPolicyLogger) flowToPolicyActionLogEntry(f *flow.Flow) (*PolicyA
 				Namespace:    wl.GetNamespace(),
 			}
 		}
-
 	} else {
 		entry.Src = Workload{
 			Instance: conn.SrcIP,
 		}
 	}
-	wl = f.GetDestination()
-	if wl != nil && wl.GetPodName() != "" {
+
+	if wl := f.GetDestination(); wl != nil && wl.GetPodName() != "" {
 		if len(wl.Workloads) != 0 {
 			entry.Dest = Workload{
 				PodName:      wl.GetPodName(),
@@ -111,6 +104,7 @@ func (n *networkPolicyLogger) flowToPolicyActionLogEntry(f *flow.Flow) (*PolicyA
 			Instance: conn.DestIP,
 		}
 	}
+
 	entry.Count = 1
 	if n.cfg.logNodeName {
 		entry.NodeName = f.GetNodeName()
@@ -121,10 +115,20 @@ func (n *networkPolicyLogger) flowToPolicyActionLogEntry(f *flow.Flow) (*PolicyA
 		entry.Timestamp = time.Now()
 	}
 
-	if isNodeTraffic(&entry) {
-		// Node policy correlation is not supported yet.
+	if entry.isNodeTraffic() {
+		if conn.Direction == ConnectionDirectionIngress {
+			entry.Dest.Instance = ""
+			entry.Dest.NodeName = f.GetNodeName()
+			entry.Dest.WorkloadKind = "Node"
+		}
+		if conn.Direction == ConnectionDirectionEgress {
+			entry.Src.Instance = ""
+			entry.Src.NodeName = f.GetNodeName()
+			entry.Src.WorkloadKind = "Node"
+		}
 		return &entry, nil
 	}
+
 	if policies, err := n.policyCorrelator.correlatePolicy(f); err != nil {
 		return nil, err
 	} else {

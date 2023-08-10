@@ -37,6 +37,7 @@ type PolicyLoggerConfiguration struct {
 	DenyAggregationSeconds *uint   `yaml:"denyAggregationSeconds"`
 	DenyAggregationMapSize *uint   `yaml:"denyAggregationMapSize"`
 	LogNodeName            *bool   `yaml:"logNodeName"`
+	LogUncorrelatedEntry   *bool   `yaml:"logUncorrelatedEntry"`
 }
 
 type policyLoggerConfig struct {
@@ -67,6 +68,11 @@ type policyLoggerConfig struct {
 
 	// logNodeName decides if node name should be logged in the log output.
 	logNodeName bool
+
+	// logUncorrelatedEntry enables logging uncorrelated entries.
+	// In particular, this happens for remote endpoints that cannot
+	// be resolved by the local endpoint getter.
+	logUncorrelatedEntry bool
 }
 
 func (c *policyLoggerConfig) print() string {
@@ -80,6 +86,7 @@ func (c *policyLoggerConfig) print() string {
 		fmt.Sprintf("deny-aggregation-seconds: %d", c.denyAggregationSeconds),
 		fmt.Sprintf("deny-aggregation-map-size: %d", c.denyAggregationMapSize),
 		fmt.Sprintf("log-node-name: %v", c.logNodeName),
+		// Don't log logClusterMeshRemoteEndpoint value.
 	}
 	return strings.Join(str, ", ")
 }
@@ -96,6 +103,7 @@ var defaultConfig = policyLoggerConfig{
 	denyAggregationSeconds: 5, // seconds
 	denyAggregationMapSize: 3000,
 	logNodeName:            true,
+	logUncorrelatedEntry:   false,
 }
 
 // loadInternalConfig read configuration from file if it exist
@@ -146,6 +154,9 @@ func loadInternalConfig(file string) *policyLoggerConfig {
 	}
 	if userConfig.LogNodeName != nil {
 		cfg.logNodeName = *userConfig.LogNodeName
+	}
+	if userConfig.LogUncorrelatedEntry != nil {
+		cfg.logUncorrelatedEntry = *userConfig.LogUncorrelatedEntry
 	}
 	return &cfg
 }
