@@ -37,6 +37,8 @@ var (
 
 type GKEFlowOptions struct {
 	DisablePolicyEventCountMetric bool
+
+	HubblePolicyCorrelationEnabled bool
 }
 
 type gkeFlowPlugin struct {
@@ -112,7 +114,7 @@ func (p *gkeFlowPlugin) OnServerInit(srv observeroption.Server) error {
 	// networkLoggingstopCh is used to only signal closing. So it doesn't needs any buffer
 	// and will only have open and close operations.
 	p.networkLoggingStopCh = make(chan struct{})
-	p.networkLoggingController, err = nlcontroller.NewController(kubeConfig, p.networkLoggingStopCh, p.dispatcher, p.endpointGetter, p.storeGetter)
+	p.networkLoggingController, err = nlcontroller.NewController(kubeConfig, p.networkLoggingStopCh, p.dispatcher, p.endpointGetter, p.storeGetter, nlcontroller.WithHubblePolicyCorrelation(p.options.HubblePolicyCorrelationEnabled))
 	if err != nil {
 		log.Errorf("Failed to create network logging controller: %v", err)
 		return err

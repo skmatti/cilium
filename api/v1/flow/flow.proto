@@ -12,6 +12,10 @@ option go_package = "github.com/cilium/cilium/api/v1/flow";
 
 message Flow {
     google.protobuf.Timestamp time = 1;
+
+    // uuid is a universally unique identifier for this flow.
+    string uuid = 34;
+
     Verdict verdict = 2;
 
     // only applicable to Verdict = DROPPED.
@@ -102,6 +106,10 @@ message Flow {
     // cgroup_id of the process which emitted this event.
     // Only applicable to TraceSock notifications, zero for other types
     uint64 cgroup_id = 33;
+
+    // CorrelatedPolicies stores the policies that match the flow.
+    // Only applicable to the cilium event type PolicyVerdict.
+    repeated Policy correlated_policies = 50;
 
     // This is a temporary workaround to support summary field for pb.Flow without
     // duplicating logic from the old parser. This field will be removed once we
@@ -411,6 +419,8 @@ message CiliumEventType {
 // FlowFilter represent an individual flow filter. All fields are optional. If
 // multiple fields are set, then all fields must match for the filter to match.
 message FlowFilter {
+    // uuid filters by a list of flow uuids.
+    repeated string uuid = 29;
     // source_ip filters by a list of source ips. Each of the source ips can be
     // specified as an exact match (e.g. "1.1.1.1") or as a CIDR range (e.g.
     // "1.1.1.0/24").
@@ -633,6 +643,12 @@ message PolicyUpdateNotification {
     repeated string labels = 1;
     uint64 revision = 2;
     int64 rule_count = 3;
+}
+
+message Policy {
+    string kind = 1;
+    string name = 2;
+    string namespace = 3;
 }
 
 message EndpointRegenNotification {

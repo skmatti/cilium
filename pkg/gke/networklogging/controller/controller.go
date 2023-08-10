@@ -70,13 +70,19 @@ type Controller struct {
 	storeGetter    getters.StoreGetter
 	stopCh         chan struct{}
 
-	policyLogger         policylogger.Logger
-	policyLoggingEnabled bool
+	policyLogger            policylogger.Logger
+	policyLoggingEnabled    bool
+	hubblePolicyCorrelation bool
+}
+
+func WithHubblePolicyCorrelation(v bool) func(*Controller) {
+	return func(n *Controller) {
+		n.hubblePolicyCorrelation = v
+	}
 }
 
 // newController returns a new controller for network logging.
-func NewController(kubeConfig *rest.Config, stopCh chan struct{}, dispatcher dispatcher.Dispatcher, endpointGetter getters.EndpointGetter, storeGetter getters.StoreGetter) (*Controller, error) {
-
+func NewController(kubeConfig *rest.Config, stopCh chan struct{}, dispatcher dispatcher.Dispatcher, endpointGetter getters.EndpointGetter, storeGetter getters.StoreGetter, opts ...func(*Controller)) (*Controller, error) {
 	log.Info("New network logging controller")
 
 	kubeClient, err := kubernetes.NewForConfig(kubeConfig)
@@ -104,12 +110,15 @@ func NewController(kubeConfig *rest.Config, stopCh chan struct{}, dispatcher dis
 		dispatcher:             dispatcher,
 		endpointGetter:         endpointGetter,
 		storeGetter:            storeGetter,
-		policyLogger:           policylogger.NewLogger(dispatcher, endpointGetter, storeGetter),
 		eventRecorder:          recorder,
 		eventBroadcaster:       broadcaster,
 		policyLoggingEnabled:   false,
 		stopCh:                 stopCh,
 	}
+	for _, opt := range opts {
+		opt(c)
+	}
+	c.policyLogger = policylogger.NewLogger(dispatcher, endpointGetter, storeGetter, policylogger.WithHubblePolicyCorrelation(c.hubblePolicyCorrelation))
 
 	c.networkLoggingInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc:    func(obj interface{}) { c.updateHandler(obj) },

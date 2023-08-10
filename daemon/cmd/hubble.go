@@ -47,6 +47,7 @@ import (
 	"github.com/cilium/cilium/pkg/logging/logfields"
 	"github.com/cilium/cilium/pkg/option"
 	"github.com/cilium/cilium/pkg/policy"
+	"github.com/cilium/cilium/pkg/policy/correlation"
 )
 
 func (d *Daemon) getHubbleStatus(ctx context.Context) *models.HubbleStatus {
@@ -140,7 +141,11 @@ func (d *Daemon) launchHubble() {
 	}
 
 	d.linkCache = link.NewLinkCache()
-	payloadParser, err := parser.New(logger, d, d, d, d, d, d.linkCache, d.cgroupManager)
+	if option.Config.EnableHubbleCorrelatePolicies {
+		d.correlator = correlation.NewPolicyCorrelator(d)
+	}
+
+	payloadParser, err := parser.New(logger, d, d, d, d, d, d.linkCache, d.cgroupManager, d.correlator)
 	if err != nil {
 		logger.WithError(err).Error("Failed to initialize Hubble")
 		return
@@ -153,7 +158,8 @@ func (d *Daemon) launchHubble() {
 	}
 
 	gkeOpts := gkeflow.GKEFlowOptions{
-		DisablePolicyEventCountMetric: option.Config.DisablePolicyEventCountMetric,
+		DisablePolicyEventCountMetric:  option.Config.DisablePolicyEventCountMetric,
+		HubblePolicyCorrelationEnabled: option.Config.EnableHubbleCorrelatePolicies,
 	}
 	gkeFlowPlugin := gkeflow.New(gkeOpts)
 	observerOpts = append(observerOpts,

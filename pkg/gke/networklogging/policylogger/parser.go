@@ -19,12 +19,9 @@ import (
 	"time"
 
 	"github.com/cilium/cilium/api/v1/flow"
+	"github.com/cilium/cilium/pkg/policy/api"
 	"github.com/golang/protobuf/ptypes"
 )
-
-func isAllow(f *flow.Flow) bool {
-	return f.GetVerdict() == flow.Verdict_FORWARDED
-}
 
 func (n *networkPolicyLogger) flowToPolicyActionLogEntry(f *flow.Flow) (*PolicyActionLogEntry, error) {
 	var entry PolicyActionLogEntry
@@ -37,7 +34,7 @@ func (n *networkPolicyLogger) flowToPolicyActionLogEntry(f *flow.Flow) (*PolicyA
 	default:
 		return nil, fmt.Errorf("unknown direction %d", f.GetTrafficDirection())
 	}
-	if f.GetVerdict() == flow.Verdict_FORWARDED {
+	if api.IsFlowAllowed(f) {
 		entry.Disposition = PolicyDispositionAllow
 	} else {
 		entry.Disposition = PolicyDispositionDeny
@@ -129,7 +126,13 @@ func (n *networkPolicyLogger) flowToPolicyActionLogEntry(f *flow.Flow) (*PolicyA
 		return &entry, nil
 	}
 
-	if policies, err := n.policyCorrelator.correlatePolicy(f); err != nil {
+	// If correlation is enabled, this has already been performed on the flow object.
+	if n.hubblePolicyCorrelation {
+		entry.Policies = f.CorrelatedPolicies
+		return &entry, nil
+	}
+
+	if policies, err := n.policyCorrelator.Correlate(f); err != nil {
 		return nil, err
 	} else {
 		entry.Policies = policies

@@ -237,6 +237,9 @@ const (
 	// EnableHostFirewall enables network policies for the host
 	EnableHostFirewall = "enable-host-firewall"
 
+	// EnableHubbleCorrelatePolicies enables policy correlation for hubble flows.
+	EnableHubbleCorrelatePolicies = "enable-hubble-correlate-policies"
+
 	// DisablePolicyEventCountMetric  disables the policy event count metric on this host.
 	DisablePolicyEventCountMetric = "disable-policy-event-count-metric"
 
@@ -2186,6 +2189,9 @@ type DaemonConfig struct {
 	// EnableHubbleOpenMetrics enables exporting hubble metrics in OpenMetrics format.
 	EnableHubbleOpenMetrics bool
 
+	// EnableHubbleCorrelatePolicies specifies whether to enable policy correlation.
+	EnableHubbleCorrelatePolicies bool
+
 	// HubbleRecorderStoragePath specifies the directory in which pcap files
 	// created via the Hubble Recorder API are stored
 	HubbleRecorderStoragePath string
@@ -2436,6 +2442,8 @@ var (
 		ExternalClusterIP:     defaults.ExternalClusterIP,
 		EnableVTEP:            defaults.EnableVTEP,
 		EnableBGPControlPlane: defaults.EnableBGPControlPlane,
+
+		EnableHubbleCorrelatePolicies: defaults.EnableHubbleCorrelatePolicies,
 	}
 )
 
@@ -3434,6 +3442,7 @@ func (c *DaemonConfig) Populate(vp *viper.Viper) {
 	c.BypassIPAvailabilityUponRestore = vp.GetBool(BypassIPAvailabilityUponRestore)
 	c.EnableK8sTerminatingEndpoint = vp.GetBool(EnableK8sTerminatingEndpoint)
 	c.EnableStaleCiliumEndpointCleanup = vp.GetBool(EnableStaleCiliumEndpointCleanup)
+	c.EnableHubbleCorrelatePolicies = vp.GetBool(EnableHubbleCorrelatePolicies)
 
 	// Disable Envoy version check if L7 proxy is disabled.
 	c.DisableEnvoyVersionCheck = vp.GetBool(DisableEnvoyVersionCheck)

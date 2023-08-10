@@ -84,6 +84,7 @@ import (
 	"github.com/cilium/cilium/pkg/option"
 	"github.com/cilium/cilium/pkg/policy"
 	policyAPI "github.com/cilium/cilium/pkg/policy/api"
+	"github.com/cilium/cilium/pkg/policy/correlation"
 	"github.com/cilium/cilium/pkg/probe"
 	"github.com/cilium/cilium/pkg/proxy"
 	"github.com/cilium/cilium/pkg/rate"
@@ -178,7 +179,11 @@ type Daemon struct {
 	// endpoint's routing in ENI or Azure IPAM mode
 	healthEndpointRouting *linuxrouting.RoutingInfo
 
-	linkCache      *link.LinkCache
+	linkCache *link.LinkCache
+
+	// correlator correlates policies for hubble flows.
+	correlator correlation.Correlator
+
 	hubbleObserver *observer.LocalObserverServer
 
 	// k8sCachesSynced is closed when all essential Kubernetes caches have

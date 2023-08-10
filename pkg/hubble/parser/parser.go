@@ -22,6 +22,7 @@ import (
 	"github.com/cilium/cilium/pkg/hubble/parser/sock"
 	"github.com/cilium/cilium/pkg/hubble/parser/threefour"
 	monitorAPI "github.com/cilium/cilium/pkg/monitor/api"
+	"github.com/cilium/cilium/pkg/policy/correlation"
 	"github.com/cilium/cilium/pkg/proxy/accesslog"
 )
 
@@ -43,10 +44,11 @@ func New(
 	serviceGetter getters.ServiceGetter,
 	linkGetter getters.LinkGetter,
 	cgroupGetter getters.PodMetadataGetter,
+	correlator correlation.Correlator,
 	opts ...options.Option,
 ) (*Parser, error) {
 
-	l34, err := threefour.New(log, endpointGetter, identityGetter, dnsGetter, ipGetter, serviceGetter, linkGetter)
+	l34, err := threefour.New(log, endpointGetter, identityGetter, dnsGetter, ipGetter, serviceGetter, linkGetter, correlator)
 	if err != nil {
 		return nil, err
 	}
@@ -127,6 +129,7 @@ func (p *Parser) Decode(monitorEvent *observerTypes.MonitorEvent) (*v1.Event, er
 				return nil, err
 			}
 		}
+		flow.Uuid = monitorEvent.UUID.String()
 		// FIXME: Time and NodeName are now part of GetFlowsResponse. We
 		// populate these fields for compatibility with old clients.
 		flow.Time = ts
@@ -144,6 +147,7 @@ func (p *Parser) Decode(monitorEvent *observerTypes.MonitorEvent) (*v1.Event, er
 			if err := p.l7.Decode(&logrecord, flow); err != nil {
 				return nil, err
 			}
+			flow.Uuid = monitorEvent.UUID.String()
 			// FIXME: Time and NodeName are now part of GetFlowsResponse. We
 			// populate these fields for compatibility with old clients.
 			flow.Time = ts

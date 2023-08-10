@@ -11,6 +11,8 @@ import (
 	"net"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
 	"github.com/sirupsen/logrus"
@@ -25,12 +27,14 @@ import (
 	"github.com/cilium/cilium/pkg/hubble/testutils"
 	"github.com/cilium/cilium/pkg/identity"
 	"github.com/cilium/cilium/pkg/ipcache"
+	k8sConst "github.com/cilium/cilium/pkg/k8s/apis/cilium.io"
 	slim_corev1 "github.com/cilium/cilium/pkg/k8s/slim/k8s/api/core/v1"
 	slim_metav1 "github.com/cilium/cilium/pkg/k8s/slim/k8s/apis/meta/v1"
 	"github.com/cilium/cilium/pkg/labels"
 	"github.com/cilium/cilium/pkg/monitor"
 	monitorAPI "github.com/cilium/cilium/pkg/monitor/api"
 	"github.com/cilium/cilium/pkg/policy"
+	"github.com/cilium/cilium/pkg/policy/correlation"
 	"github.com/cilium/cilium/pkg/policy/trafficdirection"
 	"github.com/cilium/cilium/pkg/source"
 )
@@ -45,7 +49,7 @@ func init() {
 func TestL34DecodeEmpty(t *testing.T) {
 	parser, err := New(log, &testutils.NoopEndpointGetter, &testutils.NoopIdentityGetter,
 		&testutils.NoopDNSGetter, &testutils.NoopIPGetter, &testutils.NoopServiceGetter,
-		&testutils.NoopLinkGetter)
+		&testutils.NoopLinkGetter, &correlation.NoopCorrelator)
 	require.NoError(t, err)
 
 	var d []byte
@@ -146,7 +150,7 @@ func TestL34Decode(t *testing.T) {
 		},
 	}
 	identityCache := &testutils.NoopIdentityGetter
-	parser, err := New(log, endpointGetter, identityCache, dnsGetter, ipGetter, serviceGetter, &testutils.NoopLinkGetter)
+	parser, err := New(log, endpointGetter, identityCache, dnsGetter, ipGetter, serviceGetter, &testutils.NoopLinkGetter, &correlation.NoopCorrelator)
 	require.NoError(t, err)
 
 	f := &flowpb.Flow{}
@@ -179,7 +183,7 @@ func TestL34Decode(t *testing.T) {
 
 	assert.Equal(t, flowpb.TraceObservationPoint_FROM_HOST, f.GetTraceObservationPoint())
 
-	nilParser, err := New(log, nil, nil, nil, nil, nil, nil)
+	nilParser, err := New(log, nil, nil, nil, nil, nil, nil, nil)
 	require.NoError(t, err)
 	err = nilParser.Decode(d, f)
 	require.NoError(t, err)
@@ -220,7 +224,7 @@ func TestL34Decode(t *testing.T) {
 	}
 	ipGetter = &testutils.NoopIPGetter
 	serviceGetter = &testutils.NoopServiceGetter
-	parser, err = New(log, endpointGetter, identityCache, dnsGetter, ipGetter, serviceGetter, &testutils.NoopLinkGetter)
+	parser, err = New(log, endpointGetter, identityCache, dnsGetter, ipGetter, serviceGetter, &testutils.NoopLinkGetter, &correlation.NoopCorrelator)
 	require.NoError(t, err)
 
 	err = parser.Decode(d2, f)
@@ -247,6 +251,102 @@ func TestL34Decode(t *testing.T) {
 
 	err = nilParser.Decode(d, f)
 	require.NoError(t, err)
+
+}
+
+func TestL34Decode_Correlation(t *testing.T) {
+
+	sourceIP := "192.168.60.11"
+	dstIP := "10.16.236.178"
+	namespace := "default"
+	slimPod := &slim_corev1.Pod{
+		ObjectMeta: slim_metav1.ObjectMeta{
+			OwnerReferences: []slim_metav1.OwnerReference{
+				{
+					Kind: "ReplicaSet",
+					Name: "pod",
+				},
+			},
+		},
+	}
+
+	// Policy verdict data.
+	//SOURCE          					DESTINATION           TYPE   SUMMARY		DIRECTION
+	//192.168.60.11:6443(sun-sr-https)  10.16.236.178:54222   L3/4   TCP Flags: ACK	EGRESS
+	d := []byte{
+		5, 7, 0, 0, 7, 124, 26, 57, 66, 0, 0, 0, 66, 0, 0, 0, // MessageTypePolicyVerdict
+		1, 0, 0, 0, // source labels
+		0, 0, 0, 0, // destination labels
+		0, 0, // destination ID
+		0x80,       // encrypt  bit
+		0,          // flags
+		0, 0, 0, 0, // ifindex
+		246, 141, 178, 45, 33, 217, 246, 141, 178,
+		45, 33, 217, 8, 0, 69, 0, 0, 52, 234, 28, 64, 0, 64, 6, 120, 49, 192,
+		168, 60, 11, 10, 16, 236, 178, 25, 43, 211, 206, 42, 239, 210, 28, 180,
+		152, 129, 103, 128, 16, 1, 152, 216, 156, 0, 0, 1, 1, 8, 10, 0, 90, 176,
+		98, 0, 90, 176, 97, 0, 0}
+
+	endpointGetter := &testutils.FakeEndpointGetter{
+		OnGetEndpointInfo: func(ip net.IP) (endpoint v1.EndpointInfo, ok bool) {
+			if ip.Equal(net.ParseIP(sourceIP)) {
+				return &testutils.FakeEndpointInfo{
+					ID:           3333,
+					Identity:     4444,
+					PodName:      "pod-" + sourceIP,
+					PodNamespace: namespace,
+					Pod:          slimPod,
+					PolicyMap: map[policy.Key]labels.LabelArrayList{
+						// Key represents an L3 Policy.
+						{Identity: 1, DestPort: 0, Nexthdr: 0, TrafficDirection: 1}: {
+							{
+								{
+									Source: string(source.Kubernetes),
+									Key:    k8sConst.PolicyLabelName,
+									Value:  "np",
+								},
+								{
+									Source: string(source.Kubernetes),
+									Key:    k8sConst.PolicyLabelNamespace,
+									Value:  namespace,
+								},
+								{
+									Source: string(source.Kubernetes),
+									Key:    k8sConst.PolicyLabelDerivedFrom,
+									Value:  "NetworkPolicy",
+								},
+							},
+						},
+					},
+				}, true
+			}
+			if ip.Equal(net.ParseIP(dstIP)) {
+				return &testutils.FakeEndpointInfo{
+					ID:           1234,
+					Identity:     5678,
+					PodName:      "pod-" + dstIP,
+					PodNamespace: namespace,
+					Pod:          slimPod,
+				}, true
+			}
+			return nil, false
+		},
+	}
+
+	correlator := correlation.NewPolicyCorrelator(endpointGetter)
+	parser, err := New(log, endpointGetter, &testutils.NoopIdentityGetter, &testutils.NoopDNSGetter, &testutils.NoopIPGetter, &testutils.NoopServiceGetter, &testutils.NoopLinkGetter, correlator)
+	require.NoError(t, err)
+
+	f := &flowpb.Flow{}
+	err = parser.Decode(d, f)
+	require.NoError(t, err)
+
+	wantPolicies := []*flowpb.Policy{
+		{Kind: "NetworkPolicy", Namespace: "default", Name: "np"},
+	}
+	if diff := cmp.Diff(wantPolicies, f.CorrelatedPolicies, cmpopts.IgnoreUnexported(flowpb.Policy{})); diff != "" {
+		t.Errorf("Got diff for Policies (-want +got):\n%s", diff)
+	}
 }
 
 func BenchmarkL34Decode(b *testing.B) {
@@ -262,7 +362,7 @@ func BenchmarkL34Decode(b *testing.B) {
 	ipGetter := &testutils.NoopIPGetter
 	serviceGetter := &testutils.NoopServiceGetter
 	identityCache := &testutils.NoopIdentityGetter
-	parser, err := New(log, endpointGetter, identityCache, dnsGetter, ipGetter, serviceGetter, &testutils.NoopLinkGetter)
+	parser, err := New(log, endpointGetter, identityCache, dnsGetter, ipGetter, serviceGetter, &testutils.NoopLinkGetter, &correlation.NoopCorrelator)
 	require.NoError(b, err)
 
 	f := &flowpb.Flow{}
@@ -306,7 +406,7 @@ func TestDecodeTraceNotify(t *testing.T) {
 		return nil, fmt.Errorf("identity not found for %d", securityIdentity)
 	}}
 
-	parser, err := New(log, &testutils.NoopEndpointGetter, identityGetter, &testutils.NoopDNSGetter, &testutils.NoopIPGetter, &testutils.NoopServiceGetter, &testutils.NoopLinkGetter)
+	parser, err := New(log, &testutils.NoopEndpointGetter, identityGetter, &testutils.NoopDNSGetter, &testutils.NoopIPGetter, &testutils.NoopServiceGetter, &testutils.NoopLinkGetter, &correlation.NoopCorrelator)
 	require.NoError(t, err)
 
 	f := &flowpb.Flow{}
@@ -351,7 +451,7 @@ func TestDecodeDropNotify(t *testing.T) {
 		},
 	}
 
-	parser, err := New(log, &testutils.NoopEndpointGetter, identityGetter, &testutils.NoopDNSGetter, &testutils.NoopIPGetter, &testutils.NoopServiceGetter, &testutils.NoopLinkGetter)
+	parser, err := New(log, &testutils.NoopEndpointGetter, identityGetter, &testutils.NoopDNSGetter, &testutils.NoopIPGetter, &testutils.NoopServiceGetter, &testutils.NoopLinkGetter, &correlation.NoopCorrelator)
 	require.NoError(t, err)
 
 	f := &flowpb.Flow{}
@@ -372,7 +472,7 @@ func TestDecodePolicyVerdictNotify(t *testing.T) {
 		},
 	}
 
-	parser, err := New(log, &testutils.NoopEndpointGetter, identityGetter, &testutils.NoopDNSGetter, &testutils.NoopIPGetter, &testutils.NoopServiceGetter, &testutils.NoopLinkGetter)
+	parser, err := New(log, &testutils.NoopEndpointGetter, identityGetter, &testutils.NoopDNSGetter, &testutils.NoopIPGetter, &testutils.NoopServiceGetter, &testutils.NoopLinkGetter, &correlation.NoopCorrelator)
 	require.NoError(t, err)
 
 	// PolicyVerdictNotify for forwarded flow
@@ -432,7 +532,7 @@ func TestDecodeDropReason(t *testing.T) {
 	data, err := testutils.CreateL3L4Payload(dn)
 	require.NoError(t, err)
 
-	parser, err := New(log, nil, nil, nil, nil, nil, nil)
+	parser, err := New(log, nil, nil, nil, nil, nil, nil, nil)
 	require.NoError(t, err)
 
 	f := &flowpb.Flow{}
@@ -457,7 +557,7 @@ func TestDecodeLocalIdentity(t *testing.T) {
 		},
 	}
 
-	parser, err := New(log, nil, identityGetter, nil, nil, nil, nil)
+	parser, err := New(log, nil, identityGetter, nil, nil, nil, nil, nil)
 	require.NoError(t, err)
 
 	f := &flowpb.Flow{}
@@ -514,7 +614,7 @@ func TestDecodeTrafficDirection(t *testing.T) {
 		},
 	}
 
-	parser, err := New(log, endpointGetter, nil, nil, nil, nil, nil)
+	parser, err := New(log, endpointGetter, nil, nil, nil, nil, nil, nil)
 	require.NoError(t, err)
 	parseFlow := func(event interface{}, srcIPv4, dstIPv4 net.IP) *flowpb.Flow {
 		data, err := testutils.CreateL3L4Payload(event,
@@ -655,7 +755,7 @@ func TestDecodeIsReply(t *testing.T) {
 	localIP := net.ParseIP("1.2.3.4")
 	remoteIP := net.ParseIP("5.6.7.8")
 
-	parser, err := New(log, nil, nil, nil, nil, nil, nil)
+	parser, err := New(log, nil, nil, nil, nil, nil, nil, nil)
 	require.NoError(t, err)
 	parseFlow := func(event interface{}, srcIPv4, dstIPv4 net.IP) *flowpb.Flow {
 		data, err := testutils.CreateL3L4Payload(event,
@@ -798,7 +898,7 @@ func Test_filterCIDRLabels(t *testing.T) {
 
 func TestTraceNotifyOriginalIP(t *testing.T) {
 	f := &flowpb.Flow{}
-	parser, err := New(log, &testutils.NoopEndpointGetter, nil, &testutils.NoopDNSGetter, &testutils.NoopIPGetter, &testutils.NoopServiceGetter, &testutils.NoopLinkGetter)
+	parser, err := New(log, &testutils.NoopEndpointGetter, nil, &testutils.NoopDNSGetter, &testutils.NoopIPGetter, &testutils.NoopServiceGetter, &testutils.NoopLinkGetter, &correlation.NoopCorrelator)
 	require.NoError(t, err)
 
 	v0 := monitor.TraceNotifyV0{
@@ -836,7 +936,7 @@ func TestTraceNotifyOriginalIP(t *testing.T) {
 }
 
 func TestICMP(t *testing.T) {
-	parser, err := New(log, &testutils.NoopEndpointGetter, nil, &testutils.NoopDNSGetter, &testutils.NoopIPGetter, &testutils.NoopServiceGetter, &testutils.NoopLinkGetter)
+	parser, err := New(log, &testutils.NoopEndpointGetter, nil, &testutils.NoopDNSGetter, &testutils.NoopIPGetter, &testutils.NoopServiceGetter, &testutils.NoopLinkGetter, &correlation.NoopCorrelator)
 	require.NoError(t, err)
 	message := monitor.TraceNotifyV1{
 		TraceNotifyV0: monitor.TraceNotifyV0{
@@ -908,7 +1008,7 @@ func TestTraceNotifyLocalEndpoint(t *testing.T) {
 		},
 	}
 
-	parser, err := New(log, endpointGetter, nil, &testutils.NoopDNSGetter, &testutils.NoopIPGetter, &testutils.NoopServiceGetter, &testutils.NoopLinkGetter)
+	parser, err := New(log, endpointGetter, nil, &testutils.NoopDNSGetter, &testutils.NoopIPGetter, &testutils.NoopServiceGetter, &testutils.NoopLinkGetter, &correlation.NoopCorrelator)
 	require.NoError(t, err)
 
 	v0 := monitor.TraceNotifyV0{
@@ -943,7 +1043,7 @@ func TestTraceNotifyLocalEndpoint(t *testing.T) {
 func TestDebugCapture(t *testing.T) {
 	f := &flowpb.Flow{}
 
-	parser, err := New(log, &testutils.NoopEndpointGetter, &testutils.NoopIdentityGetter, &testutils.NoopDNSGetter, &testutils.NoopIPGetter, &testutils.NoopServiceGetter, &testutils.NoopLinkGetter)
+	parser, err := New(log, &testutils.NoopEndpointGetter, &testutils.NoopIdentityGetter, &testutils.NoopDNSGetter, &testutils.NoopIPGetter, &testutils.NoopServiceGetter, &testutils.NoopLinkGetter, &correlation.NoopCorrelator)
 	require.NoError(t, err)
 
 	// The testutils.NoopLinkGetter above will mock out the device name
@@ -986,7 +1086,7 @@ func TestDebugCapture(t *testing.T) {
 		Name:  loIfName,
 	}, f.Interface)
 
-	nilParser, err := New(log, nil, nil, nil, nil, nil, nil)
+	nilParser, err := New(log, nil, nil, nil, nil, nil, nil, nil)
 	require.NoError(t, err)
 	err = nilParser.Decode(data, f)
 	require.NoError(t, err)
@@ -1013,7 +1113,7 @@ func TestDebugCapture(t *testing.T) {
 
 func TestTraceNotifyProxyPort(t *testing.T) {
 	f := &flowpb.Flow{}
-	parser, err := New(log, &testutils.NoopEndpointGetter, nil, &testutils.NoopDNSGetter, &testutils.NoopIPGetter, &testutils.NoopServiceGetter, &testutils.NoopLinkGetter)
+	parser, err := New(log, &testutils.NoopEndpointGetter, nil, &testutils.NoopDNSGetter, &testutils.NoopIPGetter, &testutils.NoopServiceGetter, &testutils.NoopLinkGetter, &correlation.NoopCorrelator)
 	require.NoError(t, err)
 
 	v0 := monitor.TraceNotifyV0{

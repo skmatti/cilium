@@ -348,6 +348,7 @@ type AgentEvent_ServiceDelete = flow.AgentEvent_ServiceDelete
 type AgentEventUnknown = flow.AgentEventUnknown
 type TimeNotification = flow.TimeNotification
 type PolicyUpdateNotification = flow.PolicyUpdateNotification
+type Policy = flow.Policy
 type EndpointRegenNotification = flow.EndpointRegenNotification
 type EndpointUpdateNotification = flow.EndpointUpdateNotification
 type IPCacheNotification = flow.IPCacheNotification

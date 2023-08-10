@@ -16,6 +16,8 @@ package policylogger
 
 import (
 	"time"
+
+	"github.com/cilium/cilium/api/v1/flow"
 )
 
 const (
@@ -35,13 +37,6 @@ type Connection struct {
 	Direction string `json:"direction"`
 }
 
-// Policy stores the name and namespace of a network policy.
-type Policy struct {
-	Kind      string `json:"kind"`
-	Name      string `json:"name"`
-	Namespace string `json:"namespace,omitempty"`
-}
-
 // Workload stores the workload info. If the workload can be found
 // as a pod, PodName and PodNamespace are put into the structure. If the
 // workload can be found as a node, NodeName is put into the structure.
@@ -59,15 +54,15 @@ type Workload struct {
 // PolicyActionLogEntry is the exportable policy action logging
 // entry.
 type PolicyActionLogEntry struct {
-	Connection  Connection `json:"connection"`
-	Disposition string     `json:"disposition"`
-	Correlated  bool       `json:"-"`
-	Policies    []*Policy  `json:"policies,omitempty"`
-	Src         Workload   `json:"src"`
-	Dest        Workload   `json:"dest"`
-	Count       int        `json:"count"`
-	NodeName    string     `json:"node_name,omitempty"`
-	Timestamp   time.Time  `json:"timestamp"`
+	Connection  Connection     `json:"connection"`
+	Disposition string         `json:"disposition"`
+	Correlated  bool           `json:"-"`
+	Policies    []*flow.Policy `json:"policies,omitempty"`
+	Src         Workload       `json:"src"`
+	Dest        Workload       `json:"dest"`
+	Count       int            `json:"count"`
+	NodeName    string         `json:"node_name,omitempty"`
+	Timestamp   time.Time      `json:"timestamp"`
 }
 
 // AggregationKey is the key used to aggregate policy action logging entry.

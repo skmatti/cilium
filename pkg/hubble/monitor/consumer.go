@@ -6,6 +6,7 @@ package monitor
 import (
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/sirupsen/logrus"
 
 	observerTypes "github.com/cilium/cilium/pkg/hubble/observer/types"
@@ -52,6 +53,7 @@ func (c *consumer) sendNumLostEvents() {
 	}
 
 	numEventsLostNotification := &observerTypes.MonitorEvent{
+		UUID:      uuid.New(),
 		Timestamp: time.Now(),
 		NodeName:  nodeTypes.GetAbsoluteNodeName(),
 		Payload: &observerTypes.LostEvent{
@@ -101,6 +103,7 @@ func (c *consumer) logStartedDropping() {
 // NotifyAgentEvent implements monitorConsumer.MonitorConsumer
 func (c *consumer) NotifyAgentEvent(typ int, message interface{}) {
 	c.sendEvent(&observerTypes.MonitorEvent{
+		UUID:      uuid.New(),
 		Timestamp: time.Now(),
 		NodeName:  nodeTypes.GetAbsoluteNodeName(),
 		Payload: &observerTypes.AgentEvent{
@@ -113,6 +116,7 @@ func (c *consumer) NotifyAgentEvent(typ int, message interface{}) {
 // NotifyPerfEvent implements monitorConsumer.MonitorConsumer
 func (c *consumer) NotifyPerfEvent(data []byte, cpu int) {
 	c.sendEvent(&observerTypes.MonitorEvent{
+		UUID:      uuid.New(),
 		Timestamp: time.Now(),
 		NodeName:  nodeTypes.GetAbsoluteNodeName(),
 		Payload: &observerTypes.PerfEvent{
@@ -125,6 +129,7 @@ func (c *consumer) NotifyPerfEvent(data []byte, cpu int) {
 // NotifyPerfEventLost implements monitorConsumer.MonitorConsumer
 func (c *consumer) NotifyPerfEventLost(numLostEvents uint64, cpu int) {
 	c.sendEvent(&observerTypes.MonitorEvent{
+		UUID:      uuid.New(),
 		Timestamp: time.Now(),
 		NodeName:  nodeTypes.GetAbsoluteNodeName(),
 		Payload: &observerTypes.LostEvent{

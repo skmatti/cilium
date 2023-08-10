@@ -9,7 +9,7 @@
 // permission is obtained from Isovalent Inc.
 
 // THE FILE IS MODIFIED FROM ISOVALENT hubble-flow-policy-metadata PLUGIN.
-package policylogger
+package correlation
 
 import (
 	"errors"
@@ -20,25 +20,45 @@ import (
 	"github.com/cilium/cilium/pkg/identity"
 	k8sConst "github.com/cilium/cilium/pkg/k8s/apis/cilium.io"
 	"github.com/cilium/cilium/pkg/labels"
+	"github.com/cilium/cilium/pkg/logging"
 	"github.com/cilium/cilium/pkg/logging/logfields"
 	"github.com/cilium/cilium/pkg/monitor/api"
 	"github.com/cilium/cilium/pkg/policy"
+	policyapi "github.com/cilium/cilium/pkg/policy/api"
 	"github.com/cilium/cilium/pkg/policy/trafficdirection"
 	"github.com/cilium/cilium/pkg/source"
 	"github.com/cilium/cilium/pkg/u8proto"
 	"github.com/sirupsen/logrus"
 )
 
+var (
+	log = logging.DefaultLogger.WithField(logfields.LogSubsys, "policy-correlation")
+
+	_ Correlator = (*PolicyCorrelator)(nil)
+)
+
+// networkPolicyKey is the key used for a correlated policy.
+// Proto-generated flow.Policy struct contains references and cannot be used as a key.
+type networkPolicyKey struct {
+	kind      string
+	name      string
+	namespace string
+}
+
 type endpointPolicyGetter interface {
 	GetRealizedPolicyRuleLabelsForKey(key policy.Key) (derivedFrom labels.LabelArrayList, revision uint64, ok bool)
 }
 
-type policyCorrelator interface {
-	correlatePolicy(f *flow.Flow) ([]*Policy, error)
+type Correlator interface {
+	Correlate(f *flow.Flow) ([]*flow.Policy, error)
 }
 
-type policyCorrelation struct {
+type PolicyCorrelator struct {
 	endpointGetter getters.EndpointGetter
+}
+
+func NewPolicyCorrelator(endpointGetter getters.EndpointGetter) *PolicyCorrelator {
+	return &PolicyCorrelator{endpointGetter: endpointGetter}
 }
 
 func extractFlowKey(f *flow.Flow) (
@@ -80,7 +100,7 @@ func extractFlowKey(f *flow.Flow) (
 // lookupPoliciesForKey retrives the policy rule label sets for specified
 // policy key and returns a slice of k8s policy resources associated with those
 // label sets.
-func lookupPoliciesForKey(ep endpointPolicyGetter, key policy.Key) []*Policy {
+func lookupPoliciesForKey(ep endpointPolicyGetter, key policy.Key) []*flow.Policy {
 	var policyRuleLabelSets labels.LabelArrayList
 	// Check for L4 policy rules
 	derivedFromRules, _, ok := ep.GetRealizedPolicyRuleLabelsForKey(key)
@@ -173,9 +193,8 @@ func lookupPoliciesForKey(ep endpointPolicyGetter, key policy.Key) []*Policy {
 		policyRuleLabelSets = append(policyRuleLabelSets, derivedFromRules...)
 	}
 
-	policyMap := make(map[Policy]bool, len(policyRuleLabelSets))
-	var policies []*Policy
-
+	policyMap := make(map[networkPolicyKey]bool, len(policyRuleLabelSets))
+	var policies []*flow.Policy
 	for _, labelSet := range policyRuleLabelSets {
 		policy, ok := k8sResourceForPolicyLabelSet(labelSet)
 		if !ok {
@@ -183,11 +202,13 @@ func lookupPoliciesForKey(ep endpointPolicyGetter, key policy.Key) []*Policy {
 				Debug("unable to find a k8s policy resource for policy rule label set")
 			continue
 		}
+
+		policyKey := networkPolicyKeyFrom(&policy)
 		// Skip duplicates policies.
-		if policyMap[policy] {
+		if policyMap[policyKey] {
 			continue
 		}
-		policyMap[policy] = true
+		policyMap[policyKey] = true
 		policies = append(policies, &policy)
 	}
 
@@ -198,7 +219,7 @@ func lookupPoliciesForKey(ep endpointPolicyGetter, key policy.Key) []*Policy {
 // a k8s policy resource.
 //
 // This function supports namespaced and cluster-scoped resources.
-func k8sResourceForPolicyLabelSet(labelSet labels.LabelArray) (Policy, bool) {
+func k8sResourceForPolicyLabelSet(labelSet labels.LabelArray) (flow.Policy, bool) {
 	var kind, ns, name string
 	for _, l := range labelSet {
 		if l.Source != string(source.Kubernetes) {
@@ -214,22 +235,27 @@ func k8sResourceForPolicyLabelSet(labelSet labels.LabelArray) (Policy, bool) {
 		}
 
 		if kind != "" && name != "" && ns != "" {
-			return Policy{Kind: kind, Namespace: ns, Name: name}, true
+			return flow.Policy{Kind: kind, Namespace: ns, Name: name}, true
 		}
 	}
 	if kind != "" && name != "" {
-		return Policy{Kind: kind, Name: name}, true
+		return flow.Policy{Kind: kind, Name: name}, true
 	}
-	return Policy{}, false
+	return flow.Policy{}, false
 }
 
-// correlatePolicy attempts to resolve the policies that match the flow.
-// This method should only return an empty, non-nil slice of policies if
-// LogClusterMeshRemoteEndpoint configuration value is true.
-func (p *policyCorrelation) correlatePolicy(f *flow.Flow) ([]*Policy, error) {
-	if f.GetEventType().GetType() != int32(api.MessageTypePolicyVerdict) ||
-		f.GetVerdict() != flow.Verdict_FORWARDED {
-		// we are only interested in policy verdict notifications for forwarded flows
+func networkPolicyKeyFrom(p *flow.Policy) networkPolicyKey {
+	return networkPolicyKey{
+		kind:      p.Kind,
+		name:      p.Name,
+		namespace: p.Namespace,
+	}
+}
+
+// Correlate attempts to resolve the policies that match the flow.
+func (p *PolicyCorrelator) Correlate(f *flow.Flow) ([]*flow.Policy, error) {
+	if !policyapi.IsFlowEvent(f, api.MessageTypePolicyVerdict) || !policyapi.IsFlowAllowed(f) {
+		// We are only interested in policy verdict notifications for forwarded flows.
 		return nil, nil
 	}
 

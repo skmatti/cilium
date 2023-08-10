@@ -1128,6 +1128,10 @@ func initializeFlags() {
 	flags.MarkHidden(option.EnableStaleCiliumEndpointCleanup)
 	option.BindEnv(Vp, option.EnableStaleCiliumEndpointCleanup)
 
+	flags.Bool(option.EnableHubbleCorrelatePolicies, defaults.EnableHubbleCorrelatePolicies, "EnableHubbleCorrelatePolicies controls whether to correlate policies for flows")
+	flags.MarkHidden(option.EnableHubbleCorrelatePolicies)
+	option.BindEnv(Vp, option.EnableHubbleCorrelatePolicies)
+
 	if err := Vp.BindPFlags(flags); err != nil {
 		log.Fatalf("BindPFlags failed: %s", err)
 	}

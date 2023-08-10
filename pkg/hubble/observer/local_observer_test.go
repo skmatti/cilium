@@ -26,6 +26,7 @@ import (
 	"github.com/cilium/cilium/pkg/hubble/testutils"
 	"github.com/cilium/cilium/pkg/monitor"
 	monitorAPI "github.com/cilium/cilium/pkg/monitor/api"
+	"github.com/cilium/cilium/pkg/policy/correlation"
 )
 
 var log *logrus.Logger
@@ -45,6 +46,7 @@ func noopParser(t *testing.T) *parser.Parser {
 		&testutils.NoopServiceGetter,
 		&testutils.NoopLinkGetter,
 		&testutils.NoopPodMetadataGetter,
+		&correlation.NoopCorrelator,
 	)
 	require.NoError(t, err)
 	return pp

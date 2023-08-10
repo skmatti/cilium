@@ -27,6 +27,7 @@
     - [Layer7](#flow-Layer7)
     - [LostEvent](#flow-LostEvent)
     - [NetworkInterface](#flow-NetworkInterface)
+    - [Policy](#flow-Policy)
     - [PolicyUpdateNotification](#flow-PolicyUpdateNotification)
     - [SCTP](#flow-SCTP)
     - [Service](#flow-Service)
@@ -264,6 +265,7 @@ EventTypeFilter is a filter describing a particular event type
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
 | time | [google.protobuf.Timestamp](#google-protobuf-Timestamp) |  |  |
+| uuid | [string](#string) |  | uuid is a universally unique identifier for this flow. |
 | verdict | [Verdict](#flow-Verdict) |  |  |
 | drop_reason | [uint32](#uint32) |  | **Deprecated.** only applicable to Verdict = DROPPED. deprecated in favor of drop_reason_desc. |
 | ethernet | [Ethernet](#flow-Ethernet) |  | l2 |
@@ -292,6 +294,7 @@ EventTypeFilter is a filter describing a particular event type
 | sock_xlate_point | [SocketTranslationPoint](#flow-SocketTranslationPoint) |  | sock_xlate_point is the socket translation point. Only applicable to TraceSock notifications, blank for other types |
 | socket_cookie | [uint64](#uint64) |  | socket_cookie is the Linux kernel socket cookie for this flow. Only applicable to TraceSock notifications, zero for other types |
 | cgroup_id | [uint64](#uint64) |  | cgroup_id of the process which emitted this event. Only applicable to TraceSock notifications, zero for other types |
+| correlated_policies | [Policy](#flow-Policy) | repeated | CorrelatedPolicies stores the policies that match the flow. Only applicable to the cilium event type PolicyVerdict. |
 | Summary | [string](#string) |  | **Deprecated.** This is a temporary workaround to support summary field for pb.Flow without duplicating logic from the old parser. This field will be removed once we fully migrate to the new parser. |
 
 
@@ -308,6 +311,7 @@ multiple fields are set, then all fields must match for the filter to match.
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
+| uuid | [string](#string) | repeated | uuid filters by a list of flow uuids. |
 | source_ip | [string](#string) | repeated | source_ip filters by a list of source ips. Each of the source ips can be specified as an exact match (e.g. &#34;1.1.1.1&#34;) or as a CIDR range (e.g. &#34;1.1.1.0/24&#34;). |
 | source_pod | [string](#string) | repeated | source_pod filters by a list of source pod name prefixes, optionally within a given namespace (e.g. &#34;xwing&#34;, &#34;kube-system/coredns-&#34;). The pod name can be omitted to only filter by namespace (e.g. &#34;kube-system/&#34;) |
 | source_fqdn | [string](#string) | repeated | source_fqdn filters by a list of source fully qualified domain names |
@@ -537,6 +541,23 @@ that happened before the events were captured by Hubble.
 | ----- | ---- | ----- | ----------- |
 | index | [uint32](#uint32) |  |  |
 | name | [string](#string) |  |  |
+
+
+
+
+
+
+<a name="flow-Policy"></a>
+
+### Policy
+
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| kind | [string](#string) |  |  |
+| name | [string](#string) |  |  |
+| namespace | [string](#string) |  |  |
 
 
 

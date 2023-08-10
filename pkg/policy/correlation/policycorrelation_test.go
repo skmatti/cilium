@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package policylogger
+package correlation
 
 import (
 	"fmt"
@@ -31,10 +31,11 @@ import (
 	"github.com/cilium/cilium/pkg/u8proto"
 	"github.com/golang/protobuf/ptypes/timestamp"
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 )
 
 var (
-	testFlow = &flow.Flow{
+	forwardedFlow = &flow.Flow{
 		Time:    &timestamp.Timestamp{Seconds: 1592083771, Nanos: 445836587},
 		Verdict: flow.Verdict_FORWARDED,
 		IP: &flow.IP{
@@ -65,6 +66,36 @@ var (
 		TraceObservationPoint: flow.TraceObservationPoint_UNKNOWN_POINT,
 	}
 
+	redirectedFlow = &flow.Flow{
+		Time:    &timestamp.Timestamp{Seconds: 1592083771, Nanos: 445836587},
+		Verdict: flow.Verdict_REDIRECTED,
+		IP: &flow.IP{
+			Source:      "10.84.1.7",
+			Destination: "10.84.2.13",
+			IpVersion:   flow.IPVersion_IPv4,
+		},
+		L4: &flow.Layer4{Protocol: &flow.Layer4_UDP{
+			UDP: &flow.UDP{
+				SourcePort:      55644,
+				DestinationPort: 53,
+			},
+		}},
+		Source: &flow.Endpoint{
+			ID:        75,
+			Identity:  24583,
+			Namespace: "default",
+		},
+		Destination: &flow.Endpoint{
+			ID:       323,
+			Identity: 57654,
+		},
+		Type:                  flow.FlowType_L3_L4,
+		EventType:             &flow.CiliumEventType{Type: int32(api.MessageTypePolicyVerdict)},
+		TrafficDirection:      flow.TrafficDirection_EGRESS,
+		PolicyMatchType:       api.PolicyMatchL3L4,
+		TraceObservationPoint: flow.TraceObservationPoint_UNKNOWN_POINT,
+	}
+
 	endpointMap = map[string]v1.EndpointInfo{
 		"10.84.0.11": &hubbleutils.FakeEndpointInfo{
 			ID:             1072,
@@ -77,6 +108,20 @@ var (
 					fmt.Sprintf("k8s:%s=allow-all", k8sConst.PolicyLabelName),
 					fmt.Sprintf("k8s:%s=default", k8sConst.PolicyLabelNamespace),
 					fmt.Sprintf("k8s:%s=NetworkPolicy", k8sConst.PolicyLabelDerivedFrom),
+				)},
+			},
+		},
+		"10.84.1.7": &hubbleutils.FakeEndpointInfo{
+			ID:             75,
+			Identity:       24583,
+			PodName:        "client",
+			PodNamespace:   "default",
+			PolicyRevision: 1,
+			PolicyMap: map[policy.Key]labels.LabelArrayList{
+				{Identity: 57654, DestPort: 53, Nexthdr: uint8(u8proto.UDP), TrafficDirection: trafficdirection.Egress.Uint8()}: {labels.ParseLabelArray(
+					fmt.Sprintf("k8s:%s=client-allow", k8sConst.PolicyLabelName),
+					fmt.Sprintf("k8s:%s=default", k8sConst.PolicyLabelNamespace),
+					fmt.Sprintf("k8s:%s=FQDNNetworkPolicy", k8sConst.PolicyLabelDerivedFrom),
 				)},
 			},
 		},
@@ -114,7 +159,7 @@ func TestLookUpPoliciesForKey(t *testing.T) {
 		desc   string
 		ep     *hubbleutils.FakeEndpointInfo
 		key    policy.Key
-		expect []*Policy
+		expect []*flow.Policy
 	}{
 		{
 			desc: "empty policy map and key",
@@ -140,7 +185,7 @@ func TestLookUpPoliciesForKey(t *testing.T) {
 				Nexthdr:          tcp,
 				TrafficDirection: ingress,
 			},
-			expect: []*Policy{
+			expect: []*flow.Policy{
 				{
 					Kind:      "NetworkPolicy",
 					Namespace: "ns1",
@@ -174,7 +219,7 @@ func TestLookUpPoliciesForKey(t *testing.T) {
 				Nexthdr:          tcp,
 				TrafficDirection: ingress,
 			},
-			expect: []*Policy{
+			expect: []*flow.Policy{
 				{
 					Kind:      "NetworkPolicy",
 					Namespace: "ns1",
@@ -207,7 +252,7 @@ func TestLookUpPoliciesForKey(t *testing.T) {
 				Nexthdr:          tcp,
 				TrafficDirection: ingress,
 			},
-			expect: []*Policy{
+			expect: []*flow.Policy{
 				{
 					Kind:      "NetworkPolicy",
 					Namespace: "ns1",
@@ -241,7 +286,7 @@ func TestLookUpPoliciesForKey(t *testing.T) {
 				Nexthdr:          tcp,
 				TrafficDirection: ingress,
 			},
-			expect: []*Policy{
+			expect: []*flow.Policy{
 				{
 					Kind:      "NetworkPolicy",
 					Namespace: "ns1",
@@ -278,7 +323,7 @@ func TestLookUpPoliciesForKey(t *testing.T) {
 				Nexthdr:          tcp,
 				TrafficDirection: ingress,
 			},
-			expect: []*Policy{
+			expect: []*flow.Policy{
 				{
 					Kind:      "NetworkPolicy",
 					Namespace: "ns2",
@@ -307,7 +352,7 @@ func TestLookUpPoliciesForKey(t *testing.T) {
 				Nexthdr:          tcp,
 				TrafficDirection: ingress,
 			},
-			expect: []*Policy{
+			expect: []*flow.Policy{
 				{
 					Kind:      "NetworkPolicy",
 					Namespace: "ns2",
@@ -334,7 +379,7 @@ func TestLookUpPoliciesForKey(t *testing.T) {
 				Nexthdr:          icmp,
 				TrafficDirection: ingress,
 			},
-			expect: []*Policy{
+			expect: []*flow.Policy{
 				{
 					Kind:      "NetworkPolicy",
 					Namespace: "ns2",
@@ -362,7 +407,7 @@ func TestLookUpPoliciesForKey(t *testing.T) {
 				Nexthdr:          tcp,
 				TrafficDirection: ingress,
 			},
-			expect: []*Policy{
+			expect: []*flow.Policy{
 				{
 					Kind:      "NetworkPolicy",
 					Namespace: "ns1",
@@ -383,7 +428,7 @@ func TestLookUpPoliciesForKey(t *testing.T) {
 	} {
 		t.Run(tc.desc, func(t *testing.T) {
 			got := lookupPoliciesForKey(tc.ep, tc.key)
-			if diff := cmp.Diff(tc.expect, got); diff != "" {
+			if diff := cmp.Diff(tc.expect, got, cmpopts.IgnoreUnexported(flow.Policy{})); diff != "" {
 				t.Errorf("Got mismatch for policies (-want +got):\n%s", diff)
 			}
 		})
@@ -391,7 +436,8 @@ func TestLookUpPoliciesForKey(t *testing.T) {
 }
 
 func TestPolicyCorrelation_correlatePolicy(t *testing.T) {
-	correlator := &policyCorrelation{
+	testutils.PrivilegedTest(t)
+	correlator := &PolicyCorrelator{
 		endpointGetter: &hubbleutils.FakeEndpointGetter{
 			OnGetEndpointInfo: func(ip net.IP) (endpoint v1.EndpointInfo, ok bool) {
 				endpoint, ok = endpointMap[ip.String()]
@@ -403,15 +449,26 @@ func TestPolicyCorrelation_correlatePolicy(t *testing.T) {
 	testCases := []struct {
 		desc   string
 		f      *flow.Flow
-		expect []*Policy
+		expect []*flow.Policy
 	}{
 		{
-			desc: "test",
-			f:    testFlow,
-			expect: []*Policy{
+			desc: "test forwarded",
+			f:    forwardedFlow,
+			expect: []*flow.Policy{
 				{
 					Kind:      "NetworkPolicy",
 					Name:      "allow-all",
+					Namespace: "default",
+				},
+			},
+		},
+		{
+			desc: "test redirected",
+			f:    redirectedFlow,
+			expect: []*flow.Policy{
+				{
+					Kind:      "FQDNNetworkPolicy",
+					Name:      "client-allow",
 					Namespace: "default",
 				},
 			},
@@ -420,11 +477,11 @@ func TestPolicyCorrelation_correlatePolicy(t *testing.T) {
 	for _, tc := range testCases {
 		tc := tc
 		t.Run(tc.desc, func(t *testing.T) {
-			got, err := correlator.correlatePolicy(tc.f)
+			got, err := correlator.Correlate(tc.f)
 			if err != nil {
 				t.Fatalf("Unexpected error for correlatePolicy(): %v", err)
 			}
-			if diff := cmp.Diff(tc.expect, got); diff != "" {
+			if diff := cmp.Diff(tc.expect, got, cmpopts.IgnoreUnexported(flow.Policy{})); diff != "" {
 				t.Errorf("Got mismatch for policies for correlatePolicy() (-want +got):\n%s", diff)
 			}
 		})
@@ -433,15 +490,17 @@ func TestPolicyCorrelation_correlatePolicy(t *testing.T) {
 }
 
 func TestK8sResouceForPolicyLabelSet(t *testing.T) {
+	testutils.PrivilegedTest(t)
 	for _, tc := range []struct {
 		desc       string
 		labelArray labels.LabelArray
-		wantPolicy Policy
+		wantPolicy *flow.Policy
 		wantOk     bool
 	}{
 		{
 			desc:       "empty label array",
 			labelArray: labels.LabelArray{},
+			wantPolicy: &flow.Policy{},
 		},
 		{
 			desc: "non k8s source",
@@ -449,18 +508,21 @@ func TestK8sResouceForPolicyLabelSet(t *testing.T) {
 				fmt.Sprintf("cilium:%s=NetworkPolicy", k8sConst.PolicyLabelDerivedFrom),
 				fmt.Sprintf("k8s:%s=ns", k8sConst.PolicyLabelNamespace),
 				fmt.Sprintf("k8s:%s=foo", k8sConst.PolicyLabelName)),
+			wantPolicy: &flow.Policy{},
 		},
 		{
 			desc: "missing ks8 resource kind label",
 			labelArray: labels.ParseLabelArray(
 				fmt.Sprintf("k8s:%s=ns", k8sConst.PolicyLabelNamespace),
 				fmt.Sprintf("k8s:%s=foo", k8sConst.PolicyLabelName)),
+			wantPolicy: &flow.Policy{},
 		},
 		{
 			desc: "missing ks8 resource name label",
 			labelArray: labels.ParseLabelArray(
 				fmt.Sprintf("k8s:%s=NetworkPolicy", k8sConst.PolicyLabelDerivedFrom),
 				fmt.Sprintf("k8s:%s=ns", k8sConst.PolicyLabelNamespace)),
+			wantPolicy: &flow.Policy{},
 		},
 		{
 			desc: "valid label set",
@@ -468,7 +530,7 @@ func TestK8sResouceForPolicyLabelSet(t *testing.T) {
 				fmt.Sprintf("k8s:%s=NetworkPolicy", k8sConst.PolicyLabelDerivedFrom),
 				fmt.Sprintf("k8s:%s=foo", k8sConst.PolicyLabelName),
 				fmt.Sprintf("k8s:%s=ns", k8sConst.PolicyLabelNamespace)),
-			wantPolicy: Policy{Kind: "NetworkPolicy", Namespace: "ns", Name: "foo"},
+			wantPolicy: &flow.Policy{Kind: "NetworkPolicy", Namespace: "ns", Name: "foo"},
 			wantOk:     true,
 		},
 		{
@@ -476,7 +538,7 @@ func TestK8sResouceForPolicyLabelSet(t *testing.T) {
 			labelArray: labels.ParseLabelArray(
 				fmt.Sprintf("k8s:%s=AdminNetworkPolicy", k8sConst.PolicyLabelDerivedFrom),
 				fmt.Sprintf("k8s:%s=foo", k8sConst.PolicyLabelName)),
-			wantPolicy: Policy{Kind: "AdminNetworkPolicy", Name: "foo"},
+			wantPolicy: &flow.Policy{Kind: "AdminNetworkPolicy", Name: "foo"},
 			wantOk:     true,
 		},
 	} {
@@ -485,8 +547,8 @@ func TestK8sResouceForPolicyLabelSet(t *testing.T) {
 			if gotOk != tc.wantOk {
 				t.Fatalf("k8sResouceForPolicyLabelSet()= _, %t, want %t", gotOk, tc.wantOk)
 			}
-			if diff := cmp.Diff(tc.wantPolicy, got); diff != "" {
-				t.Errorf("Got diff for Policy (-want +got):\n%s", diff)
+			if diff := cmp.Diff(tc.wantPolicy, &got, cmpopts.IgnoreUnexported(flow.Policy{})); diff != "" {
+				t.Errorf("Got diff for flow.Policy (-want +got):\n%s", diff)
 			}
 		})
 	}

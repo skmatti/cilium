@@ -23,6 +23,7 @@ import (
 	"github.com/cilium/cilium/pkg/lock"
 	"github.com/cilium/cilium/pkg/monitor"
 	monitorAPI "github.com/cilium/cilium/pkg/monitor/api"
+	"github.com/cilium/cilium/pkg/policy/correlation"
 )
 
 // Parser is a parser for L3/L4 payloads
@@ -36,6 +37,7 @@ type Parser struct {
 	linkGetter     getters.LinkGetter
 
 	epResolver *common.EndpointResolver
+	correlator correlation.Correlator
 
 	// TODO: consider using a pool of these
 	packet *packet
@@ -65,6 +67,7 @@ func New(
 	ipGetter getters.IPGetter,
 	serviceGetter getters.ServiceGetter,
 	linkGetter getters.LinkGetter,
+	correlator correlation.Correlator,
 ) (*Parser, error) {
 	packet := &packet{}
 	packet.decLayer = gopacket.NewDecodingLayerParser(
@@ -86,6 +89,7 @@ func New(
 		serviceGetter:  serviceGetter,
 		linkGetter:     linkGetter,
 		epResolver:     common.NewEndpointResolver(log, endpointGetter, identityGetter, ipGetter),
+		correlator:     correlator,
 		packet:         packet,
 	}, nil
 }
@@ -219,6 +223,14 @@ func (p *Parser) Decode(data []byte, decoded *pb.Flow) error {
 	decoded.Interface = p.decodeNetworkInterface(tn, dbg)
 	decoded.ProxyPort = decodeProxyPort(dbg, tn)
 	decoded.Summary = summary
+
+	if p.correlator != nil {
+		policies, err := p.correlator.Correlate(decoded)
+		if err != nil {
+			return fmt.Errorf("correlate policies: %w", err)
+		}
+		decoded.CorrelatedPolicies = policies
+	}
 
 	return nil
 }

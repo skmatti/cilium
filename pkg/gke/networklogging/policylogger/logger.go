@@ -32,6 +32,8 @@ import (
 	"github.com/cilium/cilium/pkg/lock"
 	"github.com/cilium/cilium/pkg/logging/logfields"
 	"github.com/cilium/cilium/pkg/monitor/api"
+	policyapi "github.com/cilium/cilium/pkg/policy/api"
+	"github.com/cilium/cilium/pkg/policy/correlation"
 )
 
 const (
@@ -63,7 +65,7 @@ type logSpec struct {
 // networkPolicyLogger is the structure for network policy action logging.
 type networkPolicyLogger struct {
 	dispatcher       dispatcher.Dispatcher
-	policyCorrelator policyCorrelator
+	policyCorrelator correlation.Correlator
 	storeGetter      getters.StoreGetter
 	endpointGetter   getters.EndpointGetter
 	flowCh           chan *flow.Flow
@@ -75,6 +77,9 @@ type networkPolicyLogger struct {
 	aggregatorCh     chan *aggregator.AggregatorEntry
 	cfg              *policyLoggerConfig
 	configFilePath   string
+
+	// hubblePolicyCorrelation signals that correlation has been performed on the flow object.
+	hubblePolicyCorrelation bool
 
 	lock lock.Mutex
 	spec *logSpec
@@ -217,8 +222,8 @@ func (n *networkPolicyLogger) run() {
 	}
 }
 
-func (n *networkPolicyLogger) allowedPoliciesForDelegate(policies []*Policy) []*Policy {
-	var ret []*Policy
+func (n *networkPolicyLogger) allowedPoliciesForDelegate(policies []*flow.Policy) []*flow.Policy {
+	var ret []*flow.Policy
 	var key string
 	var annotations map[string]string
 	for _, p := range policies {
@@ -306,7 +311,7 @@ func (n *networkPolicyLogger) shouldLogNamespace(name string) bool {
 }
 
 func (n *networkPolicyLogger) processFlow(f *flow.Flow) {
-	allow := isAllow(f)
+	allow := policyapi.IsFlowAllowed(f)
 	policyLoggingEventCount.WithLabelValues(verdictLabel(allow)).Inc()
 
 	spec := n.getSpec()

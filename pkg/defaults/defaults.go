@@ -536,6 +536,9 @@ const (
 
 	// Enable BGP control plane features.
 	EnableBGPControlPlane = false
+
+	// EnableHubbleCorrelatePolicies controls whether to correlate policies for hubble flows.
+	EnableHubbleCorrelatePolicies = false
 )
 
 var (
