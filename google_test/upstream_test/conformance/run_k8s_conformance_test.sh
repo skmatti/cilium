@@ -41,23 +41,24 @@ echo "  KUBETEST2_RUN_ID = ${KUBETEST2_RUN_ID}"
 # Register gcloud as the credential helper for Google-supported Docker registries.
 gcloud auth configure-docker
 
-# Build and push cilium to local registry at
-echo "Making Cilium images for current build and push to local registry: ${IMAGE_REGISTRY}"
+# Build and push cilium to google cloud registry
+export DOCKER_IMAGE_TAG="${SHA}"
+echo "Making Cilium images for current build and push to google cloud registry: ${IMAGE_REGISTRY}"
 
-make LOCKDEBUG=1 DOCKER_REGISTRY="${IMAGE_REGISTRY}" DOCKER_IMAGE_TAG="${SHA}" docker-cilium-image
-docker push "${IMAGE_REGISTRY}/${CILIUM_TAG}:${SHA}"
+make LOCKDEBUG=1 DOCKER_REGISTRY="${IMAGE_REGISTRY}" docker-cilium-dpv2-image
+docker push "${IMAGE_REGISTRY}/${CILIUM_TAG}:${DOCKER_IMAGE_TAG}-dpv2"
 
-make -B LOCKDEBUG=1 DOCKER_REGISTRY="${IMAGE_REGISTRY}" DOCKER_IMAGE_TAG="${SHA}" docker-operator-image
-docker push "${IMAGE_REGISTRY}/${CILIUM_OPERATOR_TAG}:${SHA}"
+make -B LOCKDEBUG=1 DOCKER_REGISTRY="${IMAGE_REGISTRY}" docker-operator-image
+docker push "${IMAGE_REGISTRY}/${CILIUM_OPERATOR_TAG}:${DOCKER_IMAGE_TAG}"
 
-make -B LOCKDEBUG=1 DOCKER_REGISTRY="${IMAGE_REGISTRY}" DOCKER_IMAGE_TAG="${SHA}" docker-operator-generic-image
-docker push "${IMAGE_REGISTRY}/${CILIUM_OPERATOR_GENERIC_TAG}:${SHA}"
+make -B LOCKDEBUG=1 DOCKER_REGISTRY="${IMAGE_REGISTRY}" docker-operator-generic-image
+docker push "${IMAGE_REGISTRY}/${CILIUM_OPERATOR_GENERIC_TAG}:${DOCKER_IMAGE_TAG}"
 
-make -B LOCKDEBUG=1 DOCKER_REGISTRY="${IMAGE_REGISTRY}" DOCKER_IMAGE_TAG="${SHA}" docker-clustermesh-apiserver-image
-docker push "${IMAGE_REGISTRY}/${CLUSTERMESH_APISERVER_TAG}:${SHA}"
+make -B LOCKDEBUG=1 DOCKER_REGISTRY="${IMAGE_REGISTRY}" docker-clustermesh-apiserver-image
+docker push "${IMAGE_REGISTRY}/${CLUSTERMESH_APISERVER_TAG}:${DOCKER_IMAGE_TAG}"
 
-make LOCKDEBUG=1 DOCKER_REGISTRY="${IMAGE_REGISTRY}" DOCKER_IMAGE_TAG="${SHA}" docker-hubble-relay-image
-docker push "${IMAGE_REGISTRY}/${HUBBLE_RELAY_TAG}:${SHA}"
+make LOCKDEBUG=1 DOCKER_REGISTRY="${IMAGE_REGISTRY}" docker-hubble-relay-image
+docker push "${IMAGE_REGISTRY}/${HUBBLE_RELAY_TAG}:${DOCKER_IMAGE_TAG}"
 
 # Obtain the kubeconfig and host machine info to access the kind cluster created
 for resource_directory in "${ARTIFACTS}/.kubetest2-tailorbird"/*; do
@@ -117,16 +118,16 @@ cilium install --wait --chart-directory=install/kubernetes/cilium \
     --helm-set=image.repository="${IMAGE_REGISTRY}/${CILIUM_TAG}" \
     --helm-set=image.useDigest=false \
     --helm-set=imagePullSecrets[0].name="${SECRETNAME}" \
-    --helm-set=image.tag="${SHA}" \
+    --helm-set=image.tag="${DOCKER_IMAGE_TAG}-dpv2" \
     --helm-set=operator.image.repository="${IMAGE_REGISTRY}/${CILIUM_OPERATOR_TAG}" \
     --helm-set=operator.image.suffix="" \
-    --helm-set=operator.image.tag="${SHA}" \
+    --helm-set=operator.image.tag="${DOCKER_IMAGE_TAG}" \
     --helm-set=operator.image.useDigest=false \
     --helm-set=clustermesh.apiserver.image.repository="${IMAGE_REGISTRY}/${CLUSTERMESH_APISERVER_TAG}" \
-    --helm-set=clustermesh.apiserver.image.tag="${SHA}" \
+    --helm-set=clustermesh.apiserver.image.tag="${DOCKER_IMAGE_TAG}" \
     --helm-set=clustermesh.apiserver.image.useDigest=false \
     --helm-set=hubble.relay.image.repository="${IMAGE_REGISTRY}/${HUBBLE_RELAY_TAG}" \
-    --helm-set=hubble.relay.image.tag="${SHA}" \
+    --helm-set=hubble.relay.image.tag="${DOCKER_IMAGE_TAG}" \
     --helm-set=cni.chainingMode=portmap \
     --helm-set-string=kubeProxyReplacement=strict \
     --helm-set=sessionAffinity=true \
