@@ -22,12 +22,18 @@ import (
 	"fmt"
 
 	v1 "github.com/cilium/cilium/pkg/k8s/slim/k8s/api/core/v1"
+	"github.com/cilium/cilium/pkg/logging"
+	"github.com/cilium/cilium/pkg/logging/logfields"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	networkv1 "k8s.io/cloud-provider-gcp/crd/apis/network/v1"
 	networkv1alpha1 "k8s.io/cloud-provider-gcp/crd/apis/network/v1alpha1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+)
+
+var (
+	log = logging.DefaultLogger.WithField(logfields.LogSubsys, "multinic")
 )
 
 // K8sClient interface contains the methods that can be used to interact with the Network,
