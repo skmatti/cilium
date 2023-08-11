@@ -24,6 +24,7 @@ import (
 	"github.com/cilium/cilium/pkg/gke/apis/redirectservice/v1alpha1"
 	fakeRedirectService "github.com/cilium/cilium/pkg/gke/client/redirectservice/clientset/versioned/fake"
 	slim_corev1 "github.com/cilium/cilium/pkg/k8s/slim/k8s/api/core/v1"
+	slimFlake "github.com/cilium/cilium/pkg/k8s/slim/k8s/client/clientset/versioned/fake"
 	"github.com/cilium/cilium/pkg/redirectpolicy"
 	"github.com/cilium/cilium/pkg/testutils"
 	"k8s.io/client-go/kubernetes/fake"
@@ -94,7 +95,7 @@ func TestValidation(t *testing.T) {
 		},
 	} {
 		t.Run(tc.desc, func(t *testing.T) {
-			controller, err := NewController(fake.NewSimpleClientset(), fakeRedirectService.NewSimpleClientset(), &fakeRedirectPolicyManager{})
+			controller, err := NewController(fake.NewSimpleClientset(), slimFlake.NewSimpleClientset(), fakeRedirectService.NewSimpleClientset(), &fakeRedirectPolicyManager{})
 			if err != nil {
 				t.Fatalf("Cannot instantiate redirect service controller")
 			}

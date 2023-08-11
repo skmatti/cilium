@@ -30,6 +30,7 @@ import (
 	"github.com/cilium/cilium/pkg/k8s"
 	"github.com/cilium/cilium/pkg/k8s/informer"
 	slim_corev1 "github.com/cilium/cilium/pkg/k8s/slim/k8s/api/core/v1"
+	slimclientset "github.com/cilium/cilium/pkg/k8s/slim/k8s/client/clientset/versioned"
 	"github.com/cilium/cilium/pkg/lock"
 	"github.com/cilium/cilium/pkg/logging"
 	"github.com/cilium/cilium/pkg/logging/logfields"
@@ -91,7 +92,7 @@ type Controller struct {
 }
 
 // NewController returns a new controller for redirect service.
-func NewController(kubeClient kubernetes.Interface, redirectServiceClient versioned.Interface, redirectPolicyManager RedirectPolicyManager) (*Controller, error) {
+func NewController(kubeClient kubernetes.Interface, slimClient slimclientset.Interface, redirectServiceClient versioned.Interface, redirectPolicyManager RedirectPolicyManager) (*Controller, error) {
 
 	broadcaster := record.NewBroadcaster()
 	broadcaster.StartLogging(klog.Infof)
@@ -120,7 +121,7 @@ func NewController(kubeClient kubernetes.Interface, redirectServiceClient versio
 	})
 
 	_, c.podController = informer.NewInformer(
-		cache.NewListWatchFromClient(kubeClient.CoreV1().RESTClient(),
+		cache.NewListWatchFromClient(slimClient.CoreV1().RESTClient(),
 			"pods", "kube-system", fields.ParseSelectorOrDie("spec.nodeName="+nodeTypes.GetName())),
 		&slim_corev1.Pod{},
 		0,

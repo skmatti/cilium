@@ -105,7 +105,7 @@ func registerRedirectService(params redirectServiceParams) {
 
 			endpointManager.Subscribe(redirectServiceManager)
 
-			c, err := controller.NewController(params.Clientset, params.RedirectServiceClient, redirectPolicyManager)
+			c, err := controller.NewController(params.Clientset, params.Clientset.Slim(), params.RedirectServiceClient, redirectPolicyManager)
 			if err != nil {
 				log.Errorf("Error instantiating redirect service controller %v", err)
 				return err
