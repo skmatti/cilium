@@ -540,7 +540,7 @@ func TestSetupNetworkRoutes(t *testing.T) {
 			},
 		},
 		{
-			desc: "apply default route with gw to pod-network",
+			desc: "apply default route with gw to default-network",
 			intf: &networkv1.NetworkInterface{
 				Spec: networkv1.NetworkInterfaceSpec{
 					NetworkName: networkv1.DefaultNetworkName,
@@ -558,6 +558,30 @@ func TestSetupNetworkRoutes(t *testing.T) {
 				},
 			},
 			isDefaultInterface: true,
+			wantRoutes: []netlink.Route{
+				macvtapLinkRoute(),
+				v4Route("10.10.10.0", v4GW, 24, 0, netlink.SCOPE_UNIVERSE),
+				v4Route("20.20.20.0", v4GW, 24, 0, netlink.SCOPE_UNIVERSE),
+			},
+		},
+		{
+			desc: "apply route with gw to default-network",
+			intf: &networkv1.NetworkInterface{
+				Spec: networkv1.NetworkInterfaceSpec{
+					NetworkName: networkv1.DefaultNetworkName,
+				},
+				Status: networkv1.NetworkInterfaceStatus{
+					Routes: []networkv1.Route{
+						{
+							To: "10.10.10.0/24",
+						},
+						{
+							To: "20.20.20.0/24",
+						},
+					},
+					Gateway4: &v4GW,
+				},
+			},
 			wantRoutes: []netlink.Route{
 				macvtapLinkRoute(),
 				v4Route("10.10.10.0", v4GW, 24, 0, netlink.SCOPE_UNIVERSE),
@@ -661,10 +685,10 @@ func TestSetupNetworkRoutes(t *testing.T) {
 				},
 			},
 			isDefaultInterface: true,
-			wantErr:            "gateway must be configued for default interface network: ",
+			wantErr:            "gateway must be configured for default interface network: ",
 		},
 		{
-			desc: "default route but without gw address",
+			desc: "default route for L3 network",
 			intf: &networkv1.NetworkInterface{
 				Status: networkv1.NetworkInterfaceStatus{
 					Routes: []networkv1.Route{

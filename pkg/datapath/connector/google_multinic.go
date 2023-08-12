@@ -650,7 +650,7 @@ func SetupL3Interface(ifNameInPod, podName string, podResources map[string][]str
 	switch cfg.Type {
 	case multinicep.EndpointDeviceMultinicVETH:
 		// We cannot use ep.ContainerID here as it's already used by the default interface.
-		// Hence we use "ep.ContainerID-network" to differetiate & ensure consistency.
+		// Hence we use "ep.ContainerID-network" to differentiate & ensure consistency.
 		// Here we use peerIfName as handle to setup link in remote ns. However the ep.InterfaceName
 		// should be veth.Name used for loading bpf_lxc during datapath reload, rather than peerIfName
 		// for other L2 device types.
@@ -929,7 +929,7 @@ func DeleteInterfaceInRemoteNs(ifName, nsPath string) error {
 
 // SetupNetworkRoutes configures custom routes and default route if defined in the provided interface cr
 // status on the interface in the pod namespace.
-// Route mtu is only set for the pod network. Otherwise, pass 0 to ignore the configuration.
+// Route mtu is only set for the default (pod-network) Network. Otherwise, pass 0 to ignore the configuration.
 func SetupNetworkRoutes(ifNameInPod string, intf *networkv1.NetworkInterface, netCR *networkv1.Network, nsPath string,
 	isDefaultInterface bool, podNetworkMTU int, skipInstallation bool) error {
 	log.WithFields(logrus.Fields{
@@ -964,7 +964,7 @@ func SetupNetworkRoutes(ifNameInPod string, intf *networkv1.NetworkInterface, ne
 		gw = &gwIPv4
 	}
 	if isDefaultInterface && !networkv1.IsDefaultNetwork(intf.Spec.NetworkName) && gw == nil {
-		return fmt.Errorf("gateway must be configued for default interface network: %s", intf.Spec.NetworkName)
+		return fmt.Errorf("gateway must be configured for default interface network: %s", intf.Spec.NetworkName)
 	}
 	if skipInstallation {
 		return nil
@@ -986,7 +986,7 @@ func SetupNetworkRoutes(ifNameInPod string, intf *networkv1.NetworkInterface, ne
 			return fmt.Errorf("failed to set link %q UP: %v", ifNameInPod, err)
 		}
 
-		// Add a route to gateway for L3 or Device network excepet the default network
+		// Add a route to gateway for L3 or Device network except the default network
 		if netCR != nil && (netCR.Spec.Type == networkv1.L3NetworkType || netCR.Spec.Type == networkv1.DeviceNetworkType) && !networkv1.IsDefaultNetwork(netCR.Name) {
 			if gw == nil {
 				return errors.New("gateway for L3/Device network should not be nil")
@@ -1008,9 +1008,7 @@ func SetupNetworkRoutes(ifNameInPod string, intf *networkv1.NetworkInterface, ne
 		}
 		// No need to re-configure the default route for default pod-network.
 		if isDefaultInterface && !networkv1.IsDefaultNetwork(intf.Spec.NetworkName) {
-			if err := addDefaultRoute(gw, l); err != nil {
-				return err
-			}
+			return addDefaultRoute(gw, l)
 		}
 		return nil
 	}); err != nil {
