@@ -85,8 +85,6 @@ func newLocalNodePromise(dp promise.Promise[*Daemon], lc hive.Lifecycle) promise
 }
 
 func newEgressMapPromise(dp promise.Promise[*Daemon], lc hive.Lifecycle, config *option.DaemonConfig) promise.Promise[controller.EgressMapInterface] {
-	if config.EnableIPv4EgressGateway {
-	}
 	emResolver, emPromise := promise.New[controller.EgressMapInterface]()
 	if config.EnableIPv4EgressGateway {
 		lc.Append(hive.Hook{

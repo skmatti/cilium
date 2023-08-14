@@ -49,7 +49,7 @@ func (cfg Config) Flags(flags *pflag.FlagSet) {
 func trafficSteeringClient(clientset k8sClient.Clientset) (*versioned.Clientset, error) {
 	trafficSteeringClient, err := versioned.NewForConfig(clientset.RestConfig())
 	if err != nil {
-		return nil, fmt.Errorf("failed to create NodeNetworkPolicy client: %v", err)
+		return nil, fmt.Errorf("failed to create TrafficSteering client: %v", err)
 	}
 	return trafficSteeringClient, nil
 }
