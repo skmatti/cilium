@@ -6,8 +6,6 @@
 # $(4) image tag
 #
 
-GOLANG_IMAGE:=docker.io/library/golang:1.20.7@sha256:bc5f0b5e43282627279fe5262ae275fecb3d2eae3b33977a7fd200c7a760d6f1
-
 define DPV2_IMAGE_TEMPLATE
 .PHONY: $(1)
 $(1):
@@ -17,6 +15,7 @@ $(1):
 		$(DOCKER_BUILD_FLAGS) $(DOCKER_FLAGS) \
 		--build-arg BASE_IMAGE=${BASE_IMAGE} \
 		--build-arg GOLANG_IMAGE=${GOLANG_IMAGE} \
+		--build-arg HUBBLE_CLI_IMAGE=${HUBBLE_CLI_IMAGE} \
 		--build-arg NOSTRIP=$${NOSTRIP} \
 		--build-arg NOOPT=${NOOPT} \
 		--build-arg LOCKDEBUG=${LOCKDEBUG} \
