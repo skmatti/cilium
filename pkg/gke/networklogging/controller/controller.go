@@ -28,13 +28,13 @@ import (
 	"github.com/cilium/cilium/pkg/gke/dispatcher"
 	"github.com/cilium/cilium/pkg/gke/networklogging/policylogger"
 	"github.com/cilium/cilium/pkg/hubble/parser/getters"
+	k8sClient "github.com/cilium/cilium/pkg/k8s/client"
 	"github.com/cilium/cilium/pkg/logging"
 	"github.com/cilium/cilium/pkg/logging/logfields"
 	nodeTypes "github.com/cilium/cilium/pkg/node/types"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/kubernetes"
 	v1core "k8s.io/client-go/kubernetes/typed/core/v1"
-	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/record"
 	"k8s.io/klog"
@@ -55,8 +55,6 @@ const (
 
 // Controller for the network logging controller
 type Controller struct {
-	kubeConfig *rest.Config
-
 	// kubeClient will be used to generate the recorder for events.
 	kubeClient kubernetes.Interface
 
@@ -82,29 +80,23 @@ func WithHubblePolicyCorrelation(v bool) func(*Controller) {
 }
 
 // newController returns a new controller for network logging.
-func NewController(kubeConfig *rest.Config, stopCh chan struct{}, dispatcher dispatcher.Dispatcher, endpointGetter getters.EndpointGetter, storeGetter getters.StoreGetter, opts ...func(*Controller)) (*Controller, error) {
+func NewController(clientset k8sClient.Clientset, stopCh chan struct{}, dispatcher dispatcher.Dispatcher, endpointGetter getters.EndpointGetter, storeGetter getters.StoreGetter, opts ...func(*Controller)) (*Controller, error) {
 	log.Info("New network logging controller")
 
-	kubeClient, err := kubernetes.NewForConfig(kubeConfig)
-	if err != nil {
-		return nil, fmt.Errorf("Failed to create kube client: %v", err)
-	}
-
-	networkLoggingClient, err := versioned.NewForConfig(kubeConfig)
+	networkLoggingClient, err := versioned.NewForConfig(clientset.RestConfig())
 	if err != nil {
 		return nil, fmt.Errorf("Failed to create network logging client: %v", err)
 	}
 
 	broadcaster := record.NewBroadcaster()
 	broadcaster.StartLogging(klog.Infof)
-	broadcaster.StartRecordingToSink(&v1core.EventSinkImpl{Interface: kubeClient.CoreV1().Events("")})
+	broadcaster.StartRecordingToSink(&v1core.EventSinkImpl{Interface: clientset.CoreV1().Events("")})
 	recorder := broadcaster.NewRecorder(scheme.Scheme, v1.EventSource{Component: "network-logging-controller, " + nodeTypes.GetName()})
 
 	networkLoggingInformerFactory := externalversions.NewSharedInformerFactory(networkLoggingClient, informerSyncPeriod)
 
 	c := &Controller{
-		kubeConfig:             kubeConfig,
-		kubeClient:             kubeClient,
+		kubeClient:             clientset,
 		networkLoggingClient:   networkLoggingClient,
 		networkLoggingInformer: networkLoggingInformerFactory.Networking().V1alpha1().NetworkLoggings().Informer(),
 		dispatcher:             dispatcher,

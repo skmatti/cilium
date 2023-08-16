@@ -161,7 +161,7 @@ func (d *Daemon) launchHubble() {
 		DisablePolicyEventCountMetric:  option.Config.DisablePolicyEventCountMetric,
 		HubblePolicyCorrelationEnabled: option.Config.EnableHubbleCorrelatePolicies,
 	}
-	gkeFlowPlugin := gkeflow.New(gkeOpts)
+	gkeFlowPlugin := gkeflow.New(gkeOpts, d.clientset)
 	observerOpts = append(observerOpts,
 		observeroption.WithOnServerInit(gkeFlowPlugin),
 		observeroption.WithMaxFlows(maxFlows),

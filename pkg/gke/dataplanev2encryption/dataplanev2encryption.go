@@ -6,13 +6,13 @@ import (
 	"fmt"
 
 	"github.com/cilium/cilium/pkg/gke/apis/dataplanev2encryption/v1alpha1"
-	kubeclient "github.com/cilium/cilium/pkg/k8s/client"
 	"github.com/cilium/cilium/pkg/logging"
 	"github.com/cilium/cilium/pkg/logging/logfields"
 	"github.com/sirupsen/logrus"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -26,12 +26,7 @@ var (
 
 // GetClient returns a k8s client with the dpv2e types. Separated out into a
 // function to enable testing with a fake client.
-func GetClient() (client.Client, error) {
-	k8sConfig, err := kubeclient.CreateDefaultConfig()
-	if err != nil {
-		return nil, errors.New(
-			fmt.Sprintf("Unable to retrieve k8s config: %v", err))
-	}
+func GetClient(k8sConfig *rest.Config) (client.Client, error) {
 	scheme := runtime.NewScheme()
 	v1alpha1.AddToScheme(scheme)
 	return client.New(k8sConfig, client.Options{Scheme: scheme})

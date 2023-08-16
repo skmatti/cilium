@@ -26,7 +26,7 @@ import (
 	me "github.com/cilium/cilium/pkg/gke/networkpolicy/metrics"
 	"github.com/cilium/cilium/pkg/hubble/observer/observeroption"
 	"github.com/cilium/cilium/pkg/hubble/parser/getters"
-	client "github.com/cilium/cilium/pkg/k8s/client"
+	k8sClient "github.com/cilium/cilium/pkg/k8s/client"
 	"github.com/cilium/cilium/pkg/logging"
 	"github.com/cilium/cilium/pkg/logging/logfields"
 )
@@ -42,7 +42,8 @@ type GKEFlowOptions struct {
 }
 
 type gkeFlowPlugin struct {
-	options GKEFlowOptions
+	options   GKEFlowOptions
+	clientset k8sClient.Clientset
 
 	networkLoggingController  *nlcontroller.Controller
 	metricsExporterController *me.Controller
@@ -66,9 +67,10 @@ type GKEFlowPlugin interface {
 }
 
 // New
-func New(o GKEFlowOptions) GKEFlowPlugin {
+func New(o GKEFlowOptions, clientset k8sClient.Clientset) GKEFlowPlugin {
 	return &gkeFlowPlugin{
-		options: o,
+		options:   o,
+		clientset: clientset,
 	}
 }
 
@@ -104,17 +106,12 @@ func (p *gkeFlowPlugin) OnServerInit(srv observeroption.Server) error {
 
 	p.dispatcher = dispatcher.NewDispatcher()
 	p.observer = p.dispatcher.(dispatcher.Observer)
-	kubeConfig, err := client.CreateDefaultConfig()
-	if err != nil {
-		log.Errorf("Failed to create kubernetes config: %v", err)
-		return err
-	}
-	log.Infof("Successfully obtained kubernetes config")
 
 	// networkLoggingstopCh is used to only signal closing. So it doesn't needs any buffer
 	// and will only have open and close operations.
 	p.networkLoggingStopCh = make(chan struct{})
-	p.networkLoggingController, err = nlcontroller.NewController(kubeConfig, p.networkLoggingStopCh, p.dispatcher, p.endpointGetter, p.storeGetter, nlcontroller.WithHubblePolicyCorrelation(p.options.HubblePolicyCorrelationEnabled))
+	var err error
+	p.networkLoggingController, err = nlcontroller.NewController(p.clientset, p.networkLoggingStopCh, p.dispatcher, p.endpointGetter, p.storeGetter, nlcontroller.WithHubblePolicyCorrelation(p.options.HubblePolicyCorrelationEnabled))
 	if err != nil {
 		log.Errorf("Failed to create network logging controller: %v", err)
 		return err

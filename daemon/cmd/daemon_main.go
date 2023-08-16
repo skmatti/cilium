@@ -1641,9 +1641,9 @@ func (d *Daemon) initKVStore() {
 	}
 }
 
-func newWireguardAgent(lc hive.Lifecycle) *wg.Agent {
+func newWireguardAgent(clientset k8sClient.Clientset, lc hive.Lifecycle) *wg.Agent {
 	var wireguardInitTime time.Time
-	if c, err := dpv2e.GetClient(); err != nil {
+	if c, err := dpv2e.GetClient(clientset.RestConfig()); err != nil {
 		log.Fatalf("Failed to create k8s client: %v", err)
 	} else if wgEnabled, err := dpv2e.IsWireguard(c); err != nil {
 		log.Fatalf("Failed to check if Wireguard is enabled: %s", err)
