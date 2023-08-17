@@ -39,6 +39,7 @@ func init() {
 	// The controller runs on every node. Consider performance impact when adding new schemes.
 	utilruntime.Must(corev1.AddToScheme(scheme))
 	utilruntime.Must(networkv1.AddToScheme(scheme))
+	utilruntime.Must(ssv1.AddToScheme(scheme))
 }
 
 func (d *Daemon) initGoogleModulesBeforeEndpointRestore(ctx context.Context) {
