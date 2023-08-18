@@ -79,13 +79,13 @@ func (h *flowHandler) ListMetricVec() []*prometheus.MetricVec {
 }
 
 // ProcessFlow processes single flow and updates corresponding counters.
-func (h *flowHandler) ProcessFlow(ctx context.Context, flow *flowpb.Flow) {
+func (h *flowHandler) ProcessFlow(ctx context.Context, flow *flowpb.Flow) error {
 	contextLabelValues, _ := h.context.GetLabelValues(flow)
 
 	if !h.sourceAndDestLabelsSet(contextLabelValues) {
 		// do not report metrics without source or destination
 		h.outcome.WithLabelValues("context_missing").Inc()
-		return
+		return nil
 	}
 
 	if counter := h.prometheusCounter(flow); counter != nil {
@@ -93,7 +93,7 @@ func (h *flowHandler) ProcessFlow(ctx context.Context, flow *flowpb.Flow) {
 
 		if !h.canCreateMetricSeries(contextLabelValues, labels) {
 			h.outcome.WithLabelValues("limit_exceeded").Inc()
-			return
+			return nil
 		}
 
 		labels = append(labels, contextLabelValues...)
@@ -103,6 +103,7 @@ func (h *flowHandler) ProcessFlow(ctx context.Context, flow *flowpb.Flow) {
 	} else {
 		h.outcome.WithLabelValues("unknown_direction").Inc()
 	}
+	return nil
 }
 
 func (h *flowHandler) labelNames() []string {
@@ -239,4 +240,9 @@ func isReplyAsString(flow *flowpb.Flow) string {
 		return "true"
 	}
 	return "false"
+}
+
+func __validateInterfaces() {
+	var _ api.Handler = &flowHandler{}
+	var _ api.FlowProcessor = &flowHandler{}
 }
