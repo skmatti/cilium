@@ -8,6 +8,7 @@ import (
 
 	"k8s.io/client-go/util/workqueue"
 
+	"github.com/cilium/cilium/operator/pkg/gke/lbipamconfig"
 	"github.com/cilium/cilium/pkg/hive"
 	"github.com/cilium/cilium/pkg/hive/cell"
 	cilium_api_v2alpha1 "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2alpha1"
@@ -36,7 +37,10 @@ var resourcesCell = cell.Module(
 				resource.WithRateLimiter(errorRateLimiter),
 			), nil
 		},
-		func(lc hive.Lifecycle, c k8sClient.Clientset) resource.Resource[*cilium_api_v2alpha1.CiliumLoadBalancerIPPool] {
+		func(lc hive.Lifecycle, c k8sClient.Clientset, config lbipamconfig.Config) resource.Resource[*cilium_api_v2alpha1.CiliumLoadBalancerIPPool] {
+			if !config.EnableLoadBalancerIPAM {
+				return nil
+			}
 			return resource.New[*cilium_api_v2alpha1.CiliumLoadBalancerIPPool](
 				lc,
 				k8sutils.ListerWatcherFromTyped[*cilium_api_v2alpha1.CiliumLoadBalancerIPPoolList](c.CiliumV2alpha1().CiliumLoadBalancerIPPools()),

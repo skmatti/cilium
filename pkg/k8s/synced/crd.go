@@ -18,6 +18,7 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
 
+	"github.com/cilium/cilium/operator/pkg/gke/lbipamconfig"
 	"github.com/cilium/cilium/pkg/k8s"
 	v2 "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2"
 	v2alpha1 "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2alpha1"
@@ -78,7 +79,9 @@ func agentCRDResourceNames() []string {
 		result = append(result, CRDResourceName(v2alpha1.BGPPName))
 	}
 
-	result = append(result, CRDResourceName(v2alpha1.LBIPPoolName))
+	if lbipamconfig.GlobalConfig.EnableLoadBalancerIPAM {
+		result = append(result, CRDResourceName(v2alpha1.LBIPPoolName))
+	}
 
 	return result
 }

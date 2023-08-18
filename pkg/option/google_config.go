@@ -48,4 +48,7 @@ const (
 
 	// DevicePrefixesToExclude excludes google-managed devices with the provided prefixes.
 	DevicePrefixesToExclude = "device-prefixes-to-exclude"
+
+	// EnableLoadBalancerIPAM enables the LoadBalancer IPAM feature, and exposes the CiliumLoadBalancerIPPool CRD
+	EnableLoadBalancerIPAM = "enable-lbipam"
 )

@@ -22,6 +22,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/util/workqueue"
 
+	"github.com/cilium/cilium/operator/pkg/gke/lbipamconfig"
 	k8sClient "github.com/cilium/cilium/pkg/k8s/client"
 
 	"github.com/cilium/cilium/pkg/hive"
@@ -78,9 +79,15 @@ type LBIPAMParams struct {
 	SvcResource  resource.Resource[*slim_core_v1.Service]
 
 	DaemonConfig *option.DaemonConfig
+
+	lbipamconfig.Config
 }
 
 func newLBIPAM(params LBIPAMParams) *LBIPAM {
+	if !params.Config.EnableLoadBalancerIPAM {
+		return nil
+	}
+
 	var lbClasses []string
 	if params.DaemonConfig.EnableBGPControlPlane {
 		lbClasses = append(lbClasses, "io.cilium/bgp-control-plane")
