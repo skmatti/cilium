@@ -18,6 +18,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/watch"
 
+	"github.com/cilium/cilium/pkg/gke/features"
 	cilium_api_v2alpha1 "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2alpha1"
 	"github.com/cilium/cilium/pkg/k8s/resource"
 	slim_core_v1 "github.com/cilium/cilium/pkg/k8s/slim/k8s/api/core/v1"
@@ -266,6 +267,9 @@ func mkTestFixture(ipv4Enabled, ipv6Enabled bool) newFixture {
 
 			poolClient: poolClient,
 			svcClient:  svcClient,
+			Config: features.Config{
+				EnableLoadBalancerIPAM: true,
+			},
 		}),
 	}
 }

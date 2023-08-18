@@ -49,6 +49,9 @@ var Cell = cell.Module(
 )
 
 func l2AnnouncementPolicyResource(lc cell.Lifecycle, cs k8sClient.Clientset) (resource.Resource[*cilium_api_v2alpha1.CiliumL2AnnouncementPolicy], error) {
+	if !option.Config.EnableL2Announcements {
+		return nil, nil
+	}
 	if !cs.IsEnabled() {
 		return nil, nil
 	}
@@ -110,6 +113,10 @@ func NewL2Announcer(params l2AnnouncerParams) *L2Announcer {
 		selectedPolicies:  make(map[resource.Key]*selectedPolicy),
 		leaderChannel:     make(chan leaderElectionEvent, leaderElectionBufferSize),
 		devicesUpdatedSig: make(chan struct{}, 1),
+	}
+
+	if !option.Config.EnableL2Announcements {
+		return announcer
 	}
 
 	// Can't operate or GC if client set is disabled

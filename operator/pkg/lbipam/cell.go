@@ -11,6 +11,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/pflag"
 
+	"github.com/cilium/cilium/pkg/gke/features"
 	cilium_api_v2alpha1 "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2alpha1"
 	k8sClient "github.com/cilium/cilium/pkg/k8s/client"
 	"github.com/cilium/cilium/pkg/k8s/resource"
@@ -67,6 +68,8 @@ type lbipamCellParams struct {
 	Metrics *ipamMetrics
 
 	Config lbipamConfig
+
+	features.Config
 }
 
 func newLBIPAMCell(params lbipamCellParams) *LBIPAM {
@@ -83,6 +86,9 @@ func newLBIPAMCell(params lbipamCellParams) *LBIPAM {
 		lbClasses = append(lbClasses, cilium_api_v2alpha1.L2AnnounceLoadBalancerClass)
 	}
 
+	if !params.Config.EnableLoadBalancerIPAM {
+		return nil
+	}
 	lbIPAM := newLBIPAM(lbIPAMParams{
 		logger:       params.Logger,
 		poolResource: params.PoolResource,
@@ -94,6 +100,7 @@ func newLBIPAMCell(params lbipamCellParams) *LBIPAM {
 		poolClient:   params.Clientset.CiliumV2alpha1().CiliumLoadBalancerIPPools(),
 		svcClient:    params.Clientset.Slim().CoreV1(),
 		jobGroup:     params.JobGroup,
+		Config:       params.Config,
 	})
 
 	lbIPAM.jobGroup.Add(

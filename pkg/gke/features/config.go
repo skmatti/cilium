@@ -11,6 +11,8 @@ const (
 	_ = 0
 	// EnableLoadBalancerIPAM enables the LoadBalancer IPAM feature, and exposes the CiliumLoadBalancerIPPool CRD
 	EnableLoadBalancerIPAM = "enable-lbipam"
+	// EnableMultiPoolIPAM enables the multi-pool IPAM feature, and exposes the CiliumPodIPPool CRD
+	EnableMultiPoolIPAM = "enable-multipool-ipam"
 	// EnableCiliumNodeConfig enables the CiliumNodeConfig CRD
 	EnableCiliumNodeConfig = "enable-cnc"
 )
@@ -33,6 +35,12 @@ var Cell = cell.Module(
 // Config struct used to gate OSS features that otherwise have no means to be disabled
 type Config struct {
 	// Add fields here. Do not delete this comment.
+	// EnableLoadBalancerIPAM enables the LB IPAM feature
+	EnableLoadBalancerIPAM bool `mapstructure:"enable-lbipam"`
+	// EnableMultiPoolIPAM enables the multi-pool IPAM feature
+	EnableMultiPoolIPAM bool `mapstructure:"enable-multipool-ipam"`
+	// EnableCiliumNodeConfig enables the CiliumNodeConfig CRD
+	EnableCiliumNodeConfig bool `mapstructure:"enable-cnc"`
 	// EnableGoogleMultiNIC enables multi-nic support
 	EnableGoogleMultiNIC bool `mapstructure:"enable-google-multi-nic"`
 	// EnableGoogleConfigOverride enables overriding Cilium configuration by
@@ -49,10 +57,19 @@ var defaultConfig = Config{
 	EnableGoogleConfigOverride:  false,
 	EnableGoogleMultiNICHairpin: false,
 	PopulateGCENICInfo:          false,
+	EnableMultiPoolIPAM:         false,
 }
 
 func (cfg Config) Flags(flags *pflag.FlagSet) {
 	// Add flags here. Do not delete this comment.
+	flags.Bool(EnableLoadBalancerIPAM, defaultConfig.EnableLoadBalancerIPAM, "Enable LoadBalancer IP Address Management (IPAM)")
+	flags.MarkHidden(EnableLoadBalancerIPAM)
+
+	flags.Bool(EnableMultiPoolIPAM, defaultConfig.EnableMultiPoolIPAM, "Enable Multi-Pool IPAM")
+	flags.MarkHidden(EnableMultiPoolIPAM)
+
+	flags.Bool(EnableCiliumNodeConfig, defaultConfig.EnableCiliumNodeConfig, "Enable CiliumNodeConfig")
+	flags.MarkHidden(EnableCiliumNodeConfig)
 	flags.Bool(option.EnableGoogleMultiNIC, defaultConfig.EnableGoogleMultiNIC, "Enable google multi NIC support")
 	flags.MarkHidden(option.EnableGoogleMultiNIC)
 	flags.Bool(option.EnableGoogleConfigOverrideName, defaultConfig.EnableGoogleConfigOverride, `Enable overriding Cilium configuration by reading from cilium-config-emergency-override ConfigMap`)

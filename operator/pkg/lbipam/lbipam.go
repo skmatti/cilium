@@ -25,6 +25,7 @@ import (
 	"k8s.io/client-go/util/workqueue"
 
 	"github.com/cilium/cilium/pkg/annotation"
+	"github.com/cilium/cilium/pkg/gke/features"
 	"github.com/cilium/cilium/pkg/ipalloc"
 	"github.com/cilium/cilium/pkg/k8s"
 	cilium_api_v2alpha1 "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2alpha1"
@@ -82,6 +83,8 @@ type lbIPAMParams struct {
 	jobGroup job.Group
 
 	metrics *ipamMetrics
+
+	features.Config
 }
 
 func newLBIPAM(params lbIPAMParams) *LBIPAM {

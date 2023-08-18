@@ -14,6 +14,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/yaml"
 
+	"github.com/cilium/cilium/pkg/gke/util"
 	k8sconst "github.com/cilium/cilium/pkg/k8s/apis/cilium.io"
 	k8sconstv2 "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2"
 	k8sconstv2alpha1 "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2alpha1"
@@ -215,6 +216,11 @@ func CreateCustomResourceDefinitions(clientset apiextensionsclient.Interface) er
 	crds := CustomResourceDefinitionList()
 
 	for _, r := range synced.AllCiliumCRDResourceNames() {
+		if !util.CreateCRD(r) {
+			log.Infof("Skipping creation of resource %s.", r)
+			continue
+		}
+
 		if crd, ok := crds[r]; ok {
 			g.Go(func() error {
 				return createCRD(crd.Name, crd.FullName)(clientset)

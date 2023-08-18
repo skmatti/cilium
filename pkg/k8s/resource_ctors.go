@@ -9,6 +9,7 @@ import (
 	"sync"
 
 	"github.com/cilium/cilium/pkg/allocator"
+	"github.com/cilium/cilium/pkg/gke/features"
 	"github.com/cilium/cilium/pkg/identity/key"
 
 	"github.com/cilium/hive/cell"
@@ -165,7 +166,10 @@ func NamespaceResource(lc cell.Lifecycle, cs client.Clientset, opts ...func(*met
 	return resource.New[*slim_corev1.Namespace](lc, lw, resource.WithMetric("Namespace")), nil
 }
 
-func LBIPPoolsResource(params CiliumResourceParams, opts ...func(*metav1.ListOptions)) (resource.Resource[*cilium_api_v2alpha1.CiliumLoadBalancerIPPool], error) {
+func LBIPPoolsResource(params CiliumResourceParams, config features.Config, opts ...func(*metav1.ListOptions)) (resource.Resource[*cilium_api_v2alpha1.CiliumLoadBalancerIPPool], error) {
+	if !config.EnableLoadBalancerIPAM {
+		return nil, nil
+	}
 	if !params.ClientSet.IsEnabled() {
 		return nil, nil
 	}
@@ -236,7 +240,10 @@ func CiliumCIDRGroupResource(params CiliumResourceParams, opts ...func(*metav1.L
 	return resource.New[*cilium_api_v2alpha1.CiliumCIDRGroup](params.Lifecycle, lw, resource.WithMetric("CiliumCIDRGroup"), resource.WithCRDSync(params.CRDSyncPromise)), nil
 }
 
-func CiliumPodIPPoolResource(params CiliumResourceParams, opts ...func(*metav1.ListOptions)) (resource.Resource[*cilium_api_v2alpha1.CiliumPodIPPool], error) {
+func CiliumPodIPPoolResource(params CiliumResourceParams, config features.Config, opts ...func(*metav1.ListOptions)) (resource.Resource[*cilium_api_v2alpha1.CiliumPodIPPool], error) {
+	if !config.EnableLoadBalancerIPAM {
+		return nil, nil
+	}
 	if !params.ClientSet.IsEnabled() {
 		return nil, nil
 	}

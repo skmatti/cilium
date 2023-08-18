@@ -17,6 +17,7 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
 
+	"github.com/cilium/cilium/pkg/gke/features"
 	v2 "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2"
 	v2alpha1 "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2alpha1"
 	"github.com/cilium/cilium/pkg/k8s/client"
@@ -39,7 +40,6 @@ func agentCRDResourceNames() []string {
 	result := []string{
 		CRDResourceName(v2.CNName),
 		CRDResourceName(v2.CIDName),
-		CRDResourceName(v2alpha1.CPIPName),
 	}
 
 	if !option.Config.DisableCiliumEndpointCRD {
@@ -81,10 +81,17 @@ func agentCRDResourceNames() []string {
 		result = append(result, CRDResourceName(v2alpha1.BGPNCOName))
 	}
 
-	result = append(result,
-		CRDResourceName(v2alpha1.LBIPPoolName),
-		CRDResourceName(v2alpha1.L2AnnouncementName),
-	)
+	if features.GlobalConfig.EnableMultiPoolIPAM {
+		result = append(result, CRDResourceName(v2alpha1.CPIPName))
+	}
+
+	if features.GlobalConfig.EnableLoadBalancerIPAM {
+		result = append(result, CRDResourceName(v2alpha1.LBIPPoolName))
+	}
+
+	if option.Config.EnableL2Announcements {
+		result = append(result, CRDResourceName(v2alpha1.L2AnnouncementName))
+	}
 
 	return result
 }
