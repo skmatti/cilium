@@ -157,16 +157,16 @@ func (d *Daemon) launchHubble() {
 		return
 	}
 
-	gkeOpts := gkeflow.GKEFlowOptions{
-		DisablePolicyEventCountMetric:  option.Config.DisablePolicyEventCountMetric,
-		HubblePolicyCorrelationEnabled: option.Config.EnableHubbleCorrelatePolicies,
-	}
-	gkeFlowPlugin := gkeflow.New(gkeOpts, d.clientset)
+	// hook up GKE flow plugin
+	gkeFlowPlugin := gkeflow.GlobalFlowPlugin()
 	observerOpts = append(observerOpts,
 		observeroption.WithOnServerInit(gkeFlowPlugin),
+		observeroption.WithOnDecodedFlow(gkeFlowPlugin),
+	)
+
+	observerOpts = append(observerOpts,
 		observeroption.WithMaxFlows(maxFlows),
 		observeroption.WithMonitorBuffer(option.Config.HubbleEventQueueSize),
-		observeroption.WithOnDecodedFlow(gkeFlowPlugin),
 		observeroption.WithCiliumDaemon(d),
 	)
 	if option.Config.HubbleExportFilePath != "" {
@@ -246,7 +246,6 @@ func (d *Daemon) launchHubble() {
 		<-d.ctx.Done()
 		localSrv.Stop()
 		peerSvc.Close()
-		gkeFlowPlugin.Stop()
 	}()
 
 	// configure another hubble instance that serve fewer gRPC services

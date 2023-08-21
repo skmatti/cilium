@@ -237,12 +237,6 @@ const (
 	// EnableHostFirewall enables network policies for the host
 	EnableHostFirewall = "enable-host-firewall"
 
-	// EnableHubbleCorrelatePolicies enables policy correlation for hubble flows.
-	EnableHubbleCorrelatePolicies = "enable-hubble-correlate-policies"
-
-	// DisablePolicyEventCountMetric  disables the policy event count metric on this host.
-	DisablePolicyEventCountMetric = "disable-policy-event-count-metric"
-
 	// EnableHostPort enables HostPort forwarding implemented by Cilium in BPF
 	EnableHostPort = "enable-host-port"
 
@@ -2031,9 +2025,6 @@ type DaemonConfig struct {
 	// remote nodes. This option is used together with enable-host-firewall.
 	DisablePodToRemoteNodeTunneling bool
 
-	// DisablePolicyEventCountMetric  disables the policy event count metric on this host.
-	DisablePolicyEventCountMetric bool
-
 	// EnableLocalRedirectPolicy enables redirect policies to redirect traffic within nodes
 	EnableLocalRedirectPolicy bool
 
@@ -3014,7 +3005,6 @@ func (c *DaemonConfig) Populate(vp *viper.Viper) {
 	c.EnableMKE = vp.GetBool(EnableMKE)
 	c.CgroupPathMKE = vp.GetString(CgroupPathMKE)
 	c.EnableHostFirewall = vp.GetBool(EnableHostFirewall)
-	c.DisablePolicyEventCountMetric = vp.GetBool(DisablePolicyEventCountMetric)
 	c.EnableLocalRedirectPolicy = vp.GetBool(EnableLocalRedirectPolicy)
 	c.EnableGoogleMultiNIC = vp.GetBool(EnableGoogleMultiNIC)
 	c.EnableGoogleServiceSteering = vp.GetBool(EnableGoogleServiceSteering)

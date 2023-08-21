@@ -56,6 +56,12 @@ const (
 	// Clustermesh will only distribute information from namespaces that have one
 	// of these labels.
 	ClustermeshNamespaceLabels = "clustermesh-namespace-labels"
+
+	// EnableHubbleCorrelatePolicies enables policy correlation for hubble flows.
+	EnableHubbleCorrelatePolicies = "enable-hubble-correlate-policies"
+
+	// DisablePolicyEventCountMetric  disables the policy event count metric on this host.
+	DisablePolicyEventCountMetric = "disable-policy-event-count-metric"
 )
 
 func (c *DaemonConfig) SyncPredicate() func(string) bool {

@@ -12,125 +12,57 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// This is the entry point to GKE-specific functionality. Invoked at daemon startup.
-
 package plugin
 
 import (
 	"context"
-	"fmt"
 
 	pb "github.com/cilium/cilium/api/v1/flow"
 	"github.com/cilium/cilium/pkg/gke/dispatcher"
-	nlcontroller "github.com/cilium/cilium/pkg/gke/networklogging/controller"
-	me "github.com/cilium/cilium/pkg/gke/networkpolicy/metrics"
+	"github.com/cilium/cilium/pkg/hive/cell"
 	"github.com/cilium/cilium/pkg/hubble/observer/observeroption"
-	"github.com/cilium/cilium/pkg/hubble/parser/getters"
-	k8sClient "github.com/cilium/cilium/pkg/k8s/client"
-	"github.com/cilium/cilium/pkg/logging"
-	"github.com/cilium/cilium/pkg/logging/logfields"
+	"github.com/cilium/cilium/pkg/promise"
 )
 
-var (
-	log = logging.DefaultLogger.WithField(logfields.LogSubsys, "gke-flow-plugin")
+// Use global variable because hubble server hasn't been modularized
+var globalFlowPlugin = FlowPlugin{}
+
+var Cell = cell.Module(
+	"flow-plugin",
+	"Flow Plugin",
+
+	cell.Provide(newFlowPlugin),
+	cell.Invoke(func(p FlowPlugin) { globalFlowPlugin = p }),
 )
 
-type GKEFlowOptions struct {
-	DisablePolicyEventCountMetric bool
-
-	HubblePolicyCorrelationEnabled bool
+type FlowPlugin struct {
+	HubbleResolver promise.Resolver[observeroption.Server]
+	HubblePromise  promise.Promise[observeroption.Server]
+	Dispatcher     dispatcher.Dispatcher
+	Observer       dispatcher.Observer
 }
 
-type gkeFlowPlugin struct {
-	options   GKEFlowOptions
-	clientset k8sClient.Clientset
-
-	networkLoggingController  *nlcontroller.Controller
-	metricsExporterController *me.Controller
-	endpointGetter            getters.EndpointGetter
-	storeGetter               getters.StoreGetter
-	dispatcher                dispatcher.Dispatcher
-	observer                  dispatcher.Observer
-	networkLoggingStopCh      chan struct{}
-	metricExporterStopCh      chan struct{}
+func GlobalFlowPlugin() FlowPlugin {
+	return globalFlowPlugin
 }
 
-// GKEPlugin provides the functions to be inserted into Hubble processing chain
-// defined in pkg/hubble/observer/observeroption/option.go
-type GKEFlowPlugin interface {
-	// Stop stops the plugin.
-	Stop()
-	// OnDecodedFlow is invoked after a flow has been decoded at Hubble.
-	OnDecodedFlow(ctx context.Context, pb *pb.Flow) (bool, error)
-	// OnServerInit is invoked after all Hubble server options have been applied.
-	OnServerInit(srv observeroption.Server) error
-}
-
-// New
-func New(o GKEFlowOptions, clientset k8sClient.Clientset) GKEFlowPlugin {
-	return &gkeFlowPlugin{
-		options:   o,
-		clientset: clientset,
+func newFlowPlugin() FlowPlugin {
+	hubbleResolver, hubblePromise := promise.New[observeroption.Server]()
+	dispatch := dispatcher.NewDispatcher()
+	observer := dispatch.(dispatcher.Observer)
+	return FlowPlugin{
+		HubbleResolver: hubbleResolver,
+		HubblePromise:  hubblePromise,
+		Dispatcher:     dispatch,
+		Observer:       observer,
 	}
 }
 
-// Stop stops GKEFlowPlugin.
-func (p *gkeFlowPlugin) Stop() {
-	log.Info("Stop GKE flow plugin")
-	close(p.networkLoggingStopCh)
-	close(p.metricExporterStopCh)
-}
-
-// OnDecodedFlow provides the API to observe Hubble flow.
-func (p *gkeFlowPlugin) OnDecodedFlow(ctx context.Context, pb *pb.Flow) (bool, error) {
-	return p.observer.OnDecodedFlow(ctx, pb)
-}
-
-// OnServerInit initiates GKE flow plugin and triggers the run.
-func (p *gkeFlowPlugin) OnServerInit(srv observeroption.Server) error {
-	endpointGetter, ok := srv.GetOptions().CiliumDaemon.(getters.EndpointGetter)
-	if !ok || endpointGetter == nil {
-		err := fmt.Errorf("invalid type, expected endpointGetter, got %T", srv.GetOptions().CiliumDaemon)
-		log.Errorf("Error: %v", err)
-		return err
-	}
-	p.endpointGetter = endpointGetter
-
-	storeGetter, ok := srv.GetOptions().CiliumDaemon.(getters.StoreGetter)
-	if !ok || storeGetter == nil {
-		err := fmt.Errorf("invalid type, expected storeGetter, got %T", srv.GetOptions().CiliumDaemon)
-		log.Errorf("Error: %v", err)
-		return err
-	}
-	p.storeGetter = storeGetter
-
-	p.dispatcher = dispatcher.NewDispatcher()
-	p.observer = p.dispatcher.(dispatcher.Observer)
-
-	// networkLoggingstopCh is used to only signal closing. So it doesn't needs any buffer
-	// and will only have open and close operations.
-	p.networkLoggingStopCh = make(chan struct{})
-	var err error
-	p.networkLoggingController, err = nlcontroller.NewController(p.clientset, p.networkLoggingStopCh, p.dispatcher, p.endpointGetter, p.storeGetter, nlcontroller.WithHubblePolicyCorrelation(p.options.HubblePolicyCorrelationEnabled))
-	if err != nil {
-		log.Errorf("Failed to create network logging controller: %v", err)
-		return err
-	}
-	log.Info("Created network logging controller, but not started")
-
-	// metricExporterStopCh is used to only signal closing. So it doesn't needs any buffer
-	// and will only have open and close operations.
-	p.metricExporterStopCh = make(chan struct{})
-	metricOpts := me.ControllerOptions{
-		DisablePolicyEventCount: p.options.DisablePolicyEventCountMetric,
-	}
-	p.metricsExporterController, err = me.NewController(p.dispatcher, p.metricExporterStopCh, metricOpts)
-	if err != nil {
-		log.Errorf("Failed to create metric exporter controller: %v", err)
-		return err
-	}
-	log.Info("Created metric exporter controller, but not started")
-	go p.metricsExporterController.Run()
-	go p.networkLoggingController.Run()
+func (p FlowPlugin) OnServerInit(srv observeroption.Server) error {
+	p.HubbleResolver.Resolve(srv)
 	return nil
+}
+
+func (p FlowPlugin) OnDecodedFlow(ctx context.Context, pb *pb.Flow) (bool, error) {
+	return p.Observer.OnDecodedFlow(ctx, pb)
 }

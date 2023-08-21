@@ -18,6 +18,7 @@
 package controller
 
 import (
+	"context"
 	"fmt"
 	"time"
 
@@ -80,14 +81,8 @@ func WithHubblePolicyCorrelation(v bool) func(*Controller) {
 }
 
 // newController returns a new controller for network logging.
-func NewController(clientset k8sClient.Clientset, stopCh chan struct{}, dispatcher dispatcher.Dispatcher, endpointGetter getters.EndpointGetter, storeGetter getters.StoreGetter, opts ...func(*Controller)) (*Controller, error) {
+func NewController(clientset k8sClient.Clientset, networkLoggingClient versioned.Interface, dispatcher dispatcher.Dispatcher, endpointGetter getters.EndpointGetter, storeGetter getters.StoreGetter, opts ...func(*Controller)) *Controller {
 	log.Info("New network logging controller")
-
-	networkLoggingClient, err := versioned.NewForConfig(clientset.RestConfig())
-	if err != nil {
-		return nil, fmt.Errorf("Failed to create network logging client: %v", err)
-	}
-
 	broadcaster := record.NewBroadcaster()
 	broadcaster.StartLogging(klog.Infof)
 	broadcaster.StartRecordingToSink(&v1core.EventSinkImpl{Interface: clientset.CoreV1().Events("")})
@@ -105,7 +100,7 @@ func NewController(clientset k8sClient.Clientset, stopCh chan struct{}, dispatch
 		eventRecorder:          recorder,
 		eventBroadcaster:       broadcaster,
 		policyLoggingEnabled:   false,
-		stopCh:                 stopCh,
+		stopCh:                 make(chan struct{}),
 	}
 	for _, opt := range opts {
 		opt(c)
@@ -117,7 +112,7 @@ func NewController(clientset k8sClient.Clientset, stopCh chan struct{}, dispatch
 		UpdateFunc: func(old, curr interface{}) { c.updateHandler(curr) },
 		DeleteFunc: c.delHandler,
 	})
-	return c, nil
+	return c
 }
 
 // validateLogAction validates the logAction.
@@ -215,8 +210,8 @@ func (c *Controller) delHandler(obj interface{}) {
 	}
 }
 
-// run starts network logging controller and wait for stop.
-func (c *Controller) Run() {
+// run starts network logging controller.
+func (c *Controller) Start(ctx context.Context) {
 	log.Info("Starting network logging controller")
 	// Start the policy logger first so that if something is wrong informer doesn't need
 	// to start. After the informer cache is synced, call the readyCb function to notify
@@ -227,15 +222,17 @@ func (c *Controller) Run() {
 		return
 	}
 	go c.networkLoggingInformer.Run(c.stopCh)
-	if ok := cache.WaitForNamedCacheSync("networklogging", c.stopCh, c.networkLoggingInformer.HasSynced); !ok {
+	if ok := cache.WaitForNamedCacheSync("networklogging", ctx.Done(), c.networkLoggingInformer.HasSynced); !ok {
 		log.Error("Failed to wait for networklogging caches to sync")
 		return
 	}
 	if readyCb != nil {
 		readyCb()
 	}
-	<-c.stopCh
-	c.policyLogger.Stop()
+}
+
+func (c *Controller) Stop() {
 	log.Info("Shutting down network logging controller")
-	return
+	close(c.stopCh)
+	c.policyLogger.Stop()
 }
