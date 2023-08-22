@@ -29,21 +29,30 @@ if command -v gcloud; then
     gcloud auth configure-docker
 fi
 
+# The following tests are disabled because they only pass on newer kernel versions:
+# xdp, session_affinity, ipv6_test: XDP programs, not supported
+# ipsec: not supported
+SKIP_TESTS="xdp|session_affinity|ipsec|ipv6_test"
+
 # Create run.sh
 cat <<EOF > run.sh
 #!/bin/bash
-git config --global --add safe.directory "${TEST_VM_SOURCE_CODE_PATH}"
+git config --global --add safe.directory /src
+
+export CLANG=clang-10 LLC=llc-10
 
 make -C bpf/tests clean
+make -C bpf/tests all
 
 # TODO(wanlindu): Enable coverage report when upstream
 # fix (https://github.com/cilium/cilium/pull/24094) is
 # synced in internal repo.
-CLANG=clang-10 LLC=llc-10 make -C test run_bpf_tests
+
+go test ./test/bpf_tests -bpf-test-path /src/bpf/tests -skip "/($SKIP_TESTS)"
 EOF
 chmod 750 run.sh
 
 IMAGE="$(sudo docker build -q "${SCRIPT_DIR}")"
-sudo docker run --privileged --workdir  "${TEST_VM_SOURCE_CODE_PATH}" --entrypoint /bin/bash -v /sys/fs/bpf:/sys/fs/bpf  -v "${TEST_VM_SOURCE_CODE_PATH}:${TEST_VM_SOURCE_CODE_PATH}" "${IMAGE}" "${TEST_VM_SOURCE_CODE_PATH}/run.sh"
+sudo docker run --privileged --workdir /src --entrypoint /bin/bash -v $(pwd):/src "${IMAGE}" /src/run.sh
 
 popd || exit 0
