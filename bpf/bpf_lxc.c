@@ -811,8 +811,14 @@ static __always_inline int handle_ipv4_from_lxc(struct __ctx_buff *ctx, __u32 *d
 	 * function), then try to use that information instead of checking the packet. Can use a
 	 * similar strategy to how conntrack info is passed into a tail call: via a PERCPU_ARRAY map.
 	 */
-	if (is_sfc_encapped(ctx, ip4))
+	if (is_sfc_encapped(ctx, ip4)) {
+		ret = sfc_fix_skb_encap(ctx, ip4);
+		if (IS_ERR(ret))
+		  return ret;
+		if (!revalidate_data(ctx, &data, &data_end, &ip4))
+			return DROP_INVALID;
 		goto skip_service_steering;
+	}
 }
 #endif /* ENABLE_GOOGLE_SERVICE_STEERING */
 
@@ -1021,7 +1027,6 @@ ct_recreate4:
 	/* After L4 write in port mapping: revalidate for direct packet access */
 	if (!revalidate_data(ctx, &data, &data_end, &ip4))
 		return DROP_INVALID;
-
 #ifdef ENABLE_GOOGLE_SERVICE_STEERING
 {
 	struct redirect_info redir = {};
@@ -1029,19 +1034,13 @@ ct_recreate4:
 	if (IS_ERR(ret))
 		return ret;
 	if (redir.path) {
-		__be32 inner_saddr = ip4->saddr;
 		ret = sfc_encap(ctx, ip4, &redir);
 		if (unlikely(ret == DROP_FRAG_NEEDED))
 			return sfc_redirect_icmp4(ctx, ip4, ct_state_new.rev_nat_index);
 		if (IS_ERR(ret))
 			return ret;
-		if (!revalidate_data_pull(ctx, &data, &data_end, &ip4))
-			return DROP_INVALID;
-		ret = sfc_lb4(ctx, ip4, inner_saddr);
-		if (IS_ERR(ret))
-			return ret;
-		if (!revalidate_data(ctx, &data, &data_end, &ip4))
-			return DROP_INVALID;
+		ep_tail_call(ctx, CILIUM_CALL_IPV4_FROM_LXC);
+		return DROP_MISSED_TAIL_CALL;
 	}
 
 skip_service_steering:
@@ -1408,22 +1407,13 @@ static __always_inline int __tail_handle_ipv4(struct __ctx_buff *ctx)
 		if (IS_ERR(ret))
 			return ret;
 		if (redir.path) {
-			__be32 inner_saddr = ip4->saddr;
 			ret = sfc_encap(ctx, ip4, &redir);
 			if (unlikely(ret == DROP_FRAG_NEEDED))
 				return sfc_redirect_icmp4(ctx, ip4, 0);
 			if (IS_ERR(ret))
 				return ret;
-			if (!revalidate_data_pull(ctx, &data, &data_end, &ip4))
-				return DROP_INVALID;
-			ret = sfc_lb4(ctx, ip4, inner_saddr);
-			if (IS_ERR(ret))
-				return ret;
 			if (!revalidate_data(ctx, &data, &data_end, &ip4))
 				return DROP_INVALID;
-
-			// skip connection tracking
-			ep_tail_call(ctx, CILIUM_CALL_IPV4_FROM_LXC_CONT);
 		}
 	}
 #endif /* ENABLE_GOOGLE_SERVICE_STEERING */
@@ -1472,15 +1462,26 @@ static __always_inline int __tail_handle_ipv4(struct __ctx_buff *ctx)
 
 		svc = lb4_lookup_service(&key, is_defined(ENABLE_NODEPORT), false);
 		if (svc) {
+			__be32 saddr = ip4->saddr;
 #if defined(ENABLE_L7_LB)
 			if (lb4_svc_is_l7loadbalancer(svc)) {
 				proxy_port = (__u16)svc->l7_lb_proxy_port;
 				goto skip_service_lookup;
 			}
 #endif /* ENABLE_L7_LB */
+#ifdef ENABLE_GOOGLE_SERVICE_STEERING
+{
+			if (is_sfc_encapped(ctx, ip4)) {
+				// For SFC, use inner IP for session affinity.
+				ret = sfc_extract_inner_saddr(ctx, &saddr);
+				if (IS_ERR(ret))
+					return ret;
+			}
+}
+#endif  /* ENABLE_GOOGLE_SERVICE_STEERING */
 			ret = lb4_local(get_ct_map4(&tuple), ctx, ETH_HLEN, l4_off,
 					&csum_off, &key, &tuple, svc, &ct_state_new,
-					ip4->saddr, has_l4_header, false);
+					saddr, has_l4_header, false);
 			if (IS_ERR(ret))
 				return ret;
 		}

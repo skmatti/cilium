@@ -497,6 +497,8 @@ sfc_existing_flow(struct __ctx_buff *ctx, struct iphdr *ip4, struct redirect_inf
 	int ret;
 	struct sfc_ipv4_flow_entry flow_entry = {};
 
+	if (is_sfc_encapped(ctx, ip4))
+		return CTX_ACT_OK;
 	if (!is_protocol_supported(ip4))
 		return CTX_ACT_OK;
 
@@ -578,71 +580,6 @@ try_sfc_decap(struct __ctx_buff *ctx, bool *skip_conntrack)
 		}
 	}
 
-	return CTX_ACT_OK;
-}
-
-/**
- * Load balance (DNAT) the packet if the dst is a service.
- * @arg ctx: Packet
- * @arg ip4: Pointer to L3 header
- * @arg inner_saddr: IP address of the inner packet (original source IP before
- * encap)
- *
- * Return negative `DROP_` codes if the packet can't be handled and `CTX_ACT_OK`
- * (0) otherwise.
- */
-static __always_inline int sfc_lb4(struct __ctx_buff *ctx, struct iphdr *ip4,
-				   __be32 inner_saddr)
-{
-	int ret;
-	struct ipv4_ct_tuple tuple = {};
-	struct csum_offset csum_off = {};
-	struct ct_state ct_state_new = {};
-	bool has_l4_header;
-	struct lb4_service *svc;
-	struct lb4_key key = {};
-	int l4_off;
-	__be32 new_daddr;
-
-	has_l4_header = ipv4_has_l4_header(ip4);
-	tuple.nexthdr = ip4->protocol;
-	tuple.daddr = ip4->daddr;
-	tuple.saddr = ip4->saddr;
-
-	l4_off = ETH_HLEN + ipv4_hdrlen(ip4);
-
-	ret = lb4_extract_key(ctx, ip4, l4_off, &key, &csum_off, CT_EGRESS);
-	if (IS_ERR(ret))
-		return ret;
-
-	svc = lb4_lookup_service(&key, true, true);
-	if (svc) {
-		ret = lb4_local(get_ct_map4(&tuple), ctx, ETH_HLEN, l4_off,
-				&csum_off, &key, &tuple, svc, &ct_state_new,
-				inner_saddr, has_l4_header, false);
-		if (IS_ERR(ret))
-			return ret;
-		new_daddr = ct_state_new.addr;
-	} else {
-		new_daddr = ip4->daddr;
-	}
-
-	if (!__lookup_ip4_endpoint(new_daddr)) {
-		// Endpoint is remote, so re-encap with skb->encapsulation set to 1.
-		// See b/261456637 for more context.
-		// TODO(b/269499064): Implement a more efficient solution that doesn't require re-encapsulation.
-		struct encaphdr h_outer = {};
-		__u64 flags = BPF_F_ADJ_ROOM_FIXED_GSO | BPF_F_ADJ_ROOM_ENCAP_L3_IPV4 | BPF_F_ADJ_ROOM_ENCAP_L4_UDP;
-
-		if (ctx_load_bytes(ctx, ETH_HLEN, &h_outer, sizeof(struct encaphdr)) < 0)
-			return DROP_INVALID;
-		if (ctx_adjust_hroom(ctx, -(__s32)sizeof(struct encaphdr), BPF_ADJ_ROOM_MAC, BPF_F_ADJ_ROOM_FIXED_GSO))
-			return DROP_INVALID;
-		if (ctx_adjust_hroom(ctx, sizeof(struct encaphdr), BPF_ADJ_ROOM_MAC, flags))
-			return DROP_INVALID;
-		if (ctx_store_bytes(ctx, ETH_HLEN, &h_outer, sizeof(struct encaphdr), BPF_F_INVALIDATE_HASH) < 0)
-			return DROP_INVALID;
-	}
 	return CTX_ACT_OK;
 }
 
@@ -820,6 +757,68 @@ sfc_redirect_icmp4(struct __ctx_buff *ctx, struct iphdr *ip4, __u16 rev_nat_inde
 	if (IS_ERR(ret))
 		return ret;
 	return ctx_redirect(ctx, ctx_get_ifindex(ctx), redirect_dir);
+}
+
+ /**
+   * Extract innter IP srouce address from a SFC encapped packet.
+   *
+   * @arg ctx: Packet
+   * @arg saddr: Pointer to a IP address to hold the output.
+   *
+   * Return negative `DROP_` codes if the packet can't be handled.
+   * Return `CTX_ACT_OK` if the address is extracted.
+   */
+static __always_inline int sfc_extract_inner_saddr(struct __ctx_buff *ctx,
+						   __be32 *saddr)
+{
+	struct iphdr inner_ip4 = {};
+	int inner_l3_off;
+	inner_l3_off = ETH_HLEN + sizeof(struct encaphdr);
+	if (ctx_load_bytes(ctx, inner_l3_off, &inner_ip4,
+			   sizeof(struct iphdr)) < 0)
+		return DROP_INVALID;
+	*saddr = inner_ip4.saddr;
+	return CTX_ACT_OK;
+}
+
+/**
+   * Fix encap flags on packet if it's not to a local endpoint.
+   * If dst is not a local endpoint, re-encap with skb->encapsulation set to 1.
+   * See b/261456637 for more context.
+   *
+   * @arg ctx: Packet
+   * @arg ip4: Pointer to L3 header
+   *
+   * Return negative `DROP_` codes if the packet can't be handled.
+   * Return `CTX_ACT_OK` if the process is successful.
+   */
+static __always_inline int sfc_fix_skb_encap(struct __ctx_buff *ctx,
+					     struct iphdr *ip4)
+{
+	if (!__lookup_ip4_endpoint(ip4->daddr)) {
+		// TODO(b/269499064): Implement a more efficient solution that
+		// doesn't require re-encapsulation.
+		struct encaphdr h_outer = {};
+		__u64 flags = BPF_F_ADJ_ROOM_FIXED_GSO |
+			      BPF_F_ADJ_ROOM_ENCAP_L3_IPV4 |
+			      BPF_F_ADJ_ROOM_ENCAP_L4_UDP;
+
+		if (ctx_load_bytes(ctx, ETH_HLEN, &h_outer,
+				   sizeof(struct encaphdr)) < 0)
+			return DROP_INVALID;
+		if (ctx_adjust_hroom(ctx, -(__s32)sizeof(struct encaphdr),
+				     BPF_ADJ_ROOM_MAC,
+				     BPF_F_ADJ_ROOM_FIXED_GSO))
+			return DROP_INVALID;
+		if (ctx_adjust_hroom(ctx, sizeof(struct encaphdr),
+				     BPF_ADJ_ROOM_MAC, flags))
+			return DROP_INVALID;
+		if (ctx_store_bytes(ctx, ETH_HLEN, &h_outer,
+				    sizeof(struct encaphdr),
+				    BPF_F_INVALIDATE_HASH) < 0)
+			return DROP_INVALID;
+	}
+	return CTX_ACT_OK;
 }
 
 #endif /* ENABLE_GOOGLE_SERVICE_STEERING */
