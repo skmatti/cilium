@@ -38,7 +38,7 @@ if [[ -n "${GIT_HTTP_COOKIEFILE}" ]]; then
     export GOPRIVATE='*.googlesource.com,*.git.corp.google.com'
 fi
 
-# Get credentails to use tailorbied and create the kind cluster
+# Get credentials to use tailorbird and create the kind cluster
 echo "Getting credentials for tailorbird-prod..."
 gcloud container clusters get-credentials tailorbird-prod \
 --region us-west2 --project tailorbird
@@ -48,4 +48,4 @@ kubetest2-tailorbird \
 	--up --down \
 	--tbconfig "${ROOKERY_CONFIG}" \
 	--test exec -- \
-	./google_test/upstream_test/conformance/run_k8s_conformance_test.sh
+	./google_test/upstream_test/run_tailorbird_general.sh

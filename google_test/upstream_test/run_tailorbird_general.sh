@@ -18,14 +18,27 @@ set -ex
 set -u
 set -o pipefail
 
+# TEST_SPECIFIC_RUN_TEST_SCRIPT is determined from TEST_TYPE
+declare -A test_script_from_test_type=(
+    [conformance]=google_test/upstream_test/run_k8s_conformance_test.sh
+    [connectivity]=google_test/upstream_test/run_connectivity_test.sh
+)
+
+# Make test fail fast if TEST_TYPE is not specified.
+if [[ -z "${TEST_TYPE}" ]]; then
+    echo "TEST_TYPE must be set."
+    exit 1
+fi
+
+run_test_script="${test_script_from_test_type["${TEST_TYPE}"]}"
+
 # Set up job variables
 SHA="$(git rev-parse --verify HEAD)"
 CILIUM_CLI_VERSION=v0.14.8
-K8S_VERSION=v1.27.3
 export DOCKER_BUILD_KIT=1
 export DOCKER_CLI_EXPERIMENTAL=enabled
 export PROJECT="${GCP_PROJECT:-anthos-networking-ci}"
-export IMAGE_REGISTRY="gcr.io/${PROJECT}/k8s-conformance-kind"
+export IMAGE_REGISTRY="gcr.io/${PROJECT}/k8s-${TEST_TYPE}-kind"
 export CILIUM_TAG=cilium/cilium
 export CILIUM_OPERATOR_TAG=cilium/operator
 export CILIUM_OPERATOR_GENERIC_TAG=cilium/operator-generic
@@ -37,6 +50,7 @@ export ACCOUNT_NAME="anthos-networking-ci-runner@${PROJECT}.iam.gserviceaccount.
 
 echo "  ARTIFACTS        = ${ARTIFACTS}"
 echo "  KUBETEST2_RUN_ID = ${KUBETEST2_RUN_ID}"
+echo "  TEST_TYPE        = ${TEST_TYPE}"
 
 # Register gcloud as the credential helper for Google-supported Docker registries.
 gcloud auth configure-docker
@@ -103,7 +117,7 @@ kubectl delete ds kindnet -n kube-system
 # Generate k8s secret from eligible SA for pulling images from GCR.
 export ACCOUNT_KEY=${ACCOUNT_NAME}-key.json
 export SECRETNAME=gcr-pull-secret
-gcloud secrets versions access latest --secret=anthos-networking-ci-runner-gcr-pull-secret --project="${PROJECT}" > "${ACCOUNT_KEY}"
+gcloud secrets versions access latest --secret=anthos-networking-ci-runner-gcr-pull-secret --project="${PROJECT}" >"${ACCOUNT_KEY}"
 kubectl create secret generic --type=kubernetes.io/dockerconfigjson -n kube-system "${SECRETNAME}" --from-file=.dockerconfigjson="${ACCOUNT_KEY}"
 
 # Install Cilium CLI
@@ -135,49 +149,5 @@ cilium install --wait --chart-directory=install/kubernetes/cilium \
     --disable-check=minimum-version \
     --rollback=false
 
-# Run Kubernetes sig-network conformance test
-# Kubernetes e2e tests use ginkgo and tags to select the tests that should run based on two regex, focus and skip:
-# Focus tests:
-# \[Conformance\]|\[sig-network\]: Conformance tests are defined by the project to guarantee a consistent behaviour and some mandatory features on all clusters
-#                                  sig-network tests are defined by sig-networkto guarantee a consistent behaviour on all the the k8s network implementations
-# Skipped tests:
-# Disruptive|Serial : require to run in serial and perform disruptive operations on clusters (reboots, ...)
-# Federation|PerformanceDNS : unrelated sig-network tests
-# Feature : skip features that are not GA, however, some of them should be enabled, per example [Feature:ProxyTerminatingEndpoints]
-# DualStack : only with dualstack clusters
-# KubeProxy|kube-proxy : kube-proxy specifics
-# LoadBalancer|GCE|ExternalIP : require a cloud provider, some of them are GCE specifics
-# Netpol|NetworkPolicy : network policies, demand significant resources and use to be slow, better to run in a different job
-# same.port.number.but.different.protocols|HostPort : #9207
-# rejected : Kubernetes expect Services without endpoints associated to REJECT the connection to notify the client, Cilium silently drops the packet
-# externalTrafficPolicy : needs investigation
-
-# TODO (b/293362837): fix + re-enable failing conformance tests
-
 # Run tests
-
-# Test binaries
-TMP_DIR=$(mktemp -d)
-curl -L https://dl.k8s.io/"${K8S_VERSION}"/kubernetes-test-linux-amd64.tar.gz -o "${TMP_DIR}"/kubernetes-test-linux-amd64.tar.gz
-tar xvzf "${TMP_DIR}"/kubernetes-test-linux-amd64.tar.gz \
-    --directory "${TMP_DIR}" \
-    --strip-components=3 kubernetes/test/bin/ginkgo kubernetes/test/bin/e2e.test
-sudo cp "${TMP_DIR}"/e2e.test /usr/local/bin/e2e.test
-sudo cp "${TMP_DIR}"/ginkgo /usr/local/bin/ginkgo
-
-export KUBERNETES_CONFORMANCE_TEST='y'
-/usr/local/bin/ginkgo --nodes=25 \
-    --focus="\[Conformance\]|\[sig-network\]" \
-    --skip="Feature|Federation|PerformanceDNS|DualStack|Disruptive|Serial|KubeProxy|kube-proxy|ExternalIP|LoadBalancer|GCE|Netpol|NetworkPolicy|rejected|externalTrafficPolicy|HostPort|same.port.number.but.different.protocols|should.serve.endpoints.on.same.port.and.different.protocols" \
-    --skip="should.support.remote.command.execution.over.websockets" \
-    --skip="should.support.a.Service.with.multiple.ports.specified.in.multiple.EndpointSlices" \
-    --skip="should.support.retrieving.logs.from.the.container.over.websockets" \
-    --skip="should.be.able.to.connect.to.terminating.and.unready.endpoints.if.PublishNotReadyAddresses.is.true" \
-    --skip="should.create.endpoints.for.unready.pods" \
-    /usr/local/bin/e2e.test \
-    -- \
-    --kubeconfig="${KUBECONFIG}" \
-    --provider=local \
-    --dump-logs-on-failure=true \
-    --report-dir="${ARTIFACTS}" \
-    --disable-log-dump=true
+KUBECONFIG="${KUBECONFIG}" "${run_test_script}"
