@@ -72,7 +72,7 @@ func (e *PolicyActionLogEntry) AggregationKey() interface{} {
 	return key
 }
 
-// SkipLogging returns wether the event should be logged.
+// SkipLogging returns whether the event should be logged.
 func (e *PolicyActionLogEntry) SkipLogging(allowUncorrelated bool) bool {
 	if e.Disposition == PolicyDispositionDeny {
 		return false

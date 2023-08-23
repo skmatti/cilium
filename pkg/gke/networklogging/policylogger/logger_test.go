@@ -416,6 +416,14 @@ func testCorrelator() *correlation.FakePolicyCorrelator {
 	)
 }
 
+// uncorrelatedCorrelator returns a fake correlator instantiated with uncorrelated entries.
+func uncorrelatedCorrelator() *correlation.FakePolicyCorrelator {
+	return correlation.NewFakePolicyCorrelator(
+		correlation.WithEntry(allowUUID, correlation.NewFakePolicyCorrelatorResult()),
+		correlation.WithEntry(redirectedUUID, correlation.NewFakePolicyCorrelatorResult()),
+	)
+}
+
 type testStoreGetter struct {
 	npStore        cache.Store
 	cnpStore       cache.Store
@@ -1077,6 +1085,7 @@ func seedStores(t testing.TB, getter *testStoreGetter) {
 
 func TestLogger_LogUncorrelatedEntries(t *testing.T) {
 	t.Parallel()
+
 	cfg := testCfg
 	cfg.LogUncorrelatedEntry = proto.Bool(true)
 	configFilePath := setupConfig(t, &cfg)
@@ -1084,13 +1093,11 @@ func TestLogger_LogUncorrelatedEntries(t *testing.T) {
 	dpatcher := dispatcher.NewDispatcher()
 	observer := dpatcher.(dispatcher.Observer)
 	logger := &networkPolicyLogger{
-		dispatcher: dpatcher,
-		policyCorrelator: correlation.NewFakePolicyCorrelator(
-			correlation.WithEntry(allowUUID, correlation.NewFakePolicyCorrelatorResult()),
-		),
-		storeGetter:    &testStoreGetter{},
-		spec:           getLogSpec(nil),
-		configFilePath: configFilePath,
+		dispatcher:       dpatcher,
+		policyCorrelator: uncorrelatedCorrelator(),
+		storeGetter:      &testStoreGetter{},
+		spec:             getLogSpec(nil),
+		configFilePath:   configFilePath,
 	}
 	cb, err := logger.Start()
 	if err != nil {
@@ -1109,11 +1116,12 @@ func TestLogger_LogUncorrelatedEntries(t *testing.T) {
 	logger.UpdateLoggingSpec(&spec)
 
 	observer.OnDecodedFlow(context.Background(), allowFlow)
-	want := uncorrelatedLog
-	retryCheckFileContent(t, fp, want, maxRetry)
+	retryCheckFileContent(t, fp, uncorrelatedLog, maxRetry)
 }
 
 func TestLogger_DontLogUncorrelatedEntries(t *testing.T) {
+	t.Parallel()
+
 	cfg := testCfg
 	configFilePath := setupConfig(t, &cfg)
 
@@ -1121,7 +1129,7 @@ func TestLogger_DontLogUncorrelatedEntries(t *testing.T) {
 	observer := dpatcher.(dispatcher.Observer)
 	logger := &networkPolicyLogger{
 		dispatcher:       dpatcher,
-		policyCorrelator: testCorrelator(),
+		policyCorrelator: uncorrelatedCorrelator(),
 		storeGetter:      &testStoreGetter{},
 		spec:             getLogSpec(nil),
 		configFilePath:   configFilePath,
@@ -1135,7 +1143,6 @@ func TestLogger_DontLogUncorrelatedEntries(t *testing.T) {
 	defer logger.Stop()
 	fp := path.Join(logger.cfg.logFilePath, logger.cfg.logFileName)
 
-	// Start with logging disabled which should be the default state.
 	spec := v1alpha1.NetworkLoggingSpec{
 		Cluster: v1alpha1.ClusterLogSpec{Allow: v1alpha1.LogAction{Log: true}},
 		Node:    v1alpha1.NodeLogSpec{Allow: v1alpha1.LogAction{Log: true}},
