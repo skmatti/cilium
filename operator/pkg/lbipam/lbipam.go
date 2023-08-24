@@ -22,7 +22,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/util/workqueue"
 
-	"github.com/cilium/cilium/operator/pkg/gke/lbipamconfig"
+	"github.com/cilium/cilium/operator/pkg/gke/features"
 	k8sClient "github.com/cilium/cilium/pkg/k8s/client"
 
 	"github.com/cilium/cilium/pkg/hive"
@@ -80,7 +80,7 @@ type LBIPAMParams struct {
 
 	DaemonConfig *option.DaemonConfig
 
-	lbipamconfig.Config
+	features.Config
 }
 
 func newLBIPAM(params LBIPAMParams) *LBIPAM {

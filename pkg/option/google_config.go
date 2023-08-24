@@ -52,6 +52,9 @@ const (
 	// EnableLoadBalancerIPAM enables the LoadBalancer IPAM feature, and exposes the CiliumLoadBalancerIPPool CRD
 	EnableLoadBalancerIPAM = "enable-lbipam"
 
+	// EnableCiliumNodeConfig enables the CiliumNodeConfig CRD
+	EnableCiliumNodeConfig = "enable-cnc"
+
 	// ClustermeshNamespaceLabels configures a list of labels to limit clustermesh.
 	// Clustermesh will only distribute information from namespaces that have one
 	// of these labels.

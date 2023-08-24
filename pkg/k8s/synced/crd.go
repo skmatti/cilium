@@ -18,7 +18,7 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
 
-	"github.com/cilium/cilium/operator/pkg/gke/lbipamconfig"
+	"github.com/cilium/cilium/operator/pkg/gke/features"
 	"github.com/cilium/cilium/pkg/k8s"
 	v2 "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2"
 	v2alpha1 "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2alpha1"
@@ -78,7 +78,7 @@ func agentCRDResourceNames() []string {
 		result = append(result, CRDResourceName(v2alpha1.BGPPName))
 	}
 
-	if lbipamconfig.GlobalConfig.EnableLoadBalancerIPAM {
+	if features.GlobalConfig.EnableLoadBalancerIPAM {
 		result = append(result, CRDResourceName(v2alpha1.LBIPPoolName))
 	}
 
@@ -94,7 +94,13 @@ func AgentCRDResourceNames() []string {
 // AllCRDResourceNames returns a list of all CRD resource names that the
 // clustermesh-apiserver or testsuite may register.
 func AllCRDResourceNames() []string {
-	return append(agentCRDResourceNames(), CRDResourceName(v2.CEWName), CRDResourceName(v2alpha1.CNCName))
+	crds := append(agentCRDResourceNames(), CRDResourceName(v2.CEWName))
+
+	if features.GlobalConfig.EnableCiliumNodeConfig {
+		crds = append(crds, CRDResourceName(v2alpha1.CNCName))
+	}
+
+	return crds
 }
 
 // SyncCRDs will sync Cilium CRDs to ensure that they have all been
