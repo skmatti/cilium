@@ -57,6 +57,7 @@
 #include "lib/encrypt.h"
 #include "lib/google_arp_responder.h"
 #include "lib/google_multinic.h"
+#include "lib/google_pip.h"
 
 static __always_inline bool allow_vlan(__u32 __maybe_unused ifindex, __u32 __maybe_unused vlan_id) {
 	VLAN_FILTER(ifindex, vlan_id);
@@ -532,6 +533,15 @@ handle_ipv4(struct __ctx_buff *ctx, __u32 secctx,
 	ret = try_google_L3_fast_redirect(ctx, secctx, ip4);
 	if (ret != CTX_ACT_OK)
 		return ret;
+	if (!revalidate_data(ctx, &data, &data_end, &ip4))
+		return DROP_INVALID;
+#ifdef ENABLE_GOOGLE_PERSISTENT_IP
+	ret = google_try_pip_ingress_redirect4(ctx, secctx, ip4);
+	if (ret != CTX_ACT_OK)
+		return ret;
+	if (!revalidate_data(ctx, &data, &data_end, &ip4))
+		return DROP_INVALID;
+#endif
 }
 #endif /* ENABLE_GOOGLE_MULTI_NIC */
 

@@ -33,6 +33,7 @@ Direct access to local BPF maps
 * [cilium bpf multinicdev](cilium_bpf_multinicdev.md)	 - Manage the devices of L2 multinic endpoints
 * [cilium bpf nat](cilium_bpf_nat.md)	 - NAT mapping tables
 * [cilium bpf nodeid](cilium_bpf_nodeid.md)	 - Manage the node IDs
+* [cilium bpf piprouting](cilium_bpf_piprouting.md)	 - Manage the persistent ip routes of L3 multinic endpoints
 * [cilium bpf policy](cilium_bpf_policy.md)	 - Manage policy related BPF maps
 * [cilium bpf recorder](cilium_bpf_recorder.md)	 - PCAP recorder
 * [cilium bpf sfcflow](cilium_bpf_sfcflow.md)	 - Service Steering flow tracking tables

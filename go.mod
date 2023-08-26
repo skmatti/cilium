@@ -256,7 +256,7 @@ require (
 )
 
 replace (
-	gke-internal.googlesource.com/anthos-networking/apis/v2 => gke-internal.googlesource.com/anthos-networking.git/apis/v2 v2.4.0-gke.0.0.20230214160801-e78240410373
+	gke-internal.googlesource.com/anthos-networking/apis/v2 => gke-internal.googlesource.com/anthos-networking.git/apis/v2 v2.6.0-gke.0.0.20230727232747-66ac02069e02
 	gke-internal/gke-node-firewall => gke-internal.googlesource.com/kubernetes/gke-node-firewall.git v0.0.20
 	k8s.io/cloud-provider-gcp/crd => gke-internal.googlesource.com/kubernetes/cloud-provider-gcp.git/crd v0.0.0-20230815220944-867a2a3c64ea
 )

@@ -123,9 +123,6 @@ type TrafficSelectorPort struct {
 
 type Port struct {
 	// Protocol is the network protocol (TCP, UDP) which traffic must match.
-	// If not specified, this field defaults to TCP.
-	// +optional
-	// +kubebuilder:default:=TCP
 	Protocol TrafficSelectorProtocol `json:"protocol"`
 	// Number defines a network port value.
 	// +kubebuilder:validation:Minimum=1
@@ -135,9 +132,6 @@ type Port struct {
 
 type AllPorts struct {
 	// Protocol is the network protocol (TCP, UDP) which traffic must match.
-	// If not specified, this field defaults to TCP.
-	// +optional
-	// +kubebuilder:default:=TCP
 	Protocol TrafficSelectorProtocol `json:"protocol"`
 }
 

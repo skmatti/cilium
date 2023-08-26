@@ -9,6 +9,7 @@ import (
 	"github.com/cilium/cilium/pkg/gke/networklogging"
 	"github.com/cilium/cilium/pkg/gke/nodefirewall"
 	"github.com/cilium/cilium/pkg/gke/nodefirewall/types"
+	"github.com/cilium/cilium/pkg/gke/pip"
 	"github.com/cilium/cilium/pkg/gke/redirectservice"
 	"github.com/cilium/cilium/pkg/gke/remotenode"
 	rncontroller "github.com/cilium/cilium/pkg/gke/remotenode/controller"
@@ -44,6 +45,7 @@ var googleCell = cell.Module(
 	localnode.Cell,
 	remotenode.Cell,
 	networklogging.Cell,
+	pip.Cell,
 )
 
 // Converts Daemon promise into a PolicyManager promise

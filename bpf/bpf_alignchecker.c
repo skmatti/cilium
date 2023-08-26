@@ -85,3 +85,5 @@ struct sfc_path_key _61;
 struct sfc_path_entry _62;
 struct sfc_ipv4_flow_key _63;
 struct sfc_ipv4_flow_entry _64;
+struct pip_cidr_key _65;
+struct pip_routing_entry _66;

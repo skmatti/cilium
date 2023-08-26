@@ -24,6 +24,7 @@ import (
 	"github.com/cilium/cilium/pkg/datapath"
 	"github.com/cilium/cilium/pkg/datapath/link"
 	"github.com/cilium/cilium/pkg/defaults"
+	pip "github.com/cilium/cilium/pkg/gke/pip/config"
 	"github.com/cilium/cilium/pkg/identity"
 	"github.com/cilium/cilium/pkg/labels"
 	"github.com/cilium/cilium/pkg/logging"
@@ -48,6 +49,7 @@ import (
 	"github.com/cilium/cilium/pkg/maps/nat"
 	"github.com/cilium/cilium/pkg/maps/neighborsmap"
 	"github.com/cilium/cilium/pkg/maps/nodemap"
+	pipmaps "github.com/cilium/cilium/pkg/maps/pip"
 	"github.com/cilium/cilium/pkg/maps/policymap"
 	"github.com/cilium/cilium/pkg/maps/recorder"
 	"github.com/cilium/cilium/pkg/maps/sfc"
@@ -634,6 +636,13 @@ func (h *HeaderfileWriter) WriteNodeConfig(w io.Writer, cfg *datapath.LocalNodeC
 		cDefinesMap["SFC_SELECT_MAP"] = sfc.SelectMapName
 		cDefinesMap["SFC_SELECT_MAP_SIZE"] = strconv.Itoa(sfc.SelectMaxEntries)
 		cDefinesMap["SFC_FLOW_MAP_ANY4"] = sfc.FlowMapAny4Name
+	}
+
+	// TODO(b/292558915) - Remove multiNIC check when persistent IP is supported on default network.
+	if pip.GlobalPersistentIPConfig().EnableGooglePersistentIP && option.Config.EnableGoogleMultiNIC {
+		cDefinesMap["ENABLE_GOOGLE_PERSISTENT_IP"] = "1"
+		cDefinesMap["PIP_ROUTING_MAP"] = pipmaps.RoutingMapName
+		cDefinesMap["PIP_ROUTING_MAP_SIZE"] = strconv.Itoa(pipmaps.RoutingMaxEntries)
 	}
 
 	cDefinesMap["CIDR_IDENTITY_RANGE_START"] = fmt.Sprintf("%d", identity.MinLocalIdentity)

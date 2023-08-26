@@ -30,6 +30,9 @@ const (
 	// EnableGoogleServiceSteering is the name of the option to enable google service steering support.
 	EnableGoogleServiceSteering = "enable-google-service-steering"
 
+	// EnableGooglePersistentIP is the name of the option to enable google persistent-ip support.
+	EnableGooglePersistentIP = "enable-google-persistent-ip"
+
 	// EnableFQDNNetworkPolicy enables google fqdn network policy
 	EnableFQDNNetworkPolicy = "enable-fqdn-network-policy"
 
