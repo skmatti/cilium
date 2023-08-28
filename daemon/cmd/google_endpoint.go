@@ -271,10 +271,12 @@ func (d *Daemon) createMultiNICEndpoints(ctx context.Context, owner regeneration
 				}
 				intfLog.WithField(logfields.EndpointID, multinicEndpoint.StringID()).Info("Successful multinic endpoint request")
 				eps = append(eps, multinicEndpoint)
-				// TODO check if we need to do this for host-interface devices too
+				// TODO check if we need to handle v6 for host-interface devices too
 				for _, ip := range []netip.Addr{multinicEndpoint.IPv4, multinicEndpoint.IPv6} {
-					podIP := networkv1.PodIP{IP: ip.String(), NetworkName: netCR.Name}
-					podIPs = append(podIPs, podIP)
+					if ip.IsValid() {
+						podIP := networkv1.PodIP{IP: ip.String(), NetworkName: netCR.Name}
+						podIPs = append(podIPs, podIP)
+					}
 				}
 			} else {
 				// the device typed networks pass out the ip using the multinicTemplate
