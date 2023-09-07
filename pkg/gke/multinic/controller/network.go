@@ -12,7 +12,6 @@ import (
 	"github.com/cilium/cilium/pkg/datapath/loader"
 	"github.com/cilium/cilium/pkg/logging"
 	"github.com/cilium/cilium/pkg/logging/logfields"
-	ciliumNode "github.com/cilium/cilium/pkg/node"
 	"github.com/cilium/cilium/pkg/option"
 	"github.com/cilium/cilium/pkg/trigger"
 	"github.com/sirupsen/logrus"
@@ -358,7 +357,7 @@ func (r *NetworkReconciler) reconcileNetwork(ctx context.Context, node *corev1.N
 
 	var intfName string
 	if !networkv1.IsDefaultNetwork(network.Name) {
-		intfName, _, err = anutils.InterfaceInfo(network, ciliumNode.GetAnnotations())
+		intfName, _, err = anutils.InterfaceInfo(network, node.GetAnnotations())
 		if err != nil {
 			// Log error and stop processing this event (no requeue), as this is
 			// mostly due to misconfiguration in the network CR object and is unlikely
@@ -411,7 +410,7 @@ func (r *NetworkReconciler) reconcileNetworkDelete(ctx context.Context, node *co
 		r.Log.WithError(err).Error("Unable to unload ebpf on parent interface")
 		return ctrl.Result{}, err
 	}
-	if err := deleteVlanID(network, r.Log); err != nil {
+	if err := deleteVlanID(network, node, r.Log); err != nil {
 		r.Log.WithError(err).Errorf("Unable to delete tagged interface")
 		return ctrl.Result{}, err
 	}
@@ -426,12 +425,12 @@ func (r *NetworkReconciler) reconcileNetworkDelete(ctx context.Context, node *co
 // deleteVlanID deletes the specified vlan tag in the the Network CR if
 // lifecycle is AnthosManaged
 // TODO(b/283301614):
-func deleteVlanID(network *networkv1.Network, log *logrus.Entry) error {
+func deleteVlanID(network *networkv1.Network, node *corev1.Node, log *logrus.Entry) error {
 	if !hasVlanTag(network) {
 		return nil
 	}
 
-	taggedIntName, _, err := anutils.InterfaceInfo(network, ciliumNode.GetAnnotations())
+	taggedIntName, _, err := anutils.InterfaceInfo(network, node.GetAnnotations())
 	if err != nil {
 		log.Errorf("deleteVlanID: Errored generating interface name for network %s: %s", network.Name, err)
 		return nil

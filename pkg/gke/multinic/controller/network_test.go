@@ -375,7 +375,7 @@ func TestDeleteVlanID(t *testing.T) {
 					t.Fatalf("failed creating tagged interface: %s", err)
 				}
 			}
-			err := deleteVlanID(tc.networkCR, log)
+			err := deleteVlanID(tc.networkCR, &corev1.Node{}, log)
 			if err != nil {
 				t.Fatalf("encountered unexpected err: %s", err)
 			}
