@@ -129,8 +129,7 @@ func (r *NetworkReconciler) SetupWithManager(mgr ctrl.Manager) error {
 
 func (r *NetworkReconciler) mapNodeToNetwork(obj client.Object) []ctrl.Request {
 	node := obj.(*corev1.Node)
-	log := ctrl.Log.WithValues("name", client.ObjectKeyFromObject(node))
-	log.Info("mapNodeToNetwork")
+	log := logger.WithField("name", client.ObjectKeyFromObject(node))
 	// The default pod-network is always expected to be present. Hence, we reconcile on the default pod-network
 	// whenever multi-network annotation changes. Note that the default pod-network is not a part of multi-network
 	// annotation. The reconciliation flow parses through the multi-network annotation and builds the allocators
@@ -149,9 +148,11 @@ func (r *NetworkReconciler) mapNodeToNetwork(obj client.Object) []ctrl.Request {
 	// we add all since we do not know what was changed.
 	items, err := getNorthInterfaces(node)
 	if err != nil {
-		// not logging the error since not every Node will have this annotation
+		// getNorthInterfaces() only returns error if it can't be parsed.
+		log.WithError(err).Info("failed to get north interfaces")
 		return req
 	}
+	log.Infof("mapNodeToNetwork with north interfaces: %+v", items)
 	for name := range items {
 		req = append(req, ctrl.Request{NamespacedName: types.NamespacedName{Name: name}})
 	}
