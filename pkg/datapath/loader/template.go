@@ -113,6 +113,12 @@ func (t *templateCfg) GetNodeMAC() mac.MAC {
 	return templateMAC
 }
 
+// LXCMac returns a well-known dummy MAC address which may be later
+// substituted in the ELF.
+func (t *templateCfg) LXCMac() mac.MAC {
+	return templateMAC
+}
+
 func (t *templateCfg) GetIfIndex() int {
 	return templateIfIndex
 }
@@ -244,6 +250,10 @@ func ELFVariableSubstitutions(ep datapath.Endpoint) map[string]uint64 {
 		result["THIS_INTERFACE_MAC_1"] = uint64(sliceToBe32(mac[0:4]))
 		result["THIS_INTERFACE_MAC_2"] = uint64(sliceToBe16(mac[4:6]))
 	}
+
+	lxcMAC := ep.LXCMac()
+	result["LXC_MAC_1"] = uint64(sliceToBe32(lxcMAC[0:4]))
+	result["LXC_MAC_2"] = uint64(sliceToBe16(lxcMAC[4:6]))
 
 	if ep.IsHost() {
 		result["NATIVE_DEV_IFINDEX"] = 0

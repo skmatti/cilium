@@ -54,6 +54,7 @@
 #include "lib/fib.h"
 #include "lib/nodeport.h"
 #include "lib/policy_log.h"
+#include "lib/google_arp.h"
 
 /* Per-packet LB is needed if all LB cases can not be handled in bpf_sock.
  * Most services with L7 LB flag can not be redirected to their proxy port
@@ -1361,6 +1362,12 @@ static __always_inline int __tail_handle_ipv4(struct __ctx_buff *ctx,
 		return DROP_FRAG_NOSUPPORT;
 #endif
 
+	// Validate the source mac address before redirect_if_dhcp
+	// since the function changes the source mac address for
+	// DCHP packets and will fail the mac spoof check.
+	if (unlikely(!is_valid_lxc_src_mac(ctx, ip4->protocol)))
+		return DROP_GOOGLE_INVALID_SMAC;
+
 	if (unlikely(!is_valid_lxc_src_ipv4(ip4)))
 		return DROP_INVALID_SIP;
 
@@ -1476,7 +1483,7 @@ int cil_from_container(struct __ctx_buff *ctx)
 		break;
 #ifdef ENABLE_ARP_PASSTHROUGH
 	case bpf_htons(ETH_P_ARP):
-		ret = CTX_ACT_OK;
+		ret = arp_validate_mac_spoof(ctx);
 		break;
 #elif defined(ENABLE_ARP_RESPONDER)
 	case bpf_htons(ETH_P_ARP):

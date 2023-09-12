@@ -50,6 +50,7 @@ type LoadTimeConfiguration interface {
 	GetNodeMAC() mac.MAC
 	GetIfIndex() int
 	GetEndpointNetNsCookie() uint64
+	LXCMac() mac.MAC
 }
 
 // CompileTimeConfiguration provides datapath implementations a clean interface
