@@ -488,7 +488,11 @@ enum {
  * These are shared with pkg/monitor/api/drop.go and api/v1/flow/flow.proto.
  * When modifying any of the below, those files should also be updated.
  */
-#define DROP_UNUSED1		-130 /* unused */
+// DROP_GOOGLE_INVALID_SMAC is used for google specific code.
+// The drop reason (-130) is currently not used in Cilium OSS.
+// Reusing the same drop reason can avoid the code changes in hubble flows which
+// may casuse more conflicts in the future.
+#define DROP_GOOGLE_INVALID_SMAC	-130
 #define DROP_UNUSED2		-131 /* unused */
 #define DROP_INVALID_SIP	-132
 #define DROP_POLICY		-133

@@ -55,7 +55,7 @@
 #include "lib/egress_policies.h"
 #include "lib/overloadable.h"
 #include "lib/encrypt.h"
-#include "lib/google_arp_responder.h"
+#include "lib/google_arp.h"
 #include "lib/google_multinic.h"
 #include "lib/google_pip.h"
 

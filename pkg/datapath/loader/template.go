@@ -104,6 +104,12 @@ func (t *templateCfg) GetNodeMAC() mac.MAC {
 	return templateMAC
 }
 
+// LXCMac returns a well-known dummy MAC address which may be later
+// substituted in the ELF.
+func (t *templateCfg) LXCMac() mac.MAC {
+	return templateMAC
+}
+
 // IPv4Address always returns an IP in the documentation prefix (RFC5737) as
 // a nonsense address that should typically not be routable.
 func (t *templateCfg) IPv4Address() netip.Addr {
@@ -243,6 +249,9 @@ func elfVariableSubstitutions(ep datapath.Endpoint) map[string]uint32 {
 		result["SECCTX_FROM_IPCACHE"] = uint32(SecctxFromIpcacheDisabled)
 	} else {
 		result["LXC_ID"] = uint32(ep.GetID())
+		lxcMAC := ep.LXCMac()
+		result["LXC_MAC_1"] = sliceToBe32(lxcMAC[0:4])
+		result["LXC_MAC_2"] = uint32(sliceToBe16(lxcMAC[4:6]))
 	}
 
 	identity := ep.GetIdentity().Uint32()
