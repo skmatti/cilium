@@ -15,11 +15,11 @@ export TBENV=${TBENV:-int}
 export OLD_KUBECONFIG="${KUBECONFIG}"
 
 kubetest2-tailorbird \
-    --verbose \
-    --up \
-    --down="${RUN_DOWN:-true}" \
-    --tbconfig="${ROOT}/${TBCONFIG:-"sut.yaml"}" \
-    --tbenv="${TBENV}" \
-    --test=exec \
-    -- \
-    "${ROOT}/run.sh"
+  --verbose \
+  --up \
+  --down="${RUN_DOWN:-true}" \
+  --tbconfig="${ROOT}/${TBCONFIG:-"sut.yaml"}" \
+  --tbenv="${TBENV}" \
+  --test=exec \
+  -- \
+  "${ROOT}/run.sh"

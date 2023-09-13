@@ -132,10 +132,10 @@ sudo usermod -aG docker $USER
 
 git clone --depth 1 -b master git://git.kernel.org/pub/scm/linux/kernel/git/bpf/bpf-next.git linux
 cd linux/tools/bpf/bpftool
-make -j `getconf _NPROCESSORS_ONLN`
+make -j $(getconf _NPROCESSORS_ONLN)
 strip bpftool
 cd $WORKING_DIR
-cp  linux/tools/bpf/bpftool/bpftool $GOPATH/bin/bpftool
+cp linux/tools/bpf/bpftool/bpftool $GOPATH/bin/bpftool
 
 # libbpf and iproute2 build sould be kept close to:
 # https://github.com/cilium/packer-ci-build/blob/d1841cb1162ae91efbae11d5b9709ed880fdcc9c/provision/ubuntu/install.sh#L129
@@ -155,14 +155,13 @@ cd /tmp
 git clone -b ${IPROUTE_BRANCH} ${IPROUTE_GIT}
 cd /tmp/iproute2
 LIBBPF_FORCE="on" \
-PKG_CONFIG_PATH="/usr/lib64/pkgconfig"  \
-PKG_CONFIG="pkg-config --define-prefix" \
-./configure
-make -j `getconf _NPROCESSORS_ONLN`
+  PKG_CONFIG_PATH="/usr/lib64/pkgconfig" \
+  PKG_CONFIG="pkg-config --define-prefix" \
+  ./configure
+make -j $(getconf _NPROCESSORS_ONLN)
 cp tc/tc $GOPATH/bin/tc
 sudo make install
 rm -rf /tmp/iproute2
-
 
 # set env
 
@@ -170,10 +169,10 @@ sudo chmod 777 -R $GOPATH
 
 sudo chmod 777 /etc/profile.d
 
-echo "export GOPATH=$GOPATH" >> $ENV_VAR_PATH
-echo "export GOROOT=$GOROOT" >> $ENV_VAR_PATH
+echo "export GOPATH=$GOPATH" >>$ENV_VAR_PATH
+echo "export GOROOT=$GOROOT" >>$ENV_VAR_PATH
 
-echo "export PATH=$PATH" >> $ENV_VAR_PATH
+echo "export PATH=$PATH" >>$ENV_VAR_PATH
 
 # cleanups
 

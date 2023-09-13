@@ -26,7 +26,7 @@ pushd "${TEST_VM_SOURCE_CODE_PATH}" || exit 1
 
 # gcloud is not installed in COS
 if command -v gcloud; then
-    gcloud auth configure-docker
+  gcloud auth configure-docker
 fi
 
 # The following tests are disabled because they only pass on newer kernel versions:
@@ -35,7 +35,7 @@ fi
 SKIP_TESTS="xdp|session_affinity|ipsec|ipv6_test"
 
 # Create run.sh
-cat <<EOF > run.sh
+cat <<EOF >run.sh
 #!/bin/bash
 git config --global --add safe.directory /src
 

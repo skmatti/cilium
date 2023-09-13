@@ -37,7 +37,7 @@ GCR_HOST="gcr.io"
 CILIUM_TAG="latest-e2e"
 
 function log {
-  echo "`date +'%b %d %T.000'`: INFO: $@"
+  echo "$(date +'%b %d %T.000'): INFO: $@"
 }
 
 function auth {
@@ -61,8 +61,7 @@ function reclaim_hanging_resources {
   # Get current time in UTC since this is what gcloud describe returns in.
   cur=$(date -u '+%Y-%m-%d %H:%M:%S')
   old_clusters=($(gcloud container clusters list --project=$GCP_PROJECT | awk '{if (NR!=1) {print $1}}'))
-  for c in "${old_clusters[@]}"
-  do
+  for c in "${old_clusters[@]}"; do
     creation_time=$(gcloud container clusters describe $c --project $GCP_PROJECT --zone $GKE_ZONE | grep createTime | awk -F "'" '{print $2}' | sed 's/T/ /g' | awk -F "+" '{print $1}')
     t1=$(date --date "$creation_time" +%s)
     t2=$(date --date "$cur" +%s)
@@ -76,7 +75,7 @@ function reclaim_hanging_resources {
   done
 
   log "Deleting old images"
-  gcloud container images list-tags gcr.io/$GCP_PROJECT/cilium/cilium --filter='-tags:*' --format='get(digest)' --limit=unlimited | awk '{print "gcr.io/'$GCP_PROJECT'/cilium/cilium@" $1}' | xargs gcloud container images delete --quiet  || true
+  gcloud container images list-tags gcr.io/$GCP_PROJECT/cilium/cilium --filter='-tags:*' --format='get(digest)' --limit=unlimited | awk '{print "gcr.io/'$GCP_PROJECT'/cilium/cilium@" $1}' | xargs gcloud container images delete --quiet || true
   gcloud container images list-tags gcr.io/$GCP_PROJECT/cilium/cilium-dev --filter='-tags:*' --format='get(digest)' --limit=unlimited | awk '{print "gcr.io/'$GCP_PROJECT'/cilium/cilium-dev@" $1}' | xargs gcloud container images delete --quiet || true
   gcloud container images list-tags gcr.io/$GCP_PROJECT/cilium/operator --filter='-tags:*' --format='get(digest)' --limit=unlimited | awk '{print "gcr.io/'$GCP_PROJECT'/cilium/operator@" $1}' | xargs gcloud container images delete --quiet || true
 }
@@ -95,9 +94,9 @@ function get_deps {
   go get github.com/onsi/ginkgo/ginkgo
   go get github.com/onsi/gomega/...
 
-   curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/master/scripts/get-helm-3
-   chmod 700 get_helm.sh
-   ./get_helm.sh
+  curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/master/scripts/get-helm-3
+  chmod 700 get_helm.sh
+  ./get_helm.sh
 }
 
 function setup_gke_env {
@@ -107,8 +106,8 @@ function setup_gke_env {
   kubectl create namespace cilium
   NODES=($(kubectl get nodes --no-headers -o custom-columns=":metadata.name"))
   if [ "${#NODES[@]}" -lt 2 ]; then
-        echo "Must have at least 2 nodes in testing cluster."
-        exit 1
+    echo "Must have at least 2 nodes in testing cluster."
+    exit 1
   fi
   knode1=${NODES[0]}
   knode2=${NODES[1]}

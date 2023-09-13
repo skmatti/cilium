@@ -40,7 +40,7 @@ WORA_ARTIFACTS="${ARTIFACTS}/wora"
 # Because test is going to have its own junit.xml, suppress kt2 junit generation.
 # Status-check-interval is increased to work around incorrect calculation of rookery status.
 ARTIFACTS="${WORA_ARTIFACTS}" \
-kubetest2-tailorbird \
+  kubetest2-tailorbird \
   --verbose \
   --run-id "${TEST_RUN_ID}" \
   --tbenv="${TBENV:-int}" \

@@ -43,7 +43,7 @@ function allow_docker_op {
 }
 
 function log {
-  echo "`date +'%b %d %T.000'`: INFO: $@"
+  echo "$(date +'%b %d %T.000'): INFO: $@"
 }
 
 # Make make happy.

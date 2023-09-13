@@ -48,11 +48,11 @@ go get -u github.com/onsi/gomega
 
 # gcloud
 
-curl -O https://dl.google.com/dl/cloudsdk/channels/rapid/google-cloud-sdk.tar.gz && \
-  tar xzf google-cloud-sdk.tar.gz -C / && \
+curl -O https://dl.google.com/dl/cloudsdk/channels/rapid/google-cloud-sdk.tar.gz &&
+  tar xzf google-cloud-sdk.tar.gz -C / &&
   /google-cloud-sdk/install.sh \
-  --disable-installation-options \
-  --bash-completion=false \
-  --path-update=false \
-  --usage-reporting=false && \
+    --disable-installation-options \
+    --bash-completion=false \
+    --path-update=false \
+    --usage-reporting=false &&
   gcloud components install alpha beta kubectl

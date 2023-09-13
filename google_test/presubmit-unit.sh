@@ -41,7 +41,7 @@ tarball=gob_cilium.tar.gz
 TESTING_IMAGE=cilium-unit-test-20220810
 
 function log {
-  echo "`date +'%b %d %T.000'`: INFO: $@"
+  echo "$(date +'%b %d %T.000'): INFO: $@"
 }
 
 function auth {
@@ -70,7 +70,7 @@ function ship_repo {
 
 function allow_SSH {
   log "Creating FW ssh-all"
-  gcloud compute firewall-rules create ssh-all --project ${PROJECT}  --allow tcp:22 || true
+  gcloud compute firewall-rules create ssh-all --project ${PROJECT} --allow tcp:22 || true
 }
 
 function rexec {
@@ -80,7 +80,7 @@ function rexec {
 }
 
 function log {
-  echo "`date +'%b %d %T.000'`: INFO: $@"
+  echo "$(date +'%b %d %T.000'): INFO: $@"
 }
 
 auth

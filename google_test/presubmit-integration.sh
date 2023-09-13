@@ -32,7 +32,7 @@ HOST_NAME="$VM_NAME.$ZONE.$PROJECT"
 TESTING_IMAGE="cilium-runtime-test-kernel-5-4-20210127"
 
 function log {
-  echo "`date +'%b %d %T.000'`: INFO: $@"
+  echo "$(date +'%b %d %T.000'): INFO: $@"
 }
 
 function auth {
@@ -55,7 +55,7 @@ function setup_vagrant_user {
 
 function allow_SSH {
   log "Creating FW ssh-all"
-  gcloud compute firewall-rules create ssh-all --project ${PROJECT}  --allow tcp:22 || true
+  gcloud compute firewall-rules create ssh-all --project ${PROJECT} --allow tcp:22 || true
 }
 
 function clean_up {
@@ -70,7 +70,7 @@ function rexec {
 }
 
 function log {
-  echo "`date +'%b %d %T.000'`: INFO: $@"
+  echo "$(date +'%b %d %T.000'): INFO: $@"
 }
 
 function preserve_log {
@@ -84,7 +84,7 @@ function preserve_log {
     METADATA_KEY1="startup-script" \
     METADATA_VAL1=$(cat ../google_test/countdown-and-self-destruct.sh) \
     SCOPES_VAL1="compute-rw" \
-    vagrant ssh runtime -c "journalctl -u cilium.service --no-pager" > ${ARTIFACTS}/cilium.log
+    vagrant ssh runtime -c "journalctl -u cilium.service --no-pager" >${ARTIFACTS}/cilium.log
 
   mv test_results ${ARTIFACTS}
 

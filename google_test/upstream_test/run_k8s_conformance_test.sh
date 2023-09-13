@@ -45,24 +45,24 @@ echo "KUBECONFIG = ${KUBECONFIG}"
 TMP_DIR=$(mktemp -d)
 curl -L https://dl.k8s.io/"${K8S_VERSION}"/kubernetes-test-linux-amd64.tar.gz -o "${TMP_DIR}"/kubernetes-test-linux-amd64.tar.gz
 tar xvzf "${TMP_DIR}"/kubernetes-test-linux-amd64.tar.gz \
-    --directory "${TMP_DIR}" \
-    --strip-components=3 kubernetes/test/bin/ginkgo kubernetes/test/bin/e2e.test
+  --directory "${TMP_DIR}" \
+  --strip-components=3 kubernetes/test/bin/ginkgo kubernetes/test/bin/e2e.test
 sudo cp "${TMP_DIR}"/e2e.test /usr/local/bin/e2e.test
 sudo cp "${TMP_DIR}"/ginkgo /usr/local/bin/ginkgo
 
 export KUBERNETES_CONFORMANCE_TEST='y'
 /usr/local/bin/ginkgo --nodes=25 \
-    --focus="\[Conformance\]|\[sig-network\]" \
-    --skip="Feature|Federation|PerformanceDNS|DualStack|Disruptive|Serial|KubeProxy|kube-proxy|ExternalIP|LoadBalancer|GCE|Netpol|NetworkPolicy|rejected|externalTrafficPolicy|HostPort|same.port.number.but.different.protocols|should.serve.endpoints.on.same.port.and.different.protocols" \
-    --skip="should.support.remote.command.execution.over.websockets" \
-    --skip="should.support.a.Service.with.multiple.ports.specified.in.multiple.EndpointSlices" \
-    --skip="should.support.retrieving.logs.from.the.container.over.websockets" \
-    --skip="should.be.able.to.connect.to.terminating.and.unready.endpoints.if.PublishNotReadyAddresses.is.true" \
-    --skip="should.create.endpoints.for.unready.pods" \
-    /usr/local/bin/e2e.test \
-    -- \
-    --kubeconfig="${KUBECONFIG}" \
-    --provider=local \
-    --dump-logs-on-failure=true \
-    --report-dir="${ARTIFACTS}" \
-    --disable-log-dump=true
+  --focus="\[Conformance\]|\[sig-network\]" \
+  --skip="Feature|Federation|PerformanceDNS|DualStack|Disruptive|Serial|KubeProxy|kube-proxy|ExternalIP|LoadBalancer|GCE|Netpol|NetworkPolicy|rejected|externalTrafficPolicy|HostPort|same.port.number.but.different.protocols|should.serve.endpoints.on.same.port.and.different.protocols" \
+  --skip="should.support.remote.command.execution.over.websockets" \
+  --skip="should.support.a.Service.with.multiple.ports.specified.in.multiple.EndpointSlices" \
+  --skip="should.support.retrieving.logs.from.the.container.over.websockets" \
+  --skip="should.be.able.to.connect.to.terminating.and.unready.endpoints.if.PublishNotReadyAddresses.is.true" \
+  --skip="should.create.endpoints.for.unready.pods" \
+  /usr/local/bin/e2e.test \
+  -- \
+  --kubeconfig="${KUBECONFIG}" \
+  --provider=local \
+  --dump-logs-on-failure=true \
+  --report-dir="${ARTIFACTS}" \
+  --disable-log-dump=true

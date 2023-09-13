@@ -20,14 +20,14 @@ set -o pipefail
 
 # TEST_SPECIFIC_RUN_TEST_SCRIPT is determined from TEST_TYPE
 declare -A test_script_from_test_type=(
-    [conformance]=google_test/upstream_test/run_k8s_conformance_test.sh
-    [connectivity]=google_test/upstream_test/run_connectivity_test.sh
+  [conformance]=google_test/upstream_test/run_k8s_conformance_test.sh
+  [connectivity]=google_test/upstream_test/run_connectivity_test.sh
 )
 
 # Make test fail fast if TEST_TYPE is not specified.
 if [[ -z "${TEST_TYPE}" ]]; then
-    echo "TEST_TYPE must be set."
-    exit 1
+  echo "TEST_TYPE must be set."
+  exit 1
 fi
 
 run_test_script="${test_script_from_test_type["${TEST_TYPE}"]}"
@@ -76,11 +76,11 @@ docker push "${IMAGE_REGISTRY}/${HUBBLE_RELAY_TAG}:${DOCKER_IMAGE_TAG}"
 
 # Obtain the kubeconfig and host machine info to access the kind cluster created
 for resource_directory in "${ARTIFACTS}/.kubetest2-tailorbird"/*; do
-    if [ -d "${resource_directory}" ]; then
-        KUBECONFIG=${resource_directory}/terraform-files/kubeconfig.yaml
-        echo "KUBECONFIG found in ${resource_directory}/terraform-files/kubeconfig.yaml"
-        HOST_MACHINE_INFO_DIR=${resource_directory}/connectivity-metadata
-    fi
+  if [ -d "${resource_directory}" ]; then
+    KUBECONFIG=${resource_directory}/terraform-files/kubeconfig.yaml
+    echo "KUBECONFIG found in ${resource_directory}/terraform-files/kubeconfig.yaml"
+    HOST_MACHINE_INFO_DIR=${resource_directory}/connectivity-metadata
+  fi
 done
 
 # Access the created kind cluster and get the cluster name
@@ -88,24 +88,24 @@ CLUSTER_NAME=$(kubectl config get-contexts --kubeconfig "${KUBECONFIG}" | grep k
 
 # This function installs kind to get logs from kind cluster.
 function get_log_from_kind_cluster {
-    # Obtain hostmachine ip and username
-    HOST_MACHINE_USER="$(jq '.default_transport.attributes.username' "${HOST_MACHINE_INFO_DIR}"/connectivity_metadata.json | tr -d '"')"
-    HOST_MACHINE_IP="$(jq '.default_transport.attributes.bastion_hostname' "${HOST_MACHINE_INFO_DIR}"/connectivity_metadata.json | tr -d '"')"
-    # Collect kog remotely and copy back to prow job at ${ARTIFACTS}
-    KIND_LOGDUMP=/tmp/logdump
-    ssh -i "${HOST_MACHINE_INFO_DIR}"/id_rsa -o StrictHostKeyChecking=accept-new -o IdentitiesOnly=yes "${HOST_MACHINE_USER}@${HOST_MACHINE_IP}" "mkdir -p ${KIND_LOGDUMP} && kind export logs --name ${CLUSTER_NAME} ${KIND_LOGDUMP}"
-    scp -i "${HOST_MACHINE_INFO_DIR}"/id_rsa -o StrictHostKeyChecking=accept-new -o IdentitiesOnly=yes -r "${HOST_MACHINE_USER}@${HOST_MACHINE_IP}":"${KIND_LOGDUMP}" "${ARTIFACTS}"
+  # Obtain hostmachine ip and username
+  HOST_MACHINE_USER="$(jq '.default_transport.attributes.username' "${HOST_MACHINE_INFO_DIR}"/connectivity_metadata.json | tr -d '"')"
+  HOST_MACHINE_IP="$(jq '.default_transport.attributes.bastion_hostname' "${HOST_MACHINE_INFO_DIR}"/connectivity_metadata.json | tr -d '"')"
+  # Collect kog remotely and copy back to prow job at ${ARTIFACTS}
+  KIND_LOGDUMP=/tmp/logdump
+  ssh -i "${HOST_MACHINE_INFO_DIR}"/id_rsa -o StrictHostKeyChecking=accept-new -o IdentitiesOnly=yes "${HOST_MACHINE_USER}@${HOST_MACHINE_IP}" "mkdir -p ${KIND_LOGDUMP} && kind export logs --name ${CLUSTER_NAME} ${KIND_LOGDUMP}"
+  scp -i "${HOST_MACHINE_INFO_DIR}"/id_rsa -o StrictHostKeyChecking=accept-new -o IdentitiesOnly=yes -r "${HOST_MACHINE_USER}@${HOST_MACHINE_IP}":"${KIND_LOGDUMP}" "${ARTIFACTS}"
 }
 
 function clean_up_before_exit {
-    set +e
-    # Dump all debug info
-    kubectl get pods --all-namespaces -o wide
-    cilium status
-    cilium sysdump --output-filename cilium-sysdump-final
-    mv /home/prow/go/src/gke-internal.googlesource.com/third_party/cilium/cilium-sysdump-final.zip "${ARTIFACTS}"
-    # This function get logs from kind cluster.
-    get_log_from_kind_cluster
+  set +e
+  # Dump all debug info
+  kubectl get pods --all-namespaces -o wide
+  cilium status
+  cilium sysdump --output-filename cilium-sysdump-final
+  mv /home/prow/go/src/gke-internal.googlesource.com/third_party/cilium/cilium-sysdump-final.zip "${ARTIFACTS}"
+  # This function get logs from kind cluster.
+  get_log_from_kind_cluster
 }
 
 trap clean_up_before_exit EXIT
@@ -129,25 +129,25 @@ cilium version
 
 # Install Cilium into the Kubernetes cluster pointed to by your current kubectl context
 cilium install --wait --chart-directory=install/kubernetes/cilium \
-    --helm-set=image.repository="${IMAGE_REGISTRY}/${CILIUM_TAG}" \
-    --helm-set=image.useDigest=false \
-    --helm-set=imagePullSecrets[0].name="${SECRETNAME}" \
-    --helm-set=image.tag="${DOCKER_IMAGE_TAG}-dpv2" \
-    --helm-set=operator.image.repository="${IMAGE_REGISTRY}/${CILIUM_OPERATOR_TAG}" \
-    --helm-set=operator.image.suffix="" \
-    --helm-set=operator.image.tag="${DOCKER_IMAGE_TAG}" \
-    --helm-set=operator.image.useDigest=false \
-    --helm-set=clustermesh.apiserver.image.repository="${IMAGE_REGISTRY}/${CLUSTERMESH_APISERVER_TAG}" \
-    --helm-set=clustermesh.apiserver.image.tag="${DOCKER_IMAGE_TAG}" \
-    --helm-set=clustermesh.apiserver.image.useDigest=false \
-    --helm-set=hubble.relay.image.repository="${IMAGE_REGISTRY}/${HUBBLE_RELAY_TAG}" \
-    --helm-set=hubble.relay.image.tag="${DOCKER_IMAGE_TAG}" \
-    --helm-set=cni.chainingMode=portmap \
-    --helm-set-string=kubeProxyReplacement=strict \
-    --helm-set=sessionAffinity=true \
-    --helm-set=bpf.monitorAggregation=none \
-    --disable-check=minimum-version \
-    --rollback=false
+  --helm-set=image.repository="${IMAGE_REGISTRY}/${CILIUM_TAG}" \
+  --helm-set=image.useDigest=false \
+  --helm-set=imagePullSecrets[0].name="${SECRETNAME}" \
+  --helm-set=image.tag="${DOCKER_IMAGE_TAG}-dpv2" \
+  --helm-set=operator.image.repository="${IMAGE_REGISTRY}/${CILIUM_OPERATOR_TAG}" \
+  --helm-set=operator.image.suffix="" \
+  --helm-set=operator.image.tag="${DOCKER_IMAGE_TAG}" \
+  --helm-set=operator.image.useDigest=false \
+  --helm-set=clustermesh.apiserver.image.repository="${IMAGE_REGISTRY}/${CLUSTERMESH_APISERVER_TAG}" \
+  --helm-set=clustermesh.apiserver.image.tag="${DOCKER_IMAGE_TAG}" \
+  --helm-set=clustermesh.apiserver.image.useDigest=false \
+  --helm-set=hubble.relay.image.repository="${IMAGE_REGISTRY}/${HUBBLE_RELAY_TAG}" \
+  --helm-set=hubble.relay.image.tag="${DOCKER_IMAGE_TAG}" \
+  --helm-set=cni.chainingMode=portmap \
+  --helm-set-string=kubeProxyReplacement=strict \
+  --helm-set=sessionAffinity=true \
+  --helm-set=bpf.monitorAggregation=none \
+  --disable-check=minimum-version \
+  --rollback=false
 
 # Run tests
 KUBECONFIG="${KUBECONFIG}" "${run_test_script}"
