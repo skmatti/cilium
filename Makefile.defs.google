@@ -1,2 +1,2 @@
 GOLANG_IMAGE := docker.io/library/golang:1.20.7@sha256:bc5f0b5e43282627279fe5262ae275fecb3d2eae3b33977a7fd200c7a760d6f1
-HUBBLE_CLI_IMAGE := gcr.io/gke-release-staging/cilium/hubble-cli:v0.11.6-gke.1@sha256:fec169db7558f22feb33646a0ac1e2d6cf8d311fa13bfe2034dea31f306c31d4
+HUBBLE_CLI_IMAGE := gcr.io/gke-release-staging/cilium/hubble-cli:v0.12.0-gke.4@sha256:a41c8a1d173378e09aa919c9736c77aba3a16b1c4a3a538b40eb2b8498c7b2f2
