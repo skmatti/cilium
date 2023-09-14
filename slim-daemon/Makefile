@@ -3,7 +3,6 @@
 
 QUIET ?= @
 GO_BUILD_SLIM := go build -mod=vendor
-GO_BUILD_IMAGE := golang:1.19.12
 IMAGE_VERSION ?= latest
 DOCKER_IMAGE_TAG ?= $(IMAGE_VERSION)
 
@@ -13,6 +12,7 @@ WIN_TARGET := anet-agent.exe
 # Borrow multi-arch build support from the main Makefile.
 include ../Makefile.defs
 include ../Makefile.docker
+include ../Makefile.defs.google
 
 all: linux windows
 
@@ -37,7 +37,7 @@ $(TARGET)__linux_$(ARCH):
 		--env CGO_ENABLED=0 \
 		--env GOOS=linux \
 		--env GOARCH=$(ARCH) \
-		$(GO_BUILD_IMAGE) \
+		$(GOLANG_IMAGE) \
 		$(GO_BUILD_SLIM) -o /out/"$@"
 
 $(WIN_TARGET):
