@@ -47,8 +47,8 @@ curl -L https://dl.k8s.io/"${K8S_VERSION}"/kubernetes-test-linux-amd64.tar.gz -o
 tar xvzf "${TMP_DIR}"/kubernetes-test-linux-amd64.tar.gz \
   --directory "${TMP_DIR}" \
   --strip-components=3 kubernetes/test/bin/ginkgo kubernetes/test/bin/e2e.test
-sudo cp "${TMP_DIR}"/e2e.test /usr/local/bin/e2e.test
-sudo cp "${TMP_DIR}"/ginkgo /usr/local/bin/ginkgo
+cp "${TMP_DIR}"/e2e.test /usr/local/bin/e2e.test
+cp "${TMP_DIR}"/ginkgo /usr/local/bin/ginkgo
 
 export KUBERNETES_CONFORMANCE_TEST='y'
 /usr/local/bin/ginkgo --nodes=25 \
