@@ -1,0 +1,36 @@
+#cloud-config
+
+apt:
+  sources:
+    docker.list:
+      source: |
+        deb [arch=amd64] https://download.docker.com/linux/ubuntu $RELEASE stable
+      keyid: 9DC858229FC7DD38854AE2D88D81803C0EBFCD88
+    llvm.list:
+      source: |
+        deb [arch=amd64] https://apt.llvm.org/$RELEASE llvm-toolchain-$RELEASE-10 main
+        deb-src [arch=amd64] https://apt.llvm.org/$RELEASE llvm-toolchain-$RELEASE-10 main
+      keyid: 6084F3CF814B57C1CF12EFD515CF4D18AF4F7421
+packages:
+- docker-ce
+- docker-ce-cli
+- containerd.io
+- clang-10
+- llvm-10
+- rsync
+- build-essential
+- linux-tools-gcp
+write_files:
+- path: /etc/prepare.sh
+  permissions: '0755'
+  content: |
+    #!/bin/sh -ex
+    git config --system --add safe.directory /root/cilium
+    # some unit tests depend on the presence of `cilium_host` and `cilium_net`
+    ip link add cilium_host type veth peer name cilium_net
+- path: /etc/profile.d/env.sh
+  permissions: '0755'
+  content: |
+    export PATH="/usr/local/go/bin:/usr/lib/llvm-10/bin:$PATH"
+runcmd:
+- [ '/etc/prepare.sh' ]

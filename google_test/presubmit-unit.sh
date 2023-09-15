@@ -1,18 +1,4 @@
-#!/bin/bash
-
-# Copyright 2020 Google LLC
-
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
+#!/bin/bash -e
 
 # This is triggered by Prow upon code change.
 # The process is like below:
@@ -30,18 +16,20 @@
 # the testing job is terminated early, these VMs will be left alive for 1d
 # from the creation time and then self-destruct.
 
-set -x
 date=$(TZ=":America/Los_Angeles" date '+%Y-%m-%d-%H-%M-%S')
 PROJECT="${GCP_PROJECT:-gke-anthos-datapath-presubmits}"
 VM_NAME="prow-unit-$date-$(git rev-parse --short=5 HEAD)-ttl1d"
 ZONE="us-west1-b"
 MACHINE_TYPE="c2-standard-8"
 HOST_NAME="$VM_NAME.$ZONE.$PROJECT"
-tarball=gob_cilium.tar.gz
-TESTING_IMAGE=cilium-unit-test-20220810
 
 function log {
-  echo "$(date +'%b %d %T.000'): INFO: $@"
+  echo "$(date +'%b %d %T.000'): INFO:  $@"
+}
+
+function error {
+  echo "$(date +'%b %d %T.000'): ERROR: $@"
+  exit 1
 }
 
 function auth {
@@ -49,56 +37,66 @@ function auth {
   # https://gke-internal.googlesource.com/test-infra/+/refs/heads/master/prow/gob/config.yaml#36
   log "Activating service account"
   gcloud auth activate-service-account --key-file=$GOOGLE_APPLICATION_CREDENTIALS
+  gcloud config set project $PROJECT
+  gcloud config set compute/zone $ZONE
 }
 
-function provision_GCE_VM {
+function provision_vm {
   log "Provisioning GCE VM " $VM_NAME
-  gcloud compute instances create ${VM_NAME} --project=${PROJECT} --image $TESTING_IMAGE --zone=$ZONE --machine-type=$MACHINE_TYPE --metadata-from-file=startup-script=./google_test/countdown-and-self-destruct.sh --scopes=compute-rw || exit 1
+  trap clean_up_vm EXIT
+  gcloud compute instances create ${VM_NAME} \
+    --image-project=ubuntu-os-cloud \
+    --image-family=ubuntu-minimal-2004-lts \
+    --machine-type=$MACHINE_TYPE \
+    --boot-disk-type=pd-ssd \
+    --boot-disk-size=64GB \
+    --metadata-from-file=startup-script=./google_test/countdown-and-self-destruct.sh \
+    --metadata-from-file=user-data=./google_test/unit-test-image/userdata.yaml \
+    --scopes=compute-rw || exit 1
+  wait_for_vm
+  gcloud compute config-ssh
 }
 
-function clean_up {
-  log "Deleteing GCE instance " $VM_NAME
-  gcloud compute instances delete ${VM_NAME} --quiet --project=${PROJECT} --zone=$ZONE || true
+function wait_for_vm {
+  local count=0
+  until gcloud compute ssh --quiet root@$VM_NAME --command="cloud-init status --wait" 2> /dev/null; do
+    if (( count++ >= 5 )); then
+      error "Failed to create $VM_NAME, reached the retry limit";
+    fi
+    log "Waiting $count second(s) for $VM_NAME to be ready"
+    sleep $count
+  done
+  log "$VM_NAME is ready"
+}
+
+function clean_up_vm {
+  log "Deleting GCE instance " $VM_NAME
+  gcloud compute instances delete ${VM_NAME} --quiet
 }
 
 function ship_repo {
-  log "tarballing repo"
-  tar -czf ~/$tarball .
   log "Shipping repo to target GCE instance " $HOST_NAME
-  gcloud compute scp ~/$tarball --project $PROJECT --zone $ZONE $VM_NAME:~
+  rsync -avzq . root@$HOST_NAME:/root/cilium
 }
 
-function allow_SSH {
+function allow_ssh {
   log "Creating FW ssh-all"
-  gcloud compute firewall-rules create ssh-all --project ${PROJECT} --allow tcp:22 || true
+  gcloud compute firewall-rules create ssh-all --allow tcp:22 || true
 }
 
 function rexec {
   local cmd=$@
   log "Running remote cmd " $cmd " on instance " $HOST_NAME
-  gcloud compute ssh $VM_NAME --project $PROJECT --zone $ZONE --command="$cmd"
-}
-
-function log {
-  echo "$(date +'%b %d %T.000'): INFO: $@"
+  ssh root@$HOST_NAME "$cmd"
 }
 
 auth
 
-allow_SSH
+allow_ssh
 
-provision_GCE_VM
+provision_vm
 
 ship_repo
 
-rexec sudo rm -r "~/cilium/" || true
-rexec mkdir -p "~/cilium/"
-rexec tar -xzf "~/$tarball" -C "~/cilium/"
-rexec "cd ~/cilium && sudo make install-go"
-rexec "cd ~ && ./cilium/google_test/unit-test-local.sh"
-
-EXIT_VALUE=$?
-
-clean_up
-
-exit $EXIT_VALUE
+rexec "cd cilium; make install-go"
+rexec "cd cilium; ./google_test/unit-test-local.sh"
