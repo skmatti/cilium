@@ -54,7 +54,7 @@ function provision_vm {
     --metadata-from-file=user-data=./google_test/unit-test-image/userdata.yaml \
     --scopes=compute-rw || exit 1
   wait_for_vm
-  gcloud compute config-ssh
+  wait_for_config_ssh
 }
 
 function wait_for_vm {
@@ -67,6 +67,18 @@ function wait_for_vm {
     sleep $count
   done
   log "$VM_NAME is ready"
+}
+
+function wait_for_config_ssh {
+  local count=0
+  until gcloud compute config-ssh 2> /dev/null; do
+    if (( count++ >= 5 )); then
+      error "Failed to configure SSH for GCP VMs, reached the retry limit";
+    fi
+    log "Waiting $count second(s) to configure SSH for GCP VMs"
+    sleep $count
+  done
+  log "Configured SSH for GCP VMs"
 }
 
 function clean_up_vm {

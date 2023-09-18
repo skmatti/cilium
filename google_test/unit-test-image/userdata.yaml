@@ -19,12 +19,15 @@ packages:
 - llvm-10
 - rsync
 - build-essential
-- linux-tools-gcp
 write_files:
 - path: /etc/prepare.sh
   permissions: '0755'
   content: |
     #!/bin/sh -ex
+
+    # install bpftool for current kernel version
+    apt-get install linux-tools-$(uname -r) -y
+    # add `/root/cilium` as a safe directory to get rid of warnings
     git config --system --add safe.directory /root/cilium
     # some unit tests depend on the presence of `cilium_host` and `cilium_net`
     ip link add cilium_host type veth peer name cilium_net
