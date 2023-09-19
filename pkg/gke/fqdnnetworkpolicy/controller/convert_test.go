@@ -371,6 +371,42 @@ func TestParseFQDNNetworkPolicy(t *testing.T) {
 			},
 		},
 		{
+			desc: "different protocols",
+			in: &v1alpha1.FQDNNetworkPolicy{
+				Spec: v1alpha1.FQDNNetworkPolicySpec{
+					PodSelector: metav1.LabelSelector{},
+					Egress: []v1alpha1.FQDNNetworkPolicyEgressRule{
+						{
+							Matches: []v1alpha1.FQDNNetworkPolicyMatch{
+								{Name: "www.google.com"},
+							},
+							Ports: []v1alpha1.FQDNNetworkPolicyPort{
+								{Protocol: "ALL"},
+								{Protocol: "TCP"},
+								{Protocol: "UDP"},
+							},
+						},
+					},
+				},
+			},
+			want: &api.Rule{
+				EndpointSelector: defaultNSSel,
+				Egress: append(dnsProxyRedirect(),
+					api.EgressRule{
+						ToFQDNs: []api.FQDNSelector{
+							{MatchName: "www.google.com"},
+						},
+						ToPorts: []api.PortRule{{Ports: []api.PortProtocol{
+							{Port: "0", Protocol: api.ProtoAny},
+							{Port: "0", Protocol: api.ProtoTCP},
+							{Port: "0", Protocol: api.ProtoUDP},
+						}}},
+					},
+				),
+				Labels: defaultLabels,
+			},
+		},
+		{
 			desc: "match pattern with ports",
 			in: &v1alpha1.FQDNNetworkPolicy{
 				Spec: v1alpha1.FQDNNetworkPolicySpec{

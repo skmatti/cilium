@@ -17,6 +17,7 @@ package controller
 import (
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/cilium/cilium/pkg/gke/apis/fqdnnetworkpolicy/v1alpha1"
 	fqdnconvert "github.com/cilium/cilium/pkg/gke/fqdnnetworkpolicy/convert"
@@ -118,6 +119,20 @@ func policyLabels(fqdn *v1alpha1.FQDNNetworkPolicy) []labels.Label {
 	return k8sCiliumUtils.GetPolicyLabels(ns, policyName, policyUID, fqdnconvert.ResourceTypeFQDNNetworkPolicy)
 }
 
+func convertProtocol(p string) (api.L4Proto, error) {
+	switch strings.ToUpper(p) {
+	case "":
+		return api.ProtoAny, nil
+	case "ALL":
+		return api.ProtoAny, nil
+	case "TCP":
+		return api.ProtoTCP, nil
+	case "UDP":
+		return api.ProtoUDP, nil
+	}
+	return "", fmt.Errorf("unknown protocol %q, must be { tcp | udp | all }", p)
+}
+
 // parseFQDNNetworkPolicy converts the FQDNNetworkPolicy object into the
 // equivalent Cilium Rule object. The Rule object may then be inject into the
 // policy manager.
@@ -142,7 +157,7 @@ func parseFQDNNetworkPolicy(fqdn *v1alpha1.FQDNNetworkPolicy) (*api.Rule, error)
 			if p.Port != nil {
 				portStr = fmt.Sprint(*p.Port)
 			}
-			protocol, err := api.ParseL4Proto(p.Protocol)
+			protocol, err := convertProtocol(p.Protocol)
 			if err != nil {
 				return nil, err
 			}
@@ -166,7 +181,7 @@ func parseFQDNNetworkPolicy(fqdn *v1alpha1.FQDNNetworkPolicy) (*api.Rule, error)
 		WithLabels(policyLabels(fqdn))
 
 	if err := rule.Sanitize(); err != nil {
-		return nil, fmt.Errorf("parse error: %w", err)
+		return nil, fmt.Errorf("sanitize error: %w", err)
 	}
 	return rule, nil
 }
