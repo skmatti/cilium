@@ -69,6 +69,7 @@ type Configuration interface {
 	RemoteNodeIdentitiesEnabled() bool
 	NodeEncryptionEnabled() bool
 	NodeIpsetNeeded() bool
+	IsLocalRouterIP(string) bool
 }
 
 // Notifier is the interface the wraps Subscribe and Unsubscribe. An
@@ -462,7 +463,8 @@ func (m *Manager) NodeUpdated(n nodeTypes.Node) {
 			ExistingSrc: source.KubeAPIServer,
 			NewSrc:      n.Source,
 		}
-		if err != nil && !errors.Is(err, overwriteErr) {
+		if err != nil && !errors.Is(err, overwriteErr) &&
+			!(address.Type == addressing.NodeCiliumInternalIP && m.conf.IsLocalRouterIP(address.IP.String())) {
 			dpUpdate = false
 		} else {
 			ipsAdded = append(ipsAdded, ipAddrStr)

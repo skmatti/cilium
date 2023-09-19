@@ -47,3 +47,9 @@ func (f *Config) NodeEncryptionEnabled() bool {
 func (f *Config) LocalClusterID() uint32 {
 	return 5
 }
+
+// IsLocalRouterIP checks if provided IP address matches either LocalRouterIPv4
+// or LocalRouterIPv6
+func (f *Config) IsLocalRouterIP(ip string) bool {
+	return false
+}
