@@ -2563,16 +2563,16 @@ static __always_inline int rev_nodeport_lb4(struct __ctx_buff *ctx, __u32 *ifind
 		}
 #endif
 
-#if defined(MULTI_NIC_DEVICE_TYPE) && MULTI_NIC_DEVICE_TYPE == EP_DEV_TYPE_INDEX_MULTI_NIC_VETH
-		// MN veth type do not use fib lookup for CT_REPLY nodeport traffic
-		fib_ret = BPF_FIB_LKUP_RET_NO_NEIGH;
-#else
 		fib_params.family = AF_INET;
 		fib_params.ifindex = ctx_get_ifindex(ctx);
 
 		fib_params.ipv4_src = ip4->saddr;
 		fib_params.ipv4_dst = ip4->daddr;
 
+#if defined(MULTI_NIC_DEVICE_TYPE) && MULTI_NIC_DEVICE_TYPE == EP_DEV_TYPE_INDEX_MULTI_NIC_VETH
+		// MN veth type do not use fib lookup for CT_REPLY nodeport traffic
+		fib_ret = BPF_FIB_LKUP_RET_NO_NEIGH;
+#else
 		fib_ret = fib_lookup(ctx, &fib_params, sizeof(fib_params), 0);
 		if (fib_ret == 0)
 			/* If the FIB lookup was successful, use the outgoing
