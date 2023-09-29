@@ -167,6 +167,9 @@ func (r *ServiceSteeringReconciler) handleTriggerEvent(reasons []string) {
 }
 
 func (r *ServiceSteeringReconciler) EndpointCreated(ep *endpoint.Endpoint) {
+	if ep.IsHost() {
+		return
+	}
 	reason := fmt.Sprintf("ep:%d", ep.GetID16())
 	r.epTrigger.TriggerWithReason(reason)
 }
@@ -244,6 +247,9 @@ func (r *ServiceSteeringReconciler) desiredPaths() map[sfc.PathKey]sfc.PathEntry
 func (r *ServiceSteeringReconciler) desiredSelectors(log *logrus.Entry) map[sfc.SelectKey]sfc.SelectEntry {
 	desiredSelectors := make(map[sfc.SelectKey]sfc.SelectEntry)
 	for _, ep := range r.EndpointManager.GetEndpoints() {
+		if ep.IsHost() {
+			continue
+		}
 		// TODO(optimize): Use a cache for pods with the same labels
 		epDesiredSelectors := r.desiredEpSelectors(log, ep)
 		for k, v := range epDesiredSelectors {
@@ -257,10 +263,16 @@ func (r *ServiceSteeringReconciler) desiredEpSelectors(log *logrus.Entry, ep *en
 	epId := ep.GetID16()
 	log = log.WithField("endpoint", epId)
 
-	if ep.GetPod() == nil {
+	labels, err := epLabels(ep)
+	if err != nil {
+		log.WithError(err).Debug("Unable to get endpoint labels")
+		if isIdentityNotReady(err) {
+			// re-trigger reconcile if endpoint's identity is not ready
+			r.EndpointCreated(ep)
+		}
 		return nil
 	}
-	labels := ep.OpLabels.IdentityLabels().K8sStringMap()
+
 	log = log.WithField("pod", ep.GetK8sPodName())
 
 	desiredSelectors := make(map[sfc.SelectKey]sfc.SelectEntry)

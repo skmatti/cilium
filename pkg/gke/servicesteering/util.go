@@ -5,6 +5,7 @@ import (
 	"net"
 
 	"github.com/cilium/cilium/pkg/bpf"
+	"github.com/cilium/cilium/pkg/endpoint"
 	ciliumio "github.com/cilium/cilium/pkg/k8s/apis/cilium.io"
 	"github.com/cilium/cilium/pkg/maps/sfc"
 	"github.com/cilium/cilium/pkg/policy"
@@ -198,6 +199,33 @@ func existingSelectors() (map[sfc.SelectKey]sfc.SelectEntry, error) {
 		return nil, err
 	}
 	return dump, nil
+}
+
+type identityNotReady struct{}
+
+func (m identityNotReady) Error() string {
+	return "identity is not ready"
+}
+
+func isIdentityNotReady(err error) bool {
+	_, ok := err.(identityNotReady)
+	return ok
+}
+
+func epLabels(ep *endpoint.Endpoint) (labels.Set, error) {
+	identity, err := ep.GetSecurityIdentity()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get identity from ep %d: %v", ep.GetID(), err)
+	}
+	// Pod may not be set yet if apiserver is not connected.
+	if identity == nil || ep.GetPod() == nil {
+		return nil, identityNotReady{}
+	}
+	if identity.ID.IsReservedIdentity() {
+		return nil, fmt.Errorf("ep %d has reserved identity: %s", ep.GetID(), identity.ID)
+	}
+	labels := labels.Set(identity.Labels.K8sStringMap())
+	return labels, nil
 }
 
 func FilteredSvcSelector() cache.ObjectSelector {
