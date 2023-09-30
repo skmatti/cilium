@@ -1,2 +1,11 @@
-GOLANG_IMAGE := docker.io/library/golang:1.20.7@sha256:bc5f0b5e43282627279fe5262ae275fecb3d2eae3b33977a7fd200c7a760d6f1
-HUBBLE_CLI_IMAGE := gcr.io/gke-release-staging/cilium/hubble-cli:v0.12.0-gke.4@sha256:a41c8a1d173378e09aa919c9736c77aba3a16b1c4a3a538b40eb2b8498c7b2f2
+GOLANG_VERSION := 1.20.8
+
+GOLANG_IMAGE := docker.io/library/golang:$(GOLANG_VERSION)
+GOLANG_TARBALL := https://go.dev/dl/go$(GOLANG_VERSION).linux-amd64.tar.gz
+
+HUBBLE_CLI_IMAGE := gcr.io/gke-release-staging/cilium/hubble-cli:v0.12.0-gke.4
+
+.PHONY: install-go
+install-go:
+	rm -rf /usr/local/go
+	curl -fsSL $(GOLANG_TARBALL) | tar -C /usr/local -xzf -

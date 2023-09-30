@@ -94,6 +94,7 @@ ship_repo
 rexec sudo rm -r "~/cilium/" || true
 rexec mkdir -p "~/cilium/"
 rexec tar -xzf "~/$tarball" -C "~/cilium/"
+rexec "cd ~/cilium && sudo make install-go"
 rexec "cd ~ && ./cilium/google_test/unit-test-local.sh"
 
 EXIT_VALUE=$?
