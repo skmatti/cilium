@@ -200,7 +200,7 @@ to_ingress:
 
 #if __ctx_is != __ctx_skb ||  !defined(ENABLE_GOOGLE_MULTI_NIC)
 static __always_inline __maybe_unused int redirect_if_dhcp(struct __ctx_buff *ctx __maybe_unused,
-                        __u8 nexthdr __maybe_unused, int l4_off __maybe_unused)
+                        __u8 nexthdr __maybe_unused, int l4_off __maybe_unused, __be32 saddr __maybe_unused)
 {
 	return CTX_ACT_OK;
 }
@@ -240,6 +240,12 @@ static __always_inline bool ctx_skip_google_dhcp(struct __sk_buff *ctx)
 	return tc_index & TC_INDEX_F_SKIP_POLICY_GOOGLE_DHCP;
 }
 
+// 0x0050fea9 is the network used by kubevirt for their dummy dhcp server IP address.
+// https://gke-internal.googlesource.com/third_party/kubevirt/kubevirt/+/refs/heads/dev/pkg/network/link/address_google.go#9
+static __always_inline bool is_kubevirt_dhcp(__be32 saddr) {
+	return ((saddr&0x00ffffff) == 0x0050fea9);
+}
+
 /**
  * Redirect dhcp client packets
  * if destination port is 67 on UDP(dhcp-request), redirect to pod-network interface
@@ -256,7 +262,7 @@ static __always_inline bool ctx_skip_google_dhcp(struct __sk_buff *ctx)
  *        A negative DROP_* code on error.
  */
 static __always_inline __maybe_unused int redirect_if_dhcp(struct __ctx_buff *ctx,
-                        __u8 nexthdr, int l4_off)
+                        __u8 nexthdr, int l4_off, __be32 saddr)
 {
     __be16 dport;
     if (nexthdr == IPPROTO_UDP) {
@@ -268,7 +274,7 @@ static __always_inline __maybe_unused int redirect_if_dhcp(struct __ctx_buff *ct
                               0, ctx->ifindex,
                               REASON_GOOGLE_DHCP_REQ_REDIRECT, TRACE_PAYLOAD_LEN);
             return redirect(POD_STACK_REDIRECT_IFINDEX, BPF_F_INGRESS);
-        } else if (unlikely(dport == bpf_htons(DHCP_RESPONSE_UDP_DPORT))) {
+        } else if (unlikely((dport == bpf_htons(DHCP_RESPONSE_UDP_DPORT)) && is_kubevirt_dhcp(saddr))) {
             // DHCP clients don't care if the source mac address is a broadcast mac.
             const __u8 dhcp_source_mac[6] = { 0xff, 0xff, 0xff, 0xff, 0xff, 0xff } ;
 

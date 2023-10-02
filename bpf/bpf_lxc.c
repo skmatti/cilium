@@ -1426,7 +1426,7 @@ static __always_inline int __tail_handle_ipv4(struct __ctx_buff *ctx)
 
 #ifdef MULTI_NIC_DEVICE_TYPE
 	// Examine packet sourcing from multi NIC endpoint.
-	ret = redirect_if_dhcp(ctx, ip4->protocol, ETH_HLEN + ipv4_hdrlen(ip4));
+	ret = redirect_if_dhcp(ctx, ip4->protocol, ETH_HLEN + ipv4_hdrlen(ip4), ip4->saddr);
 	if (ret != CTX_ACT_OK)
 	        return ret;
 	// Revalidate data after redirect_if_dhcp to avoid verifier
