@@ -576,7 +576,7 @@ try_sfc_decap(struct __ctx_buff *ctx, bool *skip_conntrack)
 			if (IS_ERR(ret))
 				return ret;
 			// Skip connection tracking if not at destination (indicated by SI of 0).
-			*skip_conntrack = !nshpath_si(h_outer.nsh.path);
+			*skip_conntrack = (nshpath_si(h_outer.nsh.path) != 0);
 		}
 	}
 

@@ -2419,8 +2419,19 @@ int handle_policy(struct __ctx_buff *ctx)
 		{
 			bool skip_conntrack = false;
 			ret = try_sfc_decap(ctx, &skip_conntrack);
-			if (IS_ERR(ret) || skip_conntrack)
+			if (IS_ERR(ret))
 				break;
+			if (skip_conntrack) {
+				// Mimic how ipv4_policy redircts to endpoint.
+				// TODO(b/304133242): Enable endpoint routes in anthos to avoid
+				// such special handling.
+				bool from_host = ctx_load_meta(ctx, CB_FROM_HOST);
+				int ifindex = ctx_load_meta(ctx, CB_IFINDEX);
+				if (ifindex)
+					return redirect_ep(ctx, ifindex, from_host);
+				ret = DROP_UNROUTABLE;
+				break;
+			}
 		}
 #endif /* ENABLE_GOOGLE_SERVICE_STEERING */
 		ret = invoke_tailcall_if(__and(is_defined(ENABLE_IPV4), is_defined(ENABLE_IPV6)),
