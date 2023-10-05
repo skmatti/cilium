@@ -97,15 +97,15 @@ func (mgr *EndpointManager) addToMultiNICMapIfNeeded(ep *endpoint.Endpoint, pref
 func (mgr *EndpointManager) removeFromMultiNICMapIfNeeded(ep *endpoint.Endpoint, prefix endpointid.PrefixType, id string) {
 	if option.Config.EnableGoogleMultiNIC && (prefix == endpointid.ContainerIdPrefix || prefix == endpointid.PodNamePrefix || prefix == endpointid.DockerEndpointPrefix || prefix == endpointid.ContainerNamePrefix) {
 		eps := mgr.endpointsMultiNIC[id]
-		if len(eps) == 0 {
-			return
-		}
-		for i, epInList := range eps {
-			if ep.ID == epInList.ID {
-				// Remove the endpoint at index.
-				eps[i] = eps[len(eps)-1]
-				mgr.endpointsMultiNIC[id] = eps[:len(eps)-1]
+		for i := len(eps) - 1; i >= 0; i-- {
+			if eps[i].ID == ep.ID {
+				eps = append(eps[:i], eps[i+1:]...)
 			}
 		}
+		if len(eps) == 0 {
+			delete(mgr.endpointsMultiNIC, id)
+			return
+		}
+		mgr.endpointsMultiNIC[id] = eps
 	}
 }
