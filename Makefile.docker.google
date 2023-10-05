@@ -15,7 +15,6 @@ $(1):
 		$(DOCKER_BUILD_FLAGS) $(DOCKER_FLAGS) \
 		--build-arg BASE_IMAGE=${BASE_IMAGE} \
 		--build-arg GOLANG_IMAGE=${GOLANG_IMAGE} \
-		--build-arg HUBBLE_CLI_IMAGE=${HUBBLE_CLI_IMAGE} \
 		--build-arg NOSTRIP=$${NOSTRIP} \
 		--build-arg NOOPT=${NOOPT} \
 		--build-arg LOCKDEBUG=${LOCKDEBUG} \

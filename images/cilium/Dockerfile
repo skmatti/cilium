@@ -5,11 +5,6 @@ ARG CILIUM_BUILDER_IMAGE=quay.io/cilium/cilium-builder:f229913ec72a183640bd46d0d
 ARG CILIUM_RUNTIME_IMAGE=quay.io/cilium/cilium-runtime:112ec8fbb1e6a29932ae50ec976b1f4eddb89264@sha256:57d64a1203e9e3eede8a2e1faa622d0e9ed5a3de4c3e3b25f98f6bcead975453
 
 
-# Specify Hubble version inside Cilium image for Google builds.
-# Try to keep in sync with OSS specs in images/cilium/download-hubble.sh;
-# or images/cilium/hubble-version.sh in older versions.
-ARG HUBBLE_CLI_IMAGE=gcr.io/gke-release-staging/cilium/hubble-cli:v0.12.0-gke.4@sha256:a41c8a1d173378e09aa919c9736c77aba3a16b1c4a3a538b40eb2b8498c7b2f2
-
 # cilium-envoy from github.com/cilium/proxy
 #
 FROM quay.io/cilium/cilium-envoy:v1.26-39dc41f86c465d2a2d16386339dc0bf4d425babc@sha256:e77adfe8a263fe4b8c56dcb9bd0f4d68bb36067602e7be1388528c02fb8765c5 as cilium-envoy
@@ -17,17 +12,11 @@ FROM quay.io/cilium/cilium-envoy:v1.26-39dc41f86c465d2a2d16386339dc0bf4d425babc@
 #
 # Hubble CLI
 #
-FROM --platform=${BUILDPLATFORM} ${CILIUM_BUILDER_IMAGE} as hubble-oss
+FROM --platform=${BUILDPLATFORM} ${CILIUM_BUILDER_IMAGE} as hubble
 ARG BUILDPLATFORM
 COPY images/cilium/download-hubble.sh /tmp/download-hubble.sh
 RUN /tmp/download-hubble.sh
 RUN /out/${BUILDPLATFORM}/bin/hubble completion bash > /out/linux/bash_completion
-
-FROM ${HUBBLE_CLI_IMAGE} as hubble
-ARG TARGETPLATFORM
-RUN mkdir -p /out/${TARGETPLATFORM}/bin
-RUN cp -pf /usr/bin/hubble /out/${TARGETPLATFORM}/bin/hubble
-RUN /usr/bin/hubble completion bash > /out/linux/bash_completion
 
 #
 # Cilium incremental build. Should be fast given builder-deps is up-to-date!
@@ -98,11 +87,6 @@ RUN echo ". /etc/profile.d/bash_completion.sh" >> /etc/bash.bashrc
 RUN apt-get update && apt-get upgrade -y && apt-get install curl tcpdump conntrack -y && rm -rf /var/lib/apt/lists/*
 
 COPY --from=cilium-envoy /usr/bin/cilium-envoy /usr/bin/
-# When used within the Cilium container, Hubble CLI should target the
-# local unix domain socket instead of Hubble Relay.
-ENV HUBBLE_SERVER=unix:///var/run/cilium/hubble.sock
-COPY --from=hubble /out/${TARGETOS}/${TARGETARCH}/bin/hubble /usr/bin/hubble
-COPY --from=hubble /out/linux/bash_completion /etc/bash_completion.d/hubble
 
 COPY --from=builder /tmp/install/${TARGETOS}/${TARGETARCH} /
 WORKDIR /home/cilium
