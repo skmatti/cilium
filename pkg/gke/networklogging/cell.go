@@ -73,20 +73,25 @@ func registerNetpolLogging(params netpolLoggingParams) {
 			if err != nil {
 				return fmt.Errorf("get NetworkPolicies store: %v", err)
 			}
-			cnpStore, err := params.CiliumNetworkPolicies.Store(ctx)
-			if err != nil {
-				return fmt.Errorf("get CiliumNetworkPolicies store: %v", err)
-			}
-			ccnpStore, err := params.CiliumClusterwideNetworkPolicies.Store(ctx)
-			if err != nil {
-				return fmt.Errorf("get CiliumClusterwideNetworkPolicies store: %v", err)
-			}
 
 			sg := &policylogger.Stores{
-				NamespaceStore:                      nsStore,
-				NetworkPolicyStore:                  npStore,
-				CiliumNetworkPolicyStore:            cnpStore,
-				CiliumClusterwideNetworkPolicyStore: ccnpStore,
+				NamespaceStore:     nsStore,
+				NetworkPolicyStore: npStore,
+			}
+
+			if params.DaemonConfig.EnableCiliumNetworkPolicy {
+				cnpStore, err := params.CiliumNetworkPolicies.Store(ctx)
+				if err != nil {
+					return fmt.Errorf("get CiliumNetworkPolicies store: %v", err)
+				}
+				sg.CiliumNetworkPolicyStore = cnpStore
+			}
+			if params.DaemonConfig.EnableCiliumClusterwideNetworkPolicy {
+				ccnpStore, err := params.CiliumClusterwideNetworkPolicies.Store(ctx)
+				if err != nil {
+					return fmt.Errorf("get CiliumClusterwideNetworkPolicies store: %v", err)
+				}
+				sg.CiliumClusterwideNetworkPolicyStore = ccnpStore
 			}
 
 			c = controller.NewController(params.Clientset, params.NLClient, params.FlowPlugin.Dispatcher, nil, sg, params.MetricsRegistry)
