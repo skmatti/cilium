@@ -15,6 +15,7 @@ import (
 	"github.com/cilium/cilium/pkg/logging"
 	"github.com/cilium/cilium/pkg/logging/logfields"
 	"github.com/cilium/cilium/pkg/maps/sfc"
+	"github.com/cilium/cilium/pkg/metrics"
 	"github.com/cilium/cilium/pkg/option"
 	"github.com/cilium/cilium/pkg/trigger"
 	"github.com/sirupsen/logrus"
@@ -39,6 +40,10 @@ var (
 	sfclog             = logging.DefaultLogger.WithField(logfields.LogSubsys, "gke-service-steering-controller")
 	reconcileLock      = lock.Mutex{}
 	minTriggerInternal = time.Second * 2
+	// ReconcileLabelTypeController indicates the reconcile loop on CRD objects.
+	reconcileTypeController = "controller"
+	// ReconcileLabelTypeTrigger indicates the reconcile loop in the trigger.
+	reconcileTypeTrigger = "trigger"
 )
 
 type ServiceSteeringReconciler struct {
@@ -130,9 +135,12 @@ func (r *ServiceSteeringReconciler) handleControllerEvent(ctx context.Context, r
 	defer log.Debugf("Finished reconciling in %s", time.Since(start))
 
 	defer func() {
+		outcome := metrics.LabelValueOutcomeSuccess
 		if err_ != nil {
 			log.Error(err_)
+			outcome = metrics.LabelValueOutcomeFail
 		}
+		metrics.ServiceSteeringReconcileTotal.WithLabelValues(reconcileTypeController, outcome).Inc()
 	}()
 
 	if err := r.updateSelectorCache(ctx, log); err != nil {
@@ -161,8 +169,15 @@ func (r *ServiceSteeringReconciler) handleTriggerEvent(reasons []string) {
 	log.Debug("Reconciling")
 	defer log.Debugf("Finished reconciling in %s", time.Since(start))
 
+	outcome := metrics.LabelValueOutcomeSuccess
+	defer func() {
+		metrics.ServiceSteeringReconcileTotal.WithLabelValues(reconcileTypeTrigger, outcome).Inc()
+	}()
+
 	if err := r.reconcileSelectorMaps(ctx, log); err != nil {
 		log.WithError(err).Error("Failed to reconcile SFC selector maps")
+		outcome = metrics.LabelValueOutcomeFail
+		return
 	}
 }
 
@@ -246,6 +261,7 @@ func (r *ServiceSteeringReconciler) desiredPaths() map[sfc.PathKey]sfc.PathEntry
 
 func (r *ServiceSteeringReconciler) desiredSelectors(log *logrus.Entry) map[sfc.SelectKey]sfc.SelectEntry {
 	desiredSelectors := make(map[sfc.SelectKey]sfc.SelectEntry)
+	numEndpointsSelected := 0
 	for _, ep := range r.EndpointManager.GetEndpoints() {
 		if ep.IsHost() {
 			continue
@@ -255,7 +271,12 @@ func (r *ServiceSteeringReconciler) desiredSelectors(log *logrus.Entry) map[sfc.
 		for k, v := range epDesiredSelectors {
 			desiredSelectors[k] = v
 		}
+		if len(epDesiredSelectors) > 0 {
+			numEndpointsSelected++
+		}
 	}
+
+	metrics.ServiceSteeringEndpoint.Set(float64(numEndpointsSelected))
 	return desiredSelectors
 }
 

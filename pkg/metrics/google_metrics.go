@@ -5,16 +5,23 @@ import (
 )
 
 const (
-	subsystemMultiNetwork = "google_multinet"
+	subsystemMultiNetwork    = "google_multinet"
+	subsystemServiceSteering = "google_service_steering"
 
 	labelNetwork     = "network"
 	labelNetworkType = "network_type"
+
+	labelReconcileType = "reconcile_type"
 )
 
 var (
 	MultiNetworkEndpoint    = NoOpGaugeVec
 	MultiNetworkPodCreation = NoOpCounterVec
 	MultiNetworkIpamEvent   = NoOpCounterVec
+
+	ServiceSteeringEndpoint        = NoOpGauge
+	ServiceSteeringReconcileTotal  = NoOpCounterVec
+	ServiceSteeringReconcileErrors = NoOpCounterVec
 )
 
 // TODO: Switch to Hive's cell.Metric in v1.14+
@@ -46,9 +53,29 @@ func googleMetrics() []prometheus.Collector {
 		LabelAction,
 		LabelDatapathFamily,
 	})
+
+	ServiceSteeringEndpoint = prometheus.NewGauge(prometheus.GaugeOpts{
+		Namespace: Namespace,
+		Subsystem: subsystemServiceSteering,
+		Name:      "endpoints_total",
+		Help:      "Number of endpoints selected by a traffic selector.",
+	})
+
+	ServiceSteeringReconcileTotal = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Namespace: Namespace,
+		Subsystem: subsystemServiceSteering,
+		Name:      "reconcile_total",
+		Help:      "Number of reconciliations per type.",
+	}, []string{
+		labelReconcileType,
+		LabelOutcome,
+	})
+
 	return []prometheus.Collector{
 		MultiNetworkEndpoint,
 		MultiNetworkPodCreation,
 		MultiNetworkIpamEvent,
+		ServiceSteeringEndpoint,
+		ServiceSteeringReconcileTotal,
 	}
 }
