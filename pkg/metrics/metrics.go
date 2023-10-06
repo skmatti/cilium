@@ -1579,6 +1579,7 @@ func init() {
 }
 
 func registerDefaultMetrics() {
+	MustRegister(googleMetrics()...)
 	MustRegister(collectors.NewProcessCollector(collectors.ProcessCollectorOpts{Namespace: Namespace}))
 	MustRegister(collectors.NewGoCollector())
 	MustRegister(newStatusCollector())

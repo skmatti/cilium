@@ -1,43 +1,36 @@
 package metrics
 
 import (
-	"github.com/cilium/cilium/pkg/logging"
-	"github.com/cilium/cilium/pkg/logging/logfields"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
 const (
-	SubsystemMultiNetwork = "google_multinet"
-	LabelNetwork          = "network"
-	LabelNetworkType      = "network_type"
+	subsystemMultiNetwork = "google_multinet"
+
+	labelNetwork     = "network"
+	labelNetworkType = "network_type"
 )
 
 var (
 	MultiNetworkEndpoint    = NoOpGaugeVec
 	MultiNetworkPodCreation = NoOpCounterVec
 	MultiNetworkIpamEvent   = NoOpCounterVec
-
-	log = logging.DefaultLogger.WithField(logfields.LogSubsys, "metrics")
 )
 
-func init() {
-	collectors := initGoogleMetrics()
-	MustRegister(collectors...)
-}
-
-func initGoogleMetrics() []prometheus.Collector {
+// TODO: Switch to Hive's cell.Metric in v1.14+
+func googleMetrics() []prometheus.Collector {
 	MultiNetworkEndpoint = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: Namespace,
-		Subsystem: SubsystemMultiNetwork,
+		Subsystem: subsystemMultiNetwork,
 		Name:      "endpoints_total",
 		Help:      "Number of multi-network endpoints managed by this agent.",
 	}, []string{
-		LabelNetwork,
-		LabelNetworkType,
+		labelNetwork,
+		labelNetworkType,
 	})
 	MultiNetworkPodCreation = prometheus.NewCounterVec(prometheus.CounterOpts{
 		Namespace: Namespace,
-		Subsystem: SubsystemMultiNetwork,
+		Subsystem: subsystemMultiNetwork,
 		Name:      "pod_creations_total",
 		Help:      "Number of multi-network pod creations.",
 	}, []string{
@@ -45,11 +38,11 @@ func initGoogleMetrics() []prometheus.Collector {
 	})
 	MultiNetworkIpamEvent = prometheus.NewCounterVec(prometheus.CounterOpts{
 		Namespace: Namespace,
-		Subsystem: SubsystemMultiNetwork,
+		Subsystem: subsystemMultiNetwork,
 		Name:      "ipam_events_total",
 		Help:      "Number of IPAM events received.",
 	}, []string{
-		LabelNetwork,
+		labelNetwork,
 		LabelAction,
 		LabelDatapathFamily,
 	})
