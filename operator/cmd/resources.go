@@ -8,7 +8,7 @@ import (
 
 	"k8s.io/client-go/util/workqueue"
 
-	"github.com/cilium/cilium/operator/pkg/gke/features"
+	"github.com/cilium/cilium/pkg/gke/features"
 	"github.com/cilium/cilium/pkg/hive"
 	"github.com/cilium/cilium/pkg/hive/cell"
 	cilium_api_v2alpha1 "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2alpha1"

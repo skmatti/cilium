@@ -18,7 +18,7 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
 
-	"github.com/cilium/cilium/operator/pkg/gke/features"
+	"github.com/cilium/cilium/pkg/gke/features"
 	"github.com/cilium/cilium/pkg/k8s"
 	v2 "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2"
 	v2alpha1 "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2alpha1"
@@ -46,16 +46,17 @@ func agentCRDResourceNames() []string {
 		CRDResourceName(v2.CIDName),
 	}
 
-	if option.Config.DisableCiliumNetworkPolicyCRD {
-		result2 := []string{}
-		for _, r := range result {
-			if r == CRDResourceName(v2.CNPName) || r == CRDResourceName(v2.CCNPName) {
-				continue
-			}
-			result2 = append(result2, r)
+	// Google: remove CNP or CCNP if it is not enabled
+	result2 := []string{}
+	for _, r := range result {
+		if (r == CRDResourceName(v2.CNPName) && !features.GlobalConfig.EnableCiliumNetworkPolicy) ||
+			(r == CRDResourceName((v2.CCNPName)) && !features.GlobalConfig.EnableCiliumClusterWideNetworkPolicy) {
+			continue
 		}
-		result = result2
+		result2 = append(result2, r)
 	}
+
+	result = result2
 
 	if !option.Config.DisableCiliumEndpointCRD {
 		result = append(result, CRDResourceName(v2.CEPName))

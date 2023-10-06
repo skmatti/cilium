@@ -22,7 +22,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/util/workqueue"
 
-	"github.com/cilium/cilium/operator/pkg/gke/features"
+	"github.com/cilium/cilium/pkg/gke/features"
 	k8sClient "github.com/cilium/cilium/pkg/k8s/client"
 
 	"github.com/cilium/cilium/pkg/hive"

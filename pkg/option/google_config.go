@@ -68,6 +68,18 @@ const (
 
 	// DisablePolicyEventCountMetric  disables the policy event count metric on this host.
 	DisablePolicyEventCountMetric = "disable-policy-event-count-metric"
+
+	// (Deprecated) DisableCiliumNetworkPolicyCRDName is the name of the option to disable
+	// use of the CNP and CCNP CRD
+	DisableNetworkPolicyCRDName = "disable-network-policy-crd"
+
+	// EnableCiliumNetworkPolicyName is the name of the option to enable
+	// use of the CNP CRD
+	EnableCiliumNetworkPolicyName = "enable-cilium-network-policy"
+
+	// EnableCiliumCluterWideNetworkPolicyName is the name of the option to enable
+	// use of the CCNP CRD
+	EnableCiliumClusterWideNetworkPolicyName = "enable-cilium-clusterwide-network-policy"
 )
 
 func (c *DaemonConfig) SyncPredicate() func(string) bool {

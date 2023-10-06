@@ -33,6 +33,7 @@ import (
 	operatorWatchers "github.com/cilium/cilium/operator/watchers"
 	"github.com/cilium/cilium/pkg/components"
 	"github.com/cilium/cilium/pkg/defaults"
+	"github.com/cilium/cilium/pkg/gke/features"
 	"github.com/cilium/cilium/pkg/gops"
 	"github.com/cilium/cilium/pkg/hive"
 	"github.com/cilium/cilium/pkg/hive/cell"
@@ -688,19 +689,22 @@ func (legacy *legacyOnLeader) onStart(_ hive.HookContext) error {
 			}
 		}
 
-		if !option.Config.DisableCiliumNetworkPolicyCRD {
+		if features.GlobalConfig.EnableCiliumNetworkPolicy {
 			err = enableCNPWatcher(legacy.ctx, &legacy.wg, legacy.clientset)
 			if err != nil {
 				log.WithError(err).WithField(logfields.LogSubsys, "CNPWatcher").Fatal(
 					"Cannot connect to Kubernetes apiserver ")
 			}
 
+		}
+		if features.GlobalConfig.EnableCiliumClusterWideNetworkPolicy {
 			err = enableCCNPWatcher(legacy.ctx, &legacy.wg, legacy.clientset)
 			if err != nil {
 				log.WithError(err).WithField(logfields.LogSubsys, "CCNPWatcher").Fatal(
 					"Cannot connect to Kubernetes apiserver ")
 			}
 		}
+
 	}
 
 	if operatorOption.Config.EnableIngressController {
