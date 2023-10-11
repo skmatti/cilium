@@ -40,7 +40,7 @@ func initPersistentIP(params persistentIPParams) error {
 
 	globalPersistentIPConfig = params.Config
 	// TODO(b/292558915) - Remove multiNIC check when persistent IP is supported on default network.
-	if !params.Config.EnableGooglePersistentIP && !option.Config.EnableGoogleMultiNIC {
+	if !(params.Config.EnableGooglePersistentIP && option.Config.EnableGoogleMultiNIC) {
 		return nil
 	}
 	if _, err := pip.RoutingMap.OpenOrCreate(); err != nil {

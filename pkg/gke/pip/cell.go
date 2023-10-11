@@ -45,7 +45,7 @@ type persistentIPParams struct {
 // TODO(b/301965594) - Migrate controller off of controller runtime
 func setupPersistentIPCtrl(params persistentIPParams) error {
 	// TODO(b/292558915) - Remove multiNIC check when persistent IP is supported on default network.
-	if !params.Config.EnableGooglePersistentIP && !option.Config.EnableGoogleMultiNIC {
+	if !(params.Config.EnableGooglePersistentIP && option.Config.EnableGoogleMultiNIC) {
 		return nil
 	}
 	var mgrCtx context.Context
