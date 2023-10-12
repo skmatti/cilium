@@ -1,6 +1,6 @@
 GOLANG_VERSION := 1.20.8
 
-GOLANG_IMAGE := docker.io/library/golang:$(GOLANG_VERSION)
+GOLANG_IMAGE := google-go.pkg.dev/golang:$(GOLANG_VERSION)
 GOLANG_TARBALL := https://go.dev/dl/go$(GOLANG_VERSION).linux-amd64.tar.gz
 
 .PHONY: install-go
