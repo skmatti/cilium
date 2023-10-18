@@ -86,8 +86,6 @@ RUN echo ". /etc/profile.d/bash_completion.sh" >> /etc/bash.bashrc
 # patch vulnerabilities; add packages for debug and troubleshooting purpose.
 RUN apt-get update && apt-get upgrade -y && apt-get install curl tcpdump conntrack -y && rm -rf /var/lib/apt/lists/*
 
-COPY --from=cilium-envoy /usr/bin/cilium-envoy /usr/bin/
-
 COPY --from=builder /tmp/install/${TARGETOS}/${TARGETARCH} /
 WORKDIR /home/cilium
 
