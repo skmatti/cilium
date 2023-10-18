@@ -631,6 +631,9 @@ func (h *HeaderfileWriter) WriteNodeConfig(w io.Writer, cfg *datapath.LocalNodeC
 			return err
 		}
 		cDefinesMap["NODEPORT_IPV4_BY_IFINDEX(IFINDEX)"] = nodePortIPv4ByIfIndex
+		if option.Config.EnableGoogleMultiNICHairpin {
+			cDefinesMap["ENABLE_GOOGLE_MULTI_NIC_HAIRPIN"] = "1"
+		}
 	}
 
 	if option.Config.EnableGoogleServiceSteering {

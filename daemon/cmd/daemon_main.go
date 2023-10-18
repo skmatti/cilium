@@ -1011,6 +1011,10 @@ func initializeFlags() {
 	flags.MarkHidden(option.EnableGoogleMultiNIC)
 	option.BindEnv(Vp, option.EnableGoogleMultiNIC)
 
+	flags.Bool(option.EnableGoogleMultiNICHairpin, true, "Enable google multi NIC local hairpin for local L2 broadcast")
+	flags.MarkHidden(option.EnableGoogleMultiNICHairpin)
+	option.BindEnv(Vp, option.EnableGoogleMultiNICHairpin)
+
 	flags.Bool(option.EnableGoogleServiceSteering, false, "Enable google service steering support")
 	flags.MarkHidden(option.EnableGoogleServiceSteering)
 	option.BindEnv(Vp, option.EnableGoogleServiceSteering)

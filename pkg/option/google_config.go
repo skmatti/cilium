@@ -27,6 +27,9 @@ const (
 	// EnableGoogleMultiNIC is the name of the option to enable gogole multi nic support.
 	EnableGoogleMultiNIC = "enable-google-multi-nic"
 
+	// EnableGoogleMultiNICHaipin is the name of the option to enable gogole multi nic hairpin support.
+	EnableGoogleMultiNICHairpin = "enable-google-multi-nic-hairpin"
+
 	// EnableGoogleServiceSteering is the name of the option to enable google service steering support.
 	EnableGoogleServiceSteering = "enable-google-service-steering"
 

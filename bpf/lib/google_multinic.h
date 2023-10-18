@@ -165,6 +165,10 @@ multinic_redirect_ipv4(struct __ctx_buff *ctx)
 	__u16 proto = 0;
 	const struct multi_nic_dev_info *dev;
 
+#ifndef ENABLE_GOOGLE_MULTI_NIC_HAIRPIN
+    return CTX_ACT_OK;
+#endif
+
 	if (!validate_ethertype(ctx, &proto)) {
 		return DROP_UNSUPPORTED_L2;
 	}

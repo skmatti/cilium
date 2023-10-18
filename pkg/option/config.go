@@ -2330,6 +2330,9 @@ type DaemonConfig struct {
 	// EnableGoogleMultiNIC is a feature flag for google multi nic support, default is false.
 	EnableGoogleMultiNIC bool
 
+	// EnableGoogleMultiNICHairpin is a flag for google multi nic hairpin support, default is true.
+	EnableGoogleMultiNICHairpin bool
+
 	// EnableGoogleServiceSteering is a feature flag for google service steering support, default is false.
 	EnableGoogleServiceSteering bool
 
@@ -3009,6 +3012,7 @@ func (c *DaemonConfig) Populate(vp *viper.Viper) {
 	c.EnableHostFirewall = vp.GetBool(EnableHostFirewall)
 	c.EnableLocalRedirectPolicy = vp.GetBool(EnableLocalRedirectPolicy)
 	c.EnableGoogleMultiNIC = vp.GetBool(EnableGoogleMultiNIC)
+	c.EnableGoogleMultiNICHairpin = vp.GetBool(EnableGoogleMultiNICHairpin)
 	c.EnableGoogleServiceSteering = vp.GetBool(EnableGoogleServiceSteering)
 	c.PopulateGCENICInfo = vp.GetBool(PopulateGCENICInfo)
 	c.AllowDisableSourceIPValidation = vp.GetBool(AllowDisableSourceIPValidation)
