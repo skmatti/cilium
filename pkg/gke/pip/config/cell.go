@@ -22,7 +22,7 @@ type Config struct {
 }
 
 var defaultConfig = Config{
-	EnableGooglePersistentIP: true,
+	EnableGooglePersistentIP: false,
 }
 
 func (cfg Config) Flags(flags *pflag.FlagSet) {
