@@ -150,13 +150,19 @@ func (d *Daemon) initMultiNIC(ctx context.Context, mgr manager.Manager, endpoint
 }
 
 func (d *Daemon) initServiceSteering(ctx context.Context, mgr manager.Manager) error {
-	if err := (&servicesteering.ServiceSteeringReconciler{
+	r := &servicesteering.ServiceSteeringReconciler{
 		Client:          mgr.GetClient(),
 		Scheme:          mgr.GetScheme(),
 		EndpointManager: d.endpointManager,
-	}).SetupWithManager(mgr); err != nil {
+		PodStore:        d.k8sWatcher.GetStore("pod"),
+		NamespaceStore:  d.k8sWatcher.GetStore("namespace"),
+	}
+	if err := r.SetupWithManager(mgr); err != nil {
 		return fmt.Errorf("failed to setup service steering controller: %v", err)
 	}
+	d.k8sWatcher.PodChain.Register(r)
+	d.k8sWatcher.NamespaceChain.Register(r)
+
 	sslog.Info("Created service steering controller")
 	return nil
 }

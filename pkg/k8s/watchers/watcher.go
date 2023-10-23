@@ -247,6 +247,9 @@ type K8sWatcher struct {
 	// have their event handling methods called in order of registration.
 	CiliumNodeChain *subscriber.CiliumNodeChain
 
+	PodChain       *subscriber.RawChain
+	NamespaceChain *subscriber.RawChain
+
 	endpointManager endpointManager
 
 	nodeDiscoverManager   nodeDiscoverManager
@@ -333,6 +336,8 @@ func NewK8sWatcher(
 		cgroupManager:         cgroupManager,
 		NodeChain:             subscriber.NewNodeChain(),
 		CiliumNodeChain:       subscriber.NewCiliumNodeChain(),
+		PodChain:              subscriber.NewRawChain(),
+		NamespaceChain:        subscriber.NewRawChain(),
 		envoyConfigManager:    envoyConfigManager,
 		cfg:                   cfg,
 	}

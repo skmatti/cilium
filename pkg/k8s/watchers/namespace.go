@@ -86,6 +86,8 @@ func (k *K8sWatcher) updateK8sV1Namespace(oldNS, newNS *slim_corev1.Namespace) e
 		return nil
 	}
 
+	k.NamespaceChain.OnUpdate(oldNS, newNS)
+
 	eps := k.endpointManager.GetEndpoints()
 	failed := false
 	for _, ep := range eps {

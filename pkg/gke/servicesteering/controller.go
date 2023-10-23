@@ -17,12 +17,14 @@ import (
 	"github.com/cilium/cilium/pkg/maps/sfc"
 	"github.com/cilium/cilium/pkg/metrics"
 	"github.com/cilium/cilium/pkg/option"
+	"github.com/cilium/cilium/pkg/policy"
 	"github.com/cilium/cilium/pkg/trigger"
 	"github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/tools/cache"
 
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
@@ -32,6 +34,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	daemonclient "github.com/cilium/cilium/pkg/client"
+	ciliumio "github.com/cilium/cilium/pkg/k8s/apis/cilium.io"
+	slim_corev1 "github.com/cilium/cilium/pkg/k8s/slim/k8s/api/core/v1"
+	slim_metav1 "github.com/cilium/cilium/pkg/k8s/slim/k8s/apis/meta/v1"
 	v1 "gke-internal.googlesource.com/anthos-networking/apis/v2/service-steering/v1"
 	networkv1 "k8s.io/cloud-provider-gcp/crd/apis/network/v1"
 )
@@ -50,9 +55,11 @@ type ServiceSteeringReconciler struct {
 	client.Client
 	Scheme *runtime.Scheme
 	*endpointmanager.EndpointManager
-	selectorCache []extractedSelector
-	epTrigger     *trigger.Trigger
-	cp            configPatcher
+	PodStore       cache.Store
+	NamespaceStore cache.Store
+	selectorCache  []extractedSelector
+	epTrigger      *trigger.Trigger
+	cp             configPatcher
 }
 
 type configPatcher interface {
@@ -96,9 +103,6 @@ func (r *ServiceSteeringReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		return fmt.Errorf("unable to initialize endpoint trigger function: %v", err)
 	}
 	r.epTrigger = rt
-
-	// Subscribe to endpoint creation, delection events.
-	r.EndpointManager.Subscribe(r)
 
 	cl, err := daemonclient.NewClient("")
 	if err != nil {
@@ -181,16 +185,26 @@ func (r *ServiceSteeringReconciler) handleTriggerEvent(reasons []string) {
 	}
 }
 
-func (r *ServiceSteeringReconciler) EndpointCreated(ep *endpoint.Endpoint) {
-	if ep.IsHost() {
+func (r *ServiceSteeringReconciler) OnAdd(obj interface{}) {
+	var reason string
+	switch t := obj.(type) {
+	case *slim_corev1.Pod:
+		reason = fmt.Sprintf("pod:%s/%s", t.GetNamespace(), t.GetName())
+	case *slim_corev1.Namespace:
+		reason = fmt.Sprintf("namespace:%s", t.GetName())
+	default:
 		return
 	}
-	reason := fmt.Sprintf("ep:%d", ep.GetID16())
+
 	r.epTrigger.TriggerWithReason(reason)
 }
 
-func (r *ServiceSteeringReconciler) EndpointDeleted(ep *endpoint.Endpoint, conf endpoint.DeleteConfig) {
-	r.EndpointCreated(ep)
+func (r *ServiceSteeringReconciler) OnUpdate(oldObj, newObj interface{}) {
+	r.OnAdd(newObj)
+}
+
+func (r *ServiceSteeringReconciler) OnDelete(obj interface{}) {
+	r.OnAdd(obj)
 }
 
 func (r *ServiceSteeringReconciler) reconcilePathMap(ctx context.Context, log *logrus.Entry) error {
@@ -261,6 +275,9 @@ func (r *ServiceSteeringReconciler) desiredPaths() map[sfc.PathKey]sfc.PathEntry
 
 func (r *ServiceSteeringReconciler) desiredSelectors(log *logrus.Entry) map[sfc.SelectKey]sfc.SelectEntry {
 	desiredSelectors := make(map[sfc.SelectKey]sfc.SelectEntry)
+	if len(r.selectorCache) == 0 {
+		return desiredSelectors
+	}
 	numEndpointsSelected := 0
 	for _, ep := range r.EndpointManager.GetEndpoints() {
 		if ep.IsHost() {
@@ -280,21 +297,61 @@ func (r *ServiceSteeringReconciler) desiredSelectors(log *logrus.Entry) map[sfc.
 	return desiredSelectors
 }
 
-func (r *ServiceSteeringReconciler) desiredEpSelectors(log *logrus.Entry, ep *endpoint.Endpoint) map[sfc.SelectKey]sfc.SelectEntry {
-	epId := ep.GetID16()
-	log = log.WithField("endpoint", epId)
-
-	labels, err := epLabels(ep)
+func (r *ServiceSteeringReconciler) GetEPLabels(ep *endpoint.Endpoint) (map[string]string, error) {
+	pName := &slim_corev1.Pod{
+		ObjectMeta: slim_metav1.ObjectMeta{
+			Name:      ep.K8sPodName,
+			Namespace: ep.K8sNamespace,
+		},
+	}
+	podInterface, exists, err := r.PodStore.Get(pName)
 	if err != nil {
-		log.WithError(err).Debug("Unable to get endpoint labels")
-		if isIdentityNotReady(err) {
-			// re-trigger reconcile if endpoint's identity is not ready
-			r.EndpointCreated(ep)
-		}
+		return nil, fmt.Errorf("failed to fetch pod %s/%s in store: %v", ep.K8sNamespace, ep.K8sPodName, err)
+	}
+	if !exists {
+		return nil, fmt.Errorf("pod %s/%s not found in store", ep.K8sNamespace, ep.K8sPodName)
+	}
+	pod := podInterface.(*slim_corev1.Pod)
+
+	nsName := &slim_corev1.Namespace{
+		ObjectMeta: slim_metav1.ObjectMeta{
+			Name: ep.K8sNamespace,
+		},
+	}
+	nsInterface, exists, err := r.NamespaceStore.Get(nsName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch namespace %s in store: %v", ep.K8sNamespace, err)
+	}
+	if !exists {
+		return nil, fmt.Errorf("namespace %s not found in store", ep.K8sNamespace)
+	}
+	ns := nsInterface.(*slim_corev1.Namespace)
+
+	labels := map[string]string{}
+	for k, v := range ns.GetLabels() {
+		labels[policy.JoinPath(ciliumio.PodNamespaceMetaLabels, k)] = v
+	}
+	for k, v := range pod.GetLabels() {
+		labels[k] = v
+	}
+	return labels, nil
+}
+
+func (r *ServiceSteeringReconciler) desiredEpSelectors(log *logrus.Entry, ep *endpoint.Endpoint) map[sfc.SelectKey]sfc.SelectEntry {
+	if ep.GetPod() == nil {
 		return nil
 	}
+	epId := ep.GetID16()
+	log = log.WithFields(logrus.Fields{
+		"endpoint": epId,
+		"pod":      ep.GetK8sPodName(),
+	})
 
-	log = log.WithField("pod", ep.GetK8sPodName())
+	labels, err := r.GetEPLabels(ep)
+	if err != nil {
+		log.WithError(err).Warningf("skipped pod because failed to get labels")
+		return nil
+	}
 
 	desiredSelectors := make(map[sfc.SelectKey]sfc.SelectEntry)
 	for i := range r.selectorCache {

@@ -238,6 +238,7 @@ func (k *K8sWatcher) addK8sPodV1(pod *slim_corev1.Pod) error {
 	}
 
 	k.cgroupManager.OnAddPod(pod)
+	k.PodChain.OnAdd(pod)
 
 	if err != nil {
 		logger.WithError(err).Warning("Unable to update ipcache map entry on pod add")
@@ -280,6 +281,7 @@ func (k *K8sWatcher) updateK8sPodV1(oldK8sPod, newK8sPod *slim_corev1.Pod) error
 	}
 
 	k.cgroupManager.OnUpdatePod(oldK8sPod, newK8sPod)
+	k.PodChain.OnUpdate(oldK8sPod, newK8sPod)
 
 	oldPodIPs := k8sUtils.ValidIPs(oldK8sPod.Status)
 	newPodIPs := k8sUtils.ValidIPs(newK8sPod.Status)
@@ -481,6 +483,7 @@ func (k *K8sWatcher) deleteK8sPodV1(pod *slim_corev1.Pod) error {
 	hubblemetrics.ProcessPodDeletion(pod)
 
 	k.cgroupManager.OnDeletePod(pod)
+	k.PodChain.OnDelete(pod)
 
 	skipped, err := k.deletePodHostData(pod)
 	switch {
