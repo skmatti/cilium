@@ -390,7 +390,7 @@ func (r *ServiceSteeringReconciler) extractSFC(ctx context.Context, log *logrus.
 // Extract network id, returning 0 for default/unspecified network
 func (r *ServiceSteeringReconciler) extractNetwork(ctx context.Context, selector *extractedSelector) error {
 	networkName := selector.Spec.Subject.Network
-	if len(networkName) == 0 || networkName == networkv1.DefaultNetworkName {
+	if len(networkName) == 0 || networkName == networkv1.DefaultPodNetworkName {
 		selector.networkID = 0
 		return nil
 	}
