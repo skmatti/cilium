@@ -10,6 +10,7 @@ import (
 	v1meta "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/cache"
+	"k8s.io/client-go/util/workqueue"
 
 	ipcacheTypes "github.com/cilium/cilium/pkg/ipcache/types"
 	"github.com/cilium/cilium/pkg/k8s"
@@ -23,6 +24,12 @@ import (
 	"github.com/cilium/cilium/pkg/option"
 )
 
+type endpointSliceKey struct {
+	key    string
+	action string
+	id     k8s.EndpointSliceID
+}
+
 // endpointSlicesInit returns true if the cluster contains endpoint slices.
 func (k *K8sWatcher) endpointSlicesInit(slimClient slimclientset.Interface, swgEps *lock.StoppableWaitGroup, optsModifier func(*v1meta.ListOptions)) bool {
 	var (
@@ -33,6 +40,7 @@ func (k *K8sWatcher) endpointSlicesInit(slimClient slimclientset.Interface, swgE
 		addFunc, delFunc  func(obj interface{})
 		updateFunc        func(oldObj, newObj interface{})
 		apiGroup          string
+		queue             = workqueue.New()
 	)
 
 	if k8s.SupportsEndpointSliceV1() {
@@ -52,8 +60,12 @@ func (k *K8sWatcher) endpointSlicesInit(slimClient slimclientset.Interface, swgE
 			}()
 			if k8sEP := k8s.ObjToV1EndpointSlice(obj); k8sEP != nil {
 				valid = true
-				k.updateK8sEndpointSliceV1(k8sEP, swgEps)
-				k.K8sEventProcessed(resources.MetricEndpointSlice, resources.MetricCreate, true)
+
+				key, _ := cache.DeletionHandlingMetaNamespaceKeyFunc(k8sEP)
+				queue.Add(endpointSliceKey{
+					key:    key,
+					action: resources.MetricCreate,
+				})
 			}
 		}
 		updateFunc = func(oldObj, newObj interface{}) {
@@ -69,8 +81,11 @@ func (k *K8sWatcher) endpointSlicesInit(slimClient slimclientset.Interface, swgE
 						return
 					}
 
-					k.updateK8sEndpointSliceV1(newk8sEP, swgEps)
-					k.K8sEventProcessed(resources.MetricEndpointSlice, resources.MetricUpdate, true)
+					key, _ := cache.DeletionHandlingMetaNamespaceKeyFunc(newk8sEP)
+					queue.Add(endpointSliceKey{
+						key:    key,
+						action: resources.MetricUpdate,
+					})
 				}
 			}
 		}
@@ -84,8 +99,13 @@ func (k *K8sWatcher) endpointSlicesInit(slimClient slimclientset.Interface, swgE
 				return
 			}
 			valid = true
-			k.K8sSvcCache.DeleteEndpointSlices(k8sEP, swgEps)
-			k.K8sEventProcessed(resources.MetricEndpointSlice, resources.MetricDelete, true)
+
+			key, _ := cache.DeletionHandlingMetaNamespaceKeyFunc(k8sEP)
+			queue.Add(endpointSliceKey{
+				key:    key,
+				action: resources.MetricDelete,
+				id:     k8s.ParseEndpointSliceID(k8sEP),
+			})
 		}
 	} else {
 		apiGroup = resources.K8sAPIGroupEndpointSliceV1Beta1Discovery
@@ -141,7 +161,7 @@ func (k *K8sWatcher) endpointSlicesInit(slimClient slimclientset.Interface, swgE
 		}
 	}
 
-	_, endpointController := informer.NewInformer(
+	store, endpointController := informer.NewInformer(
 		esLW,
 		objType,
 		0,
@@ -155,6 +175,7 @@ func (k *K8sWatcher) endpointSlicesInit(slimClient slimclientset.Interface, swgE
 	ecr := make(chan struct{})
 	k.blockWaitGroupToSyncResources(ecr, swgEps, endpointController.HasSynced, apiGroup)
 	go endpointController.Run(ecr)
+	go k.endpointSliceQueueWorker(queue, store, swgEps)
 	k.k8sAPIGroups.AddAPI(apiGroup)
 
 	if k8s.HasEndpointSlice(hasEndpointSlices, endpointController) {
@@ -166,6 +187,7 @@ func (k *K8sWatcher) endpointSlicesInit(slimClient slimclientset.Interface, swgE
 	k.cancelWaitGroupToSyncResources(apiGroup)
 	k.k8sAPIGroups.RemoveAPI(apiGroup)
 	close(ecr)
+	queue.ShutDown()
 	return false
 }
 
@@ -249,4 +271,37 @@ func (k *K8sWatcher) initEndpointsOrSlices(slimClient slimclientset.Interface, s
 	default:
 		k.endpointsInit(slimClient, swgEps, serviceOptModifier)
 	}
+}
+
+func (k *K8sWatcher) endpointSliceQueueWorker(queue workqueue.Interface, store cache.Store, swgEps *lock.StoppableWaitGroup) {
+	for {
+		quit := k.processEndpointSliceQueueItem(queue, store, swgEps)
+		if quit {
+			log.Info("Quitting endpoint slice worker")
+			return
+		}
+	}
+}
+
+func (k *K8sWatcher) processEndpointSliceQueueItem(queue workqueue.Interface, store cache.Store, swgEps *lock.StoppableWaitGroup) bool {
+	qKey, quit := queue.Get()
+	if quit {
+		return true
+	}
+	defer queue.Done(qKey)
+
+	eKey := qKey.(endpointSliceKey)
+	esObj, exists, err := store.GetByKey(eKey.key)
+	if err != nil {
+		log.WithError(err).Error("Error processing endpoint slice event")
+		return false
+	}
+	if exists {
+		k.updateK8sEndpointSliceV1(esObj.(*slim_discover_v1.EndpointSlice), swgEps)
+	} else {
+		k.K8sSvcCache.DeleteEndpointSlicesById(eKey.id, swgEps)
+	}
+	k.K8sEventProcessed(resources.MetricEndpointSlice, eKey.action, true)
+
+	return false
 }

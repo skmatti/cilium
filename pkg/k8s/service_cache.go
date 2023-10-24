@@ -367,6 +367,10 @@ func (s *ServiceCache) DeleteEndpoints(k8sEndpoints *slim_corev1.Endpoints, swg 
 	return s.deleteEndpoints(epSliceID, swg)
 }
 
+func (s *ServiceCache) DeleteEndpointSlicesById(svcID EndpointSliceID, swg *lock.StoppableWaitGroup) ServiceID {
+	return s.deleteEndpoints(svcID, swg)
+}
+
 func (s *ServiceCache) DeleteEndpointSlices(epSlice endpointSlice, swg *lock.StoppableWaitGroup) ServiceID {
 	svcID := ParseEndpointSliceID(epSlice)
 
