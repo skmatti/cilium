@@ -1451,7 +1451,7 @@ static __always_inline int __tail_handle_ipv4(struct __ctx_buff *ctx)
 		return DROP_INVALID_SIP;
 #endif
 
-#if defined(ENABLE_PER_PACKET_LB) && !defined(MULTI_NIC_DEVICE_TYPE)
+#if defined(ENABLE_PER_PACKET_LB) && (!defined(MULTI_NIC_DEVICE_TYPE) || defined(ENABLE_GOOGLE_SERVICE_STEERING))
 	{
 		struct ipv4_ct_tuple tuple = {};
 		struct csum_offset csum_off = {};
@@ -1511,7 +1511,7 @@ skip_service_lookup:
 		/* Store state to be picked up on the continuation tail call. */
 		lb4_ctx_store_state(ctx, &ct_state_new, proxy_port);
 	}
-#endif /* ENABLE_PER_PACKET_LB && !MULTI_NIC_DEVICE_TYPE */
+#endif /* ENABLE_PER_PACKET_LB && (!MULTI_NIC_DEVICE_TYPE || ENABLE_GOOGLE_SERVICE_STEERING)*/
 
 	ret = invoke_tailcall_if(is_defined(ENABLE_PER_PACKET_LB),
 				 CILIUM_CALL_IPV4_CT_EGRESS, tail_ipv4_ct_egress);
