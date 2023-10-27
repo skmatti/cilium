@@ -146,6 +146,7 @@ cilium install --wait --chart-directory=install/kubernetes/cilium \
   --helm-set-string=kubeProxyReplacement=strict \
   --helm-set=sessionAffinity=true \
   --helm-set=bpf.monitorAggregation=none \
+  --helm-set=disableEnvoyVersionCheck=true \
   --disable-check=minimum-version \
   --rollback=false
 
