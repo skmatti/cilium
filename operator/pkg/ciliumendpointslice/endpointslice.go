@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/cilium/cilium/pkg/lock"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/time/rate"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
@@ -94,7 +95,8 @@ type CiliumEndpointSliceController struct {
 	// slicingMode indicates how CEP are sliceed in a CES
 	slicingMode string
 
-	enqueuedAt map[string]time.Time
+	enqueuedAt     map[string]time.Time
+	enqueuedAtLock lock.Mutex
 
 	preInitEnqueuedEndpointsEvents []EndpointEvent
 
@@ -263,15 +265,19 @@ func (c *CiliumEndpointSliceController) enqueueCESReconciliation(cess []CESName)
 			logfields.CESName: ces,
 		}).Debug("Enquing CES (if not empty name)")
 		if ces != "" {
+			c.enqueuedAtLock.Lock()
 			if c.enqueuedAt[string(ces)].IsZero() {
 				c.enqueuedAt[string(ces)] = time.Now()
 			}
+			c.enqueuedAtLock.Unlock()
 			c.queue.AddAfter(string(ces), DefaultCESSyncTime)
 		}
 	}
 }
 
 func (c *CiliumEndpointSliceController) getAndResetCESProcessingDelay(ces string) float64 {
+	c.enqueuedAtLock.Lock()
+	defer c.enqueuedAtLock.Unlock()
 	enqueued, exists := c.enqueuedAt[ces]
 	if !exists {
 		return 0
