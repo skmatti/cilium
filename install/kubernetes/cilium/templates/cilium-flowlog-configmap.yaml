@@ -7,6 +7,6 @@ metadata:
   namespace: {{ .Release.Namespace }}
 data:
   flowlogs.yaml: |
-    flowlogs:
-{{ .Values.hubble.export.dynamic.config.content | indent 4 }}
+    flowLogs:
+{{ .Values.hubble.export.dynamic.config.content | toYaml | indent 4 }}
 {{- end }}

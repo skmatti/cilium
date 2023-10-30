@@ -14,6 +14,8 @@ import (
 
 	"github.com/sirupsen/logrus"
 	"sigs.k8s.io/yaml"
+
+	"github.com/cilium/cilium/pkg/logging/logfields"
 )
 
 var reloadInterval = 5 * time.Second
@@ -34,7 +36,7 @@ func NewConfigWatcher(
 	callback func(ctx context.Context, hash uint64, config DynamicExportersConfig),
 ) *configWatcher {
 	watcher := &configWatcher{
-		logger:         logrus.New().WithField("configFilePath", configFilePath),
+		logger:         logrus.New().WithField(logfields.LogSubsys, "hubble").WithField("configFilePath", configFilePath),
 		configFilePath: configFilePath,
 		callback:       callback,
 	}
@@ -83,14 +85,14 @@ func (c *configWatcher) readConfig() (*DynamicExportersConfig, uint64, error) {
 	config := &DynamicExportersConfig{}
 	yamlFile, err := os.ReadFile(c.configFilePath)
 	if err != nil {
-		return nil, 0, fmt.Errorf("cannot read file '%s' %v", c.configFilePath, err)
+		return nil, 0, fmt.Errorf("cannot read file '%s' %w", c.configFilePath, err)
 	}
 	if err := yaml.Unmarshal(yamlFile, config); err != nil {
-		return nil, 0, fmt.Errorf("cannot parse yaml %v", err)
+		return nil, 0, fmt.Errorf("cannot parse yaml %w", err)
 	}
 
 	if err := validateConfig(config); err != nil {
-		return nil, 0, fmt.Errorf("invalid yaml config file %v", err)
+		return nil, 0, fmt.Errorf("invalid yaml config file %w", err)
 	}
 
 	return config, calculateHash(yamlFile), nil
@@ -109,7 +111,7 @@ func validateConfig(config *DynamicExportersConfig) error {
 
 	for i := range config.FlowLogs {
 		if config.FlowLogs[i] == nil {
-			errs = errors.Join(errs, fmt.Errorf("invalid flow log at index %d", i))
+			errs = errors.Join(errs, fmt.Errorf("invalid flowlog at index %d", i))
 			continue
 		}
 		name := config.FlowLogs[i].Name
@@ -119,7 +121,7 @@ func validateConfig(config *DynamicExportersConfig) error {
 			if _, ok := flowlogNames[name]; ok {
 				errs = errors.Join(errs, fmt.Errorf("duplicated flowlog name %s", name))
 			}
-			flowlogNames[name] = true
+			flowlogNames[name] = struct{}{}
 		}
 
 		filePath := config.FlowLogs[i].FilePath
@@ -129,7 +131,7 @@ func validateConfig(config *DynamicExportersConfig) error {
 			if _, ok := flowlogPaths[filePath]; ok {
 				errs = errors.Join(errs, fmt.Errorf("duplicated flowlog path %s", filePath))
 			}
-			flowlogPaths[filePath] = true
+			flowlogPaths[filePath] = struct{}{}
 		}
 	}
 

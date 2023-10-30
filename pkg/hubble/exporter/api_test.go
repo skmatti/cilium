@@ -168,6 +168,111 @@ func TestCompareFlowLogConfigs(t *testing.T) {
 			}},
 			expectEqual: false,
 		},
+		{
+			name:        "should equal for null current config and null new config",
+			expectEqual: true,
+		},
+		{
+			name:        "should not equal for null current config and not null new config",
+			newConfig:   &FlowLogConfig{},
+			expectEqual: false,
+		},
+		{
+			name:          "should not equal for not null current config and null new config",
+			currentConfig: &FlowLogConfig{},
+			expectEqual:   false,
+		},
+		{
+			name: "should not equal when current filters are nil",
+			currentConfig: &FlowLogConfig{ExcludeFilters: FlowFilters{
+				nil,
+				nil,
+			}},
+			newConfig: &FlowLogConfig{ExcludeFilters: FlowFilters{
+				{
+					DestinationPod: []string{"frontend/nginx-975996d4c-7hhgt"},
+				},
+				{
+					EventType: []*flow.EventTypeFilter{
+						{Type: 1},
+					},
+					SourcePod: []string{"default/"},
+				},
+			}},
+			expectEqual: false,
+		},
+		{
+			name: "should not equal when new filters are nil",
+			currentConfig: &FlowLogConfig{ExcludeFilters: FlowFilters{
+				{
+					DestinationPod: []string{"frontend/nginx-975996d4c-7hhgt"},
+				},
+				{
+					EventType: []*flow.EventTypeFilter{
+						{Type: 1},
+					},
+					SourcePod: []string{"default/"},
+				},
+			}},
+			newConfig: &FlowLogConfig{ExcludeFilters: FlowFilters{
+				nil,
+			}},
+			expectEqual: false,
+		},
+		{
+			name: "should equal when current and new filters are nil",
+			currentConfig: &FlowLogConfig{ExcludeFilters: FlowFilters{
+				nil,
+			}},
+			newConfig: &FlowLogConfig{ExcludeFilters: FlowFilters{
+				nil,
+			}},
+			expectEqual: true,
+		},
+		{
+			name: "should equal when current and new filters have nils",
+			currentConfig: &FlowLogConfig{ExcludeFilters: FlowFilters{
+				nil,
+				{
+					DestinationPod: []string{"frontend/nginx-975996d4c-7hhgt"},
+				},
+			}},
+			newConfig: &FlowLogConfig{ExcludeFilters: FlowFilters{
+				{
+					DestinationPod: []string{"frontend/nginx-975996d4c-7hhgt"},
+				},
+				nil,
+			}},
+			expectEqual: true,
+		},
+		{
+			name: "should equal when nil is substituted by empty instance",
+			currentConfig: &FlowLogConfig{ExcludeFilters: FlowFilters{
+				{
+					TcpFlags: []*flow.TCPFlags{nil},
+				},
+			}},
+			newConfig: &FlowLogConfig{ExcludeFilters: FlowFilters{
+				{
+					TcpFlags: []*flow.TCPFlags{{}},
+				},
+			}},
+			expectEqual: true,
+		},
+		{
+			name: "should equal when empty instance is substituted by nil",
+			currentConfig: &FlowLogConfig{ExcludeFilters: FlowFilters{
+				{
+					TcpFlags: []*flow.TCPFlags{{}},
+				},
+			}},
+			newConfig: &FlowLogConfig{ExcludeFilters: FlowFilters{
+				{
+					TcpFlags: []*flow.TCPFlags{nil},
+				},
+			}},
+			expectEqual: true,
+		},
 	}
 
 	for _, tc := range cases {

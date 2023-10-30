@@ -24,10 +24,10 @@ var (
 
 func TestDynamicExporterLifecycle(t *testing.T) {
 	// given
-	file := createTestConfigFile(t)
+	fileName := "testdata/valid-flowlogs-config.yaml"
 
 	// when
-	sut := NewDynamicExporter(logrus.New(), file.Name(), 5, 1)
+	sut := NewDynamicExporter(logrus.New(), fileName, 5, 1)
 
 	// then
 	assert.Len(t, sut.managedExporters, 3)
@@ -49,7 +49,7 @@ func TestDynamicExporterLifecycle(t *testing.T) {
 
 func TestAddNewExporter(t *testing.T) {
 	// given
-	sut := &dynamicExporter{
+	sut := &DynamicExporter{
 		logger:           logrus.New(),
 		managedExporters: make(map[string]*managedExporter),
 	}
@@ -82,7 +82,7 @@ func TestAddNewExporter(t *testing.T) {
 
 func TestConfigReloadChanges(t *testing.T) {
 	// given
-	sut := &dynamicExporter{
+	sut := &DynamicExporter{
 		logger:           logrus.New(),
 		managedExporters: make(map[string]*managedExporter),
 	}
@@ -137,7 +137,7 @@ func TestConfigReloadChanges(t *testing.T) {
 
 func TestEventPropagation(t *testing.T) {
 	// given
-	sut := &dynamicExporter{
+	sut := &DynamicExporter{
 		logger:           logrus.New(),
 		managedExporters: make(map[string]*managedExporter),
 	}
@@ -223,7 +223,7 @@ func TestExporterReconfigurationMetricsReporting(t *testing.T) {
 	registry.MustRegister(DynamicExporterReconfigurations)
 
 	// and
-	sut := &dynamicExporter{
+	sut := &DynamicExporter{
 		logger:           logrus.New(),
 		managedExporters: make(map[string]*managedExporter),
 	}
@@ -254,7 +254,7 @@ func TestExporterReconfigurationMetricsReporting(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, metricFamilies, 1)
 
-		assert.Equal(t, "hubble_dynamic_exporter_reconfiguration", *metricFamilies[0].Name)
+		assert.Equal(t, "hubble_dynamic_exporter_reconfigurations_total", *metricFamilies[0].Name)
 		require.Len(t, metricFamilies[0].Metric, 1)
 		metric := metricFamilies[0].Metric[0]
 
@@ -286,7 +286,7 @@ func TestExporterReconfigurationMetricsReporting(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, metricFamilies, 1)
 
-		assert.Equal(t, "hubble_dynamic_exporter_reconfiguration", *metricFamilies[0].Name)
+		assert.Equal(t, "hubble_dynamic_exporter_reconfigurations_total", *metricFamilies[0].Name)
 		require.Len(t, metricFamilies[0].Metric, 2)
 		metric := metricFamilies[0].Metric[1]
 
@@ -318,7 +318,7 @@ func TestExporterReconfigurationMetricsReporting(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, metricFamilies, 1)
 
-		assert.Equal(t, "hubble_dynamic_exporter_reconfiguration", *metricFamilies[0].Name)
+		assert.Equal(t, "hubble_dynamic_exporter_reconfigurations_total", *metricFamilies[0].Name)
 		require.Len(t, metricFamilies[0].Metric, 2)
 		metric := metricFamilies[0].Metric[1]
 
@@ -341,7 +341,7 @@ func TestExporterReconfigurationMetricsReporting(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, metricFamilies, 1)
 
-		assert.Equal(t, "hubble_dynamic_exporter_reconfiguration", *metricFamilies[0].Name)
+		assert.Equal(t, "hubble_dynamic_exporter_reconfigurations_total", *metricFamilies[0].Name)
 		require.Len(t, metricFamilies[0].Metric, 3)
 		metric := metricFamilies[0].Metric[1]
 
@@ -360,7 +360,7 @@ func TestExporterReconfigurationHashMetricsReporting(t *testing.T) {
 	registry.MustRegister(DynamicExporterConfigHash, DynamicExporterConfigLastApplied)
 
 	// and
-	sut := &dynamicExporter{
+	sut := &DynamicExporter{
 		logger:           logrus.New(),
 		managedExporters: make(map[string]*managedExporter),
 	}
@@ -407,7 +407,7 @@ func TestExporterReconfigurationHashMetricsReporting(t *testing.T) {
 
 func TestExportersMetricsReporting(t *testing.T) {
 	// given
-	sut := &dynamicExporter{
+	sut := &DynamicExporter{
 		logger:           logrus.New(),
 		managedExporters: make(map[string]*managedExporter),
 	}

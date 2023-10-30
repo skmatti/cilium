@@ -15,18 +15,22 @@ import (
 	"github.com/cilium/cilium/pkg/lock"
 )
 
-type dynamicExporter struct {
+// DynamicExporter represents instance of hubble exporter with dynamic
+// configuration reload.
+type DynamicExporter struct {
 	FlowLogExporter
 	logger           logrus.FieldLogger
 	watcher          *configWatcher
 	managedExporters map[string]*managedExporter
 	maxFileSizeMB    int
 	maxBackups       int
-	mutex            lock.RWMutex
+	// mutex protects from concurrent modification of managedExporters by config
+	// reloader when hubble events are processed
+	mutex lock.RWMutex
 }
 
 // OnDecodedEvent distributes events across all managed exporters.
-func (d *dynamicExporter) OnDecodedEvent(ctx context.Context, event *v1.Event) (bool, error) {
+func (d *DynamicExporter) OnDecodedEvent(ctx context.Context, event *v1.Event) (bool, error) {
 	select {
 	case <-ctx.Done():
 		return false, d.Stop()
@@ -47,7 +51,7 @@ func (d *dynamicExporter) OnDecodedEvent(ctx context.Context, event *v1.Event) (
 }
 
 // Stop stops configuration watcher  and all managed flow log exporters.
-func (d *dynamicExporter) Stop() error {
+func (d *DynamicExporter) Stop() error {
 	d.mutex.Lock()
 	defer d.mutex.Unlock()
 
@@ -62,8 +66,8 @@ func (d *dynamicExporter) Stop() error {
 }
 
 // NewDynamicExporter creates instance of dynamic hubble flow exporter.
-func NewDynamicExporter(logger logrus.FieldLogger, configFilePath string, maxFileSizeMB, maxBackups int) *dynamicExporter {
-	dynamicExporter := &dynamicExporter{
+func NewDynamicExporter(logger logrus.FieldLogger, configFilePath string, maxFileSizeMB, maxBackups int) *DynamicExporter {
+	dynamicExporter := &DynamicExporter{
 		logger:           logger,
 		managedExporters: make(map[string]*managedExporter),
 		maxFileSizeMB:    maxFileSizeMB,
@@ -77,13 +81,13 @@ func NewDynamicExporter(logger logrus.FieldLogger, configFilePath string, maxFil
 	return dynamicExporter
 }
 
-func (d *dynamicExporter) onConfigReload(ctx context.Context, hash uint64, config DynamicExportersConfig) {
+func (d *DynamicExporter) onConfigReload(ctx context.Context, hash uint64, config DynamicExportersConfig) {
 	d.mutex.Lock()
 	defer d.mutex.Unlock()
 
-	configuredFlowLogNames := make(map[string]bool)
+	configuredFlowLogNames := make(map[string]interface{})
 	for _, flowlog := range config.FlowLogs {
-		configuredFlowLogNames[flowlog.Name] = true
+		configuredFlowLogNames[flowlog.Name] = struct{}{}
 		if _, ok := d.managedExporters[flowlog.Name]; ok {
 			if d.applyUpdatedConfig(ctx, flowlog) {
 				DynamicExporterReconfigurations.WithLabelValues("update").Inc()
@@ -104,7 +108,7 @@ func (d *dynamicExporter) onConfigReload(ctx context.Context, hash uint64, confi
 	d.updateLastAppliedConfigGauges(hash)
 }
 
-func (d *dynamicExporter) applyNewConfig(ctx context.Context, flowlog *FlowLogConfig) {
+func (d *DynamicExporter) applyNewConfig(ctx context.Context, flowlog *FlowLogConfig) {
 	exporterOpts := []exporteroption.Option{
 		exporteroption.WithPath(flowlog.FilePath),
 		exporteroption.WithMaxSizeMB(d.maxFileSizeMB),
@@ -116,7 +120,7 @@ func (d *dynamicExporter) applyNewConfig(ctx context.Context, flowlog *FlowLogCo
 
 	exporter, err := NewExporter(ctx, d.logger.WithField("flowLogName", flowlog.Name), exporterOpts...)
 	if err != nil {
-		d.logger.Errorf("Failed applying flowlog for name: %s; %v", flowlog.Name, err)
+		d.logger.Errorf("Failed to apply flowlog for name %s: %v", flowlog.Name, err)
 	}
 
 	d.managedExporters[flowlog.Name] = &managedExporter{
@@ -126,7 +130,7 @@ func (d *dynamicExporter) applyNewConfig(ctx context.Context, flowlog *FlowLogCo
 
 }
 
-func (d *dynamicExporter) applyUpdatedConfig(ctx context.Context, flowlog *FlowLogConfig) bool {
+func (d *DynamicExporter) applyUpdatedConfig(ctx context.Context, flowlog *FlowLogConfig) bool {
 	m, ok := d.managedExporters[flowlog.Name]
 	if ok && m.config.equals(flowlog) {
 		return false
@@ -136,18 +140,18 @@ func (d *dynamicExporter) applyUpdatedConfig(ctx context.Context, flowlog *FlowL
 	return true
 }
 
-func (d *dynamicExporter) applyRemovedConfig(name string) {
+func (d *DynamicExporter) applyRemovedConfig(name string) {
 	m, ok := d.managedExporters[name]
 	if !ok {
 		return
 	}
 	if err := m.exporter.Stop(); err != nil {
-		d.logger.Errorf("error stopping exporter %v", err)
+		d.logger.Errorf("failed to stop exporter: %v", err)
 	}
 	delete(d.managedExporters, name)
 }
 
-func (d *dynamicExporter) updateLastAppliedConfigGauges(hash uint64) {
+func (d *DynamicExporter) updateLastAppliedConfigGauges(hash uint64) {
 	DynamicExporterConfigHash.WithLabelValues().Set(float64(hash))
 	DynamicExporterConfigLastApplied.WithLabelValues().SetToCurrentTime()
 }

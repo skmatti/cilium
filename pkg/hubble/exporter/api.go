@@ -36,6 +36,13 @@ type FlowLogConfig struct {
 }
 
 func (f *FlowLogConfig) equals(other *FlowLogConfig) bool {
+	if f == nil && other == nil {
+		return true
+	}
+	if f == nil || other == nil {
+		return false
+	}
+
 	if f.FilePath != other.FilePath {
 		return false
 	}
@@ -61,10 +68,10 @@ func (f *FlowLogConfig) equals(other *FlowLogConfig) bool {
 	return true
 }
 
-func (f *FlowFilters) equals(other FlowFilters) bool {
+func (f FlowFilters) equals(other FlowFilters) bool {
 	aFiltersSet, bFiltersSet := make(map[string]bool), make(map[string]bool)
 
-	for _, filter := range *f {
+	for _, filter := range f {
 		aFiltersSet[filter.String()] = true
 	}
 	for _, filter := range other {
@@ -73,10 +80,10 @@ func (f *FlowFilters) equals(other FlowFilters) bool {
 	return reflect.DeepEqual(aFiltersSet, bFiltersSet)
 }
 
-func (f *FieldMask) equals(other FieldMask) bool {
-	sort.Strings(*f)
+func (f FieldMask) equals(other FieldMask) bool {
+	sort.Strings(f)
 	sort.Strings(other)
-	return reflect.DeepEqual(*f, other)
+	return reflect.DeepEqual(f, other)
 }
 
 // DynamicExportersConfig represents structure of dynamic hubble exporters

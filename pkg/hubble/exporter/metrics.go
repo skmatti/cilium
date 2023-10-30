@@ -33,7 +33,7 @@ var (
 	DynamicExporterReconfigurations = prometheus.NewCounterVec(prometheus.CounterOpts{
 		Namespace: api.DefaultPrometheusNamespace,
 		Subsystem: "dynamic_exporter",
-		Name:      "reconfiguration",
+		Name:      "reconfigurations_total",
 		Help:      "Number of dynamic exporters reconfigurations",
 	}, []string{labelReconfigurationOperation})
 
@@ -52,7 +52,7 @@ var (
 	}, []string{})
 )
 
-func registerMetrics(exp *dynamicExporter) {
+func registerMetrics(exp *DynamicExporter) {
 	metrics.Register(&dynamicExporterGaugeCollector{exporter: exp})
 	metrics.Register(DynamicExporterReconfigurations)
 	metrics.Register(DynamicExporterConfigHash)
@@ -61,7 +61,7 @@ func registerMetrics(exp *dynamicExporter) {
 
 type dynamicExporterGaugeCollector struct {
 	prometheus.Collector
-	exporter *dynamicExporter
+	exporter *DynamicExporter
 }
 
 // Describe sends the super-set of all possible descriptors of metrics
@@ -77,16 +77,15 @@ func (d *dynamicExporterGaugeCollector) Describe(ch chan<- *prometheus.Desc) {
 // Collect is called by the Prometheus registry when collecting
 // metrics. The implementation sends each collected metric via the
 // provided channel and returns once the last metric has been sent. The
-// descriptor of each sent metric is one of those returned by Describe
-// (unless the Collector is unchecked, see above). Returned metrics that
-// share the same descriptor must differ in their variable label
-// values.
+// descriptor of each sent metric is one of those returned by Describe.
+// Returned metrics that share the same descriptor must differ in their
+// variable label values.
 func (d *dynamicExporterGaugeCollector) Collect(ch chan<- prometheus.Metric) {
 	var activeExporters, inactiveExporters float64
 
 	for name, me := range d.exporter.managedExporters {
 		var value float64
-		if me.config.End.After(time.Now()) {
+		if me.config.End == nil || me.config.End.After(time.Now()) {
 			value = 1
 			activeExporters++
 		} else {

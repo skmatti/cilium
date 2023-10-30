@@ -373,7 +373,7 @@ spec:
           {{- end }}
         {{- end }}
         {{- if .Values.hubble.export.dynamic.enabled }}
-        - name: cilium-flowlog-config
+        - name: hubble-flowlog-config
           mountPath: /flowlog-config
           readOnly: true
         {{- end }}
@@ -901,7 +901,7 @@ spec:
                 path: server.key
       {{- end }}
       {{- if .Values.hubble.export.dynamic.enabled }}
-      - name: cilium-flowlog-config
+      - name: hubble-flowlog-config
         configMap:
           name: {{ .Values.hubble.export.dynamic.config.mapName }}
           optional: true
