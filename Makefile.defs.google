@@ -1,7 +1,6 @@
-GOLANG_VERSION := 1.21.3
-
 BASE_IMAGE := gke.gcr.io/gke-distroless/static@sha256:a9bcaff952ad20be9a9d44474445498e516e74622f8099c869ee4af148852e99
-GOLANG_IMAGE := google-go.pkg.dev/golang:$(GOLANG_VERSION)
+GOLANG_IMAGE := google-go.pkg.dev/golang:1.21.3@sha256:80ccdc8f8ac8d819cdbc15a33334125e0288c09ac030307dcd893d2b5c6179ae
+GOLANG_VERSION=$(shell echo $(GOLANG_IMAGE) | awk -F '[:@]' '{print $$2}')
 GOLANG_TARBALL := https://go.dev/dl/go$(GOLANG_VERSION).linux-amd64.tar.gz
 
 .PHONY: install-go
