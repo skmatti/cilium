@@ -946,6 +946,10 @@ func (h *HeaderfileWriter) writeTemplateConfig(fw *bufio.Writer, e datapath.Endp
 		fmt.Fprintf(fw, "#define DISABLE_SIP_VERIFICATION 1\n")
 	}
 
+	if e.DisableSMACVerification() {
+		fmt.Fprintln(fw, "#define DISABLE_SMAC_VERIFICATION 1")
+	}
+
 	if e.EnableMulticast() {
 		fmt.Fprintf(fw, "#define ENABLE_MULTICAST 1\n")
 	}

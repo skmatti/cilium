@@ -40,6 +40,7 @@ type epInfoCache struct {
 	requireRouting                         bool
 	requireEndpointRoute                   bool
 	disableSIPVerification                 bool
+	disableSMACVerification                bool
 	enableMulticast                        bool
 	policyVerdictLogFilter                 uint32
 	cidr4PrefixLengths, cidr6PrefixLengths []int
@@ -82,7 +83,6 @@ func (e *Endpoint) createEpInfoCache(epdir string) *epInfoCache {
 		requireRouting:         e.RequireRouting(),
 		requireEndpointRoute:   e.RequireEndpointRoute(),
 		disableSIPVerification: e.DisableSIPVerification(),
-		enableMulticast:        e.EnableMulticast(),
 		policyVerdictLogFilter: e.GetPolicyVerdictLogFilter(),
 		cidr4PrefixLengths:     cidr4,
 		cidr6PrefixLengths:     cidr6,
@@ -91,13 +91,10 @@ func (e *Endpoint) createEpInfoCache(epdir string) *epInfoCache {
 		ifIndex:                e.ifIndex,
 
 		endpoint: e,
-
-		deviceType:              e.GetDeviceType(),
-		deviceTypeIndex:         e.GetDeviceTypeIndex(),
-		parentDevIndex:          e.parentDevIndex,
-		parentDevMac:            e.parentDevMac,
-		podStackRedirectIfindex: e.podStackRedirectIfindex,
 	}
+
+	ep.initGoogleEndpointInfoCache(e)
+
 	return ep
 }
 

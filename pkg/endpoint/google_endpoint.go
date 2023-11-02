@@ -30,6 +30,12 @@ func (e *Endpoint) GetDeviceType() multinicep.EndpointDeviceType {
 	return e.deviceType
 }
 
+// DisableSMACVerification returns true if the endpoint wants to skip
+// srcMAC verification
+func (e *Endpoint) DisableSMACVerification() bool {
+	return e.DatapathConfiguration.DisableSmacVerification
+}
+
 // GetDeviceTypeIndex returns multinic endpoint type as int.
 func (e *Endpoint) GetDeviceTypeIndex() int {
 	switch e.deviceType {

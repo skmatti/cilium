@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/cilium/cilium/pkg/endpointmanager"
+	"github.com/cilium/cilium/pkg/gke/disablesourcevalidation"
 	"github.com/cilium/cilium/pkg/gke/features"
 	"github.com/cilium/cilium/pkg/gke/fqdnnetworkpolicy"
 	"github.com/cilium/cilium/pkg/gke/localnode"
@@ -48,6 +49,7 @@ var googleCell = cell.Module(
 	networklogging.Cell,
 	pip.Cell,
 	features.Cell,
+	disablesourcevalidation.Cell,
 )
 
 // Converts Daemon promise into a PolicyManager promise

@@ -98,6 +98,10 @@ type CompileTimeConfiguration interface {
 	// DisableSIPVerification returns true if the endpoint wishes to skip
 	// source IP verification
 	DisableSIPVerification() bool
+
+	// DisableSMACVerification returns true if the endpoint wishes to skip
+	// source MAC verification
+	DisableSMACVerification() bool
 }
 
 // EndpointConfiguration provides datapath implementations a clean interface

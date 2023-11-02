@@ -57,3 +57,19 @@ func (ep *epInfoCache) IsIPVlan() bool {
 func (ep *epInfoCache) EnableMulticast() bool {
 	return ep.enableMulticast
 }
+
+// DisableSMACVerification returns true if the endpoint wants to skip
+// srcMAC verification
+func (ep *epInfoCache) DisableSMACVerification() bool {
+	return ep.disableSMACVerification
+}
+
+func (ep *epInfoCache) initGoogleEndpointInfoCache(e *Endpoint) {
+	ep.enableMulticast = e.EnableMulticast()
+	ep.disableSMACVerification = e.DisableSMACVerification()
+	ep.deviceType = e.GetDeviceType()
+	ep.deviceTypeIndex = e.GetDeviceTypeIndex()
+	ep.parentDevIndex = e.parentDevIndex
+	ep.parentDevMac = e.parentDevMac
+	ep.podStackRedirectIfindex = e.podStackRedirectIfindex
+}

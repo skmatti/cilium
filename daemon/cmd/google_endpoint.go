@@ -23,6 +23,7 @@ import (
 	"github.com/cilium/cilium/pkg/endpoint"
 	endpointid "github.com/cilium/cilium/pkg/endpoint/id"
 	"github.com/cilium/cilium/pkg/endpoint/regeneration"
+	dsv "github.com/cilium/cilium/pkg/gke/disablesourcevalidation"
 	multinicep "github.com/cilium/cilium/pkg/gke/multinic/endpoint"
 	"github.com/cilium/cilium/pkg/labels"
 	"github.com/cilium/cilium/pkg/logging/logfields"
@@ -133,10 +134,9 @@ func (d *Daemon) createMultiNICEndpoints(ctx context.Context, owner regeneration
 			fmt.Errorf("failed to fetch multi-nic interface annotations for pod %q: %v", podID, err))
 	}
 
-	var disableSourceIPValidation bool
-	if option.Config.AllowDisableSourceIPValidation {
-		disableSourceIPValidation = (annotations[networkv1.DisableSourceIPValidationAnnotationKey] == networkv1.DisableSourceIPValidationAnnotationValTrue)
-	}
+	disableSourceIPValidation := dsv.DisableSourceIPValidation(podID, annotations)
+
+	disableSourceMACValidation := dsv.DisableSourceMACValidation(podID, annotations)
 
 	enableMulticast := (annotations[networkv1.EnableMulticastAnnotationKey] == networkv1.EnableMulticastAnnotationValTrue)
 
@@ -175,6 +175,7 @@ func (d *Daemon) createMultiNICEndpoints(ctx context.Context, owner regeneration
 
 		multinicTemplate := epTemplate.DeepCopy()
 		multinicTemplate.DatapathConfiguration.DisableSipVerification = disableSourceIPValidation
+		multinicTemplate.DatapathConfiguration.DisableSmacVerification = disableSourceMACValidation
 		multinicTemplate.DatapathConfiguration.EnableMulticast = enableMulticast
 		isDefaultInterface := defaultInterface == ref.InterfaceName
 

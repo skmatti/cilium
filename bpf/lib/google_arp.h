@@ -34,6 +34,16 @@ handle_google_arp(struct __ctx_buff *ctx __maybe_unused, const bool from_host __
 }
 
 #ifndef IS_BPF_HOST
+#ifdef DISABLE_SMAC_VERIFICATION
+static __always_inline
+int is_valid_lxc_src_mac(struct __ctx_buff *ctx __maybe_unused) {
+	return 1;
+}
+
+static __always_inline int arp_validate_mac_spoof(const struct __ctx_buff *ctx __maybe_unused) {
+	return CTX_ACT_OK;
+}
+#else
 static __always_inline
 int is_valid_lxc_src_mac(struct __ctx_buff *ctx)
 {
@@ -84,6 +94,7 @@ static __always_inline int arp_validate_mac_spoof(const struct __ctx_buff *ctx)
 
 	return CTX_ACT_OK;
 }
+#endif /* DISABLE_SMAC_VERIFICATION */
 #endif /* IS_BPF_HOST */
 
 #endif /* __LIB_GOOGLE_ARP_H_ */

@@ -1001,8 +1001,8 @@ gitlab.com/golang-commonmark/puny v0.0.0-20191124015043-9f83538fa04f h1:Wku8eEde
 gitlab.com/golang-commonmark/puny v0.0.0-20191124015043-9f83538fa04f/go.mod h1:Tiuhl+njh/JIg0uS/sOJVYi0x2HEa5rc1OAaVsb5tAs=
 gke-internal.googlesource.com/anthos-networking.git/apis/v2 v2.6.0-gke.0.0.20230727232747-66ac02069e02 h1:TKkMN3kbsyYD5vpqFa1LbEpwvhFGERF2MgM7BHJenJ8=
 gke-internal.googlesource.com/anthos-networking.git/apis/v2 v2.6.0-gke.0.0.20230727232747-66ac02069e02/go.mod h1:zbFAY8v69MZQMhG9o/+J3bvGWrNobsQUpPJ47KNygOs=
-gke-internal.googlesource.com/kubernetes/cloud-provider-gcp.git/crd v0.0.0-20230815220944-867a2a3c64ea h1:gs7h98Oj+Iv2YMMRAclPf8u6aMK/Ez1hcxD0ywNePMw=
-gke-internal.googlesource.com/kubernetes/cloud-provider-gcp.git/crd v0.0.0-20230815220944-867a2a3c64ea/go.mod h1:A//VRRwQBcvAI20bbCc5jmxMSegf/DqxDI7XVK9oyYo=
+gke-internal.googlesource.com/kubernetes/cloud-provider-gcp.git/crd v0.0.0-20231102010917-fa8b5910e171 h1:HJlvbp4W+YzgV3QvurWf2Q0hy60j95IotOP37qKuBKA=
+gke-internal.googlesource.com/kubernetes/cloud-provider-gcp.git/crd v0.0.0-20231102010917-fa8b5910e171/go.mod h1:A//VRRwQBcvAI20bbCc5jmxMSegf/DqxDI7XVK9oyYo=
 gke-internal.googlesource.com/kubernetes/gke-node-firewall.git v0.0.20 h1:1dNXjmCaKXzmYSJ4XbKCwU88xAfvkhLc18fd/ComnXA=
 gke-internal.googlesource.com/kubernetes/gke-node-firewall.git v0.0.20/go.mod h1:sx5oCrAbOgzExnFShTLrEyfZCwk2thL8XwJhO0jH+j0=
 go.etcd.io/bbolt v1.3.2/go.mod h1:IbVyRI1SCnLcuJnV2u8VeU0CEYM7e686BmAb1XKL+uU=

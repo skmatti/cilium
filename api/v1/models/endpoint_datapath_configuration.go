@@ -26,6 +26,10 @@ type EndpointDatapathConfiguration struct {
 	//
 	DisableSipVerification bool `json:"disable-sip-verification,omitempty"`
 
+	// Disable source MAC verification for the endpoint.
+	//
+	DisableSmacVerification bool `json:"disable-smac-verification,omitempty"`
+
 	// Enables multicast traffic for Endpoint.
 	//
 	EnableMulticast bool `json:"enable-multicast,omitempty"`

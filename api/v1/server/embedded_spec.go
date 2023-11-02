@@ -2495,6 +2495,10 @@ func init() {
           "description": "Disable source IP verification for the endpoint.\n",
           "type": "boolean"
         },
+        "disable-smac-verification": {
+          "description": "Disable source MAC verification for the endpoint.\n",
+          "type": "boolean"
+        },
         "enable-multicast": {
           "description": "Enables multicast traffic for Endpoint.\n",
           "type": "boolean"
@@ -7461,6 +7465,10 @@ func init() {
       "properties": {
         "disable-sip-verification": {
           "description": "Disable source IP verification for the endpoint.\n",
+          "type": "boolean"
+        },
+        "disable-smac-verification": {
+          "description": "Disable source MAC verification for the endpoint.\n",
           "type": "boolean"
         },
         "enable-multicast": {

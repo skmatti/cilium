@@ -89,6 +89,12 @@ const (
 
 	// EnableAutoDirectRoutingIPv6Name is the name for the EnableAutoDirectRoutingIPv6 option.
 	EnableAutoDirectRoutingIPv6Name = "auto-direct-node-routes-ipv6"
+
+	// AllowDisableSourceIPValidation is the name of the option to allow disabling source IP validation for multi-nic endpoints.
+	AllowDisableSourceIPValidation = "allow-disable-source-ip-validation"
+
+	// AllowDisableSourceMACValidation is the name of the option to allow disabling source MAC validation for multi-nic endpoints.
+	AllowDisableSourceMACValidation = "allow-disable-source-mac-validation"
 )
 
 func (c *DaemonConfig) SyncPredicate() func(string) bool {
