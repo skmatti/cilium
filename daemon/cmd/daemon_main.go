@@ -963,6 +963,9 @@ func initializeFlags() {
 	flags.StringSlice(option.HubbleMetrics, []string{}, "List of Hubble metrics to enable.")
 	option.BindEnv(Vp, option.HubbleMetrics)
 
+	flags.String(option.HubbleFlowlogsConfigFilePath, "", "Filepath with configuration of hubble flowlogs")
+	option.BindEnv(Vp, option.HubbleFlowlogsConfigFilePath)
+
 	flags.String(option.HubbleExportFilePath, exporteroption.Default.Path, "Filepath to write Hubble events to.")
 	option.BindEnv(Vp, option.HubbleExportFilePath)
 

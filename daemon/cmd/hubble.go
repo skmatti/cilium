@@ -189,6 +189,11 @@ func (d *Daemon) launchHubble() {
 			observerOpts = append(observerOpts, opt)
 		}
 	}
+	if option.Config.HubbleFlowlogsConfigFilePath != "" {
+		dynamicHubbleExporter := exporter.NewDynamicExporter(logger, option.Config.HubbleFlowlogsConfigFilePath, option.Config.HubbleExportFileMaxSizeMB, option.Config.HubbleExportFileMaxBackups)
+		opt := observeroption.WithOnDecodedEvent(dynamicHubbleExporter)
+		observerOpts = append(observerOpts, opt)
+	}
 
 	d.hubbleObserver, err = observer.NewLocalServer(payloadParser, logger,
 		observerOpts...,

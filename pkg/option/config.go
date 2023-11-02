@@ -959,6 +959,10 @@ const (
 	// HubbleMetrics specifies enabled metrics and their configuration options.
 	HubbleMetrics = "hubble-metrics"
 
+	// HubbleFlowlogsConfigFilePath specifies the filepath with configuration of hubble flowlogs.
+	// e.g. "/etc/cilium/flowlog.yaml"
+	HubbleFlowlogsConfigFilePath = "hubble-flowlogs-config-path"
+
 	// HubbleExportFilePath specifies the filepath to write Hubble events to.
 	// e.g. "/var/run/cilium/hubble/events.log"
 	HubbleExportFilePath = "hubble-export-file-path"
@@ -2172,6 +2176,10 @@ type DaemonConfig struct {
 
 	// HubbleMetrics specifies enabled metrics and their configuration options.
 	HubbleMetrics []string
+
+	// HubbleFlowlogsConfigFilePath specifies the filepath with configuration of hubble flowlogs.
+	// e.g. "/etc/cilium/flowlog.yaml"
+	HubbleFlowlogsConfigFilePath string
 
 	// HubbleExportFilePath specifies the filepath to write Hubble events to.
 	// e.g. "/var/run/cilium/hubble/events.log"
@@ -3486,6 +3494,8 @@ func (c *DaemonConfig) Populate(vp *viper.Viper) {
 		}
 		c.HubbleExportFieldmask = vp.GetStringSlice(HubbleExportFieldmask)
 	}
+
+	c.HubbleFlowlogsConfigFilePath = vp.GetString(HubbleFlowlogsConfigFilePath)
 
 	c.EnableHubbleRecorderAPI = vp.GetBool(EnableHubbleRecorderAPI)
 	c.HubbleRecorderStoragePath = vp.GetString(HubbleRecorderStoragePath)

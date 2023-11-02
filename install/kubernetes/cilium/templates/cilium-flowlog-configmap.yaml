@@ -1,0 +1,12 @@
+{{- if and .Values.hubble.export.dynamic.enabled .Values.hubble.export.dynamic.config.createMap }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Values.hubble.export.dynamic.config.mapName }}
+  namespace: {{ .Release.Namespace }}
+data:
+  flowlogs.yaml: |
+    flowlogs:
+{{ .Values.hubble.export.dynamic.config.content | indent 4 }}
+{{- end }}
