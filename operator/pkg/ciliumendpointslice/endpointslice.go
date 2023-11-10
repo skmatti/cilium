@@ -90,7 +90,8 @@ type CiliumEndpointSliceController struct {
 	// CES requests going to api-server, ensures a single CES will not be proccessed
 	// multiple times concurrently, and if CES is added multiple times before it
 	// can be processed, this will only be processed only once.
-	queue workqueue.RateLimitingInterface
+	queue            workqueue.RateLimitingInterface
+	queueRateLimiter *rate.Limiter
 
 	// slicingMode indicates how CEP are sliceed in a CES
 	slicingMode string
@@ -122,7 +123,7 @@ func NewCESController(
 	qpsLimit float64,
 	burstLimit int,
 ) *CiliumEndpointSliceController {
-	rlQueue := initializeQueue(qpsLimit, burstLimit)
+	rlQueue, rlQueueRateLimiter := initializeQueue(qpsLimit, burstLimit)
 
 	manager := newCESManagerFcfs(maxCEPsInCES)
 	if slicingMode == cesIdentityBasedSlicing {
@@ -135,6 +136,7 @@ func NewCESController(
 		reconciler:                     newReconciler(clientset.CiliumV2alpha1(), manager),
 		Manager:                        manager,
 		queue:                          rlQueue,
+		queueRateLimiter:               rlQueueRateLimiter,
 		slicingMode:                    slicingMode,
 		workerLoopPeriod:               1 * time.Second,
 		enqueuedAt:                     make(map[string]time.Time),
@@ -203,7 +205,7 @@ func objToCES(obj interface{}) *capi_v2a1.CiliumEndpointSlice {
 	return nil
 }
 
-func initializeQueue(qpsLimit float64, burstLimit int) workqueue.RateLimitingInterface {
+func initializeQueue(qpsLimit float64, burstLimit int) (workqueue.RateLimitingInterface, *rate.Limiter) {
 	if qpsLimit == 0 {
 		qpsLimit = CESControllerWorkQueueQPSLimit
 	} else if qpsLimit > operatorOption.CESWriteQPSLimitMax {
@@ -222,12 +224,9 @@ func initializeQueue(qpsLimit float64, burstLimit int) workqueue.RateLimitingInt
 		logfields.WorkQueueSyncBackOff: defaultSyncBackOff,
 	}).Info("CES controller workqueue configuration")
 
-	return workqueue.NewNamedRateLimitingQueue(workqueue.NewMaxOfRateLimiter(
-		workqueue.NewItemExponentialFailureRateLimiter(defaultSyncBackOff, maxSyncBackOff),
-		// 10 qps, 100 bucket size. This is only for retry speed and its
-		// only the overall factor (not per item).
-		&workqueue.BucketRateLimiter{Limiter: rate.NewLimiter(rate.Limit(qpsLimit), burstLimit)},
-	), "cilium_endpoint_slice")
+	queue := workqueue.NewNamedRateLimitingQueue(workqueue.NewItemExponentialFailureRateLimiter(defaultSyncBackOff, maxSyncBackOff), "cilium_endpoint_slice")
+	queueRateLimiter := rate.NewLimiter(rate.Limit(qpsLimit), burstLimit)
+	return queue, queueRateLimiter
 }
 
 func (c *CiliumEndpointSliceController) OnEndpointUpdate(cep *cilium_api_v2.CiliumEndpoint) {
@@ -355,7 +354,15 @@ func (c *CiliumEndpointSliceController) worker() {
 	}
 }
 
+func (c *CiliumEndpointSliceController) rateLimitProcessing() {
+	delay := c.queueRateLimiter.Reserve().Delay()
+	select {
+	case <-time.After(delay):
+	}
+}
+
 func (c *CiliumEndpointSliceController) processNextWorkItem() bool {
+	c.rateLimitProcessing()
 	cKey, quit := c.queue.Get()
 	if quit {
 		return false
@@ -385,7 +392,7 @@ func (c *CiliumEndpointSliceController) handleErr(err error, key interface{}) {
 	}
 
 	if c.queue.NumRequeues(key) < maxRetries {
-		c.queue.AddRateLimited(key)
+		c.queue.AddRateLimited(key.(string))
 		return
 	}
 
