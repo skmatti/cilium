@@ -953,9 +953,11 @@ int tail_nodeport_nat_egress_ipv6(struct __ctx_buff *ctx)
 	int ret;
 
 #ifdef TUNNEL_MODE
+#ifndef DISABLE_IPV6_TUNNEL
 	struct remote_endpoint_info *info;
 	bool use_tunnel = false;
 	union v6addr *dst;
+#endif
 #endif
 
 	if (nat_46x64)
