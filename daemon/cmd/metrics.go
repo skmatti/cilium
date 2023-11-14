@@ -71,6 +71,7 @@ type bootstrapStatistics struct {
 }
 
 func (b *bootstrapStatistics) updateMetrics() {
+	registerBootstrapMetrics()
 	for scope, stat := range b.getMap() {
 		if stat.SuccessTotal() != time.Duration(0) {
 			metricBootstrapTimes.WithLabelValues(scope, metrics.LabelValueOutcomeSuccess).Observe(stat.SuccessTotal().Seconds())
