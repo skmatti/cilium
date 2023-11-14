@@ -213,6 +213,12 @@ func (r *GKEIPRouteReconciler) handleEndpointTriggerEvent(reasons []string) {
 
 func (r *GKEIPRouteReconciler) EndpointCreated(ep *endpoint.Endpoint) {
 	pod := ep.GetPod()
+	if pod == nil {
+		// There is chance that pod Object is not filled during endpoint creation.
+		// TODO(b/310746914): We will miss the trigger because of this.
+		r.Log.Infof("skipping endpoint %d due to nil pod", ep.GetID16())
+		return
+	}
 	ann := pod.GetAnnotations()
 	_, ok := ann[networkv1.InterfaceAnnotationKey]
 	// TODO(b/292558915) - Remove this check when persistent IP is supported on default network.
