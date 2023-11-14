@@ -12,6 +12,7 @@ import (
 	"github.com/cilium/cilium/pkg/gke/client/trafficsteering/clientset/versioned/scheme"
 	"github.com/cilium/cilium/pkg/gke/client/trafficsteering/informers/externalversions"
 	"github.com/cilium/cilium/pkg/k8s"
+	"github.com/cilium/cilium/pkg/k8s/client"
 	"github.com/cilium/cilium/pkg/k8s/informer"
 	"github.com/cilium/cilium/pkg/lock"
 	"github.com/cilium/cilium/pkg/logging"
@@ -19,7 +20,6 @@ import (
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/record"
 	"k8s.io/klog"
@@ -43,10 +43,6 @@ const (
 
 // Controller for traffic steering.
 type Controller struct {
-	// kubeClient will be used to generate the recorder for events.
-	kubeClient kubernetes.Interface
-
-	tsClient         versioned.Interface
 	tsLister         listers.TrafficSteeringLister
 	tsInformer       cache.SharedIndexInformer
 	eventBroadcaster record.EventBroadcaster
@@ -63,17 +59,15 @@ type Controller struct {
 }
 
 // NewController returns a new controller for traffic steering.
-func NewController(kubeClient kubernetes.Interface, tsClient versioned.Interface, egressMap EgressMapInterface) (*Controller, error) {
-
+func NewController(clientset client.Clientset, tsClient versioned.Interface, egressMap EgressMapInterface) (*Controller, error) {
 	broadcaster := record.NewBroadcaster()
 	broadcaster.StartLogging(klog.Infof)
-	broadcaster.StartRecordingToSink(&clientv1.EventSinkImpl{Interface: kubeClient.CoreV1().Events("")})
+	broadcaster.StartRecordingToSink(&clientv1.EventSinkImpl{Interface: clientset.CoreV1().Events("")})
 	recorder := broadcaster.NewRecorder(scheme.Scheme, corev1.EventSource{Component: "traffic-steering-controller", Host: nodeTypes.GetName()})
 
 	informerFactory := externalversions.NewSharedInformerFactory(tsClient, informerSyncPeriod)
 
 	c := &Controller{
-		kubeClient:       kubeClient,
 		tsLister:         informerFactory.Networking().V1alpha1().TrafficSteerings().Lister(),
 		tsInformer:       informerFactory.Networking().V1alpha1().TrafficSteerings().Informer(),
 		eventBroadcaster: broadcaster,
@@ -83,7 +77,7 @@ func NewController(kubeClient kubernetes.Interface, tsClient versioned.Interface
 	}
 
 	_, c.nodeController = informer.NewInformer(
-		cache.NewListWatchFromClient(kubeClient.CoreV1().RESTClient(),
+		cache.NewListWatchFromClient(clientset.CoreV1().RESTClient(),
 			"nodes", corev1.NamespaceAll, fields.ParseSelectorOrDie("metadata.name="+nodeTypes.GetName())),
 		&corev1.Node{},
 		informerSyncPeriod,
@@ -101,7 +95,7 @@ func NewController(kubeClient kubernetes.Interface, tsClient versioned.Interface
 	})
 
 	_, c.podController = informer.NewInformer(
-		cache.NewListWatchFromClient(kubeClient.CoreV1().RESTClient(),
+		cache.NewListWatchFromClient(clientset.Slim().CoreV1().RESTClient(),
 			"pods", corev1.NamespaceAll, fields.ParseSelectorOrDie("spec.nodeName="+nodeTypes.GetName())),
 		&slim_corev1.Pod{},
 		informerSyncPeriod,
