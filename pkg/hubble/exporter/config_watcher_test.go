@@ -32,7 +32,7 @@ func TestYamlConfigFileUnmarshalling(t *testing.T) {
 
 	expectedDate := time.Date(2023, 10, 9, 23, 59, 59, 0, time.FixedZone("", -7*60*60))
 
-	expectedConfigs := []flowLogConfig{
+	expectedConfigs := []FlowLogConfig{
 		{
 			Name:           "test001",
 			FilePath:       "/var/log/network/flow-log/pa/test001.log",
@@ -128,7 +128,7 @@ func TestReloadNotificationReceived(t *testing.T) {
 
 	// when
 	reloadInterval = 1 * time.Millisecond
-	sut := NewConfigWatcher(file.Name(), func(_ context.Context, _ uint64, config dynamicExportersConfig) {
+	sut := NewConfigWatcher(file.Name(), func(_ context.Context, _ uint64, config DynamicExportersConfig) {
 		configReceived = true
 	})
 	defer sut.Stop()
@@ -226,11 +226,13 @@ func createConfigFile(t *testing.T, content string) *os.File {
 		t.Fatalf("failed creating test file %v", err)
 	}
 
-	file.Write([]byte(content))
+	if _, err := file.Write([]byte(content)); err != nil {
+		t.Fatalf("failed creating test file %v", err)
+	}
 	return file
 }
 
-func assertFlowLogConfig(t *testing.T, expected, actual flowLogConfig) {
+func assertFlowLogConfig(t *testing.T, expected, actual FlowLogConfig) {
 
 	assert.Equal(t, expected.Name, actual.Name)
 	assert.Equal(t, expected.FilePath, actual.FilePath)

@@ -21,7 +21,7 @@ var reloadInterval = 5 * time.Second
 type configWatcher struct {
 	logger         logrus.FieldLogger
 	configFilePath string
-	callback       func(ctx context.Context, hash uint64, config dynamicExportersConfig)
+	callback       func(ctx context.Context, hash uint64, config DynamicExportersConfig)
 	ticker         *time.Ticker
 	stop           chan bool
 }
@@ -31,7 +31,7 @@ type configWatcher struct {
 // reconciled.
 func NewConfigWatcher(
 	configFilePath string,
-	callback func(ctx context.Context, hash uint64, config dynamicExportersConfig),
+	callback func(ctx context.Context, hash uint64, config DynamicExportersConfig),
 ) *configWatcher {
 	watcher := &configWatcher{
 		logger:         logrus.New().WithField("configFilePath", configFilePath),
@@ -79,8 +79,8 @@ func (c *configWatcher) Stop() {
 	c.stop <- true
 }
 
-func (c *configWatcher) readConfig() (*dynamicExportersConfig, uint64, error) {
-	config := &dynamicExportersConfig{}
+func (c *configWatcher) readConfig() (*DynamicExportersConfig, uint64, error) {
+	config := &DynamicExportersConfig{}
 	yamlFile, err := os.ReadFile(c.configFilePath)
 	if err != nil {
 		return nil, 0, fmt.Errorf("cannot read file '%s' %v", c.configFilePath, err)
@@ -101,7 +101,7 @@ func calculateHash(file []byte) uint64 {
 	return binary.LittleEndian.Uint64(sum[0:16])
 }
 
-func validateConfig(config *dynamicExportersConfig) error {
+func validateConfig(config *DynamicExportersConfig) error {
 	flowlogNames := make(map[string]interface{})
 	flowlogPaths := make(map[string]interface{})
 

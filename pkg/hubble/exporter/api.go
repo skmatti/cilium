@@ -19,19 +19,23 @@ type FlowLogExporter interface {
 	Stop() error
 }
 
+// FlowFilters is a slice of filters to include or exclude flows.
 type FlowFilters []*flowpb.FlowFilter
+
+// FieldMask is a slice of fields that are included in output.
 type FieldMask []string
 
-type flowLogConfig struct {
-	Name           string      `yaml:"name"`
-	FilePath       string      `yaml:"filePath"`
-	FieldMask      FieldMask   `yaml:"fieldMask"`
-	IncludeFilters FlowFilters `yaml:"includeFilters"`
-	ExcludeFilters FlowFilters `yaml:"excludeFilters"`
-	End            *time.Time  `yaml:"end"`
+// FlowLogConfig represents configuration of single dynamic exporter.
+type FlowLogConfig struct {
+	Name           string      `yaml:"name,omitempty"`
+	FilePath       string      `yaml:"filePath,omitempty"`
+	FieldMask      FieldMask   `yaml:"fieldMask,omitempty"`
+	IncludeFilters FlowFilters `yaml:"includeFilters,omitempty"`
+	ExcludeFilters FlowFilters `yaml:"excludeFilters,omitempty"`
+	End            *time.Time  `yaml:"end,omitempty"`
 }
 
-func (f *flowLogConfig) equals(other *flowLogConfig) bool {
+func (f *FlowLogConfig) equals(other *FlowLogConfig) bool {
 	if f.FilePath != other.FilePath {
 		return false
 	}
@@ -75,6 +79,8 @@ func (f *FieldMask) equals(other FieldMask) bool {
 	return reflect.DeepEqual(*f, other)
 }
 
-type dynamicExportersConfig struct {
-	FlowLogs []*flowLogConfig `yaml:"flowlogs"`
+// DynamicExportersConfig represents structure of dynamic hubble exporters
+// configuration file.
+type DynamicExportersConfig struct {
+	FlowLogs []*FlowLogConfig `yaml:"flowlogs"`
 }

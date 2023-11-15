@@ -58,8 +58,8 @@ func TestAddNewExporter(t *testing.T) {
 	file := createEmptyLogFile(t)
 
 	// and
-	config := dynamicExportersConfig{
-		FlowLogs: []*flowLogConfig{
+	config := DynamicExportersConfig{
+		FlowLogs: []*FlowLogConfig{
 			{
 				Name:           "test001",
 				FilePath:       file.Name(),
@@ -91,8 +91,8 @@ func TestConfigReloadChanges(t *testing.T) {
 	file := createEmptyLogFile(t)
 
 	// and
-	config := dynamicExportersConfig{
-		FlowLogs: []*flowLogConfig{
+	config := DynamicExportersConfig{
+		FlowLogs: []*FlowLogConfig{
 			{
 				Name:           "test001",
 				FilePath:       file.Name(),
@@ -117,8 +117,8 @@ func TestConfigReloadChanges(t *testing.T) {
 	assert.False(t, mockExporter.stopped, "should not reload when not changed")
 
 	// and when
-	newConfig := dynamicExportersConfig{
-		FlowLogs: []*flowLogConfig{
+	newConfig := DynamicExportersConfig{
+		FlowLogs: []*FlowLogConfig{
 			{
 				Name:           "test001",
 				FilePath:       file.Name(),
@@ -148,8 +148,8 @@ func TestEventPropagation(t *testing.T) {
 	// and
 	future := time.Now().Add(1 * time.Hour)
 	past := time.Now().Add(-1 * time.Hour)
-	config := dynamicExportersConfig{
-		FlowLogs: []*flowLogConfig{
+	config := DynamicExportersConfig{
+		FlowLogs: []*FlowLogConfig{
 			{
 				Name:           "test001",
 				FilePath:       file.Name(),
@@ -233,8 +233,8 @@ func TestExporterReconfigurationMetricsReporting(t *testing.T) {
 
 	t.Run("should report flowlog added metric", func(t *testing.T) {
 		// given
-		config := dynamicExportersConfig{
-			FlowLogs: []*flowLogConfig{
+		config := DynamicExportersConfig{
+			FlowLogs: []*FlowLogConfig{
 				{
 					Name:           "test001",
 					FilePath:       file.Name(),
@@ -265,8 +265,8 @@ func TestExporterReconfigurationMetricsReporting(t *testing.T) {
 
 	t.Run("should report flowlog updated metric", func(t *testing.T) {
 		// given
-		config := dynamicExportersConfig{
-			FlowLogs: []*flowLogConfig{
+		config := DynamicExportersConfig{
+			FlowLogs: []*FlowLogConfig{
 				{
 					Name:           "test001",
 					FilePath:       file.Name(),
@@ -297,8 +297,8 @@ func TestExporterReconfigurationMetricsReporting(t *testing.T) {
 
 	t.Run("should not increase flowlog updated metric when config not changed", func(t *testing.T) {
 		// given
-		config4 := dynamicExportersConfig{
-			FlowLogs: []*flowLogConfig{
+		config4 := DynamicExportersConfig{
+			FlowLogs: []*FlowLogConfig{
 				{
 					Name:           "test001",
 					FilePath:       file.Name(),
@@ -329,8 +329,8 @@ func TestExporterReconfigurationMetricsReporting(t *testing.T) {
 
 	t.Run("should report flowlog removed metric", func(t *testing.T) {
 		// given
-		config := dynamicExportersConfig{
-			FlowLogs: []*flowLogConfig{},
+		config := DynamicExportersConfig{
+			FlowLogs: []*FlowLogConfig{},
 		}
 
 		// when
@@ -369,8 +369,8 @@ func TestExporterReconfigurationHashMetricsReporting(t *testing.T) {
 	file := createEmptyLogFile(t)
 
 	// given
-	config := dynamicExportersConfig{
-		FlowLogs: []*flowLogConfig{
+	config := DynamicExportersConfig{
+		FlowLogs: []*FlowLogConfig{
 			{
 				Name:           "test001",
 				FilePath:       file.Name(),
@@ -421,8 +421,8 @@ func TestExportersMetricsReporting(t *testing.T) {
 
 	t.Run("should report gauge with exporters statuses", func(t *testing.T) {
 		// given
-		config := dynamicExportersConfig{
-			FlowLogs: []*flowLogConfig{
+		config := DynamicExportersConfig{
+			FlowLogs: []*FlowLogConfig{
 				{
 					Name:           "test001",
 					FilePath:       file.Name(),
@@ -475,8 +475,8 @@ func TestExportersMetricsReporting(t *testing.T) {
 
 	t.Run("should remove individual status metric of removed flowlog", func(t *testing.T) {
 		// given
-		config := dynamicExportersConfig{
-			FlowLogs: []*flowLogConfig{},
+		config := DynamicExportersConfig{
+			FlowLogs: []*FlowLogConfig{},
 		}
 
 		// when

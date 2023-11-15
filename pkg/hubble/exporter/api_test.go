@@ -18,55 +18,55 @@ func TestCompareFlowLogConfigs(t *testing.T) {
 
 	cases := []struct {
 		name          string
-		currentConfig *flowLogConfig
-		newConfig     *flowLogConfig
+		currentConfig *FlowLogConfig
+		newConfig     *FlowLogConfig
 		expectEqual   bool
 	}{
 		{
 			name:          "should equal for same path",
-			currentConfig: &flowLogConfig{FilePath: "path"},
-			newConfig:     &flowLogConfig{FilePath: "path"},
+			currentConfig: &FlowLogConfig{FilePath: "path"},
+			newConfig:     &FlowLogConfig{FilePath: "path"},
 			expectEqual:   true,
 		},
 		{
 			name:          "should not equal for different path",
-			currentConfig: &flowLogConfig{FilePath: "path"},
-			newConfig:     &flowLogConfig{FilePath: "other"},
+			currentConfig: &FlowLogConfig{FilePath: "path"},
+			newConfig:     &FlowLogConfig{FilePath: "other"},
 			expectEqual:   false,
 		},
 		{
 			name:          "should equal for same end date",
-			currentConfig: &flowLogConfig{End: &now},
-			newConfig:     &flowLogConfig{End: &now},
+			currentConfig: &FlowLogConfig{End: &now},
+			newConfig:     &FlowLogConfig{End: &now},
 			expectEqual:   true,
 		},
 		{
 			name:          "should not equal for different end date",
-			currentConfig: &flowLogConfig{End: &now},
-			newConfig:     &flowLogConfig{End: &future},
+			currentConfig: &FlowLogConfig{End: &now},
+			newConfig:     &FlowLogConfig{End: &future},
 			expectEqual:   false,
 		},
 		{
 			name:          "should equal for same fieldmask",
-			currentConfig: &flowLogConfig{FieldMask: []string{"a", "b"}},
-			newConfig:     &flowLogConfig{FieldMask: []string{"a", "b"}},
+			currentConfig: &FlowLogConfig{FieldMask: []string{"a", "b"}},
+			newConfig:     &FlowLogConfig{FieldMask: []string{"a", "b"}},
 			expectEqual:   true,
 		},
 		{
 			name:          "should equal for same fieldmask in different order",
-			currentConfig: &flowLogConfig{FieldMask: []string{"a", "b"}},
-			newConfig:     &flowLogConfig{FieldMask: []string{"b", "a"}},
+			currentConfig: &FlowLogConfig{FieldMask: []string{"a", "b"}},
+			newConfig:     &FlowLogConfig{FieldMask: []string{"b", "a"}},
 			expectEqual:   true,
 		},
 		{
 			name:          "should not equal for different fieldmask",
-			currentConfig: &flowLogConfig{FieldMask: []string{"a", "b"}},
-			newConfig:     &flowLogConfig{FieldMask: []string{"c", "b"}},
+			currentConfig: &FlowLogConfig{FieldMask: []string{"a", "b"}},
+			newConfig:     &FlowLogConfig{FieldMask: []string{"c", "b"}},
 			expectEqual:   false,
 		},
 		{
 			name: "should equal for same include filters in different order",
-			currentConfig: &flowLogConfig{IncludeFilters: FlowFilters{
+			currentConfig: &FlowLogConfig{IncludeFilters: FlowFilters{
 				{
 					SourcePod: []string{"default/"},
 					EventType: []*flow.EventTypeFilter{
@@ -77,7 +77,7 @@ func TestCompareFlowLogConfigs(t *testing.T) {
 					DestinationPod: []string{"frontend/nginx-975996d4c-7hhgt"},
 				},
 			}},
-			newConfig: &flowLogConfig{IncludeFilters: FlowFilters{
+			newConfig: &FlowLogConfig{IncludeFilters: FlowFilters{
 				{
 					DestinationPod: []string{"frontend/nginx-975996d4c-7hhgt"},
 				},
@@ -92,7 +92,7 @@ func TestCompareFlowLogConfigs(t *testing.T) {
 		},
 		{
 			name: "should not equal for different include filters",
-			currentConfig: &flowLogConfig{IncludeFilters: FlowFilters{
+			currentConfig: &FlowLogConfig{IncludeFilters: FlowFilters{
 				{
 					SourcePod: []string{"kube-system/"},
 					EventType: []*flow.EventTypeFilter{
@@ -103,7 +103,7 @@ func TestCompareFlowLogConfigs(t *testing.T) {
 					DestinationPod: []string{"frontend/nginx-975996d4c-7hhgt"},
 				},
 			}},
-			newConfig: &flowLogConfig{IncludeFilters: FlowFilters{
+			newConfig: &FlowLogConfig{IncludeFilters: FlowFilters{
 				{
 					DestinationPod: []string{"frontend/nginx-975996d4c-7hhgt"},
 				},
@@ -118,7 +118,7 @@ func TestCompareFlowLogConfigs(t *testing.T) {
 		},
 		{
 			name: "should equal for same exclude filters in different order",
-			currentConfig: &flowLogConfig{ExcludeFilters: FlowFilters{
+			currentConfig: &FlowLogConfig{ExcludeFilters: FlowFilters{
 				{
 					SourcePod: []string{"default/"},
 					EventType: []*flow.EventTypeFilter{
@@ -129,7 +129,7 @@ func TestCompareFlowLogConfigs(t *testing.T) {
 					DestinationPod: []string{"frontend/nginx-975996d4c-7hhgt"},
 				},
 			}},
-			newConfig: &flowLogConfig{ExcludeFilters: FlowFilters{
+			newConfig: &FlowLogConfig{ExcludeFilters: FlowFilters{
 				{
 					DestinationPod: []string{"frontend/nginx-975996d4c-7hhgt"},
 				},
@@ -144,7 +144,7 @@ func TestCompareFlowLogConfigs(t *testing.T) {
 		},
 		{
 			name: "should not equal for different exclude filters",
-			currentConfig: &flowLogConfig{ExcludeFilters: FlowFilters{
+			currentConfig: &FlowLogConfig{ExcludeFilters: FlowFilters{
 				{
 					SourcePod: []string{"kube-system/"},
 					EventType: []*flow.EventTypeFilter{
@@ -155,7 +155,7 @@ func TestCompareFlowLogConfigs(t *testing.T) {
 					DestinationPod: []string{"frontend/nginx-975996d4c-7hhgt"},
 				},
 			}},
-			newConfig: &flowLogConfig{ExcludeFilters: FlowFilters{
+			newConfig: &FlowLogConfig{ExcludeFilters: FlowFilters{
 				{
 					DestinationPod: []string{"frontend/nginx-975996d4c-7hhgt"},
 				},

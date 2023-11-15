@@ -77,7 +77,7 @@ func NewDynamicExporter(logger logrus.FieldLogger, configFilePath string, maxFil
 	return dynamicExporter
 }
 
-func (d *dynamicExporter) onConfigReload(ctx context.Context, hash uint64, config dynamicExportersConfig) {
+func (d *dynamicExporter) onConfigReload(ctx context.Context, hash uint64, config DynamicExportersConfig) {
 	d.mutex.Lock()
 	defer d.mutex.Unlock()
 
@@ -104,7 +104,7 @@ func (d *dynamicExporter) onConfigReload(ctx context.Context, hash uint64, confi
 	d.updateLastAppliedConfigGauges(hash)
 }
 
-func (d *dynamicExporter) applyNewConfig(ctx context.Context, flowlog *flowLogConfig) {
+func (d *dynamicExporter) applyNewConfig(ctx context.Context, flowlog *FlowLogConfig) {
 	exporterOpts := []exporteroption.Option{
 		exporteroption.WithPath(flowlog.FilePath),
 		exporteroption.WithMaxSizeMB(d.maxFileSizeMB),
@@ -126,7 +126,7 @@ func (d *dynamicExporter) applyNewConfig(ctx context.Context, flowlog *flowLogCo
 
 }
 
-func (d *dynamicExporter) applyUpdatedConfig(ctx context.Context, flowlog *flowLogConfig) bool {
+func (d *dynamicExporter) applyUpdatedConfig(ctx context.Context, flowlog *FlowLogConfig) bool {
 	m, ok := d.managedExporters[flowlog.Name]
 	if ok && m.config.equals(flowlog) {
 		return false
@@ -153,6 +153,6 @@ func (d *dynamicExporter) updateLastAppliedConfigGauges(hash uint64) {
 }
 
 type managedExporter struct {
-	config   *flowLogConfig
+	config   *FlowLogConfig
 	exporter FlowLogExporter
 }
