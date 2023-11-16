@@ -27,12 +27,12 @@ type FieldMask []string
 
 // FlowLogConfig represents configuration of single dynamic exporter.
 type FlowLogConfig struct {
-	Name           string      `yaml:"name,omitempty"`
-	FilePath       string      `yaml:"filePath,omitempty"`
-	FieldMask      FieldMask   `yaml:"fieldMask,omitempty"`
-	IncludeFilters FlowFilters `yaml:"includeFilters,omitempty"`
-	ExcludeFilters FlowFilters `yaml:"excludeFilters,omitempty"`
-	End            *time.Time  `yaml:"end,omitempty"`
+	Name           string      `json:"name,omitempty" yaml:"name,omitempty"`
+	FilePath       string      `json:"filePath,omitempty" yaml:"filePath,omitempty"`
+	FieldMask      FieldMask   `json:"fieldMask,omitempty" yaml:"fieldMask,omitempty"`
+	IncludeFilters FlowFilters `json:"includeFilters,omitempty" yaml:"includeFilters,omitempty"`
+	ExcludeFilters FlowFilters `json:"excludeFilters,omitempty" yaml:"excludeFilters,omitempty"`
+	End            *time.Time  `json:"end,omitempty" yaml:"end,omitempty"`
 }
 
 func (f *FlowLogConfig) equals(other *FlowLogConfig) bool {
@@ -82,5 +82,5 @@ func (f *FieldMask) equals(other FieldMask) bool {
 // DynamicExportersConfig represents structure of dynamic hubble exporters
 // configuration file.
 type DynamicExportersConfig struct {
-	FlowLogs []*FlowLogConfig `yaml:"flowlogs,omitempty"`
+	FlowLogs []*FlowLogConfig `json:"flowLogs,omitempty" yaml:"flowLogs,omitempty"`
 }

@@ -28,7 +28,7 @@ func TestYamlConfigFileUnmarshalling(t *testing.T) {
 	// then
 	assert.Equal(t, 3, len(config.FlowLogs))
 
-	assert.Equal(t, uint64(0x19efd80936f8a48c), hash)
+	assert.Equal(t, uint64(0xbcaaf36594dd2b1b), hash)
 
 	expectedDate := time.Date(2023, 10, 9, 23, 59, 59, 0, time.FixedZone("", -7*60*60))
 
@@ -142,7 +142,7 @@ func TestReloadNotificationReceived(t *testing.T) {
 
 func createTestConfigFile(t *testing.T) *os.File {
 	testFileContent := `
-flowlogs:
+flowLogs:
 - name: "test001"
   filePath: "/var/log/network/flow-log/pa/test001.log"
   fieldMask: []
@@ -171,7 +171,7 @@ flowlogs:
 
 func createInvalidYamlTestConfigFile(t *testing.T) *os.File {
 	testFileContent := `
-flowlogs:
+flowLogs:
 - name: "test001"
   filePath: "/var/log/network/flow-log/pa/test001.log"
   fieldMask: "this", "is", "invalid"
@@ -184,7 +184,7 @@ flowlogs:
 
 func createDuplicatedNameYamlTestConfigFile(t *testing.T) *os.File {
 	testFileContent := `
-flowlogs:
+flowLogs:
 - name: "test001"
   filePath: "/var/log/network/flow-log/pa/test001.log"
   fieldMask: []
@@ -203,7 +203,7 @@ flowlogs:
 
 func createDuplicatedPathYamlTestConfigFile(t *testing.T) *os.File {
 	testFileContent := `
-flowlogs:
+flowLogs:
 - name: "test001"
   filePath: "/var/log/network/flow-log/pa/test001.log"
   fieldMask: []
