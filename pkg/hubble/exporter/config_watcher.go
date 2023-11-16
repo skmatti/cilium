@@ -13,7 +13,7 @@ import (
 	"time"
 
 	"github.com/sirupsen/logrus"
-	"gopkg.in/yaml.v3"
+	"sigs.k8s.io/yaml"
 )
 
 var reloadInterval = 5 * time.Second

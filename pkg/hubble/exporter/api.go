@@ -82,5 +82,5 @@ func (f *FieldMask) equals(other FieldMask) bool {
 // DynamicExportersConfig represents structure of dynamic hubble exporters
 // configuration file.
 type DynamicExportersConfig struct {
-	FlowLogs []*FlowLogConfig `yaml:"flowlogs"`
+	FlowLogs []*FlowLogConfig `yaml:"flowlogs,omitempty"`
 }

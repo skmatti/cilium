@@ -97,12 +97,12 @@ type NodeStatusEvent struct {
 	unknownFields protoimpl.UnknownFields
 
 	// state_change contains the new node state
-	StateChange NodeState `protobuf:"varint,1,opt,name=state_change,json=stateChange,proto3,enum=relay.NodeState" json:"state_change,omitempty" yaml:"state_change"`
+	StateChange NodeState `protobuf:"varint,1,opt,name=state_change,json=stateChange,proto3,enum=relay.NodeState" json:"state_change,omitempty"`
 	// node_names is the list of nodes for which the above state changes applies
-	NodeNames []string `protobuf:"bytes,2,rep,name=node_names,json=nodeNames,proto3" json:"node_names,omitempty" yaml:"node_names"`
+	NodeNames []string `protobuf:"bytes,2,rep,name=node_names,json=nodeNames,proto3" json:"node_names,omitempty"`
 	// message is an optional message attached to the state change (e.g. an
 	// error message). The message applies to all nodes in node_names.
-	Message string `protobuf:"bytes,3,opt,name=message,proto3" json:"message,omitempty" yaml:"message"`
+	Message string `protobuf:"bytes,3,opt,name=message,proto3" json:"message,omitempty"`
 }
 
 func (x *NodeStatusEvent) Reset() {

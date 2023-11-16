@@ -409,28 +409,28 @@ type ServerStatusResponse struct {
 	// number of currently captured flows
 	// In a multi-node context, this is the cumulative count of all captured
 	// flows.
-	NumFlows uint64 `protobuf:"varint,1,opt,name=num_flows,json=numFlows,proto3" json:"num_flows,omitempty" yaml:"num_flows"`
+	NumFlows uint64 `protobuf:"varint,1,opt,name=num_flows,json=numFlows,proto3" json:"num_flows,omitempty"`
 	// maximum capacity of the ring buffer
 	// In a multi-node context, this is the aggregation of all ring buffers
 	// capacities.
-	MaxFlows uint64 `protobuf:"varint,2,opt,name=max_flows,json=maxFlows,proto3" json:"max_flows,omitempty" yaml:"max_flows"`
+	MaxFlows uint64 `protobuf:"varint,2,opt,name=max_flows,json=maxFlows,proto3" json:"max_flows,omitempty"`
 	// total amount of flows observed since the observer was started
 	// In a multi-node context, this is the aggregation of all flows that have
 	// been seen.
-	SeenFlows uint64 `protobuf:"varint,3,opt,name=seen_flows,json=seenFlows,proto3" json:"seen_flows,omitempty" yaml:"seen_flows"`
+	SeenFlows uint64 `protobuf:"varint,3,opt,name=seen_flows,json=seenFlows,proto3" json:"seen_flows,omitempty"`
 	// uptime of this observer instance in nanoseconds
 	// In a multi-node context, this field corresponds to the uptime of the
 	// longest living instance.
-	UptimeNs uint64 `protobuf:"varint,4,opt,name=uptime_ns,json=uptimeNs,proto3" json:"uptime_ns,omitempty" yaml:"uptime_ns"`
+	UptimeNs uint64 `protobuf:"varint,4,opt,name=uptime_ns,json=uptimeNs,proto3" json:"uptime_ns,omitempty"`
 	// number of nodes for which a connection is established
-	NumConnectedNodes *wrapperspb.UInt32Value `protobuf:"bytes,5,opt,name=num_connected_nodes,json=numConnectedNodes,proto3" json:"num_connected_nodes,omitempty" yaml:"num_connected_nodes"`
+	NumConnectedNodes *wrapperspb.UInt32Value `protobuf:"bytes,5,opt,name=num_connected_nodes,json=numConnectedNodes,proto3" json:"num_connected_nodes,omitempty"`
 	// number of nodes for which a connection cannot be established
-	NumUnavailableNodes *wrapperspb.UInt32Value `protobuf:"bytes,6,opt,name=num_unavailable_nodes,json=numUnavailableNodes,proto3" json:"num_unavailable_nodes,omitempty" yaml:"num_unavailable_nodes"`
+	NumUnavailableNodes *wrapperspb.UInt32Value `protobuf:"bytes,6,opt,name=num_unavailable_nodes,json=numUnavailableNodes,proto3" json:"num_unavailable_nodes,omitempty"`
 	// list of nodes that are unavailable
 	// This list may not be exhaustive.
-	UnavailableNodes []string `protobuf:"bytes,7,rep,name=unavailable_nodes,json=unavailableNodes,proto3" json:"unavailable_nodes,omitempty" yaml:"unavailable_nodes"`
+	UnavailableNodes []string `protobuf:"bytes,7,rep,name=unavailable_nodes,json=unavailableNodes,proto3" json:"unavailable_nodes,omitempty"`
 	// Version is the version of Cilium/Hubble.
-	Version string `protobuf:"bytes,8,opt,name=version,proto3" json:"version,omitempty" yaml:"version"`
+	Version string `protobuf:"bytes,8,opt,name=version,proto3" json:"version,omitempty"`
 }
 
 func (x *ServerStatusResponse) Reset() {
@@ -529,18 +529,18 @@ type GetFlowsRequest struct {
 	// Number of flows that should be returned. Incompatible with `since/until`.
 	// Defaults to the most recent (last) `number` flows, unless `first` is
 	// true, then it will return the earliest `number` flows.
-	Number uint64 `protobuf:"varint,1,opt,name=number,proto3" json:"number,omitempty" yaml:"number"`
+	Number uint64 `protobuf:"varint,1,opt,name=number,proto3" json:"number,omitempty"`
 	// first specifies if we should look at the first `number` flows or the
 	// last `number` of flows. Incompatible with `follow`.
-	First bool `protobuf:"varint,9,opt,name=first,proto3" json:"first,omitempty" yaml:"first"`
+	First bool `protobuf:"varint,9,opt,name=first,proto3" json:"first,omitempty"`
 	// follow sets when the server should continue to stream flows after
 	// printing the last N flows.
-	Follow bool `protobuf:"varint,3,opt,name=follow,proto3" json:"follow,omitempty" yaml:"follow"`
+	Follow bool `protobuf:"varint,3,opt,name=follow,proto3" json:"follow,omitempty"`
 	// blacklist defines a list of filters which have to match for a flow to be
 	// excluded from the result.
 	// If multiple blacklist filters are specified, only one of them has to
 	// match for a flow to be excluded.
-	Blacklist []*flow.FlowFilter `protobuf:"bytes,5,rep,name=blacklist,proto3" json:"blacklist,omitempty" yaml:"blacklist"`
+	Blacklist []*flow.FlowFilter `protobuf:"bytes,5,rep,name=blacklist,proto3" json:"blacklist,omitempty"`
 	// whitelist defines a list of filters which have to match for a flow to be
 	// included in the result.
 	// If multiple whitelist filters are specified, only one of them has to
@@ -549,12 +549,12 @@ type GetFlowsRequest struct {
 	// set of the returned flows is the set difference `whitelist - blacklist`.
 	// In other words, the result will contain all flows matched by the
 	// whitelist that are not also simultaneously matched by the blacklist.
-	Whitelist []*flow.FlowFilter `protobuf:"bytes,6,rep,name=whitelist,proto3" json:"whitelist,omitempty" yaml:"whitelist"`
+	Whitelist []*flow.FlowFilter `protobuf:"bytes,6,rep,name=whitelist,proto3" json:"whitelist,omitempty"`
 	// Since this time for returned flows. Incompatible with `number`.
-	Since *timestamppb.Timestamp `protobuf:"bytes,7,opt,name=since,proto3" json:"since,omitempty" yaml:"since"`
+	Since *timestamppb.Timestamp `protobuf:"bytes,7,opt,name=since,proto3" json:"since,omitempty"`
 	// Until this time for returned flows. Incompatible with `number`.
-	Until        *timestamppb.Timestamp        `protobuf:"bytes,8,opt,name=until,proto3" json:"until,omitempty" yaml:"until"`
-	Experimental *GetFlowsRequest_Experimental `protobuf:"bytes,999,opt,name=experimental,proto3" json:"experimental,omitempty" yaml:"experimental"`
+	Until        *timestamppb.Timestamp        `protobuf:"bytes,8,opt,name=until,proto3" json:"until,omitempty"`
+	Experimental *GetFlowsRequest_Experimental `protobuf:"bytes,999,opt,name=experimental,proto3" json:"experimental,omitempty"`
 }
 
 func (x *GetFlowsRequest) Reset() {
@@ -658,9 +658,9 @@ type GetFlowsResponse struct {
 	//	*GetFlowsResponse_LostEvents
 	ResponseTypes isGetFlowsResponse_ResponseTypes `protobuf_oneof:"response_types"`
 	// Name of the node where this event was observed.
-	NodeName string `protobuf:"bytes,1000,opt,name=node_name,json=nodeName,proto3" json:"node_name,omitempty" yaml:"node_name"`
+	NodeName string `protobuf:"bytes,1000,opt,name=node_name,json=nodeName,proto3" json:"node_name,omitempty"`
 	// Timestamp at which this event was observed.
-	Time *timestamppb.Timestamp `protobuf:"bytes,1001,opt,name=time,proto3" json:"time,omitempty" yaml:"time"`
+	Time *timestamppb.Timestamp `protobuf:"bytes,1001,opt,name=time,proto3" json:"time,omitempty"`
 }
 
 func (x *GetFlowsResponse) Reset() {
@@ -742,19 +742,19 @@ type isGetFlowsResponse_ResponseTypes interface {
 }
 
 type GetFlowsResponse_Flow struct {
-	Flow *flow.Flow `protobuf:"bytes,1,opt,name=flow,proto3,oneof" yaml:"flow"`
+	Flow *flow.Flow `protobuf:"bytes,1,opt,name=flow,proto3,oneof"`
 }
 
 type GetFlowsResponse_NodeStatus struct {
 	// node_status informs clients about the state of the nodes
 	// participating in this particular GetFlows request.
-	NodeStatus *relay.NodeStatusEvent `protobuf:"bytes,2,opt,name=node_status,json=nodeStatus,proto3,oneof" yaml:"node_status"`
+	NodeStatus *relay.NodeStatusEvent `protobuf:"bytes,2,opt,name=node_status,json=nodeStatus,proto3,oneof"`
 }
 
 type GetFlowsResponse_LostEvents struct {
 	// lost_events informs clients about events which got dropped due to
 	// a Hubble component being unavailable
-	LostEvents *flow.LostEvent `protobuf:"bytes,3,opt,name=lost_events,json=lostEvents,proto3,oneof" yaml:"lost_events"`
+	LostEvents *flow.LostEvent `protobuf:"bytes,3,opt,name=lost_events,json=lostEvents,proto3,oneof"`
 }
 
 func (*GetFlowsResponse_Flow) isGetFlowsResponse_ResponseTypes() {}
@@ -771,17 +771,17 @@ type GetAgentEventsRequest struct {
 	// Number of flows that should be returned. Incompatible with `since/until`.
 	// Defaults to the most recent (last) `number` events, unless `first` is
 	// true, then it will return the earliest `number` events.
-	Number uint64 `protobuf:"varint,1,opt,name=number,proto3" json:"number,omitempty" yaml:"number"`
+	Number uint64 `protobuf:"varint,1,opt,name=number,proto3" json:"number,omitempty"`
 	// first specifies if we should look at the first `number` events or the
 	// last `number` of events. Incompatible with `follow`.
-	First bool `protobuf:"varint,9,opt,name=first,proto3" json:"first,omitempty" yaml:"first"`
+	First bool `protobuf:"varint,9,opt,name=first,proto3" json:"first,omitempty"`
 	// follow sets when the server should continue to stream agent events after
 	// printing the last N agent events.
-	Follow bool `protobuf:"varint,2,opt,name=follow,proto3" json:"follow,omitempty" yaml:"follow"`
+	Follow bool `protobuf:"varint,2,opt,name=follow,proto3" json:"follow,omitempty"`
 	// Since this time for returned agent events. Incompatible with `number`.
-	Since *timestamppb.Timestamp `protobuf:"bytes,7,opt,name=since,proto3" json:"since,omitempty" yaml:"since"`
+	Since *timestamppb.Timestamp `protobuf:"bytes,7,opt,name=since,proto3" json:"since,omitempty"`
 	// Until this time for returned agent events. Incompatible with `number`.
-	Until *timestamppb.Timestamp `protobuf:"bytes,8,opt,name=until,proto3" json:"until,omitempty" yaml:"until"`
+	Until *timestamppb.Timestamp `protobuf:"bytes,8,opt,name=until,proto3" json:"until,omitempty"`
 }
 
 func (x *GetAgentEventsRequest) Reset() {
@@ -857,11 +857,11 @@ type GetAgentEventsResponse struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	AgentEvent *flow.AgentEvent `protobuf:"bytes,1,opt,name=agent_event,json=agentEvent,proto3" json:"agent_event,omitempty" yaml:"agent_event"`
+	AgentEvent *flow.AgentEvent `protobuf:"bytes,1,opt,name=agent_event,json=agentEvent,proto3" json:"agent_event,omitempty"`
 	// Name of the node where this event was observed.
-	NodeName string `protobuf:"bytes,1000,opt,name=node_name,json=nodeName,proto3" json:"node_name,omitempty" yaml:"node_name"`
+	NodeName string `protobuf:"bytes,1000,opt,name=node_name,json=nodeName,proto3" json:"node_name,omitempty"`
 	// Timestamp at which this event was observed.
-	Time *timestamppb.Timestamp `protobuf:"bytes,1001,opt,name=time,proto3" json:"time,omitempty" yaml:"time"`
+	Time *timestamppb.Timestamp `protobuf:"bytes,1001,opt,name=time,proto3" json:"time,omitempty"`
 }
 
 func (x *GetAgentEventsResponse) Reset() {
@@ -925,17 +925,17 @@ type GetDebugEventsRequest struct {
 	// Number of events that should be returned. Incompatible with `since/until`.
 	// Defaults to the most recent (last) `number` events, unless `first` is
 	// true, then it will return the earliest `number` events.
-	Number uint64 `protobuf:"varint,1,opt,name=number,proto3" json:"number,omitempty" yaml:"number"`
+	Number uint64 `protobuf:"varint,1,opt,name=number,proto3" json:"number,omitempty"`
 	// first specifies if we should look at the first `number` events or the
 	// last `number` of events. Incompatible with `follow`.
-	First bool `protobuf:"varint,9,opt,name=first,proto3" json:"first,omitempty" yaml:"first"`
+	First bool `protobuf:"varint,9,opt,name=first,proto3" json:"first,omitempty"`
 	// follow sets when the server should continue to stream debug events after
 	// printing the last N debug events.
-	Follow bool `protobuf:"varint,2,opt,name=follow,proto3" json:"follow,omitempty" yaml:"follow"`
+	Follow bool `protobuf:"varint,2,opt,name=follow,proto3" json:"follow,omitempty"`
 	// Since this time for returned debug events. Incompatible with `number`.
-	Since *timestamppb.Timestamp `protobuf:"bytes,7,opt,name=since,proto3" json:"since,omitempty" yaml:"since"`
+	Since *timestamppb.Timestamp `protobuf:"bytes,7,opt,name=since,proto3" json:"since,omitempty"`
 	// Until this time for returned debug events. Incompatible with `number`.
-	Until *timestamppb.Timestamp `protobuf:"bytes,8,opt,name=until,proto3" json:"until,omitempty" yaml:"until"`
+	Until *timestamppb.Timestamp `protobuf:"bytes,8,opt,name=until,proto3" json:"until,omitempty"`
 }
 
 func (x *GetDebugEventsRequest) Reset() {
@@ -1011,11 +1011,11 @@ type GetDebugEventsResponse struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	DebugEvent *flow.DebugEvent `protobuf:"bytes,1,opt,name=debug_event,json=debugEvent,proto3" json:"debug_event,omitempty" yaml:"debug_event"`
+	DebugEvent *flow.DebugEvent `protobuf:"bytes,1,opt,name=debug_event,json=debugEvent,proto3" json:"debug_event,omitempty"`
 	// Name of the node where this event was observed.
-	NodeName string `protobuf:"bytes,1000,opt,name=node_name,json=nodeName,proto3" json:"node_name,omitempty" yaml:"node_name"`
+	NodeName string `protobuf:"bytes,1000,opt,name=node_name,json=nodeName,proto3" json:"node_name,omitempty"`
 	// Timestamp at which this event was observed.
-	Time *timestamppb.Timestamp `protobuf:"bytes,1001,opt,name=time,proto3" json:"time,omitempty" yaml:"time"`
+	Time *timestamppb.Timestamp `protobuf:"bytes,1001,opt,name=time,proto3" json:"time,omitempty"`
 }
 
 func (x *GetDebugEventsResponse) Reset() {
@@ -1116,7 +1116,7 @@ type GetNodesResponse struct {
 	unknownFields protoimpl.UnknownFields
 
 	// Nodes is an exhaustive list of nodes.
-	Nodes []*Node `protobuf:"bytes,1,rep,name=nodes,proto3" json:"nodes,omitempty" yaml:"nodes"`
+	Nodes []*Node `protobuf:"bytes,1,rep,name=nodes,proto3" json:"nodes,omitempty"`
 }
 
 func (x *GetNodesResponse) Reset() {
@@ -1165,23 +1165,23 @@ type Node struct {
 	unknownFields protoimpl.UnknownFields
 
 	// Name is the name of the node.
-	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty" yaml:"name"`
+	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	// Version is the version of Cilium/Hubble as reported by the node.
-	Version string `protobuf:"bytes,2,opt,name=version,proto3" json:"version,omitempty" yaml:"version"`
+	Version string `protobuf:"bytes,2,opt,name=version,proto3" json:"version,omitempty"`
 	// Address is the network address of the API endpoint.
-	Address string `protobuf:"bytes,3,opt,name=address,proto3" json:"address,omitempty" yaml:"address"`
+	Address string `protobuf:"bytes,3,opt,name=address,proto3" json:"address,omitempty"`
 	// State represents the known state of the node.
-	State relay.NodeState `protobuf:"varint,4,opt,name=state,proto3,enum=relay.NodeState" json:"state,omitempty" yaml:"state"`
+	State relay.NodeState `protobuf:"varint,4,opt,name=state,proto3,enum=relay.NodeState" json:"state,omitempty"`
 	// TLS reports TLS related information.
-	Tls *TLS `protobuf:"bytes,5,opt,name=tls,proto3" json:"tls,omitempty" yaml:"tls"`
+	Tls *TLS `protobuf:"bytes,5,opt,name=tls,proto3" json:"tls,omitempty"`
 	// UptimeNS is the uptime of this instance in nanoseconds
-	UptimeNs uint64 `protobuf:"varint,6,opt,name=uptime_ns,json=uptimeNs,proto3" json:"uptime_ns,omitempty" yaml:"uptime_ns"`
+	UptimeNs uint64 `protobuf:"varint,6,opt,name=uptime_ns,json=uptimeNs,proto3" json:"uptime_ns,omitempty"`
 	// number of currently captured flows
-	NumFlows uint64 `protobuf:"varint,7,opt,name=num_flows,json=numFlows,proto3" json:"num_flows,omitempty" yaml:"num_flows"`
+	NumFlows uint64 `protobuf:"varint,7,opt,name=num_flows,json=numFlows,proto3" json:"num_flows,omitempty"`
 	// maximum capacity of the ring buffer
-	MaxFlows uint64 `protobuf:"varint,8,opt,name=max_flows,json=maxFlows,proto3" json:"max_flows,omitempty" yaml:"max_flows"`
+	MaxFlows uint64 `protobuf:"varint,8,opt,name=max_flows,json=maxFlows,proto3" json:"max_flows,omitempty"`
 	// total amount of flows observed since the observer was started
-	SeenFlows uint64 `protobuf:"varint,9,opt,name=seen_flows,json=seenFlows,proto3" json:"seen_flows,omitempty" yaml:"seen_flows"`
+	SeenFlows uint64 `protobuf:"varint,9,opt,name=seen_flows,json=seenFlows,proto3" json:"seen_flows,omitempty"`
 }
 
 func (x *Node) Reset() {
@@ -1286,10 +1286,10 @@ type TLS struct {
 	unknownFields protoimpl.UnknownFields
 
 	// Enabled reports whether TLS is enabled or not.
-	Enabled bool `protobuf:"varint,1,opt,name=enabled,proto3" json:"enabled,omitempty" yaml:"enabled"`
+	Enabled bool `protobuf:"varint,1,opt,name=enabled,proto3" json:"enabled,omitempty"`
 	// ServerName is the TLS server name that can be used as part of the TLS
 	// cert validation process.
-	ServerName string `protobuf:"bytes,2,opt,name=server_name,json=serverName,proto3" json:"server_name,omitempty" yaml:"server_name"`
+	ServerName string `protobuf:"bytes,2,opt,name=server_name,json=serverName,proto3" json:"server_name,omitempty"`
 }
 
 func (x *TLS) Reset() {
@@ -1354,9 +1354,9 @@ type ExportEvent struct {
 	//	*ExportEvent_DebugEvent
 	ResponseTypes isExportEvent_ResponseTypes `protobuf_oneof:"response_types"`
 	// Name of the node where this event was observed.
-	NodeName string `protobuf:"bytes,1000,opt,name=node_name,json=nodeName,proto3" json:"node_name,omitempty" yaml:"node_name"`
+	NodeName string `protobuf:"bytes,1000,opt,name=node_name,json=nodeName,proto3" json:"node_name,omitempty"`
 	// Timestamp at which this event was observed.
-	Time *timestamppb.Timestamp `protobuf:"bytes,1001,opt,name=time,proto3" json:"time,omitempty" yaml:"time"`
+	Time *timestamppb.Timestamp `protobuf:"bytes,1001,opt,name=time,proto3" json:"time,omitempty"`
 }
 
 func (x *ExportEvent) Reset() {
@@ -1452,30 +1452,30 @@ type isExportEvent_ResponseTypes interface {
 }
 
 type ExportEvent_Flow struct {
-	Flow *flow.Flow `protobuf:"bytes,1,opt,name=flow,proto3,oneof" yaml:"flow"`
+	Flow *flow.Flow `protobuf:"bytes,1,opt,name=flow,proto3,oneof"`
 }
 
 type ExportEvent_NodeStatus struct {
 	// node_status informs clients about the state of the nodes
 	// participating in this particular GetFlows request.
-	NodeStatus *relay.NodeStatusEvent `protobuf:"bytes,2,opt,name=node_status,json=nodeStatus,proto3,oneof" yaml:"node_status"`
+	NodeStatus *relay.NodeStatusEvent `protobuf:"bytes,2,opt,name=node_status,json=nodeStatus,proto3,oneof"`
 }
 
 type ExportEvent_LostEvents struct {
 	// lost_events informs clients about events which got dropped due to
 	// a Hubble component being unavailable
-	LostEvents *flow.LostEvent `protobuf:"bytes,3,opt,name=lost_events,json=lostEvents,proto3,oneof" yaml:"lost_events"`
+	LostEvents *flow.LostEvent `protobuf:"bytes,3,opt,name=lost_events,json=lostEvents,proto3,oneof"`
 }
 
 type ExportEvent_AgentEvent struct {
 	// agent_event informs clients about an event received from the Cilium
 	// agent.
-	AgentEvent *flow.AgentEvent `protobuf:"bytes,4,opt,name=agent_event,json=agentEvent,proto3,oneof" yaml:"agent_event"`
+	AgentEvent *flow.AgentEvent `protobuf:"bytes,4,opt,name=agent_event,json=agentEvent,proto3,oneof"`
 }
 
 type ExportEvent_DebugEvent struct {
 	// debug_event contains Cilium datapath debug events
-	DebugEvent *flow.DebugEvent `protobuf:"bytes,5,opt,name=debug_event,json=debugEvent,proto3,oneof" yaml:"debug_event"`
+	DebugEvent *flow.DebugEvent `protobuf:"bytes,5,opt,name=debug_event,json=debugEvent,proto3,oneof"`
 }
 
 func (*ExportEvent_Flow) isExportEvent_ResponseTypes() {}
@@ -1498,7 +1498,7 @@ type GetFlowsRequest_Experimental struct {
 	// FieldMask allows clients to limit flow's fields that will be returned.
 	// For example, {paths: ["source.id", "destination.id"]} will return flows
 	// with only these two fields set.
-	FieldMask *fieldmaskpb.FieldMask `protobuf:"bytes,1,opt,name=field_mask,json=fieldMask,proto3" json:"field_mask,omitempty" yaml:"field_mask"`
+	FieldMask *fieldmaskpb.FieldMask `protobuf:"bytes,1,opt,name=field_mask,json=fieldMask,proto3" json:"field_mask,omitempty"`
 }
 
 func (x *GetFlowsRequest_Experimental) Reset() {
