@@ -43,9 +43,10 @@ import (
 )
 
 const (
-	kubevirtMacvtapResourcePrefix = "macvtap.network.kubevirt.io"
-	defaultGROMaxSize             = 65536
-	defaultGSOMaxSize             = 65536
+	kubevirtMacvtapResourcePrefix     = "macvtap.network.kubevirt.io"
+	kubevirtDHCPServerIPAnnotationKey = "networking.gke.io/dhcp-server-ip"
+	defaultGROMaxSize                 = 65536
+	defaultGSOMaxSize                 = 65536
 
 	metricAllocate = "allocate"
 	metricRelease  = "release"
@@ -596,7 +597,13 @@ func SetupL2Interface(ifNameInPod, podName string, podResources map[string][]str
 		return cleanup, errors.New("failed to get map ID")
 	}
 
-	dhcpResp, err := configureDHCPInfo(network, cfg, dc, ep.NetworkNamespace, ifNameInPod, ep.ContainerID)
+	serverIP := net.ParseIP(intf.Annotations[kubevirtDHCPServerIPAnnotationKey])
+	var clientIP net.IP
+	if len(intf.Status.IpAddresses) != 0 {
+		clientIP, _, _ = net.ParseCIDR(intf.Status.IpAddresses[0])
+	}
+
+	dhcpResp, err := configureDHCPInfo(network, cfg, dc, clientIP, serverIP, ep.NetworkNamespace, ifNameInPod, ep.ContainerID)
 	if err != nil {
 		return cleanup, fmt.Errorf("failed to query DHCP information: %v", err)
 	}
@@ -1017,7 +1024,7 @@ func SetupNetworkRoutes(ifNameInPod string, intf *networkv1.NetworkInterface, ne
 	return nil
 }
 
-func configureDHCPInfo(network *networkv1.Network, cfg *interfaceConfiguration, dc dhcp.DHCPClient, podNS, podIface, containerID string) (*dhcp.DHCPResponse, error) {
+func configureDHCPInfo(network *networkv1.Network, cfg *interfaceConfiguration, dc dhcp.DHCPClient, clientIP, serverIP net.IP, podNS, podIface, containerID string) (*dhcp.DHCPResponse, error) {
 	if network.Spec.ExternalDHCP4 == nil || *network.Spec.ExternalDHCP4 == false {
 		// No DHCP is required when externalDHCP4 is false or not set
 		return nil, nil
@@ -1037,13 +1044,24 @@ func configureDHCPInfo(network *networkv1.Network, cfg *interfaceConfiguration, 
 	}
 
 	macAddr := cfg.MacAddress.String()
-	dhcpInfo, err := dc.GetDHCPResponse(containerID, podNS, podIface, parentInterface, &macAddr)
-	if err != nil {
-		return nil, err
+
+	var dhcpInfo *dhcp.DHCPResponse
+
+	// Run a DHCP renew request first if we have both the Client and Server IPs
+	if serverIP != nil && clientIP != nil {
+		dhcpInfo, err = dc.Renew(containerID, podNS, podIface, parentInterface, &macAddr, clientIP, serverIP)
+		if err != nil {
+			log.Errorf("Failed DHCP renewal request, falling back to discovery: %v", err)
+			dhcpInfo = nil
+		}
 	}
 
+	// If renew unsuccessful, proceed with a full DHCP discovery.
 	if dhcpInfo == nil {
-		return nil, nil
+		dhcpInfo, err = dc.GetDHCPResponse(containerID, podNS, podIface, parentInterface, &macAddr)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	if len(dhcpInfo.IPAddresses) == 0 {
@@ -1053,7 +1071,7 @@ func configureDHCPInfo(network *networkv1.Network, cfg *interfaceConfiguration, 
 
 	// if Network has static information, only the IPAddress should be returned
 	if staticConfig {
-		return &dhcp.DHCPResponse{IPAddresses: dhcpInfo.IPAddresses}, nil
+		return &dhcp.DHCPResponse{IPAddresses: dhcpInfo.IPAddresses, ServerIP: dhcpInfo.ServerIP}, nil
 	}
 	return dhcpInfo, nil
 }
@@ -1169,11 +1187,21 @@ func populateInterfaceStatus(intf *networkv1.NetworkInterface, network *networkv
 	intf.Status.Routes = network.Spec.Routes
 	intf.Status.Gateway4 = network.Spec.Gateway4
 	intf.Status.DNSConfig = network.Spec.DNSConfig
+
+	var setupDHCPServerAnnotations = func() {
+		if intf.Annotations != nil {
+			intf.Annotations[kubevirtDHCPServerIPAnnotationKey] = dhcpResp.ServerIP.String()
+		} else {
+			intf.SetAnnotations(map[string]string{kubevirtDHCPServerIPAnnotationKey: dhcpResp.ServerIP.String()})
+		}
+	}
+
 	// Respect DHCP response if not nil and override interface parameters with DHCP response values.
 	if dhcpResp != nil {
 		intf.Status.Routes = dhcpResp.Routes
 		intf.Status.Gateway4 = dhcpResp.Gateway4
 		intf.Status.DNSConfig = dhcpResp.DNSConfig
+		setupDHCPServerAnnotations()
 	}
 	if network.Spec.Type == networkv1.L3NetworkType {
 		routes, err := extractRoutes(network, netParamsObj)

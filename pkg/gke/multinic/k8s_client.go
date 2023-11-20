@@ -20,6 +20,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"reflect"
 	"strings"
 
 	v1 "github.com/cilium/cilium/pkg/k8s/slim/k8s/api/core/v1"
@@ -53,6 +54,9 @@ type K8sClient interface {
 
 	// PatchNetworkInterface updates the NetworkInterface.
 	PatchNetworkInterface(ctx context.Context, oldObj, newObj *networkv1.NetworkInterface) error
+
+	// PatchNetworkInterfaceAnnotations updates the NetworkInterface annotations.
+	PatchNetworkInterfaceAnnotations(ctx context.Context, obj *networkv1.NetworkInterface) error
 
 	// CreateNetworkInterface creates the network interface object
 	CreateNetworkInterface(ctx context.Context, obj *networkv1.NetworkInterface) error
@@ -125,6 +129,20 @@ func (c *k8sClientImpl) PatchNetworkInterfaceStatus(ctx context.Context, obj *ne
 func (c *k8sClientImpl) PatchNetworkInterface(ctx context.Context, oldObj, newObj *networkv1.NetworkInterface) error {
 	return c.client.Patch(ctx, newObj, client.MergeFrom(oldObj))
 }
+
+func (c *k8sClientImpl) PatchNetworkInterfaceAnnotations(ctx context.Context, obj *networkv1.NetworkInterface) error {
+	intf := &networkv1.NetworkInterface{}
+	if err := c.client.Get(ctx, namespacedName(obj.Name, obj.Namespace), intf); err != nil {
+		return err
+	}
+	if reflect.DeepEqual(intf.Annotations, obj.Annotations) {
+		return nil
+	}
+	intfClean := intf.DeepCopy()
+	intf.SetAnnotations(obj.Annotations)
+	return c.client.Patch(ctx, intf, client.MergeFrom(intfClean))
+}
+
 func (c *k8sClientImpl) CreateNetworkInterface(ctx context.Context, obj *networkv1.NetworkInterface) error {
 	return c.client.Create(ctx, obj)
 }

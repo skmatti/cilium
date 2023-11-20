@@ -52,6 +52,8 @@ type DHCPClient interface {
 	GetDHCPResponse(containerID, netns, ifname, parentInt string, macAddress *string) (*DHCPResponse, error)
 	// Release sends a request to the DHCPPlugin to stop maintaining the lease for the given interface
 	Release(containerID, netns, ifname string, letLeaseExpire bool) error
+	// Renew sends a renewal request to the DHCPPlugin to renew the lease of the client IP.
+	Renew(containerID, netns, ifname, parentIfName string, macAddress *string, clientIP, serverIP net.IP) (*DHCPResponse, error)
 }
 
 // dhcpClient is a rpc Client to query and request DHCP leases from the DHCP plugin
@@ -70,6 +72,13 @@ type DHCPResponse struct {
 	DNSConfig *networkv1.DNSConfig
 	// Gateway4 is the default gateway for the Network this interface is connecting to
 	Gateway4 *string
+
+	ServerIP net.IP
+}
+
+type Result struct {
+	CNIResult ipam.Result
+	ServerIP  net.IP
 }
 
 // NewDHCPClient returns an instance of DHCPClient with default DHCP socket
@@ -109,23 +118,42 @@ func (dc *dhcpClient) ensureRPCClient() error {
 // GetDHCPRelease calls DHCP.Allocate and converts the ipam result into a DHCP response
 // that contains, ip, gateway, routes, and dns information
 func (dc *dhcpClient) GetDHCPResponse(containerID, netns, ifname, parentIfName string, macAddress *string) (*DHCPResponse, error) {
-	result := &ipam.Result{CNIVersion: ipam.ImplementedSpecVersion}
+	result := &Result{CNIResult: ipam.Result{CNIVersion: ipam.ImplementedSpecVersion}}
 	resp := &DHCPResponse{}
-	args := generateCmdArgs(containerID, netns, ifname, parentIfName, macAddress)
+	args := generateCmdArgs(containerID, netns, ifname, parentIfName, macAddress, nil, nil)
 	if err := dc.rpcCall("DHCP.Allocate", args, result); err != nil {
 		return resp, fmt.Errorf("errored in rpc call DHCP.Allocate: %w", err)
 	}
 
-	resp.IPAddresses, resp.Gateway4 = parseIPAndGateway(result.IPs)
-	resp.Routes = parseRoutes(result.Routes)
-	resp.DNSConfig = parseDNSConfig(result.DNS)
+	resp.IPAddresses, resp.Gateway4 = parseIPAndGateway(result.CNIResult.IPs)
+	resp.Routes = parseRoutes(result.CNIResult.Routes)
+	resp.DNSConfig = parseDNSConfig(result.CNIResult.DNS)
+	resp.ServerIP = result.ServerIP
+
+	return resp, nil
+}
+
+// Renew calls DHCP.Renew and converts the ipam result into a DHCP response
+// that contains, ip, gateway, routes, and dns information
+func (dc *dhcpClient) Renew(containerID, netns, ifname, parentIfName string, macAddress *string, clientIP, serverIP net.IP) (*DHCPResponse, error) {
+	result := &Result{CNIResult: ipam.Result{CNIVersion: ipam.ImplementedSpecVersion}}
+	resp := &DHCPResponse{}
+	args := generateCmdArgs(containerID, netns, ifname, parentIfName, macAddress, clientIP, serverIP)
+	if err := dc.rpcCall("DHCP.Renew", args, result); err != nil {
+		return resp, fmt.Errorf("errored in rpc call DHCP.Renew: %w", err)
+	}
+
+	resp.IPAddresses, resp.Gateway4 = parseIPAndGateway(result.CNIResult.IPs)
+	resp.Routes = parseRoutes(result.CNIResult.Routes)
+	resp.DNSConfig = parseDNSConfig(result.CNIResult.DNS)
+	resp.ServerIP = result.ServerIP
 
 	return resp, nil
 }
 
 // Release calls DHCP.Release on the dhcp plugin
 func (dc *dhcpClient) Release(containerID, netns, ifname string, letLeaseExpire bool) error {
-	args := generateCmdArgs(containerID, netns, ifname, "", nil)
+	args := generateCmdArgs(containerID, netns, ifname, "", nil, nil, nil)
 	if letLeaseExpire {
 		args.Args = leaseExpireArgs
 	}
@@ -187,7 +215,7 @@ func parseDNSConfig(dns cnitypes.DNS) *networkv1.DNSConfig {
 	}
 }
 
-func generateCmdArgs(containerID, netns, ifname, parentInt string, macAddress *string) *skel.CmdArgs {
+func generateCmdArgs(containerID, netns, ifname, parentInt string, macAddress *string, clientIP, serverIP net.IP) *skel.CmdArgs {
 	dhcpConf := fmt.Sprintf(`{
   "cniVersion": "0.0.1",
   "name": "dhcpplugin",
@@ -213,6 +241,15 @@ func generateCmdArgs(containerID, netns, ifname, parentInt string, macAddress *s
 	if macAddress != nil && *macAddress != "" {
 		argList = append(argList, fmt.Sprintf("macAddress=%s", *macAddress))
 	}
+
+	if clientIP != nil {
+		argList = append(argList, fmt.Sprintf("clientIP=%s", clientIP.String()))
+	}
+
+	if serverIP != nil {
+		argList = append(argList, fmt.Sprintf("serverIP=%s", serverIP.String()))
+	}
+
 	if len(argList) > 0 {
 		args.Args = strings.Join(argList, ";")
 	}

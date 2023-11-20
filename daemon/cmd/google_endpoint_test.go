@@ -9,7 +9,7 @@ import (
 
 	apiEndpoint "github.com/cilium/cilium/api/v1/server/restapi/endpoint"
 	"github.com/cilium/cilium/pkg/checker"
-	"github.com/cilium/cilium/pkg/k8s/slim/k8s/api/core/v1"
+	v1 "github.com/cilium/cilium/pkg/k8s/slim/k8s/api/core/v1"
 	"github.com/cilium/cilium/pkg/option"
 	"github.com/cilium/cilium/pkg/testutils"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -163,6 +163,9 @@ func (m *mockMultiNICClient) ListNetworks(ctx context.Context) ([]networkv1.Netw
 	return []networkv1.Network{}, nil
 }
 func (m *mockMultiNICClient) PatchNetworkInterface(ctx context.Context, _, _ *networkv1.NetworkInterface) error {
+	return nil
+}
+func (m *mockMultiNICClient) PatchNetworkInterfaceAnnotations(ctx context.Context, _ *networkv1.NetworkInterface) error {
 	return nil
 }
 func (m *mockMultiNICClient) PatchNetworkInterfaceStatus(ctx context.Context, obj *networkv1.NetworkInterface) error {

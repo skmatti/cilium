@@ -928,6 +928,8 @@ func TestConfigureDHCPInfo(t *testing.T) {
 		wantErr  string
 		wantCfg  interfaceConfiguration
 		dc       *fakeDHCPClient
+		clientIP net.IP
+		serverIP net.IP
 	}{
 		{
 			desc:     "network specifies external DHCP and no static config",
@@ -944,6 +946,51 @@ func TestConfigureDHCPInfo(t *testing.T) {
 			dc:       fakeClient,
 			wantResp: &emptyMacResponse,
 			wantCfg:  dhcpConfig,
+		},
+		{
+			desc:    "network specifies external DHCP and no static config with DHCP renew",
+			network: dhcpNetwork,
+			cfg:     emptyConfig,
+			dc: &fakeDHCPClient{
+				emptyMacResponse: emptyMacResponse,
+				resp:             dhcpResp,
+				// Error if we call GetDHCPResponse since we should only renew.
+				clientErr: fmt.Errorf("should not get this error, discover called"),
+			},
+			wantResp: &emptyMacResponse,
+			wantCfg:  dhcpConfig,
+			clientIP: net.ParseIP("10.0.0.0"),
+			serverIP: net.ParseIP("10.0.0.1"),
+		},
+		{
+			desc:    "dhcp Renew fails, fall back to discover",
+			network: dhcpNetwork,
+			cfg:     emptyConfig,
+			dc: &fakeDHCPClient{
+				emptyMacResponse: emptyMacResponse,
+				resp:             dhcpResp,
+				renewErr:         fmt.Errorf("NACK"),
+			},
+			wantResp: &emptyMacResponse,
+			wantCfg:  dhcpConfig,
+			clientIP: net.ParseIP("10.0.0.0"),
+			serverIP: net.ParseIP("10.0.0.1"),
+		},
+		{
+			desc:    "dhcp Renew fails and so does discover, should error",
+			network: dhcpNetwork,
+			cfg:     emptyConfig,
+			dc: &fakeDHCPClient{
+				emptyMacResponse: emptyMacResponse,
+				resp:             dhcpResp,
+				renewErr:         fmt.Errorf("dhcp renew error"),
+				clientErr:        fmt.Errorf("dhcp client error"),
+			},
+			wantResp: nil,
+			wantCfg:  emptyConfig,
+			wantErr:  "dhcp client error",
+			clientIP: net.ParseIP("10.0.0.0"),
+			serverIP: net.ParseIP("10.0.0.1"),
 		},
 		{
 			desc:    "network specifies external DHCP and no static config, and no IP is returned",
@@ -1042,7 +1089,7 @@ func TestConfigureDHCPInfo(t *testing.T) {
 			testCfg := tc.cfg
 			tc.dc.network = tc.network
 			tc.dc.t = t
-			gotResp, gotErr := configureDHCPInfo(tc.network, &testCfg, tc.dc, "podNS", "podIface", "containerID")
+			gotResp, gotErr := configureDHCPInfo(tc.network, &testCfg, tc.dc, tc.clientIP, tc.serverIP, "podNS", "podIface", "containerID")
 
 			if diff := cmp.Diff(gotResp, tc.wantResp); diff != "" {
 				t.Errorf("configureDHCPInfo() has incorrect dhcp response (-got, +want): %s\n", diff)
@@ -1184,15 +1231,12 @@ type fakeDHCPClient struct {
 	emptyMacResponse dhcp.DHCPResponse
 	resp             dhcp.DHCPResponse
 	clientErr        error
+	renewErr         error
 	network          *networkv1.Network
 	t                *testing.T
 }
 
-func (dc *fakeDHCPClient) GetDHCPResponse(containerID, podNS, podIface, parentIface string, macAddress *string) (*dhcp.DHCPResponse, error) {
-	if dc.clientErr != nil {
-		return nil, dc.clientErr
-	}
-
+func (dc *fakeDHCPClient) combinedResponse(containerID, podNS, podIface, parentIface string, macAddress *string) (*dhcp.DHCPResponse, error) {
 	expectedParentIface, err := multinictypes.InterfaceName(dc.network)
 	if err != nil {
 		dc.t.Fatalf("errored getting parent interface from network %+v: %s", dc.network, err)
@@ -1206,6 +1250,20 @@ func (dc *fakeDHCPClient) GetDHCPResponse(containerID, podNS, podIface, parentIf
 	}
 
 	return &dc.resp, nil
+}
+
+func (dc *fakeDHCPClient) GetDHCPResponse(containerID, podNS, podIface, parentIface string, macAddress *string) (*dhcp.DHCPResponse, error) {
+	if dc.clientErr != nil {
+		return nil, dc.clientErr
+	}
+	return dc.combinedResponse(containerID, podNS, podIface, parentIface, macAddress)
+}
+
+func (dc *fakeDHCPClient) Renew(containerID, podNS, podIface, parentIface string, macAddress *string, clientIP, serverIP net.IP) (*dhcp.DHCPResponse, error) {
+	if dc.renewErr != nil {
+		return nil, dc.renewErr
+	}
+	return dc.combinedResponse(containerID, podNS, podIface, parentIface, macAddress)
 }
 
 func (dc *fakeDHCPClient) Release(containerID, podNS, podIface string, letLeaseExpire bool) error {

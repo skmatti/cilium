@@ -296,9 +296,13 @@ func (d *Daemon) createMultiNICEndpoints(ctx context.Context, owner regeneration
 			// do not patch default Network NI when it was not provided
 			// TODO: remove the condition when we are going to create NI for all Pod interfaces
 			if !(networkv1.IsDefaultNetwork(netCR.Name) && isDefaultNetInfcTemp) {
-				// Patch interface CR via multinicClient
+				// Patch interface CR status via multinicClient
 				if err = d.multinicClient.PatchNetworkInterfaceStatus(ctx, intfCR); err != nil {
 					return d.errorWithMultiNICCleanup(primaryEp, PutEndpointIDInvalidCode, fmt.Errorf("failed updating status of interface CR %q for pod %q: %v", intfCR.Name, podID, err), nil)
+				}
+				// Patch interface CR annotations via multinicClient
+				if err = d.multinicClient.PatchNetworkInterfaceAnnotations(ctx, intfCR); err != nil {
+					return d.errorWithMultiNICCleanup(primaryEp, PutEndpointIDInvalidCode, fmt.Errorf("failed updating annotations of interface CR %q for pod %q: %v", intfCR.Name, podID, err), nil)
 				}
 				intfLog.Debugf("Successfully updated interface CR %+v", intfCR)
 			}

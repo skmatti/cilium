@@ -57,7 +57,7 @@ type DHCP struct {
 	t                  *testing.T
 }
 
-func (f *DHCP) Allocate(args *skel.CmdArgs, result *ipam.Result) error {
+func (f *DHCP) Allocate(args *skel.CmdArgs, result *Result) error {
 	if args.ContainerID != containerID {
 		f.t.Errorf("incorrect container ID. Got %s, expected %s", args.ContainerID, containerID)
 	}
@@ -84,7 +84,38 @@ func (f *DHCP) Allocate(args *skel.CmdArgs, result *ipam.Result) error {
 		return errors.New("rpc error")
 	}
 
-	*result = *f.allocateResult
+	*result = Result{CNIResult: *f.allocateResult}
+	return nil
+}
+
+func (f *DHCP) Renew(args *skel.CmdArgs, result *Result) error {
+	if args.ContainerID != containerID {
+		f.t.Errorf("incorrect container ID. Got %s, expected %s", args.ContainerID, containerID)
+	}
+	netns, err := filepath.Abs(podNS)
+	if err != nil {
+		f.t.Fatalf("failed to make %q an absolute path: %s", args.Netns, err)
+	}
+	if args.Netns != netns {
+		f.t.Errorf("incorrect pod ns. Got %s, expected %s", args.Netns, podNS)
+	}
+	if args.IfName != podIfName {
+		f.t.Errorf("incorrect pod interface. Got %s, expected %s", args.IfName, podIfName)
+	}
+	expectedArgs := ""
+	if f.expectedMacAddress != nil && *f.expectedMacAddress != "" {
+		expectedArgs = fmt.Sprintf("parentInterface=%s;macAddress=%s", parentIfName, *f.expectedMacAddress)
+	} else {
+		expectedArgs = fmt.Sprintf("parentInterface=%s", parentIfName)
+	}
+	if args.Args != expectedArgs {
+		f.t.Errorf("incorrect args. Got %s, expected %s", args.Args, expectedArgs)
+	}
+	if f.svcError {
+		return errors.New("rpc error")
+	}
+
+	*result = Result{CNIResult: *f.allocateResult}
 	return nil
 }
 
