@@ -11,6 +11,7 @@ import (
 	"github.com/cilium/cilium/pkg/gke/networklogging"
 	"github.com/cilium/cilium/pkg/gke/nodefirewall/types"
 	"github.com/cilium/cilium/pkg/gke/redirectservice"
+	"github.com/cilium/cilium/pkg/gke/servicesteering"
 	"github.com/cilium/cilium/pkg/gke/subnet"
 	"github.com/cilium/cilium/pkg/gke/trafficsteering"
 	"github.com/cilium/cilium/pkg/gke/trafficsteering/controller"
@@ -52,6 +53,7 @@ var googleCell = cell.Module(
 	networklogging.Cell,
 	fqdnnetworkpolicy.Cell,
 	trafficsteering.Cell,
+	servicesteering.Cell,
 
 	imds.Cell,
 )

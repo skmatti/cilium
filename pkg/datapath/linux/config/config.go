@@ -35,6 +35,7 @@ import (
 	"github.com/cilium/cilium/pkg/defaults"
 	"github.com/cilium/cilium/pkg/gke/features"
 	"github.com/cilium/cilium/pkg/gke/imds"
+	sfcconfig "github.com/cilium/cilium/pkg/gke/servicesteering/config"
 	"github.com/cilium/cilium/pkg/identity"
 	"github.com/cilium/cilium/pkg/labels"
 	"github.com/cilium/cilium/pkg/mac"
@@ -59,6 +60,7 @@ import (
 	"github.com/cilium/cilium/pkg/maps/policymap"
 	"github.com/cilium/cilium/pkg/maps/ratelimitmetricsmap"
 	"github.com/cilium/cilium/pkg/maps/recorder"
+	"github.com/cilium/cilium/pkg/maps/sfc"
 	"github.com/cilium/cilium/pkg/maps/signalmap"
 	"github.com/cilium/cilium/pkg/maps/tunnel"
 	"github.com/cilium/cilium/pkg/maps/vtep"
@@ -282,6 +284,8 @@ func (h *HeaderfileWriter) WriteNodeConfig(w io.Writer, cfg *datapath.LocalNodeC
 
 	cDefinesMap["TRACE_PAYLOAD_LEN"] = fmt.Sprintf("%dULL", option.Config.TracePayloadlen)
 	cDefinesMap["MTU"] = fmt.Sprintf("%d", cfg.DeviceMTU)
+	// Added by Google. Used to get route MTU for veth endpoints.
+	cDefinesMap["ROUTE_MTU"] = fmt.Sprintf("%d", cfg.RouteMTU)
 
 	if option.Config.EnableIPv4 {
 		cDefinesMap["ENABLE_IPV4"] = "1"
@@ -740,6 +744,14 @@ func (h *HeaderfileWriter) WriteNodeConfig(w io.Writer, cfg *datapath.LocalNodeC
 			return err
 		}
 		cDefinesMap["NODEPORT_IPV4_BY_IFINDEX(IFINDEX)"] = nodePortIPv4ByIfIndex
+	}
+
+	if sfcconfig.Enabled() {
+		cDefinesMap["SFC_PATH_MAP"] = sfc.PathMapName
+		cDefinesMap["SFC_PATH_MAP_SIZE"] = fmt.Sprintf("%d", sfc.PathMaxEntries)
+		cDefinesMap["SFC_SELECT_MAP"] = sfc.SelectMapName
+		cDefinesMap["SFC_SELECT_MAP_SIZE"] = fmt.Sprintf("%d", sfc.SelectMaxEntries)
+		cDefinesMap["SFC_FLOW_MAP_ANY4"] = sfc.FlowMapAny4Name
 	}
 
 	cDefinesMap["CIDR_IDENTITY_RANGE_START"] = fmt.Sprintf("%d", identity.MinLocalIdentity)

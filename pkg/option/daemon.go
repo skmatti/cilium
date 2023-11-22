@@ -15,18 +15,19 @@ var (
 	}
 
 	DaemonMutableOptionLibrary = OptionLibrary{
-		ConntrackAccounting:  &specConntrackAccounting,
-		PolicyAccounting:     &specPolicyAccounting,
-		ConntrackLocal:       &specConntrackLocal,
-		Debug:                &specDebug,
-		DebugLB:              &specDebugLB,
-		DebugPolicy:          &specDebugPolicy,
-		DropNotify:           &specDropNotify,
-		TraceNotify:          &specTraceNotify,
-		PolicyVerdictNotify:  &specPolicyVerdictNotify,
-		PolicyAuditMode:      &specPolicyAuditMode,
-		MonitorAggregation:   &specMonitorAggregation,
-		SourceIPVerification: &specSourceIPVerification,
+		ConntrackAccounting:           &specConntrackAccounting,
+		PolicyAccounting:              &specPolicyAccounting,
+		ConntrackLocal:                &specConntrackLocal,
+		Debug:                         &specDebug,
+		DebugLB:                       &specDebugLB,
+		DebugPolicy:                   &specDebugPolicy,
+		DropNotify:                    &specDropNotify,
+		TraceNotify:                   &specTraceNotify,
+		PolicyVerdictNotify:           &specPolicyVerdictNotify,
+		PolicyAuditMode:               &specPolicyAuditMode,
+		MonitorAggregation:            &specMonitorAggregation,
+		SourceIPVerification:          &specSourceIPVerification,
+		GoogleServiceSteeringDataPath: &specGoogleServiceSteeringDataPath,
 	}
 )
 
