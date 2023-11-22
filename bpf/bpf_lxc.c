@@ -57,6 +57,8 @@
 #include "lib/google_arp.h"
 #include "lib/google_multinic.h"
 #include "lib/google_arp.h"
+#include "lib/google_sfc.h"
+#include "lib/google_sfc_icmp.h"
 
 /* Per-packet LB is needed if all LB cases can not be handled in bpf_sock.
  * Most services with L7 LB flag can not be redirected to their proxy port
@@ -117,6 +119,16 @@ static __always_inline __maybe_unused int __per_packet_lb_svc_xlate_4(void *ctx,
 		if (unlikely(lb4_svc_is_localredirect(svc)))
 			goto skip_service_lookup;
 #endif /* ENABLE_LOCAL_REDIRECT_POLICY && ENABLE_SOCKET_LB_FULL */
+#ifdef ENABLE_GOOGLE_SERVICE_STEERING
+{
+		// Do source IP validation before service LB for traffic to service.
+		// Service LB may change source IP for hairpin traffic
+		// so source IP validation has to be done before.
+		// This means SFC doesn't support talking to service IP from IPs different from the orgin pod.
+		if (unlikely(!is_valid_lxc_src_ipv4(ip4)))
+			return DROP_INVALID_SIP;
+}
+#endif  /* ENABLE_GOOGLE_SERVICE_STEERING */
 		ret = lb4_local(get_ct_map4(&tuple), ctx, ipv4_is_fragment(ip4),
 				ETH_HLEN, l4_off, &key, &tuple, svc, &ct_state_new,
 				has_l4_header, false, &cluster_id, ext_err, ENDPOINT_NETNS_COOKIE);
@@ -870,6 +882,19 @@ static __always_inline int handle_ipv4_from_lxc(struct __ctx_buff *ctx, __u32 *d
 	if (!revalidate_data(ctx, &data, &data_end, &ip4))
 		return DROP_INVALID;
 
+#ifdef ENABLE_GOOGLE_SERVICE_STEERING
+{
+	/* TODO (b/277275019): if encapsulation was done earlier (before the tail call to this
+	 * function), then try to use that information instead of checking the packet. Can use a
+	 * similar strategy to how conntrack info is passed into a tail call: via a PERCPU_ARRAY map.
+	 */
+	if (is_sfc_encapped(ctx, ip4)) {
+		ct_state = NULL;
+		goto skip_service_steering;
+	}
+}
+#endif /* ENABLE_GOOGLE_SERVICE_STEERING */
+
 #ifdef ENABLE_PER_PACKET_LB
 	/* Restore ct_state from per packet lb handling in the previous tail call. */
 	lb4_ctx_restore_state(ctx, &ct_state_new, &proxy_port, &cluster_id);
@@ -1084,6 +1109,31 @@ ct_recreate4:
 	/* After L4 write in port mapping: revalidate for direct packet access */
 	if (!revalidate_data(ctx, &data, &data_end, &ip4))
 		return DROP_INVALID;
+
+#ifdef ENABLE_GOOGLE_SERVICE_STEERING
+{
+	struct redirect_info redir = {};
+	ret = sfc_select4(ctx, ip4, true, &redir);
+	if (IS_ERR(ret))
+		return ret;
+	if (redir.path) {
+		ret = sfc_encap(ctx, ip4, &redir);
+		if (unlikely(ret == DROP_FRAG_NEEDED))
+			return sfc_redirect_icmp4(ctx, ip4, ct_state_new.rev_nat_index);
+		if (IS_ERR(ret))
+			return ret;
+		return tail_call_internal(ctx, CILIUM_CALL_IPV4_FROM_LXC, ext_err);
+	}
+
+skip_service_steering:
+	// !ct_state_new.rev_nat_index: It's LB traffic and we already did source IP validation before lb4_local()
+	// !ct_state->rev_nat_index: LB return traffic of hairpin flow. SIP validation skipped because it must hit a valid contrack entry.
+	if (!ct_state_new.rev_nat_index && !(ct_state && ct_state->rev_nat_index)) {
+		if (unlikely(!is_valid_lxc_src_ipv4(ip4)))
+			return DROP_INVALID_SIP;
+	}
+}
+#endif /* ENABLE_GOOGLE_SERVICE_STEERING */
 
 #if defined(ENABLE_HOST_FIREWALL) && !defined(ENABLE_ROUTING) && !defined(MULTI_NIC_DEVICE_TYPE)
 	/* If the destination is the local host and per-endpoint routes are
@@ -1437,8 +1487,29 @@ static __always_inline int __tail_handle_ipv4(struct __ctx_buff *ctx,
 		return DROP_INVALID;
 #endif /* MULTI_NIC_DEVICE_TYPE */
 
+#ifdef ENABLE_GOOGLE_SERVICE_STEERING
+	{
+		struct redirect_info redir = {};
+		ret = sfc_existing_flow(ctx, ip4, &redir);
+		if (IS_ERR(ret))
+			return ret;
+		if (redir.path) {
+			ret = sfc_encap(ctx, ip4, &redir);
+			if (unlikely(ret == DROP_FRAG_NEEDED))
+				return sfc_redirect_icmp4(ctx, ip4, 0);
+			if (IS_ERR(ret))
+				return ret;
+			if (!revalidate_data(ctx, &data, &data_end, &ip4))
+				return DROP_INVALID;
+		}
+	}
+#endif /* ENABLE_GOOGLE_SERVICE_STEERING */
+
+/* Do source IP validation after SFC encap. */
+#ifndef ENABLE_GOOGLE_SERVICE_STEERING
 	if (unlikely(!is_valid_lxc_src_ipv4(ip4)))
 		return DROP_INVALID_SIP;
+#endif
 
 #ifdef ENABLE_MULTICAST
 	if (mcast_ipv4_is_igmp(ip4)) {
@@ -2284,6 +2355,27 @@ int handle_policy(struct __ctx_buff *ctx)
 #endif /* ENABLE_IPV6 */
 #ifdef ENABLE_IPV4
 	case bpf_htons(ETH_P_IP):
+#ifdef ENABLE_GOOGLE_SERVICE_STEERING
+		{
+			bool skip_conntrack = false;
+			ret = try_sfc_decap(ctx, &skip_conntrack);
+			if (IS_ERR(ret))
+				break;
+			if (skip_conntrack) {
+				// Mimic how ipv4_policy redircts to endpoint.
+				// TODO(b/304133242): Enable endpoint routes in anthos to avoid
+				// such special handling.
+				bool from_host = ctx_load_meta(ctx, CB_FROM_HOST);
+				bool from_tunnel = ctx_load_meta(ctx, CB_FROM_TUNNEL);
+				int ifindex = ctx_load_meta(ctx, CB_IFINDEX);
+
+				if (ifindex)
+					return redirect_ep(ctx, ifindex, from_host, from_tunnel);
+				ret = DROP_UNROUTABLE;
+				break;
+			}
+		}
+#endif /* ENABLE_GOOGLE_SERVICE_STEERING */
 		ret = invoke_tailcall_if(__and(is_defined(ENABLE_IPV4), is_defined(ENABLE_IPV6)),
 					 CILIUM_CALL_IPV4_CT_INGRESS_POLICY_ONLY,
 					 tail_ipv4_ct_ingress_policy_only, &ext_err);
@@ -2446,6 +2538,14 @@ int cil_to_container(struct __ctx_buff *ctx)
 #ifdef ENABLE_IPV4
 	case bpf_htons(ETH_P_IP):
 		sec_label = SECLABEL_IPV4;
+# ifdef ENABLE_GOOGLE_SERVICE_STEERING
+		{
+			bool skip_conntrack = false;
+			ret = try_sfc_decap(ctx, &skip_conntrack);
+			if (IS_ERR(ret) || skip_conntrack)
+				break;
+		}
+# endif /* ENABLE_GOOGLE_SERVICE_STEERING */
 # ifdef ENABLE_HIGH_SCALE_IPCACHE
 	if (identity_is_world_ipv4(identity)) {
 		struct endpoint_info *ep;

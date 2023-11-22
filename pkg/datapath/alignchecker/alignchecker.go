@@ -16,6 +16,7 @@ import (
 	"github.com/cilium/cilium/pkg/maps/policymap"
 	"github.com/cilium/cilium/pkg/maps/ratelimitmetricsmap"
 	"github.com/cilium/cilium/pkg/maps/recorder"
+	"github.com/cilium/cilium/pkg/maps/sfc"
 	"github.com/cilium/cilium/pkg/maps/signalmap"
 	"github.com/cilium/cilium/pkg/maps/srv6map"
 )
@@ -93,6 +94,12 @@ func init() {
 		// "ipv6_nat_entry":    {nat.NatEntry6{}},
 		"ratelimit_metrics_key":   {ratelimitmetricsmap.Key{}},
 		"ratelimit_metrics_value": {ratelimitmetricsmap.Value{}},
+		"sfc_select_key":          {sfc.SelectKey{}},
+		"sfc_select_entry":        {sfc.SelectEntry{}},
+		"sfc_path_key":            {sfc.PathKey{}},
+		"sfc_path_entry":          {sfc.PathEntry{}},
+		"sfc_ipv4_flow_key":       {sfc.FlowKey4{}},
+		"sfc_ipv4_flow_entry":     {sfc.FlowEntry4{}},
 	})
 
 	registerToCheckSizes(map[string][]any{

@@ -16,6 +16,8 @@
 #include "drop.h"
 #endif
 
+#include "google_sfc.h"
+
 #ifdef ENABLE_IPV6
 struct {
 	__uint(type, BPF_MAP_TYPE_HASH);
@@ -1614,6 +1616,20 @@ static __always_inline int lb4_local(const void *map, struct __ctx_buff *ctx,
 		.client_ip = saddr,
 	};
 #endif
+#ifdef ENABLE_GOOGLE_SERVICE_STEERING
+{
+	struct iphdr ip4;
+	if (ctx_load_bytes(ctx, l3_off, &ip4, sizeof(ip4)) < 0) {
+		return DROP_INVALID;
+	}
+	if (is_sfc_encapped(ctx, &ip4)) {
+		// For SFC, use inner IP for session affinity.
+		ret = sfc_extract_inner_saddr(ctx, &client_id.client_ip);
+		if (IS_ERR(ret))
+			return ret;
+	}
+}
+#endif  /* ENABLE_GOOGLE_SERVICE_STEERING */
 
 	state->rev_nat_index = svc->rev_nat_index;
 

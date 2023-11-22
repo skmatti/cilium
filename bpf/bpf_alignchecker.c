@@ -20,6 +20,7 @@
 #include "lib/trace_sock.h"
 #include "lib/mcast.h"
 #include "lib/google_maps.h"
+#include "lib/google_sfc.h"
 
 /*
  * The __COUNTER__ macro expands to an integer value which is increasing every
@@ -97,3 +98,9 @@ add_type(struct multi_nic_dev_key);
 add_type(struct multi_nic_dev_info);
 add_type(struct host_dev_routing_key);
 add_type(struct host_dev_routing_entry);
+add_type(struct sfc_select_key);
+add_type(struct sfc_select_entry);
+add_type(struct sfc_path_key);
+add_type(struct sfc_path_entry);
+add_type(struct sfc_ipv4_flow_key);
+add_type(struct sfc_ipv4_flow_entry);
