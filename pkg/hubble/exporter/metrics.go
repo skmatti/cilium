@@ -70,7 +70,8 @@ type dynamicExporterGaugeCollector struct {
 // consistency and uniqueness requirements described in the Desc
 // documentation.
 func (d *dynamicExporterGaugeCollector) Describe(ch chan<- *prometheus.Desc) {
-	prometheus.DescribeByCollect(d, ch)
+	ch <- exportersDesc
+	ch <- individualExportersDesc
 }
 
 // Collect is called by the Prometheus registry when collecting
