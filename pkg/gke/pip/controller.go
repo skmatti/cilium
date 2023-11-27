@@ -12,6 +12,7 @@ import (
 	"github.com/cilium/cilium/pkg/endpointmanager"
 	"github.com/cilium/cilium/pkg/lock"
 	"github.com/cilium/cilium/pkg/maps/pip"
+	"github.com/cilium/cilium/pkg/metrics"
 	"github.com/cilium/cilium/pkg/option"
 	"github.com/cilium/cilium/pkg/trigger"
 	"github.com/sirupsen/logrus"
@@ -29,12 +30,20 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 )
 
-var minTriggerInternal = time.Second * 2
+var (
+	minTriggerInternal = time.Second * 2
+	pipMetricTracker   = make(map[pipMetricKey]int)
+)
 
 type gkeIPRoutePod struct {
 	namespace string
 	podName   string
 	networkID uint32
+}
+
+type pipMetricKey struct {
+	family  string
+	network string
 }
 
 // GKEIPRouteReconciler reconciles GKEIPRoute objects.
@@ -62,6 +71,7 @@ func (r *GKEIPRouteReconciler) handleReconcile(ctx context.Context, reconcileSou
 		return ctrl.Result{}, err
 	}
 	updatedGKEIPRoutes, reconcileErr := r.reconcileRoutingMap(ctx, gkeIPRouteList.Items)
+	updatePIPMetrics()
 
 	var updateErr error
 	requeue := false
@@ -133,6 +143,7 @@ func (r *GKEIPRouteReconciler) reconcileRoutingMap(ctx context.Context, gkeIPRou
 				Reason:             string(pipv1.IPRouteDPV2Ready),
 				ObservedGeneration: ipr.GetObjectMeta().GetGeneration(),
 			})
+			pipMetricTracker[pipMetricKey{string(key.Family), *ipr.Spec.Network}] += 1
 		}
 		// only update those GKEIPRoutes that have a change in the DPV2Ready condition
 		if r.needsUpdate(ipr, acceptedGKEIPRoutes[ipr.Name]) {
@@ -338,4 +349,18 @@ func existingRoutingEntries() (map[pip.CIDRKey]pip.RoutingEntry, error) {
 		return nil, err
 	}
 	return dump, nil
+}
+
+func updatePIPMetrics() {
+	// Set metrics values, delete entry if count is 0
+	for key, count := range pipMetricTracker {
+		if count == 0 {
+			metrics.PersistentIPEndpointsTotal.DeleteLabelValues(key.family, key.network)
+			delete(pipMetricTracker, key)
+			continue
+		}
+		metrics.PersistentIPEndpointsTotal.WithLabelValues(key.family, key.network).Set(float64(count))
+		// Set to 0 so entry is deleted if it's not updated in the next iteration
+		pipMetricTracker[key] = 0
+	}
 }

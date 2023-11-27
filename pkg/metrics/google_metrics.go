@@ -7,6 +7,7 @@ import (
 const (
 	subsystemMultiNetwork    = "google_multinet"
 	subsystemServiceSteering = "google_service_steering"
+	subsystemPersistentIP    = "google_persistent_ip"
 
 	labelNetwork     = "network"
 	labelNetworkType = "network_type"
@@ -22,6 +23,8 @@ var (
 	ServiceSteeringEndpoint        = NoOpGauge
 	ServiceSteeringReconcileTotal  = NoOpCounterVec
 	ServiceSteeringReconcileErrors = NoOpCounterVec
+
+	PersistentIPEndpointsTotal = NoOpGaugeVec
 )
 
 // TODO: Switch to Hive's cell.Metric in v1.14+
@@ -71,11 +74,22 @@ func googleMetrics() []prometheus.Collector {
 		LabelOutcome,
 	})
 
+	PersistentIPEndpointsTotal = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: Namespace,
+		Subsystem: subsystemPersistentIP,
+		Name:      "pip_endpoints_total",
+		Help:      "Number of persistent-ip endpoints per IP family and network.",
+	}, []string{
+		LabelDatapathFamily,
+		labelNetwork,
+	})
+
 	return []prometheus.Collector{
 		MultiNetworkEndpoint,
 		MultiNetworkPodCreation,
 		MultiNetworkIpamEvent,
 		ServiceSteeringEndpoint,
 		ServiceSteeringReconcileTotal,
+		PersistentIPEndpointsTotal,
 	}
 }
