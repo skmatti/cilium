@@ -29,10 +29,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 )
 
-var (
-	ipv4Mask           = net.CIDRMask(32, 8*net.IPv4len)
-	minTriggerInternal = time.Second * 2
-)
+var minTriggerInternal = time.Second * 2
 
 type gkeIPRoutePod struct {
 	namespace string
@@ -188,11 +185,11 @@ func (r *GKEIPRouteReconciler) desiredRoutingEntries(ctx context.Context, gkeIPR
 		// create map entries for each of the IP CIDRs
 		// pointing to the pod endpoint
 		for _, address := range gkeIPRoute.Spec.Addresses {
-			ip := net.ParseIP(address.Value)
-			cidrKey := pip.NewCIDRKey(&net.IPNet{
-				IP:   ip,
-				Mask: ipv4Mask,
-			})
+			_, ipNet, err := net.ParseCIDR(address.Value)
+			if err != nil {
+				return nil, fmt.Errorf("error while parsing GKEIPRoute %s address %s", gkeIPRoute.Name, address.Value)
+			}
+			cidrKey := pip.NewCIDRKey(ipNet)
 			routingEntry := pip.NewRoutingEntry(net.ParseIP(ep.GetIPv4Address()))
 			gkeIPRouteEntry := pipEntry{value: *routingEntry, gkeIPRoute: gkeIPRoute.DeepCopy()}
 			desiredMap[*cidrKey] = gkeIPRouteEntry
