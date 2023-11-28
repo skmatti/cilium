@@ -36,7 +36,6 @@ import (
 
 	daemonclient "github.com/cilium/cilium/pkg/client"
 	ciliumio "github.com/cilium/cilium/pkg/k8s/apis/cilium.io"
-	k8sClient "github.com/cilium/cilium/pkg/k8s/client"
 	"github.com/cilium/cilium/pkg/k8s/resource"
 	slim_corev1 "github.com/cilium/cilium/pkg/k8s/slim/k8s/api/core/v1"
 	slim_metav1 "github.com/cilium/cilium/pkg/k8s/slim/k8s/apis/meta/v1"
@@ -58,9 +57,9 @@ func init() {
 	utilruntime.Must(v1.AddToScheme(scheme))
 }
 
-func runServiceSteeringController(ctx context.Context, clientset k8sClient.Clientset, epManager endpointmanager.EndpointManager, r agentK8s.Resources) error {
+func runServiceSteeringController(ctx context.Context, p params) error {
 	logWriter := sfclog.Writer()
-	mgr, err := ctrl.NewManager(clientset.RestConfig(), ctrl.Options{
+	mgr, err := ctrl.NewManager(p.Clientset.RestConfig(), ctrl.Options{
 		Scheme: scheme,
 		Metrics: metricsserver.Options{
 			BindAddress: "0",
@@ -82,7 +81,7 @@ func runServiceSteeringController(ctx context.Context, clientset k8sClient.Clien
 	}
 
 	// Initialize service steering controllers
-	reconciler, err := NewReconciler(ctx, mgr.GetClient(), epManager, r)
+	reconciler, err := NewReconciler(ctx, mgr.GetClient(), p.EpManager, p.Resources, p.Metrics)
 	if err != nil {
 		return fmt.Errorf("failed to create service steering reconciler: %v", err)
 	}
@@ -119,6 +118,7 @@ type ServiceSteeringReconciler struct {
 	selectorCache  []extractedSelector
 	epTrigger      *trigger.Trigger
 	cp             configPatcher
+	metrics        sfcMetrics
 }
 
 type configPatcher interface {
@@ -160,7 +160,7 @@ func isPathMapEmpty() bool {
 	return errors.Is(err, ebpf.ErrKeyNotExist)
 }
 
-func NewReconciler(ctx context.Context, client client.Client, epManager endpointmanager.EndpointManager, resources agentK8s.Resources) (*ServiceSteeringReconciler, error) {
+func NewReconciler(ctx context.Context, client client.Client, epManager endpointmanager.EndpointManager, resources agentK8s.Resources, metrics sfcMetrics) (*ServiceSteeringReconciler, error) {
 	cl, err := daemonclient.NewClient("")
 	if err != nil {
 		return nil, fmt.Errorf("failed to create Daemon client: %v", err)
@@ -182,6 +182,7 @@ func NewReconciler(ctx context.Context, client client.Client, epManager endpoint
 		podStore:       podStore,
 		namespaceStore: namespaceStore,
 		cp:             cl,
+		metrics:        metrics,
 	}
 
 	// Use a trigger function for endpoint updates to avoid blocking the endpoint manager.
@@ -240,9 +241,12 @@ func (r *ServiceSteeringReconciler) handleControllerEvent(ctx context.Context, r
 	defer func() { log.Debugf("Finished reconciling in %s", time.Since(start)) }()
 
 	defer func() {
+		outcome := labelValueOutcomeSuccess
 		if err_ != nil {
 			log.Error(err_)
+			outcome = labelValueOutcomeFail
 		}
+		r.metrics.ReconcileTotal.WithLabelValues(reconcileTypeController, outcome).Inc()
 	}()
 
 	if err := r.updateSelectorCache(ctx, log); err != nil {
@@ -271,8 +275,15 @@ func (r *ServiceSteeringReconciler) handleTriggerEvent(reasons []string) {
 	log.Info("Reconciling")
 	defer func() { log.Debugf("Finished reconciling in %s", time.Since(start)) }()
 
+	outcome := labelValueOutcomeSuccess
+	defer func() {
+		r.metrics.ReconcileTotal.WithLabelValues(reconcileTypeTrigger, outcome).Inc()
+	}()
+
 	if err := r.reconcileSelectorMaps(ctx, log); err != nil {
 		log.WithError(err).Error("Failed to reconcile SFC selector maps")
+		outcome = labelValueOutcomeFail
+		return
 	}
 }
 
@@ -347,6 +358,7 @@ func (r *ServiceSteeringReconciler) desiredSelectors(log *logrus.Entry) map[sfc.
 	if len(r.selectorCache) == 0 {
 		return desiredSelectors
 	}
+	numEndpointsSelected := 0
 	for _, ep := range r.EpManager.GetEndpoints() {
 		if ep.IsHost() {
 			continue
@@ -356,7 +368,11 @@ func (r *ServiceSteeringReconciler) desiredSelectors(log *logrus.Entry) map[sfc.
 		for k, v := range epDesiredSelectors {
 			desiredSelectors[k] = v
 		}
+		if len(epDesiredSelectors) > 0 {
+			numEndpointsSelected++
+		}
 	}
+	r.metrics.Endpoints.Set(float64(numEndpointsSelected))
 	return desiredSelectors
 }
 

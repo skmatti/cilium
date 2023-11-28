@@ -9,6 +9,7 @@ import (
 	"github.com/cilium/cilium/pkg/gke/servicesteering/config"
 	k8sClient "github.com/cilium/cilium/pkg/k8s/client"
 	"github.com/cilium/cilium/pkg/maps/sfc"
+	"github.com/cilium/cilium/pkg/metrics"
 	"github.com/cilium/hive/cell"
 )
 
@@ -18,6 +19,7 @@ var Cell = cell.Module(
 
 	config.Cell,
 	cell.Invoke(initServiceSteering),
+	metrics.Metric(newMetrics),
 )
 
 type params struct {
@@ -28,6 +30,7 @@ type params struct {
 	Config    config.Config
 	EpManager endpointmanager.EndpointManager
 	Resources agentK8s.Resources
+	Metrics   sfcMetrics
 }
 
 func initServiceSteering(p params) error {
@@ -54,7 +57,7 @@ func initServiceSteering(p params) error {
 	mgrCtx, cancel := context.WithCancel(context.Background())
 	p.Lifecycle.Append(cell.Hook{
 		OnStart: func(_ cell.HookContext) error {
-			return runServiceSteeringController(mgrCtx, p.Clientset, p.EpManager, p.Resources)
+			return runServiceSteeringController(mgrCtx, p)
 		},
 		OnStop: func(hc cell.HookContext) error {
 			cancel()
