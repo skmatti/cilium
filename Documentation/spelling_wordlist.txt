@@ -198,6 +198,8 @@ bugfix
 bugfixes
 bugtool
 buildx
+burstLimit
+busybox
 bytecode
 cBPF
 callee
@@ -628,6 +630,8 @@ qemu
 queryable
 queueing
 rST
+rateLimit
+ratelimiter
 rc
 reStructuredText
 reachability

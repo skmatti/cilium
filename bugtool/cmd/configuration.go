@@ -187,6 +187,7 @@ func defaultCommands(confDir string, cmdDir string, k8sPods []string) []string {
 		"tc/globals/cilium_vtep_map",
 		"tc/globals/cilium_l2_responder_v4",
 		"tc/globals/cilium_ratelimit",
+		"tc/globals/cilium_ratelimit_metrics",
 		"tc/globals/cilium_skip_lb4",
 		"tc/globals/cilium_skip_lb6",
 	}
