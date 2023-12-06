@@ -165,6 +165,7 @@ bugfix
 bugfixes
 bugtool
 buildx
+burstLimit
 bytecode
 cBPF
 callee
@@ -528,6 +529,8 @@ qdiscs
 qede
 queryable
 queueing
+rateLimit
+ratelimiter
 rc
 reStructuredText
 reachability

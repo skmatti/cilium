@@ -44,6 +44,7 @@ import (
 	"github.com/cilium/cilium/pkg/maps/neighborsmap"
 	"github.com/cilium/cilium/pkg/maps/nodemap"
 	"github.com/cilium/cilium/pkg/maps/policymap"
+	"github.com/cilium/cilium/pkg/maps/ratelimitmetricsmap"
 	"github.com/cilium/cilium/pkg/maps/sfc"
 	"github.com/cilium/cilium/pkg/maps/signalmap"
 	"github.com/cilium/cilium/pkg/maps/srv6map"
@@ -357,6 +358,10 @@ func (d *Daemon) initMaps() error {
 
 	if err := metricsmap.Metrics.OpenOrCreate(); err != nil {
 		return err
+	}
+
+	if err := ratelimitmetricsmap.RatelimitMetrics.OpenOrCreate(); err != nil {
+		return fmt.Errorf("initializing ratelimit metrics map: %w", err)
 	}
 
 	if option.Config.TunnelingEnabled() {

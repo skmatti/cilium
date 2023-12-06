@@ -51,6 +51,7 @@ import (
 	"github.com/cilium/cilium/pkg/maps/nodemap"
 	pipmaps "github.com/cilium/cilium/pkg/maps/pip"
 	"github.com/cilium/cilium/pkg/maps/policymap"
+	"github.com/cilium/cilium/pkg/maps/ratelimitmetricsmap"
 	"github.com/cilium/cilium/pkg/maps/recorder"
 	"github.com/cilium/cilium/pkg/maps/sfc"
 	"github.com/cilium/cilium/pkg/maps/signalmap"
@@ -182,6 +183,8 @@ func (h *HeaderfileWriter) WriteNodeConfig(w io.Writer, cfg *datapath.LocalNodeC
 	cDefinesMap["CT_CLOSE_TIMEOUT"] = fmt.Sprintf("%d", int64(option.Config.CTMapEntriesTimeoutFIN.Seconds()))
 	cDefinesMap["CT_REPORT_INTERVAL"] = fmt.Sprintf("%d", int64(option.Config.MonitorAggregationInterval.Seconds()))
 	cDefinesMap["CT_REPORT_FLAGS"] = fmt.Sprintf("%#04x", int64(option.Config.MonitorAggregationFlags))
+	cDefinesMap["RATELIMIT_MAP"] = "cilium_ratelimit"
+	cDefinesMap["RATELIMIT_METRICS_MAP"] = ratelimitmetricsmap.MapName
 	cDefinesMap["CT_TAIL_CALL_BUFFER4"] = "cilium_tail_call_buffer4"
 	cDefinesMap["CT_TAIL_CALL_BUFFER6"] = "cilium_tail_call_buffer6"
 
@@ -190,6 +193,8 @@ func (h *HeaderfileWriter) WriteNodeConfig(w io.Writer, cfg *datapath.LocalNodeC
 	}
 
 	cDefinesMap["EVENTS_MAP"] = eventsmap.MapName
+	cDefinesMap["EVENTS_MAP_RATE_LIMIT"] = fmt.Sprintf("%d", option.Config.BPFEventsDefaultRateLimit)
+	cDefinesMap["EVENTS_MAP_BURST_LIMIT"] = fmt.Sprintf("%d", option.Config.BPFEventsDefaultBurstLimit)
 	cDefinesMap["SIGNAL_MAP"] = signalmap.MapName
 	cDefinesMap["POLICY_CALL_MAP"] = policymap.PolicyCallMapName
 	if option.Config.EnableEnvoyConfig {

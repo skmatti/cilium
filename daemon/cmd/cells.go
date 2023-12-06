@@ -11,6 +11,7 @@ import (
 	"github.com/cilium/cilium/pkg/gops"
 	"github.com/cilium/cilium/pkg/hive/cell"
 	k8sClient "github.com/cilium/cilium/pkg/k8s/client"
+	"github.com/cilium/cilium/pkg/maps/ratelimitmetricsmap"
 	"github.com/cilium/cilium/pkg/node"
 	"github.com/cilium/cilium/pkg/option"
 )
@@ -39,6 +40,9 @@ var (
 
 		// Provides Clientset, API for accessing Kubernetes objects.
 		k8sClient.Cell,
+
+		// Provides cilium_bpf_ratelimit_dropped_total Prometheus metric.
+		ratelimitmetricsmap.Cell,
 
 		// Provide option.Config via hive so cells can depend on the agent config.
 		cell.Provide(func() *option.DaemonConfig { return option.Config }),
