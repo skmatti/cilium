@@ -2942,7 +2942,8 @@ __handle_nat_fwd_ipv4(struct __ctx_buff *ctx, struct trace_ctx *trace)
 
 #if !defined(ENABLE_DSR) ||						\
     (defined(ENABLE_DSR) && defined(ENABLE_DSR_HYBRID)) ||		\
-     defined(ENABLE_MASQUERADE)
+     defined(ENABLE_MASQUERADE) ||		\
+	defined(ENABLE_EGRESS_GATEWAY)
 	if (!ctx_snat_done(ctx)) {
 		ep_tail_call(ctx, CILIUM_CALL_IPV4_NODEPORT_SNAT_FWD);
 		ret = DROP_MISSED_TAIL_CALL;
