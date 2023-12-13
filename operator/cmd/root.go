@@ -432,9 +432,13 @@ func (legacy *legacyOnLeader) onStart(_ hive.HookContext) error {
 			operatorOption.Config.CESMaxCEPsInCES,
 			operatorOption.Config.CESSlicingMode,
 			operatorOption.Config.CESWriteQPSLimit,
-			operatorOption.Config.CESWriteQPSBurst)
+			operatorOption.Config.CESWriteQPSBurst,
+			operatorOption.Config.CESEnableDynamicRateLimit,
+			operatorOption.Config.CESDynamicRateLimitNodes,
+			operatorOption.Config.CESDynamicRateLimitQPSLimit,
+			operatorOption.Config.CESDynamicRateLimitQPSBurst)
 		// Start CEP watcher
-		operatorWatchers.CiliumEndpointsSliceInit(legacy.ctx, &legacy.wg, legacy.clientset, cesController)
+		operatorWatchers.CiliumEndpointsSliceInit(legacy.ctx, &legacy.wg, legacy.clientset, cesController.OnEndpointUpdate, cesController.OnEndpointDelete)
 		// Start the CES controller, after current CEPs are synced locally in cache.
 		legacy.wg.Add(1)
 		go func() {

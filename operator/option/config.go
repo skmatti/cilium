@@ -46,6 +46,10 @@ const (
 	// CES work queue QPS burst cannot exceed this value, regardless of other config.
 	CESWriteQPSBurstMax = 100
 
+	// CESDynamicWriteQPSDataDefault is the default dynamic qps setup for CES controller.
+	// By default, don't use dynamic write qps by default.
+	CESEnableDynamicRateLimitDefault = false
+
 	// CNPStatusCleanupQPSDefault is the default rate for the CNP NodeStatus updates GC.
 	CNPStatusCleanupQPSDefault = 10
 
@@ -277,6 +281,22 @@ const (
 	// for the CES work queue to process CES events that result in CES write
 	// (Create, Update, Delete) requests to the kube-apiserver.
 	CESWriteQPSBurst = "ces-write-qps-burst"
+
+	// CESEnableDynamicRateLimit is used to ignore static QPS Limit and Burst
+	// and use dynamic limit, burst and nodes instead.
+	CESEnableDynamicRateLimit = "ces-enable-dynamic-rate-limit"
+
+	// CESDynamicRateLimitNodes is used to specify the list of nodes used for the
+	// dynamic rate limit steps.
+	CESDynamicRateLimitNodes = "ces-dynamic-rate-limit-nodes"
+
+	// CESDynamicRateLimitQPSLimit is used to specify the list of qps limits for the
+	// dynamic rate limit steps.
+	CESDynamicRateLimitQPSLimit = "ces-dynamic-rate-limit-qps-limit"
+
+	// CESDynamicRateLimitQPSBurst is used to specify the list of qps bursts for the
+	// dynamic rate limit steps.
+	CESDynamicRateLimitQPSBurst = "ces-dynamic-rate-limit-qps-burst"
 
 	// LoadBalancerL7 enables loadbalancer capabilities for services via envoy proxy
 	LoadBalancerL7 = "loadbalancer-l7"
@@ -571,6 +591,22 @@ type OperatorConfig struct {
 	// (Create, Update, Delete) requests to the kube-apiserver.
 	CESWriteQPSBurst int
 
+	// CESEnableDynamicRateLimit is used to ignore static QPS Limit and Burst
+	// and use dynamic limit, burst and nodes instead.
+	CESEnableDynamicRateLimit bool
+
+	// CESDynamicRateLimitNodes is used to specify the list of nodes used for the
+	// dynamic rate limit steps.
+	CESDynamicRateLimitNodes []string
+
+	// CESDynamicRateLimitQPSLimit is used to specify the list of qps limits for the
+	// dynamic rate limit steps.
+	CESDynamicRateLimitQPSLimit []string
+
+	// CESDynamicRateLimitQPSBurst is used to specify the list of qps bursts for the
+	// dynamic rate limit steps.
+	CESDynamicRateLimitQPSBurst []string
+
 	// LoadBalancerL7 enables loadbalancer capabilities for services.
 	LoadBalancerL7 string
 
@@ -736,6 +772,10 @@ func (c *OperatorConfig) Populate(vp *viper.Viper) {
 	c.CESSlicingMode = vp.GetString(CESSlicingMode)
 	c.CESWriteQPSLimit = vp.GetFloat64(CESWriteQPSLimit)
 	c.CESWriteQPSBurst = vp.GetInt(CESWriteQPSBurst)
+	c.CESEnableDynamicRateLimit = vp.GetBool(CESEnableDynamicRateLimit)
+	c.CESDynamicRateLimitNodes = vp.GetStringSlice(CESDynamicRateLimitNodes)
+	c.CESDynamicRateLimitQPSLimit = vp.GetStringSlice(CESDynamicRateLimitQPSLimit)
+	c.CESDynamicRateLimitQPSBurst = vp.GetStringSlice(CESDynamicRateLimitQPSBurst)
 
 	// Option maps and slices
 

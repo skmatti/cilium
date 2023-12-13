@@ -418,7 +418,7 @@ func HandleNodeTolerationAndTaints(wg *sync.WaitGroup, clientset k8sClient.Clien
 		RemoveNodeTaint:        option.Config.RemoveCiliumNodeTaints,
 		SetCiliumIsUpCondition: option.Config.SetCiliumIsUpCondition,
 	}
-	nodesInit(wg, clientset.Slim(), stopCh)
+	NodesInit(wg, clientset.Slim(), stopCh)
 
 	wg.Add(1)
 	go func() {

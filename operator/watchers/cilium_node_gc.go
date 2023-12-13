@@ -54,7 +54,7 @@ func (c *ciliumNodeGCCandidate) Delete(nodeName string) {
 
 // RunCiliumNodeGC performs garbage collector for cilium node resource
 func RunCiliumNodeGC(ctx context.Context, wg *sync.WaitGroup, clientset k8sClient.Clientset, ciliumNodeStore cache.Store, interval time.Duration) {
-	nodesInit(wg, clientset.Slim(), ctx.Done())
+	NodesInit(wg, clientset.Slim(), ctx.Done())
 
 	// wait for k8s nodes synced is done
 	select {

@@ -325,17 +325,41 @@ func init() {
 	}
 	option.BindEnv(Vp, operatorOption.CESSlicingMode)
 
-	flags.Float64(operatorOption.CESWriteQPSLimit, operatorOption.CESWriteQPSLimitDefault, "CES work queue rate limit")
+	flags.Float64(operatorOption.CESWriteQPSLimit, operatorOption.CESWriteQPSLimitDefault, "CES work queue rate limit. Ignored when "+operatorOption.CESEnableDynamicRateLimit+" is set")
 	if *enableCES {
 		flags.MarkHidden(operatorOption.CESWriteQPSLimit)
 	}
 	option.BindEnv(Vp, operatorOption.CESWriteQPSLimit)
 
-	flags.Int(operatorOption.CESWriteQPSBurst, operatorOption.CESWriteQPSBurstDefault, "CES work queue burst rate")
+	flags.Int(operatorOption.CESWriteQPSBurst, operatorOption.CESWriteQPSBurstDefault, "CES work queue burst rate. Ignored when "+operatorOption.CESEnableDynamicRateLimit+" is set")
 	if *enableCES {
 		flags.MarkHidden(operatorOption.CESWriteQPSBurst)
 	}
 	option.BindEnv(Vp, operatorOption.CESWriteQPSBurst)
+
+	flags.Bool(operatorOption.CESEnableDynamicRateLimit, operatorOption.CESEnableDynamicRateLimitDefault, "Flag to enable dynamic rate limit specified in separate fields instead of the static one")
+	if *enableCES {
+		flags.MarkHidden(operatorOption.CESEnableDynamicRateLimit)
+	}
+	option.BindEnv(Vp, operatorOption.CESEnableDynamicRateLimit)
+
+	flags.StringSlice(operatorOption.CESDynamicRateLimitNodes, []string{}, "List of nodes used for the dynamic rate limit steps")
+	if *enableCES {
+		flags.MarkHidden(operatorOption.CESDynamicRateLimitNodes)
+	}
+	option.BindEnv(Vp, operatorOption.CESDynamicRateLimitNodes)
+
+	flags.StringSlice(operatorOption.CESDynamicRateLimitQPSLimit, []string{}, "List of qps limits used for the dynamic rate limit steps")
+	if *enableCES {
+		flags.MarkHidden(operatorOption.CESDynamicRateLimitQPSLimit)
+	}
+	option.BindEnv(Vp, operatorOption.CESDynamicRateLimitQPSLimit)
+
+	flags.StringSlice(operatorOption.CESDynamicRateLimitQPSBurst, []string{}, "List of qps burst used for the dynamic rate limit steps")
+	if *enableCES {
+		flags.MarkHidden(operatorOption.CESDynamicRateLimitQPSBurst)
+	}
+	option.BindEnv(Vp, operatorOption.CESDynamicRateLimitQPSBurst)
 
 	flags.String(operatorOption.CiliumK8sNamespace, "", fmt.Sprintf("Name of the Kubernetes namespace in which Cilium is deployed in. Defaults to the same namespace defined in %s", option.K8sNamespaceName))
 	option.BindEnv(Vp, operatorOption.CiliumK8sNamespace)

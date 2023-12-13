@@ -62,7 +62,7 @@ func createCESWithIDs(cesName string, ids []int64) *capi_v2a1.CiliumEndpointSlic
 
 func TestSyncCESsInLocalCache(t *testing.T) {
 	_, c := client.NewFakeClientset()
-	cesController := NewCESController(context.Background(), &sync.WaitGroup{}, c, 5, "", 10, 20)
+	cesController := NewCESController(context.Background(), &sync.WaitGroup{}, c, 5, "", 10, 20, false, []string{}, []string{}, []string{})
 
 	cep1 := createManagerEndpoint("cep1", 1)
 	cep2 := createManagerEndpoint("cep2", 1)
@@ -99,7 +99,7 @@ func TestSyncCESsInLocalCache(t *testing.T) {
 func TestEnqueueingPreIntitialization(t *testing.T) {
 	_, c := client.NewFakeClientset()
 
-	cesController := NewCESController(context.Background(), &sync.WaitGroup{}, c, 5, "", 10, 20)
+	cesController := NewCESController(context.Background(), &sync.WaitGroup{}, c, 5, "", 10, 20, false, []string{}, []string{}, []string{})
 	assert.Equal(t, 0, cesController.queue.Len())
 
 	cep1 := createStoreEndpoint("cep1", "ns", 1)

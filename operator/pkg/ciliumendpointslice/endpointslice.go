@@ -9,9 +9,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/cilium/cilium/operator/watchers"
 	"github.com/cilium/cilium/pkg/lock"
 	"github.com/sirupsen/logrus"
-	"golang.org/x/time/rate"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/tools/cache"
@@ -90,8 +90,8 @@ type CiliumEndpointSliceController struct {
 	// CES requests going to api-server, ensures a single CES will not be proccessed
 	// multiple times concurrently, and if CES is added multiple times before it
 	// can be processed, this will only be processed only once.
-	queue            workqueue.RateLimitingInterface
-	queueRateLimiter *rate.Limiter
+	queue     workqueue.RateLimitingInterface
+	rateLimit rateLimitConfig
 
 	// slicingMode indicates how CEP are sliceed in a CES
 	slicingMode string
@@ -122,8 +122,13 @@ func NewCESController(
 	slicingMode string,
 	qpsLimit float64,
 	burstLimit int,
+	enableDynamicRL bool,
+	dynamicRLNodes []string,
+	dynamicRLLimit []string,
+	dynamicRLBurst []string,
 ) *CiliumEndpointSliceController {
-	rlQueue, rlQueueRateLimiter := initializeQueue(qpsLimit, burstLimit)
+	rateLimit := getRateLimitConfig(qpsLimit, burstLimit, enableDynamicRL, dynamicRLNodes, dynamicRLLimit, dynamicRLBurst)
+	rlQueue := initializeQueue(rateLimit)
 
 	manager := newCESManagerFcfs(maxCEPsInCES)
 	if slicingMode == cesIdentityBasedSlicing {
@@ -136,7 +141,7 @@ func NewCESController(
 		reconciler:                     newReconciler(clientset.CiliumV2alpha1(), manager),
 		Manager:                        manager,
 		queue:                          rlQueue,
-		queueRateLimiter:               rlQueueRateLimiter,
+		rateLimit:                      rateLimit,
 		slicingMode:                    slicingMode,
 		workerLoopPeriod:               1 * time.Second,
 		enqueuedAt:                     make(map[string]time.Time),
@@ -144,6 +149,15 @@ func NewCESController(
 		endpointsMappingInitialized:    false,
 	}
 	cesStore := ciliumEndpointSliceInit(controller, clientset.CiliumV2alpha1(), ctx, wg)
+	watchers.NodesInit(wg, clientset.Slim(), ctx.Done())
+	watchers.SetCESUpdateOnNodeFunc(func(totalNodes int) {
+		if controller.rateLimit.updateRateLimiterWithNodes(totalNodes) {
+			log.WithFields(logrus.Fields{
+				logfields.WorkQueueQPSLimit:   controller.rateLimit.current.Limit,
+				logfields.WorkQueueBurstLimit: controller.rateLimit.current.Burst,
+			}).Info("Updated CES controller workqueue configuration")
+		}
+	})
 	ceSliceStore = cesStore
 	return controller
 }
@@ -205,28 +219,15 @@ func objToCES(obj interface{}) *capi_v2a1.CiliumEndpointSlice {
 	return nil
 }
 
-func initializeQueue(qpsLimit float64, burstLimit int) (workqueue.RateLimitingInterface, *rate.Limiter) {
-	if qpsLimit == 0 {
-		qpsLimit = CESControllerWorkQueueQPSLimit
-	} else if qpsLimit > operatorOption.CESWriteQPSLimitMax {
-		qpsLimit = operatorOption.CESWriteQPSLimitMax
-	}
-
-	if burstLimit == 0 {
-		burstLimit = CESControllerWorkQueueBurstLimit
-	} else if burstLimit > operatorOption.CESWriteQPSBurstMax {
-		burstLimit = operatorOption.CESWriteQPSBurstMax
-	}
-
+func initializeQueue(rateLimitConfig rateLimitConfig) workqueue.RateLimitingInterface {
 	log.WithFields(logrus.Fields{
-		logfields.WorkQueueQPSLimit:    qpsLimit,
-		logfields.WorkQueueBurstLimit:  burstLimit,
+		logfields.WorkQueueQPSLimit:    rateLimitConfig.current.Limit,
+		logfields.WorkQueueBurstLimit:  rateLimitConfig.current.Burst,
 		logfields.WorkQueueSyncBackOff: defaultSyncBackOff,
 	}).Info("CES controller workqueue configuration")
 
 	queue := workqueue.NewNamedRateLimitingQueue(workqueue.NewItemExponentialFailureRateLimiter(defaultSyncBackOff, maxSyncBackOff), "cilium_endpoint_slice")
-	queueRateLimiter := rate.NewLimiter(rate.Limit(qpsLimit), burstLimit)
-	return queue, queueRateLimiter
+	return queue
 }
 
 func (c *CiliumEndpointSliceController) OnEndpointUpdate(cep *cilium_api_v2.CiliumEndpoint) {
@@ -355,7 +356,7 @@ func (c *CiliumEndpointSliceController) worker() {
 }
 
 func (c *CiliumEndpointSliceController) rateLimitProcessing() {
-	delay := c.queueRateLimiter.Reserve().Delay()
+	delay := c.rateLimit.getDelay()
 	select {
 	case <-time.After(delay):
 	}

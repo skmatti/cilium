@@ -32,6 +32,8 @@ var (
 	nodeController cache.Controller
 
 	nodeQueue = workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "node-queue")
+
+	cesUpdateOnNode func(int)
 )
 
 type slimNodeGetter interface {
@@ -57,8 +59,24 @@ func (nodeGetter) GetK8sSlimNode(nodeName string) (*slim_corev1.Node, error) {
 	return nodeInterface.(*slim_corev1.Node), nil
 }
 
-// nodesInit starts up a node watcher to handle node events.
-func nodesInit(wg *sync.WaitGroup, slimClient slimclientset.Interface, stopCh <-chan struct{}) {
+func (nodeGetter) ListK8sSlimNode() []*slim_corev1.Node {
+	nodesInt := slimNodeStore.List()
+	out := make([]*slim_corev1.Node, 0, len(nodesInt))
+	for i := range nodesInt {
+		out = append(out, nodesInt[i].(*slim_corev1.Node))
+	}
+	return out
+}
+
+func SetCESUpdateOnNodeFunc(f func(totalNodes int)) {
+	cesUpdateOnNode = f
+	if nodeController != nil && nodeController.HasSynced() {
+		cesUpdateOnNode(len(slimNodeStore.List()))
+	}
+}
+
+// NodesInit starts up a node watcher to handle node events.
+func NodesInit(wg *sync.WaitGroup, slimClient slimclientset.Interface, stopCh <-chan struct{}) {
 	nodeSyncOnce.Do(func() {
 		slimNodeStore, nodeController = informer.NewInformer(
 			utils.ListerWatcherFromTyped[*slim_corev1.NodeList](slimClient.CoreV1().Nodes()),
@@ -68,10 +86,18 @@ func nodesInit(wg *sync.WaitGroup, slimClient slimclientset.Interface, stopCh <-
 				AddFunc: func(obj interface{}) {
 					key, _ := queueKeyFunc(obj)
 					nodeQueue.Add(key)
+					if cesUpdateOnNode != nil {
+						cesUpdateOnNode(len(slimNodeStore.List()))
+					}
 				},
 				UpdateFunc: func(_, newObj interface{}) {
 					key, _ := queueKeyFunc(newObj)
 					nodeQueue.Add(key)
+				},
+				DeleteFunc: func(obj interface{}) {
+					if cesUpdateOnNode != nil {
+						cesUpdateOnNode(len(slimNodeStore.List()))
+					}
 				},
 			},
 			convertToNode,
@@ -85,6 +111,9 @@ func nodesInit(wg *sync.WaitGroup, slimClient slimclientset.Interface, stopCh <-
 
 		cache.WaitForCacheSync(stopCh, nodeController.HasSynced)
 		close(slimNodeStoreSynced)
+		if cesUpdateOnNode != nil {
+			cesUpdateOnNode(len(slimNodeStore.List()))
+		}
 	})
 }
 

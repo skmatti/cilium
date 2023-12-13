@@ -13,7 +13,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/cache"
 
-	ces "github.com/cilium/cilium/operator/pkg/ciliumendpointslice"
 	cilium_api_v2 "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2"
 	k8sClient "github.com/cilium/cilium/pkg/k8s/client"
 	"github.com/cilium/cilium/pkg/k8s/informer"
@@ -43,16 +42,14 @@ var (
 	// once is used to make sure CiliumEndpointsInit is only setup once.
 	once sync.Once
 
-	// cesController watches for CiliumEndpoint changes, and accordingly updates CiliumEndpointSlices
-	// CiliumEndpoint watcher notifies the cesController, if any CiliumEndpoint is Added
-	// Updated or Deleted.
-	cesController *ces.CiliumEndpointSliceController
+	onEndpointUpdate func(*cilium_api_v2.CiliumEndpoint)
+	onEndpointDelete func(*cilium_api_v2.CiliumEndpoint)
 )
 
 // CiliumEndpointsSliceInit starts a CiliumEndpointWatcher and caches cesController locally.
-func CiliumEndpointsSliceInit(ctx context.Context, wg *sync.WaitGroup, clientset k8sClient.Clientset,
-	cbController *ces.CiliumEndpointSliceController) {
-	cesController = cbController
+func CiliumEndpointsSliceInit(ctx context.Context, wg *sync.WaitGroup, clientset k8sClient.Clientset, cesOnEndpointUpdate func(*cilium_api_v2.CiliumEndpoint), cesOnEndpointDelete func(*cilium_api_v2.CiliumEndpoint)) {
+	onEndpointUpdate = cesOnEndpointUpdate
+	onEndpointDelete = cesOnEndpointDelete
 	CiliumEndpointsInit(ctx, wg, clientset)
 }
 
@@ -211,11 +208,15 @@ func HasCE(ns, name string) (*cilium_api_v2.CiliumEndpoint, bool, error) {
 }
 
 func endpointUpdated(cep *cilium_api_v2.CiliumEndpoint) {
-	cesController.OnEndpointUpdate(cep)
+	if onEndpointUpdate != nil {
+		onEndpointUpdate(cep)
+	}
 }
 
 func endpointDeleted(cep *cilium_api_v2.CiliumEndpoint) {
-	cesController.OnEndpointDelete(cep)
+	if onEndpointDelete != nil {
+		onEndpointUpdate(cep)
+	}
 }
 
 // objToCiliumEndpoint attempts to cast object to a CiliumEndpoint object
