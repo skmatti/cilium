@@ -184,7 +184,6 @@ int nodeport_dsr_backend_setup(struct __ctx_buff *ctx)
 CHECK("tc", "tc_nodeport_dsr_backend")
 int nodeport_dsr_backend_check(struct __ctx_buff *ctx)
 {
-	struct dsr_opt_v4 *opt;
 	void *data, *data_end;
 	__u32 *status_code;
 	struct tcphdr *l4;
@@ -211,11 +210,7 @@ int nodeport_dsr_backend_check(struct __ctx_buff *ctx)
 	if ((void *)l3 + sizeof(struct iphdr) > data_end)
 		test_fatal("l3 out of bounds");
 
-	opt = (void *)l3 + sizeof(struct iphdr);
-	if ((void *)opt + 2 * sizeof(__u32) > data_end)
-		test_fatal("l3 DSR option out of bounds");
-
-	l4 = (void *)opt + sizeof(*opt);
+	l4 = (void *)l3 + sizeof(struct iphdr);
 	if ((void *)l4 + sizeof(struct tcphdr) > data_end)
 		test_fatal("l4 out of bounds");
 
@@ -230,20 +225,11 @@ int nodeport_dsr_backend_check(struct __ctx_buff *ctx)
 	if (l3->daddr != BACKEND_IP)
 		test_fatal("dst IP has changed");
 
-	if (opt->type != DSR_IPV4_OPT_TYPE)
-		test_fatal("type in DSR IP option has changed")
-	if (opt->len != 8)
-		test_fatal("length in DSR IP option has changed")
-	if (opt->port != __bpf_ntohs(FRONTEND_PORT))
-		test_fatal("port in DSR IP option has changed")
-	if (opt->addr != __bpf_ntohl(FRONTEND_IP))
-		test_fatal("addr in DSR IP option has changed")
-
 	if (l4->source != CLIENT_PORT)
-		test_fatal("src port has changed");
+		test_fatal("src port has changed: got src port %d, want %d", l4->source, CLIENT_PORT);
 
 	if (l4->dest != BACKEND_PORT)
-		test_fatal("dst port has changed");
+		test_fatal("dst port has changed: got dst port %d, want %d", l4->dest, BACKEND_PORT);
 
 	struct ipv4_ct_tuple tuple;
 	struct ct_entry *ct_entry;
