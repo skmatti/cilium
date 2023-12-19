@@ -3,7 +3,9 @@ package loader
 import (
 	datapath "github.com/cilium/cilium/pkg/datapath/types"
 	multinicep "github.com/cilium/cilium/pkg/gke/multinic/endpoint"
+	"github.com/cilium/cilium/pkg/logging/logfields"
 	"github.com/cilium/cilium/pkg/mac"
+	"github.com/vishvananda/netlink"
 )
 
 const (
@@ -36,6 +38,23 @@ func (t *templateCfg) GetParentDevMac() mac.MAC {
 	return templateMAC
 }
 
+func mtuOfMultiNICEndpoint(ep datapath.Endpoint) uint64 {
+	var link netlink.Link
+	var err error
+	scopedLog := log.WithField(logfields.EndpointID, ep.GetID())
+
+	// The design for L3 network in ABM is not clear yet.
+	// For now, assume the MTU is the same as parent device as in GKE.
+	link, err = netlink.LinkByIndex(ep.GetParentDevIndex())
+	if err != nil {
+		// We don't have handle to return error but if it's happening, the endpoint is for sure collapsing.
+		scopedLog.WithError(err).Errorf("failed to find parent device with index %d", ep.GetParentDevIndex())
+		return 0
+	}
+
+	return uint64(link.Attrs().MTU)
+}
+
 // multiNicElfVariableSubstitutions fills in Elf substitutions in the template,
 // pertaining to Multi-nic endpoints.
 func multiNicElfVariableSubstitutions(ep datapath.Endpoint,
@@ -44,6 +63,7 @@ func multiNicElfVariableSubstitutions(ep datapath.Endpoint,
 		return
 	}
 
+	result["MULTI_NIC_ENDPOINT_MTU"] = mtuOfMultiNICEndpoint(ep)
 	result["POD_STACK_REDIRECT_IFINDEX"] =
 		uint64(ep.GetPodStackRedirectIfindex())
 	result["PARENT_DEV_IFINDEX"] = uint64(ep.GetParentDevIndex())

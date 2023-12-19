@@ -8,6 +8,7 @@ import (
 
 	"github.com/cilium/cilium/api/v1/models"
 	agentK8s "github.com/cilium/cilium/daemon/k8s"
+	"github.com/cilium/cilium/pkg/datapath/connector"
 	"github.com/cilium/cilium/pkg/ebpf"
 	"github.com/cilium/cilium/pkg/endpoint"
 	"github.com/cilium/cilium/pkg/endpointmanager"
@@ -41,6 +42,7 @@ import (
 	slim_metav1 "github.com/cilium/cilium/pkg/k8s/slim/k8s/apis/meta/v1"
 	v1 "gke-internal.googlesource.com/anthos-networking/apis/v2/service-steering/v1"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	networkv1 "k8s.io/cloud-provider-gcp/crd/apis/network/v1"
 )
 
 var (
@@ -55,6 +57,7 @@ var (
 func init() {
 	utilruntime.Must(corev1.AddToScheme(scheme))
 	utilruntime.Must(v1.AddToScheme(scheme))
+	utilruntime.Must(networkv1.AddToScheme(scheme))
 }
 
 func runServiceSteeringController(ctx context.Context, p params) error {
@@ -73,6 +76,7 @@ func runServiceSteeringController(ctx context.Context, p params) error {
 				},
 				&v1.TrafficSelector{}:      {},
 				&v1.ServiceFunctionChain{}: {},
+				&networkv1.Network{}:       {},
 			},
 		},
 	})
@@ -130,6 +134,7 @@ type extractedSelector struct {
 	nsSelector    labels.Selector
 	podSelector   labels.Selector
 	cidr          net.IPNet
+	networkID     uint32
 	portSelectors map[portSelector]struct{}
 	entry         sfc.SelectEntry
 	serviceIP     net.IP
@@ -434,6 +439,10 @@ func (r *ServiceSteeringReconciler) desiredEpSelectors(log *logrus.Entry, ep *en
 	for i := range r.selectorCache {
 		selector := &r.selectorCache[i]
 		log := log.WithField("selector", selector.Name)
+		if networkMatches := selector.networkID == ep.GetNetworkID(); !networkMatches {
+			log.Debug("Network does not match")
+			continue
+		}
 		if err := selector.matchesLabels(labels); err != nil {
 			log.Debugf("Pod is not subject to TrafficSelector: %v", err)
 			continue
@@ -466,6 +475,10 @@ func (r *ServiceSteeringReconciler) updateSelectorCache(ctx context.Context, log
 		}
 		if err := r.extractSFC(ctx, log, selector); err != nil {
 			log.WithError(err).Debugf("Unable to extract SFC")
+			continue
+		}
+		if err := r.extractNetwork(ctx, selector); err != nil {
+			log.WithError(err).Warnf("Unable to extract network")
 			continue
 		}
 		selectors = append(selectors, *selector)
@@ -510,6 +523,21 @@ func (r *ServiceSteeringReconciler) extractSFC(ctx context.Context, log *logrus.
 
 	selector.entry = *entry
 	selector.serviceIP = net.ParseIP(ip)
+	return nil
+}
+
+// Extract network id, returning 0 for default/unspecified network
+func (r *ServiceSteeringReconciler) extractNetwork(ctx context.Context, selector *extractedSelector) error {
+	networkName := selector.Spec.Subject.Network
+	if len(networkName) == 0 || networkName == networkv1.DefaultPodNetworkName {
+		selector.networkID = 0
+		return nil
+	}
+	var network networkv1.Network
+	if err := r.Get(ctx, types.NamespacedName{Name: networkName}, &network); err != nil {
+		return fmt.Errorf("unable to get Network %q: %v", networkName, err)
+	}
+	selector.networkID = connector.GenerateNetworkID(&network)
 	return nil
 }
 

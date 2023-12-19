@@ -21,6 +21,10 @@ sfc_redirect_icmp4(struct __ctx_buff *ctx, struct iphdr *ip4, __u16 rev_nat_inde
 	__u32 redirect_dir = 0;
 	__u32 svc_addr = 0;
 	__u16 dport = 0;
+#if defined(MULTI_NIC_DEVICE_TYPE) && MULTI_NIC_DEVICE_TYPE != EP_DEV_TYPE_INDEX_MULTI_NIC_VETH
+	// L2 MultiNIC devices are in the pod namespace directly.
+	redirect_dir = BPF_F_INGRESS;
+#endif
 	// rev_nat_index is set if the packet has been service load balanced.
 	// Need to do reverse DNAT in the innner headers when building the ICMP pkt.
 	if (rev_nat_index) {

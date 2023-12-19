@@ -2,6 +2,7 @@
 
 #include "common.h"
 #include "google_nsh.h"
+#include "google_multinic.h"
 
 struct sfc_select_key {
 	struct bpf_lpm_trie_key lpm_key;
@@ -284,7 +285,11 @@ static __always_inline __u16 flow_id(const struct iphdr *ip4, const struct l4hdr
 
 static __always_inline __u16 __endpoint_mtu()
 {
+#ifdef MULTI_NIC_DEVICE_TYPE
+	return MULTI_NIC_ENDPOINT_MTU;
+#else
 	return ROUTE_MTU;
+#endif
 }
 
 static __always_inline int __is_packet_too_big4(struct __ctx_buff *ctx,
