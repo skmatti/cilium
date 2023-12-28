@@ -404,6 +404,15 @@ bpf:
       # and rateLimit to 0 disables BPF events rate limiting.
       # @default -- `0`
       burstLimit: ~
+    drop:
+      # -- Enable drop events.
+      enabled: true
+    policyVerdict:
+      # -- Enable policy verdict events.
+      enabled: true
+    trace:
+      # -- Enable trace events.
+      enabled: true
 
   # -- Configure the maximum number of service entries in the
   # load balancer maps.
