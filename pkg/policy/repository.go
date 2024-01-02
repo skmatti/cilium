@@ -12,6 +12,7 @@ import (
 	"sync/atomic"
 
 	cilium "github.com/cilium/proxy/go/cilium/api"
+	"github.com/sirupsen/logrus"
 
 	"github.com/cilium/cilium/api/v1/models"
 	"github.com/cilium/cilium/pkg/crypto/certificatemanager"
@@ -757,6 +758,13 @@ func (p *Repository) resolvePolicyLocked(securityIdentity *identity.Identity) (*
 		if err != nil {
 			return nil, err
 		}
+		for key, value := range newL4IngressPolicy {
+			log.WithFields(logrus.Fields{
+				"identity": securityIdentity.ID,
+				"key":      key,
+				"value":    value,
+			}).Info("resolveL4IngressPolicy")
+		}
 		calculatedPolicy.L4Policy.Ingress.PortRules = newL4IngressPolicy
 	}
 
@@ -764,6 +772,13 @@ func (p *Repository) resolvePolicyLocked(securityIdentity *identity.Identity) (*
 		newL4EgressPolicy, err := matchingRules.resolveL4EgressPolicy(&policyCtx, &egressCtx)
 		if err != nil {
 			return nil, err
+		}
+		for key, value := range newL4EgressPolicy {
+			log.WithFields(logrus.Fields{
+				"identity": securityIdentity.ID,
+				"key":      key,
+				"value":    value,
+			}).Info("resolveL4EgressPolicy")
 		}
 		calculatedPolicy.L4Policy.Egress.PortRules = newL4EgressPolicy
 	}
