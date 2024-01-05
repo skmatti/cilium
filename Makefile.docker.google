@@ -32,7 +32,11 @@ endef
 # docker-dpv2-image
 $(eval $(call DPV2_IMAGE_TEMPLATE,docker-dpv2-image,images/cilium/Dockerfile,cilium,$(DOCKER_IMAGE_TAG)))
 
-docker-cilium-runtime-image:
+fetch-plugins-src:
+	if [ ! -d $(PLUGINS_DIR)/.git ] ; then git clone --depth 1 --branch $(PLUGINS_TAG) $(PLUGINS_REPO) $(PLUGINS_DIR); fi
+	git -C $(PLUGINS_DIR) checkout -B $(PLUGINS_TAG)
+
+docker-cilium-runtime-image: fetch-plugins-src
 	docker buildx build $(DOCKER_FLAGS) \
 		--build-arg GOLANG_IMAGE=${GOLANG_IMAGE} \
 		-t $(RUNTIME_IMAGE_TAG) $(ROOT_DIR)/images/runtime
@@ -53,4 +57,4 @@ BUILDER_IMAGE_TAG:=$(DOCKER_REGISTRY)/$(IMAGE_NAME)/cilium-builder:$(DOCKER_DPV2
 docker-cilium-dpv2-image: docker-cilium-runtime-image docker-cilium-builder-image
 	DOCKER_REGISTRY=$(DOCKER_REGISTRY) DOCKER_IMAGE_TAG=$(DOCKER_DPV2_IMAGE_TAG) ARCH=$(ARCH) RUNTIME_IMAGE_TAG=$(RUNTIME_IMAGE_TAG) BUILDER_IMAGE_TAG=$(BUILDER_IMAGE_TAG) $(MAKE) docker-dpv2-image
 
-.PHONY: docker-cilium-runtime-image docker-cilium-builder-image docker-dpv2-image docker-cilium-dpv2-image
+.PHONY: fetch-plugins-src docker-cilium-runtime-image docker-cilium-builder-image docker-dpv2-image docker-cilium-dpv2-image

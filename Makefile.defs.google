@@ -3,6 +3,10 @@ GOLANG_IMAGE := google-go.pkg.dev/golang:1.21.8@sha256:553db116d1a8ccfccd0a140ad
 GOLANG_VERSION=$(shell echo $(GOLANG_IMAGE) | awk -F '[:@]' '{print $$2}')
 GOLANG_TARBALL := https://go.dev/dl/go$(GOLANG_VERSION).linux-amd64.tar.gz
 
+PLUGINS_DIR := images/runtime/gke/plugins
+PLUGINS_REPO := https://gke-internal.googlesource.com/containernetworking/plugins
+PLUGINS_TAG := v1.4.0-gke.1
+
 .PHONY: install-go
 install-go:
 	rm -rf /usr/local/go

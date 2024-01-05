@@ -24,6 +24,11 @@ WORKDIR /go/src/github.com/cilium/cilium/images/runtime
 RUN --mount=type=bind,readwrite,target=/go/src/github.com/cilium/cilium/images/runtime --mount=target=/root/.cache,type=cache --mount=target=/go/pkg/mod,type=cache \
     ./build-gops.sh
 
+# build loopback CNI to /gke/loopback
+ARG TARGETOS TARGETARCH
+RUN --mount=type=bind,readwrite,target=/go/src/github.com/cilium/cilium/images/runtime --mount=target=/root/.cache,type=cache --mount=target=/go/pkg/mod,type=cache \
+    GOOS=$TARGETOS GOARCH=$TARGETARCH ./gke/build-loopback.sh
+
 FROM ${UBUNTU_IMAGE} as rootfs
 
 # Change the number to force the generation of a new git-tree SHA. Useful when
@@ -51,6 +56,7 @@ COPY --from=iproute2-dist /usr/lib/libbpf* /usr/lib
 COPY --from=iproute2-dist /usr/local /usr/local
 
 ARG TARGETPLATFORM
+COPY --from=gops-cni-builder /gke/loopback /cni/loopback
 COPY --from=gops-cni-builder /out/${TARGETPLATFORM}/bin/gops /bin/gops
 
 FROM ${TESTER_IMAGE} as test
