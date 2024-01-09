@@ -39,6 +39,9 @@
 #ifndef EHOSTUNREACH
 # define EHOSTUNREACH	113
 #endif
+#ifndef EALREADY
+# define EALREADY	114
+#endif
 #ifndef ENOTSUPP
 # define ENOTSUPP	524
 #endif

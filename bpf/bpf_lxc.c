@@ -814,11 +814,6 @@ static __always_inline int handle_ipv4_from_lxc(struct __ctx_buff *ctx, __u32 *d
 	 * similar strategy to how conntrack info is passed into a tail call: via a PERCPU_ARRAY map.
 	 */
 	if (is_sfc_encapped(ctx, ip4)) {
-		ret = sfc_fix_skb_encap(ctx, ip4);
-		if (IS_ERR(ret))
-		  return ret;
-		if (!revalidate_data(ctx, &data, &data_end, &ip4))
-			return DROP_INVALID;
 		ct_state = NULL;
 		goto skip_service_steering;
 	}

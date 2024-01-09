@@ -40,7 +40,7 @@ struct encaphdr {
 	struct iphdr ip;
 	struct udphdr udp;
 	struct genevehdr geneve;
-	struct nshhdr nsh;
+	struct geneve_sfc_opt4 opt;
 } __packed;
 
 /* Bytes added to packets due to SFC encap. */
@@ -207,8 +207,8 @@ static __always_inline int sfc_encap(struct __ctx_buff *ctx, struct iphdr *ip4, 
 		return ret;
 	}
 
-	geneve_init(&h_outer.geneve, ETH_P_NSH);
-	nsh_init(&h_outer.nsh, redir->path);
+	sfc_geneve_init(&h_outer.geneve, &h_outer.opt);
+	nsh_init(&h_outer.opt.nsh, redir->path);
 
 	/* https://datatracker.ietf.org/doc/html/rfc8926#section-3.3:
 	 * To encourage an even distribution of flows across multiple links, the source port SHOULD be
@@ -235,13 +235,22 @@ static __always_inline int sfc_encap(struct __ctx_buff *ctx, struct iphdr *ip4, 
 
 	set_ipv4_csum(&h_outer.ip);
 
-	flags = BPF_F_ADJ_ROOM_ENCAP_L4_UDP;
+	flags = BPF_F_ADJ_ROOM_ENCAP_L3_IPV4 | BPF_F_ADJ_ROOM_ENCAP_L4_UDP;
 	if (ip4->protocol == IPPROTO_UDP) {
 		// UDP GSO must have BPF_F_ADJ_ROOM_FIXED_GSO.
 		flags |= BPF_F_ADJ_ROOM_FIXED_GSO;
 	}
-	if (ctx_adjust_hroom(ctx, sizeof(struct encaphdr), BPF_ADJ_ROOM_MAC, flags))
+	ret = ctx_adjust_hroom(ctx, sizeof(struct encaphdr), BPF_ADJ_ROOM_MAC, flags);
+	if (ret == -EALREADY) {
+		// EALREADY is returned when skb->encapsulation is set
+		// Unset BPF_F_ADJ_ROOM_ENCAP_L3_IPV4 to workaround.
+		// See b/261456637 for details.
+		flags = flags & ~BPF_F_ADJ_ROOM_ENCAP_L3_IPV4;
+		ret = ctx_adjust_hroom(ctx, sizeof(struct encaphdr), BPF_ADJ_ROOM_MAC, flags);
+	}
+	if (ret) {
 		return DROP_INVALID;
+	}
 	if (ctx_store_bytes(ctx, ETH_HLEN, &h_outer, sizeof(struct encaphdr), BPF_F_INVALIDATE_HASH) < 0)
 		return DROP_INVALID;
 
@@ -251,7 +260,7 @@ static __always_inline int sfc_encap(struct __ctx_buff *ctx, struct iphdr *ip4, 
 static __always_inline int sfc_decap(struct __ctx_buff *ctx, struct encaphdr *h_outer) {
 	if (ctx_load_bytes(ctx, ETH_HLEN, h_outer, sizeof(struct encaphdr)) < 0)
 		return DROP_INVALID;
-	if (ctx_adjust_hroom(ctx, -(__s32)sizeof(struct encaphdr), BPF_ADJ_ROOM_MAC, BPF_F_ADJ_ROOM_FIXED_GSO))
+	if (ctx_adjust_hroom(ctx, -(__s32)sizeof(struct encaphdr), BPF_ADJ_ROOM_MAC, 0))
 		return DROP_INVALID;
 	return CTX_ACT_OK;
 }
@@ -567,16 +576,16 @@ try_sfc_decap(struct __ctx_buff *ctx, bool *skip_conntrack)
 		is_reply = sport & 0b1;
 		if (is_reply) {
 			// Skip connection tracking if not at source (indicated by max SI).
-			*skip_conntrack = !nshpath_max_si(h_outer.nsh.path);
+			*skip_conntrack = !nshpath_max_si(h_outer.opt.nsh.path);
 		} else {
 			/* Create flow entry for non-reply traffic. */
-			flow_entry.path = h_outer.nsh.path;
+			flow_entry.path = h_outer.opt.nsh.path;
 			flow_entry.previous_hop_addr = h_outer.ip.saddr;
 			ret = sfc_flow_lookup4(ctx, ip4, true, false, &flow_entry);
 			if (IS_ERR(ret))
 				return ret;
 			// Skip connection tracking if not at destination (indicated by SI of 0).
-			*skip_conntrack = (nshpath_si(h_outer.nsh.path) != 0);
+			*skip_conntrack = (nshpath_si(h_outer.opt.nsh.path) != 0);
 		}
 	}
 
@@ -778,46 +787,6 @@ static __always_inline int sfc_extract_inner_saddr(struct __ctx_buff *ctx,
 			   sizeof(struct iphdr)) < 0)
 		return DROP_INVALID;
 	*saddr = inner_ip4.saddr;
-	return CTX_ACT_OK;
-}
-
-/**
-   * Fix encap flags on packet if it's not to a local endpoint.
-   * If dst is not a local endpoint, re-encap with skb->encapsulation set to 1.
-   * See b/261456637 for more context.
-   *
-   * @arg ctx: Packet
-   * @arg ip4: Pointer to L3 header
-   *
-   * Return negative `DROP_` codes if the packet can't be handled.
-   * Return `CTX_ACT_OK` if the process is successful.
-   */
-static __always_inline int sfc_fix_skb_encap(struct __ctx_buff *ctx,
-					     struct iphdr *ip4)
-{
-	if (!__lookup_ip4_endpoint(ip4->daddr)) {
-		// TODO(b/269499064): Implement a more efficient solution that
-		// doesn't require re-encapsulation.
-		struct encaphdr h_outer = {};
-		__u64 flags = BPF_F_ADJ_ROOM_FIXED_GSO |
-			      BPF_F_ADJ_ROOM_ENCAP_L3_IPV4 |
-			      BPF_F_ADJ_ROOM_ENCAP_L4_UDP;
-
-		if (ctx_load_bytes(ctx, ETH_HLEN, &h_outer,
-				   sizeof(struct encaphdr)) < 0)
-			return DROP_INVALID;
-		if (ctx_adjust_hroom(ctx, -(__s32)sizeof(struct encaphdr),
-				     BPF_ADJ_ROOM_MAC,
-				     BPF_F_ADJ_ROOM_FIXED_GSO))
-			return DROP_INVALID;
-		if (ctx_adjust_hroom(ctx, sizeof(struct encaphdr),
-				     BPF_ADJ_ROOM_MAC, flags))
-			return DROP_INVALID;
-		if (ctx_store_bytes(ctx, ETH_HLEN, &h_outer,
-				    sizeof(struct encaphdr),
-				    BPF_F_INVALIDATE_HASH) < 0)
-			return DROP_INVALID;
-	}
 	return CTX_ACT_OK;
 }
 
