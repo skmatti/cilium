@@ -62,7 +62,7 @@ const (
 )
 
 var (
-	ceSliceStore cache.Store
+	CESliceStore cache.Store
 )
 
 type EndpointEvent struct {
@@ -158,7 +158,7 @@ func NewCESController(
 			}).Info("Updated CES controller workqueue configuration")
 		}
 	})
-	ceSliceStore = cesStore
+	CESliceStore = cesStore
 	return controller
 }
 
@@ -172,6 +172,7 @@ func ciliumEndpointSliceInit(controller *CiliumEndpointSliceController, client c
 			AddFunc: func(obj interface{}) {
 				if ces := objToCES(obj); ces != nil {
 					controller.onSliceUpdate(ces)
+					processCESAdd(ces)
 				}
 			},
 			UpdateFunc: func(oldObj, newObj interface{}) {
@@ -181,12 +182,14 @@ func ciliumEndpointSliceInit(controller *CiliumEndpointSliceController, client c
 							return
 						}
 						controller.onSliceUpdate(newCES)
+						processCESUpdate(newCES)
 					}
 				}
 			},
 			DeleteFunc: func(obj interface{}) {
 				if ces := objToCES(obj); ces != nil {
 					controller.onSliceDelete(ces)
+					processCESDelete(ces)
 				}
 			},
 		},
@@ -323,7 +326,7 @@ func (c *CiliumEndpointSliceController) Run(ciliumEndpointStore cache.Indexer, s
 // Sync all CESs from cesStore to manager cache.
 // Note: CESs are synced locally before CES controller running and this is required.
 func (c *CiliumEndpointSliceController) syncCESsInLocalCache() {
-	for _, obj := range ceSliceStore.List() {
+	for _, obj := range CESliceStore.List() {
 		ces := obj.(*capi_v2a1.CiliumEndpointSlice)
 		cesName := c.Manager.initializeMappingForCES(ces)
 		for _, cep := range ces.Endpoints {
@@ -406,7 +409,7 @@ func (c *CiliumEndpointSliceController) handleErr(err error, key interface{}) {
 
 // UsedIdentitiesInCESs returns all Identities that are used in CESs.
 func UsedIdentitiesInCESs() map[string]bool {
-	return usedIdentitiesInCESs(ceSliceStore)
+	return usedIdentitiesInCESs(CESliceStore)
 }
 
 // usedIdentitiesInCESs returns all Identities that are used in CESs in the

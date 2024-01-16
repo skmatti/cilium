@@ -1910,6 +1910,11 @@ func (e *Endpoint) identityLabelsChanged(ctx context.Context, myChangeRev int) (
 		e.LogStatus(Other, Warning, fmt.Sprintf("%s (will retry)", err.Error()))
 		return false, err
 	}
+	if allocatedIdentity == nil {
+		err = fmt.Errorf("unable to resolve identity: no identity allocated for labels %v", newLabels)
+		e.LogStatus(Other, Warning, fmt.Sprintf("%s (will retry)", err.Error()))
+		return false, err
+	}
 
 	// When releasing identities after allocation due to either failure of
 	// allocation or due a no longer used identity we want to operation to

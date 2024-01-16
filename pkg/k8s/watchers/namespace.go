@@ -6,6 +6,7 @@ package watchers
 import (
 	"errors"
 	"sync"
+	"time"
 
 	k8s_errors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -21,11 +22,32 @@ import (
 	"github.com/cilium/cilium/pkg/k8s/watchers/resources"
 	"github.com/cilium/cilium/pkg/labels"
 	"github.com/cilium/cilium/pkg/labelsfilter"
+	"github.com/cilium/cilium/pkg/lock"
 	"github.com/cilium/cilium/pkg/logging/logfields"
+	"github.com/cilium/cilium/pkg/option"
 	"github.com/cilium/cilium/pkg/policy"
 )
 
+// This is required on 1.13 when namespace label changes can fail because of a
+// missing Cilium Identity. This code will be excluded from 1.14, because it is
+// anyway refactored to use Resources instead of watchers.
+type nsUpdateTracking struct {
+	// oldNS is to track the namespace object based on the name, so that failed
+	// updates are retried.
+	oldNS map[string]*slim_corev1.Namespace
+	mu    lock.Mutex
+}
+
+var nsTracking nsUpdateTracking
+
 func (k *K8sWatcher) namespacesInit(slimClient slimclientset.Interface, asyncControllers *sync.WaitGroup) {
+	operatorManagesCIDs := option.Config.OperatorManagesGlobalIdentities
+	if operatorManagesCIDs {
+		nsTracking = nsUpdateTracking{
+			oldNS: make(map[string]*slim_corev1.Namespace),
+		}
+	}
+
 	apiGroup := k8sAPIGroupNamespaceV1Core
 	namespaceStore, namespaceController := informer.NewInformer(
 		utils.ListerWatcherFromTyped[*slim_corev1.NamespaceList](slimClient.CoreV1().Namespaces()),
@@ -47,9 +69,29 @@ func (k *K8sWatcher) namespacesInit(slimClient slimclientset.Interface, asyncCon
 							return
 						}
 
-						err := k.updateK8sV1Namespace(oldNS, newNS)
-						k.K8sEventProcessed(metricNS, resources.MetricUpdate, err == nil)
+						if operatorManagesCIDs {
+							nsTracking.mu.Lock()
+							err := k.updateK8sV1Namespace(oldNS, newNS)
+							nsTracking.mu.Unlock()
+							k.K8sEventProcessed(metricNS, resources.MetricUpdate, err == nil)
+							if err != nil {
+								go k.retryNSUpdate(newNS.Name)
+							}
+						} else {
+							err := k.updateK8sV1Namespace(oldNS, newNS)
+							k.K8sEventProcessed(metricNS, resources.MetricUpdate, err == nil)
+						}
 					}
+				}
+			},
+			DeleteFunc: func(obj interface{}) {
+				if !operatorManagesCIDs {
+					return
+				}
+				if ns := k8s.ObjToV1Namespace(obj); ns != nil {
+					nsTracking.mu.Lock()
+					delete(nsTracking.oldNS, ns.Name)
+					nsTracking.mu.Unlock()
 				}
 			},
 		},
@@ -61,6 +103,39 @@ func (k *K8sWatcher) namespacesInit(slimClient slimclientset.Interface, asyncCon
 	k.k8sAPIGroups.AddAPI(apiGroup)
 	asyncControllers.Done()
 	namespaceController.Run(k.stop)
+}
+
+func (k *K8sWatcher) retryNSUpdate(nsName string) {
+	retryFunc := func() error {
+		nsTracking.mu.Lock()
+		defer nsTracking.mu.Unlock()
+
+		nsObj, exists, err := k.namespaceStore.GetByKey(nsName)
+		if err != nil || !exists {
+			// Drop it if it cannot be retrieved from the store.
+			return nil
+		}
+
+		ns, ok := nsObj.(*slim_corev1.Namespace)
+		if !ok {
+			return nil
+		}
+
+		oldNS, exists := nsTracking.oldNS[ns.Name]
+		if !exists || oldNS == nil {
+			return nil
+		}
+
+		return k.updateK8sV1Namespace(oldNS, ns)
+	}
+
+	maxRetries := 8
+	retryDelay := 1 * time.Second
+	for i := 0; i < maxRetries; i++ {
+		retryFunc()
+		time.Sleep(retryDelay)
+		retryDelay = retryDelay * 2
+	}
 }
 
 func (k *K8sWatcher) updateK8sV1Namespace(oldNS, newNS *slim_corev1.Namespace) error {
@@ -102,6 +177,9 @@ func (k *K8sWatcher) updateK8sV1Namespace(oldNS, newNS *slim_corev1.Namespace) e
 		}
 	}
 	if failed {
+		if option.Config.OperatorManagesGlobalIdentities {
+			nsTracking.oldNS[oldNS.Name] = oldNS
+		}
 		return errors.New("unable to update some endpoints with new namespace labels")
 	}
 	return nil

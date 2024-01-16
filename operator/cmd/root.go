@@ -27,9 +27,11 @@ import (
 	operatorMetrics "github.com/cilium/cilium/operator/metrics"
 	operatorOption "github.com/cilium/cilium/operator/option"
 	ces "github.com/cilium/cilium/operator/pkg/ciliumendpointslice"
+	"github.com/cilium/cilium/operator/pkg/ciliumidentity"
 	gatewayapi "github.com/cilium/cilium/operator/pkg/gateway-api"
 	"github.com/cilium/cilium/operator/pkg/ingress"
 	"github.com/cilium/cilium/operator/pkg/lbipam"
+	"github.com/cilium/cilium/operator/watchers"
 	operatorWatchers "github.com/cilium/cilium/operator/watchers"
 	"github.com/cilium/cilium/pkg/components"
 	"github.com/cilium/cilium/pkg/defaults"
@@ -45,6 +47,7 @@ import (
 	k8sClient "github.com/cilium/cilium/pkg/k8s/client"
 	k8sversion "github.com/cilium/cilium/pkg/k8s/version"
 	"github.com/cilium/cilium/pkg/kvstore"
+	"github.com/cilium/cilium/pkg/labelsfilter"
 	"github.com/cilium/cilium/pkg/logging"
 	"github.com/cilium/cilium/pkg/logging/logfields"
 	"github.com/cilium/cilium/pkg/metrics"
@@ -447,6 +450,12 @@ func (legacy *legacyOnLeader) onStart(_ hive.HookContext) error {
 		}()
 	}
 
+	if legacy.clientset.IsEnabled() &&
+		!option.Config.DisableCiliumEndpointCRD &&
+		option.Config.OperatorManagesGlobalIdentities {
+		startCiliumIdentityController(legacy)
+	}
+
 	// Restart kube-dns as soon as possible since it helps etcd-operator to be
 	// properly setup. If kube-dns is not managed by Cilium it can prevent
 	// etcd from reaching out kube-dns in EKS.
@@ -637,34 +646,8 @@ func (legacy *legacyOnLeader) onStart(_ hive.HookContext) error {
 		nodeManager.Resync(legacy.ctx, time.Time{})
 	}
 
-	if operatorOption.Config.IdentityGCInterval != 0 {
-		identityRateLimiter = rate.NewLimiter(
-			operatorOption.Config.IdentityGCRateInterval,
-			operatorOption.Config.IdentityGCRateLimit,
-		)
-		legacy.wg.Add(1)
-		go func() {
-			defer legacy.wg.Done()
-			<-legacy.ctx.Done()
-			identityRateLimiter.Stop()
-		}()
-	}
-
-	switch option.Config.IdentityAllocationMode {
-	case option.IdentityAllocationModeCRD:
-		if !legacy.clientset.IsEnabled() {
-			log.Fatal("CRD Identity allocation mode requires k8s to be configured.")
-		}
-
-		startManagingK8sIdentities(legacy.ctx, &legacy.wg, legacy.clientset)
-
-		if operatorOption.Config.IdentityGCInterval != 0 {
-			go startCRDIdentityGC(legacy.ctx, &legacy.wg, legacy.clientset)
-		}
-	case option.IdentityAllocationModeKVstore:
-		if operatorOption.Config.IdentityGCInterval != 0 {
-			startKvstoreIdentityGC()
-		}
+	if !option.Config.OperatorManagesGlobalIdentities {
+		startSecurityIdentityGC(legacy)
 	}
 
 	if legacy.clientset.IsEnabled() {
@@ -750,4 +733,63 @@ func (legacy *legacyOnLeader) onStart(_ hive.HookContext) error {
 
 	log.Info("Initialization complete")
 	return nil
+}
+
+func startCiliumIdentityController(legacy *legacyOnLeader) {
+	idRelevantLabelsFilter, err := ciliumidentity.GetIDRelevantLabelsFromConfigMap(legacy.ctx, legacy.clientset)
+	if err != nil {
+		log.WithError(err).Fatal("Failed to start Cilium Identity controller")
+	}
+	if err := labelsfilter.ParseLabelPrefixCfg(idRelevantLabelsFilter, ""); err != nil {
+		log.WithError(err).Fatal("Failed to start Cilium Identity controller")
+	}
+
+	cidController := ciliumidentity.NewCIDController(
+		legacy.ctx,
+		legacy.clientset,
+		option.Config.EnableCiliumEndpointSlice,
+		option.Config.EnableGoogleMultiNIC,
+	)
+
+	watchers.CiliumIdentityWatcherInit(legacy.ctx, &legacy.wg, legacy.clientset)
+	watchers.PodsInit(legacy.ctx, &legacy.wg, legacy.clientset)
+	watchers.NamespaceWatcherInit(legacy.ctx, &legacy.wg, legacy.clientset)
+
+	legacy.wg.Add(1)
+	go func() {
+		defer legacy.wg.Done()
+		cidController.Run(legacy.ctx.Done())
+	}()
+}
+
+func startSecurityIdentityGC(legacy *legacyOnLeader) {
+	if operatorOption.Config.IdentityGCInterval != 0 {
+		identityRateLimiter = rate.NewLimiter(
+			operatorOption.Config.IdentityGCRateInterval,
+			operatorOption.Config.IdentityGCRateLimit,
+		)
+		legacy.wg.Add(1)
+		go func() {
+			defer legacy.wg.Done()
+			<-legacy.ctx.Done()
+			identityRateLimiter.Stop()
+		}()
+	}
+
+	switch option.Config.IdentityAllocationMode {
+	case option.IdentityAllocationModeCRD:
+		if !legacy.clientset.IsEnabled() {
+			log.Fatal("CRD Identity allocation mode requires k8s to be configured.")
+		}
+
+		startManagingK8sIdentities(legacy.ctx, &legacy.wg, legacy.clientset)
+
+		if operatorOption.Config.IdentityGCInterval != 0 {
+			go startCRDIdentityGC(legacy.ctx, &legacy.wg, legacy.clientset)
+		}
+	case option.IdentityAllocationModeKVstore:
+		if operatorOption.Config.IdentityGCInterval != 0 {
+			startKvstoreIdentityGC()
+		}
+	}
 }

@@ -74,6 +74,7 @@ cilium-operator-alibabacloud [flags]
       --log-opt map                                Log driver options for cilium-operator, configmap example for syslog driver: {"syslog.level":"info","syslog.facility":"local4"}
       --nodes-gc-interval duration                 GC interval for CiliumNodes (default 5m0s)
       --operator-api-serve-addr string             Address to serve API requests (default "localhost:9234")
+      --operator-manages-global-identities         Denotes whether cilium-operator is responsible for creating global security identities in the form of Cilium Identity custom resource
       --operator-pprof                             Enable pprof debugging endpoint
       --operator-pprof-port int                    Port that the pprof listens on (default 6061)
       --operator-prometheus-serve-addr string      Address to serve Prometheus metrics (default ":9963")

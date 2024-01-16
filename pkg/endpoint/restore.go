@@ -267,6 +267,11 @@ func (e *Endpoint) restoreIdentity() error {
 	case <-allocatedIdentity:
 	}
 
+	// Prevent a crash if AllocateIdentity() returns a nil identity.
+	if id == nil {
+		return fmt.Errorf("unable to restore identity because the identity wasn't allocated")
+	}
+
 	// Wait for initial identities and ipcache from the
 	// kvstore before doing any policy calculation for
 	// endpoints that don't have a fixed identity or are

@@ -16,6 +16,7 @@ import (
 	"github.com/cilium/cilium/pkg/clustermesh"
 	"github.com/cilium/cilium/pkg/identity"
 	"github.com/cilium/cilium/pkg/identity/cache"
+	"github.com/cilium/cilium/pkg/identity/hybrid"
 	"github.com/cilium/cilium/pkg/identity/identitymanager"
 	identitymodel "github.com/cilium/cilium/pkg/identity/model"
 	"github.com/cilium/cilium/pkg/k8s/client/clientset/versioned"
@@ -116,4 +117,24 @@ func (c cachingIdentityAllocator) AllocateCIDRsForIPs(ips []net.IP, newlyAllocat
 
 func (c cachingIdentityAllocator) ReleaseCIDRIdentitiesByID(ctx context.Context, identities []identity.NumericIdentity) {
 	c.d.ipcache.ReleaseCIDRIdentitiesByID(ctx, identities)
+}
+
+func NewHybridIDAllocator(d *Daemon) localOnlyIdentityAllocator {
+	return localOnlyIdentityAllocator{
+		HybridIDAllocator: hybrid.NewHybridIDAllocator(d),
+		d:                 d,
+	}
+}
+
+type localOnlyIdentityAllocator struct {
+	*hybrid.HybridIDAllocator
+	d *Daemon
+}
+
+func (l localOnlyIdentityAllocator) AllocateCIDRsForIPs(ips []net.IP, newlyAllocatedIdentities map[netip.Prefix]*identity.Identity) ([]*identity.Identity, error) {
+	return l.d.ipcache.AllocateCIDRsForIPs(ips, newlyAllocatedIdentities)
+}
+
+func (l localOnlyIdentityAllocator) ReleaseCIDRIdentitiesByID(ctx context.Context, identities []identity.NumericIdentity) {
+	l.d.ipcache.ReleaseCIDRIdentitiesByID(ctx, identities)
 }

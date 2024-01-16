@@ -361,6 +361,9 @@ func init() {
 	}
 	option.BindEnv(Vp, operatorOption.CESDynamicRateLimitQPSBurst)
 
+	flags.Bool(option.OperatorManagesGlobalIdentities, false, "Denotes whether cilium-operator is responsible for creating global security identities in the form of Cilium Identity custom resource")
+	option.BindEnv(Vp, option.OperatorManagesGlobalIdentities)
+
 	flags.String(operatorOption.CiliumK8sNamespace, "", fmt.Sprintf("Name of the Kubernetes namespace in which Cilium is deployed in. Defaults to the same namespace defined in %s", option.K8sNamespaceName))
 	option.BindEnv(Vp, operatorOption.CiliumK8sNamespace)
 

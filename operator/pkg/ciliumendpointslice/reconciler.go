@@ -42,7 +42,7 @@ func (r *reconciler) reconcileCES(ces string) (err error) {
 		metrics.CiliumEndpointSliceDensity.Observe(float64(desiredCEPsNumber))
 	}
 	// Check the CES exists is in cesStore i.e. in api-server copy of CESs, if exist update or delete the CES.
-	obj, exists, err := ceSliceStore.GetByKey(ces)
+	obj, exists, err := CESliceStore.GetByKey(ces)
 	if err != nil {
 		return
 	}

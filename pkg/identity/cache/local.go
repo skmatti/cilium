@@ -15,7 +15,7 @@ import (
 	"github.com/cilium/cilium/pkg/lock"
 )
 
-type localIdentityCache struct {
+type LocalIdentityCache struct {
 	mutex               lock.RWMutex
 	identitiesByID      map[identity.NumericIdentity]*identity.Identity
 	identitiesByLabels  map[string]*identity.Identity
@@ -25,8 +25,8 @@ type localIdentityCache struct {
 	events              allocator.AllocatorEventChan
 }
 
-func newLocalIdentityCache(minID, maxID identity.NumericIdentity, events allocator.AllocatorEventChan) *localIdentityCache {
-	return &localIdentityCache{
+func NewLocalIdentityCache(minID, maxID identity.NumericIdentity, events allocator.AllocatorEventChan) *LocalIdentityCache {
+	return &LocalIdentityCache{
 		identitiesByID:      map[identity.NumericIdentity]*identity.Identity{},
 		identitiesByLabels:  map[string]*identity.Identity{},
 		nextNumericIdentity: minID,
@@ -36,7 +36,7 @@ func newLocalIdentityCache(minID, maxID identity.NumericIdentity, events allocat
 	}
 }
 
-func (l *localIdentityCache) bumpNextNumericIdentity() {
+func (l *LocalIdentityCache) BumpNextNumericIdentity() {
 	if l.nextNumericIdentity == l.maxID {
 		l.nextNumericIdentity = l.minID
 	} else {
@@ -44,11 +44,11 @@ func (l *localIdentityCache) bumpNextNumericIdentity() {
 	}
 }
 
-// getNextFreeNumericIdentity returns the next available numeric identity or an error
+// GetNextFreeNumericIdentity returns the next available numeric identity or an error
 // If idCandidate has the local scope and is available, it will be returned instead of
 // searching for a new numeric identity.
 // The l.mutex must be held
-func (l *localIdentityCache) getNextFreeNumericIdentity(idCandidate identity.NumericIdentity) (identity.NumericIdentity, error) {
+func (l *LocalIdentityCache) GetNextFreeNumericIdentity(idCandidate identity.NumericIdentity) (identity.NumericIdentity, error) {
 	// Try first with the given candidate
 	if idCandidate.HasLocalScope() {
 		if _, taken := l.identitiesByID[idCandidate]; !taken {
@@ -61,26 +61,26 @@ func (l *localIdentityCache) getNextFreeNumericIdentity(idCandidate identity.Num
 	for {
 		idCandidate = l.nextNumericIdentity | identity.LocalIdentityFlag
 		if _, taken := l.identitiesByID[idCandidate]; !taken {
-			l.bumpNextNumericIdentity()
+			l.BumpNextNumericIdentity()
 			return idCandidate, nil
 		}
 
-		l.bumpNextNumericIdentity()
+		l.BumpNextNumericIdentity()
 		if l.nextNumericIdentity == firstID {
 			return 0, fmt.Errorf("out of local identity space")
 		}
 	}
 }
 
-// lookupOrCreate searches for the existence of a local identity with the given
+// LookupOrCreate searches for the existence of a local identity with the given
 // labels. If it exists, the reference count is incremented and the identity is
 // returned. If it does not exist, a new identity is created with a unique
-// numeric identity. All identities returned by lookupOrCreate() must be
+// numeric identity. All identities returned by LookupOrCreate() must be
 // released again via localIdentityCache.release().
 // A possible previously used numeric identity for these labels can be passed
 // in as the 'oldNID' parameter; identity.InvalidIdentity must be passed if no
 // previous numeric identity exists. 'oldNID' will be reallocated if available.
-func (l *localIdentityCache) lookupOrCreate(lbls labels.Labels, oldNID identity.NumericIdentity) (*identity.Identity, bool, error) {
+func (l *LocalIdentityCache) LookupOrCreate(lbls labels.Labels, oldNID identity.NumericIdentity) (*identity.Identity, bool, error) {
 	// Not converting to string saves an allocation, as byte key lookups into
 	// string maps are optimized by the compiler, see
 	// https://github.com/golang/go/issues/3512.
@@ -94,7 +94,7 @@ func (l *localIdentityCache) lookupOrCreate(lbls labels.Labels, oldNID identity.
 		return id, false, nil
 	}
 
-	numericIdentity, err := l.getNextFreeNumericIdentity(oldNID)
+	numericIdentity, err := l.GetNextFreeNumericIdentity(oldNID)
 	if err != nil {
 		return nil, false, err
 	}
@@ -123,7 +123,7 @@ func (l *localIdentityCache) lookupOrCreate(lbls labels.Labels, oldNID identity.
 // release releases a local identity from the cache. true is returned when the
 // last use of the identity has been released and the identity has been
 // forgotten.
-func (l *localIdentityCache) release(id *identity.Identity) bool {
+func (l *LocalIdentityCache) Release(id *identity.Identity) bool {
 	l.mutex.Lock()
 	defer l.mutex.Unlock()
 
@@ -156,7 +156,7 @@ func (l *localIdentityCache) release(id *identity.Identity) bool {
 // lookup searches for a local identity matching the given labels and returns
 // it. If found, the reference count is NOT incremented and thus release must
 // NOT be called.
-func (l *localIdentityCache) lookup(lbls labels.Labels) *identity.Identity {
+func (l *LocalIdentityCache) Lookup(lbls labels.Labels) *identity.Identity {
 	l.mutex.RLock()
 	defer l.mutex.RUnlock()
 
@@ -170,7 +170,7 @@ func (l *localIdentityCache) lookup(lbls labels.Labels) *identity.Identity {
 // lookupByID searches for a local identity matching the given ID and returns
 // it. If found, the reference count is NOT incremented and thus release must
 // NOT be called.
-func (l *localIdentityCache) lookupByID(id identity.NumericIdentity) *identity.Identity {
+func (l *LocalIdentityCache) LookupByID(id identity.NumericIdentity) *identity.Identity {
 	l.mutex.RLock()
 	defer l.mutex.RUnlock()
 
@@ -182,7 +182,7 @@ func (l *localIdentityCache) lookupByID(id identity.NumericIdentity) *identity.I
 }
 
 // GetIdentities returns all local identities
-func (l *localIdentityCache) GetIdentities() map[identity.NumericIdentity]*identity.Identity {
+func (l *LocalIdentityCache) GetIdentities() map[identity.NumericIdentity]*identity.Identity {
 	cache := map[identity.NumericIdentity]*identity.Identity{}
 
 	l.mutex.RLock()

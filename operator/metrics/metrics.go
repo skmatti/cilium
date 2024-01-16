@@ -118,6 +118,10 @@ var (
 	// CiliumEndpointSliceQueueDelay measures the time spent by CES's in the workqueue. This measures time difference between
 	// CES insert in the workqueue and removal from workqueue.
 	CiliumEndpointSliceQueueDelay prometheus.Histogram
+
+	CIDControllerWorkqueueEventCount *prometheus.CounterVec
+
+	CIDControllerWorkqueueLatency prometheus.ObserverVec
 )
 
 const (
@@ -129,6 +133,12 @@ const (
 
 	// LabelOpcode indicates the kind of CES metric, could be CEP insert or remove
 	LabelOpcode = "opcode"
+
+	// LabelWorkqueue indicates workqueues that the metrics are attributed to.
+	LabelWorkqueue = "workqueue"
+
+	// LabelPhase indicates the phases the metrics are attributed to.
+	LabelPhase = "period"
 
 	// Label values
 
@@ -149,6 +159,14 @@ const (
 
 	// LabelValueCEPRemove is used to indicate the number of CEPs removed from a CES
 	LabelValueCEPRemove = "cepremoved"
+
+	LabelValueCIDWorkqueue = "cilium-identity"
+
+	LabelValuePodWorkqueue = "pod"
+
+	LabelValueEnqueuedLatency = "enqueued"
+
+	LabelValueProcessingLatency = "processing"
 )
 
 func registerMetrics() []prometheus.Collector {
@@ -208,6 +226,21 @@ func registerMetrics() []prometheus.Collector {
 		Buckets:   append(prometheus.DefBuckets, 60, 300, 900, 1800, 3600),
 	})
 	collectors = append(collectors, CiliumEndpointSliceQueueDelay)
+
+	CIDControllerWorkqueueEventCount = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Namespace: Namespace,
+		Name:      "cid_controller_workqueue_event_count",
+		Help:      "Number processed successful and failed events by Cilium Identity controller workqueues",
+	}, []string{LabelWorkqueue, LabelOutcome})
+	collectors = append(collectors, CIDControllerWorkqueueEventCount)
+
+	CIDControllerWorkqueueLatency = prometheus.NewHistogramVec(prometheus.HistogramOpts{
+		Namespace: Namespace,
+		Name:      "cid_controller_workqueue_latency",
+		Help:      "Duration of Cilium Identity controller workqueues enqueuing and processing latencies in seconds",
+		Buckets:   append(prometheus.DefBuckets, 60, 300, 900, 1800, 3600),
+	}, []string{LabelWorkqueue, LabelPhase})
+	collectors = append(collectors, CIDControllerWorkqueueLatency)
 
 	Registry.MustRegister(collectors...)
 

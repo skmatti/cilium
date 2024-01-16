@@ -242,6 +242,7 @@ cilium-agent [flags]
       --mtu int                                                 Overwrite auto-detected MTU of underlying network
       --node-port-bind-protection                               Reject application bind(2) requests to service ports in the NodePort range (default true)
       --node-port-range strings                                 Set the min/max NodePort port range (default [30000,32767])
+      --operator-manages-global-identities                      Denotes whether cilium-operator is responsible for creating global security identities in the form of Cilium Identity custom resource
       --policy-audit-mode                                       Enable policy audit (non-drop) mode
       --policy-queue-size int                                   Size of queues for policy-related events (default 100)
       --pprof                                                   Enable serving pprof debugging API

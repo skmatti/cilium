@@ -623,7 +623,13 @@ func newDaemon(ctx context.Context, cleaner *daemonCleanup,
 	//
 	// TODO: convert these package level variables to types for easier unit
 	// testing in the future.
-	d.identityAllocator = NewCachingIdentityAllocator(&d)
+	operatorManagesCIDs := option.Config.OperatorManagesGlobalIdentities
+	if operatorManagesCIDs {
+		d.identityAllocator = NewHybridIDAllocator(&d)
+	} else {
+		d.identityAllocator = NewCachingIdentityAllocator(&d)
+	}
+
 	if err := d.initPolicy(epMgr); err != nil {
 		return nil, nil, fmt.Errorf("error while initializing policy subsystem: %w", err)
 	}
@@ -633,6 +639,7 @@ func newDaemon(ctx context.Context, cleaner *daemonCleanup,
 		PolicyHandler:     d.policy.GetSelectorCache(),
 		DatapathHandler:   epMgr,
 	})
+
 	// Preallocate IDs for old CIDRs. This must be done before any Identity allocations are
 	// possible so that the old IDs are still available. That is why we do this ASAP after the
 	// new (userspace) ipcache is created above.
@@ -1244,6 +1251,11 @@ func newDaemon(ctx context.Context, cleaner *daemonCleanup,
 	}
 
 	if option.Config.DatapathMode != datapathOption.DatapathModeLBOnly {
+		if operatorManagesCIDs {
+			stopChan := make(chan struct{})
+			watchers.InitCIDWatcher(d.clientset.CiliumV2(), stopChan)
+		}
+
 		// This needs to be done after the node addressing has been configured
 		// as the node address is required as suffix.
 		// well known identities have already been initialized above.

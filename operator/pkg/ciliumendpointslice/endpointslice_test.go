@@ -14,17 +14,11 @@ import (
 	meta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/cache"
 
+	tu "github.com/cilium/cilium/operator/pkg/ciliumendpointslice/testutils"
 	v2 "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2"
 	capi_v2a1 "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2alpha1"
 	"github.com/cilium/cilium/pkg/k8s/client"
 )
-
-func createManagerEndpoint(name string, identity int64) capi_v2a1.CoreCiliumEndpoint {
-	return capi_v2a1.CoreCiliumEndpoint{
-		Name:       name,
-		IdentityID: identity,
-	}
-}
 
 func createStoreEndpoint(name string, namespace string, identity int64) *v2.CiliumEndpoint {
 	return &v2.CiliumEndpoint{
@@ -64,17 +58,17 @@ func TestSyncCESsInLocalCache(t *testing.T) {
 	_, c := client.NewFakeClientset()
 	cesController := NewCESController(context.Background(), &sync.WaitGroup{}, c, 5, "", 10, 20, false, []string{}, []string{}, []string{})
 
-	cep1 := createManagerEndpoint("cep1", 1)
-	cep2 := createManagerEndpoint("cep2", 1)
-	cep3 := createManagerEndpoint("cep3", 2)
-	cep4 := createManagerEndpoint("cep4", 2)
+	cep1 := tu.CreateManagerEndpoint("cep1", 1)
+	cep2 := tu.CreateManagerEndpoint("cep2", 1)
+	cep3 := tu.CreateManagerEndpoint("cep3", 2)
+	cep4 := tu.CreateManagerEndpoint("cep4", 2)
 	ces1 := createStoreEndpointSlice("ces1", "ns", []capi_v2a1.CoreCiliumEndpoint{cep1, cep2, cep3, cep4})
-	ceSliceStore.Add(ces1)
-	cep5 := createManagerEndpoint("cep5", 1)
-	cep6 := createManagerEndpoint("cep6", 1)
-	cep7 := createManagerEndpoint("cep7", 2)
+	CESliceStore.Add(ces1)
+	cep5 := tu.CreateManagerEndpoint("cep5", 1)
+	cep6 := tu.CreateManagerEndpoint("cep6", 1)
+	cep7 := tu.CreateManagerEndpoint("cep7", 2)
 	ces2 := createStoreEndpointSlice("ces2", "ns", []capi_v2a1.CoreCiliumEndpoint{cep5, cep6, cep7})
-	ceSliceStore.Add(ces2)
+	CESliceStore.Add(ces2)
 
 	cesController.syncCESsInLocalCache()
 
@@ -109,10 +103,10 @@ func TestEnqueueingPreIntitialization(t *testing.T) {
 	cesController.OnEndpointUpdate(cep2)
 	cesController.OnEndpointUpdate(cep3)
 	cesController.OnEndpointDelete(cep2)
-	ces1 := createStoreEndpointSlice("ces1", "ns", []capi_v2a1.CoreCiliumEndpoint{createManagerEndpoint("cep1", 1), createManagerEndpoint("cep3", 2)})
-	ceSliceStore.Add(ces1)
-	ces2 := createStoreEndpointSlice("ces2", "ns", []capi_v2a1.CoreCiliumEndpoint{createManagerEndpoint("cep2", 1)})
-	ceSliceStore.Add(ces2)
+	ces1 := createStoreEndpointSlice("ces1", "ns", []capi_v2a1.CoreCiliumEndpoint{tu.CreateManagerEndpoint("cep1", 1), tu.CreateManagerEndpoint("cep3", 2)})
+	CESliceStore.Add(ces1)
+	ces2 := createStoreEndpointSlice("ces2", "ns", []capi_v2a1.CoreCiliumEndpoint{tu.CreateManagerEndpoint("cep2", 1)})
+	CESliceStore.Add(ces2)
 	time.Sleep(DefaultCESSyncTime * 2) // elements are added to the queue with a default delay
 	assert.Equal(t, 0, cesController.queue.Len())
 	assert.Equal(t, 4, len(cesController.preInitEnqueuedEndpointsEvents))

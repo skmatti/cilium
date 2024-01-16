@@ -1,6 +1,9 @@
 package labels
 
 import (
+	"errors"
+	"fmt"
+
 	networkv1 "k8s.io/cloud-provider-gcp/crd/apis/network/v1"
 )
 
@@ -33,4 +36,29 @@ func (l Labels) MergeMultiNICLabels(from Labels) {
 // the provided value in the format "k8s:networking.gke.io/network=value".
 func GetMultiNICNetworkLabel(v string) string {
 	return generateLabelString(LabelSourceK8s, MultinicNetwork, v)
+}
+
+// FetchMultiNICAnnotation returns the default interface name and interface annotation from the provided
+// annotations. The function also verifies the default interface must be specified and referenced in
+// the interface annotation. Otherwise, an error is returned.
+func FetchMultiNICAnnotation(annotations map[string]string) (string, networkv1.InterfaceAnnotation, error) {
+	interfaces, ok := annotations[networkv1.InterfaceAnnotationKey]
+	if !ok {
+		// This is not a multi-nic pod since the interface annotation is not found.
+		return "", nil, nil
+	}
+	defaultInterface, ok := annotations[networkv1.DefaultInterfaceAnnotationKey]
+	if !ok {
+		return "", nil, errors.New("default interface must be specified for multi-nic pod")
+	}
+	interfaceAnnotation, err := networkv1.ParseInterfaceAnnotation(interfaces)
+	if err != nil {
+		return "", nil, fmt.Errorf("failed to parse interface annotation: %v", err)
+	}
+	for _, ref := range interfaceAnnotation {
+		if ref.InterfaceName == defaultInterface {
+			return defaultInterface, interfaceAnnotation, nil
+		}
+	}
+	return "", nil, fmt.Errorf("default interface %q must be referenced in the interface annotation %s", defaultInterface, interfaces)
 }

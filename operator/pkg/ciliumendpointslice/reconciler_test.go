@@ -11,6 +11,7 @@ import (
 	k8sTesting "k8s.io/client-go/testing"
 	"k8s.io/client-go/tools/cache"
 
+	tu "github.com/cilium/cilium/operator/pkg/ciliumendpointslice/testutils"
 	"github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2alpha1"
 	"github.com/cilium/cilium/pkg/k8s/client"
 )
@@ -27,7 +28,7 @@ func TestReconcileCreate(t *testing.T) {
 	})
 	r := newReconciler(c.CiliumFakeClientset.CiliumV2alpha1(), m)
 	r.ciliumEndpointStore = cache.NewStore(cache.DeletionHandlingMetaNamespaceKeyFunc)
-	ceSliceStore = cache.NewStore(cache.DeletionHandlingMetaNamespaceKeyFunc)
+	CESliceStore = cache.NewStore(cache.DeletionHandlingMetaNamespaceKeyFunc)
 
 	cep1 := createStoreEndpoint("cep1", "ns", 1)
 	r.ciliumEndpointStore.Add(cep1)
@@ -62,7 +63,7 @@ func TestReconcileUpdate(t *testing.T) {
 	})
 	r := newReconciler(c.CiliumFakeClientset.CiliumV2alpha1(), m)
 	r.ciliumEndpointStore = cache.NewStore(cache.DeletionHandlingMetaNamespaceKeyFunc)
-	ceSliceStore = cache.NewStore(cache.DeletionHandlingMetaNamespaceKeyFunc)
+	CESliceStore = cache.NewStore(cache.DeletionHandlingMetaNamespaceKeyFunc)
 
 	cep1 := createStoreEndpoint("cep1", "ns", 1)
 	r.ciliumEndpointStore.Add(cep1)
@@ -70,8 +71,8 @@ func TestReconcileUpdate(t *testing.T) {
 	r.ciliumEndpointStore.Add(cep2)
 	cep3 := createStoreEndpoint("cep3", "ns", 2)
 	r.ciliumEndpointStore.Add(cep3)
-	ces1 := createStoreEndpointSlice("ces1", "ns", []v2alpha1.CoreCiliumEndpoint{createManagerEndpoint("cep1", 1), createManagerEndpoint("cep3", 2)})
-	ceSliceStore.Add(ces1)
+	ces1 := createStoreEndpointSlice("ces1", "ns", []v2alpha1.CoreCiliumEndpoint{tu.CreateManagerEndpoint("cep1", 1), tu.CreateManagerEndpoint("cep3", 2)})
+	CESliceStore.Add(ces1)
 	m.mapping.insertCES("ces1", "ns")
 	m.mapping.insertCES("ces2", "ns")
 	m.mapping.insertCEP("ns/cep1", "ces1")
@@ -101,7 +102,7 @@ func TestReconcileDelete(t *testing.T) {
 	})
 	r := newReconciler(c.CiliumFakeClientset.CiliumV2alpha1(), m)
 	r.ciliumEndpointStore = cache.NewStore(cache.DeletionHandlingMetaNamespaceKeyFunc)
-	ceSliceStore = cache.NewStore(cache.DeletionHandlingMetaNamespaceKeyFunc)
+	CESliceStore = cache.NewStore(cache.DeletionHandlingMetaNamespaceKeyFunc)
 
 	cep1 := createStoreEndpoint("cep1", "ns", 1)
 	r.ciliumEndpointStore.Add(cep1)
@@ -109,8 +110,8 @@ func TestReconcileDelete(t *testing.T) {
 	r.ciliumEndpointStore.Add(cep2)
 	cep3 := createStoreEndpoint("cep3", "ns", 2)
 	r.ciliumEndpointStore.Add(cep3)
-	ces1 := createStoreEndpointSlice("ces1", "ns", []v2alpha1.CoreCiliumEndpoint{createManagerEndpoint("cep1", 1), createManagerEndpoint("cep3", 2)})
-	ceSliceStore.Add(ces1)
+	ces1 := createStoreEndpointSlice("ces1", "ns", []v2alpha1.CoreCiliumEndpoint{tu.CreateManagerEndpoint("cep1", 1), tu.CreateManagerEndpoint("cep3", 2)})
+	CESliceStore.Add(ces1)
 	m.mapping.insertCES("ces1", "ns")
 	m.mapping.insertCES("ces2", "ns")
 	m.mapping.insertCEP("ns/cep1", "ces2")
@@ -133,7 +134,7 @@ func TestReconcileNoop(t *testing.T) {
 	})
 	r := newReconciler(c.CiliumFakeClientset.CiliumV2alpha1(), m)
 	r.ciliumEndpointStore = cache.NewStore(cache.DeletionHandlingMetaNamespaceKeyFunc)
-	ceSliceStore = cache.NewStore(cache.DeletionHandlingMetaNamespaceKeyFunc)
+	CESliceStore = cache.NewStore(cache.DeletionHandlingMetaNamespaceKeyFunc)
 
 	cep1 := createStoreEndpoint("cep1", "ns", 1)
 	r.ciliumEndpointStore.Add(cep1)

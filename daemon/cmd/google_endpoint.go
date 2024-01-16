@@ -122,7 +122,7 @@ func (d *Daemon) createMultiNICEndpoints(ctx context.Context, owner regeneration
 		return d.errorDuringMultiNICCreation(primaryEp, PutEndpointIDInvalidCode, errors.New("k8s pod is not found"))
 	}
 
-	defaultInterface, interfaceAnnotation, err := fetchMultiNICAnnotation(annotations)
+	defaultInterface, interfaceAnnotation, err := labels.FetchMultiNICAnnotation(annotations)
 	if err == nil && interfaceAnnotation == nil {
 		log.Debugf("Multinic annotation is not found for pod %q, expect this is not a multinic pod", podID)
 		return nil, PutEndpointIDCreatedCode, nil
@@ -649,7 +649,7 @@ func (d *Daemon) DeleteEndpoints(ctx context.Context, id string) (int, error) {
 	var interfaceAnnotation networkv1.InterfaceAnnotation
 	ifNameToInterfaceCR := map[string]*networkv1.NetworkInterface{}
 	if len(annotations) > 0 {
-		_, interfaceAnnotation, err = fetchMultiNICAnnotation(annotations)
+		_, interfaceAnnotation, err = labels.FetchMultiNICAnnotation(annotations)
 		if err == nil && interfaceAnnotation == nil {
 			log.Debugf("Multinic annotation is not found for pod %s/%s, expect this is not a multinic pod", podNS, podName)
 		}
@@ -766,31 +766,6 @@ func cleanupMultiNICDevMap(eps []*endpoint.Endpoint) {
 		}
 	}
 	return
-}
-
-// fetchMultiNICAnnotation returns the default interface name and interface annotation from the provided
-// annotations. The function also verifies the default interface must be specified and referenced in
-// the interface annotation. Otherwise, an error is returned.
-func fetchMultiNICAnnotation(annotations map[string]string) (string, networkv1.InterfaceAnnotation, error) {
-	interfaces, ok := annotations[networkv1.InterfaceAnnotationKey]
-	if !ok {
-		// This is not a multi-nic pod since the interface annotation is not found.
-		return "", nil, nil
-	}
-	defaultInterface, ok := annotations[networkv1.DefaultInterfaceAnnotationKey]
-	if !ok {
-		return "", nil, errors.New("default interface must be specified for multi-nic pod")
-	}
-	interfaceAnnotation, err := networkv1.ParseInterfaceAnnotation(interfaces)
-	if err != nil {
-		return "", nil, fmt.Errorf("failed to parse interface annotation: %v", err)
-	}
-	for _, ref := range interfaceAnnotation {
-		if ref.InterfaceName == defaultInterface {
-			return defaultInterface, interfaceAnnotation, nil
-		}
-	}
-	return "", nil, fmt.Errorf("default interface %q must be referenced in the interface annotation %s", defaultInterface, interfaces)
 }
 
 func convertNetworkSpecToInterface(network *networkv1.Network) *networkv1.NetworkInterface {
