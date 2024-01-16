@@ -1163,20 +1163,30 @@ func isStaticNetwork(network *networkv1.Network) bool {
 }
 
 func extractRoutes(network *networkv1.Network, netParamsObj client.Object) ([]networkv1.Route, error) {
-	ret := network.Spec.Routes
 	if netParamsObj == nil {
-		return ret, nil
+		return network.Spec.Routes, nil
+	}
+	knownRoutes := make(map[string]bool)
+	for _, route := range network.Spec.Routes {
+		if _, exists := knownRoutes[route.To]; exists {
+			return nil, fmt.Errorf("Routes in Network %s are not unique %+v", network.Name, network.Spec.Routes)
+		}
+		knownRoutes[route.To] = true
 	}
 	if network.Spec.Type == networkv1.L3NetworkType || network.Spec.Type == networkv1.DeviceNetworkType {
 		if gkeparam, ok := netParamsObj.(*networkv1.GKENetworkParamSet); ok {
 			for _, cidr := range gkeparam.Status.PodCIDRs.CIDRBlocks {
-				ret = append(ret, networkv1.Route{To: cidr})
+				knownRoutes[cidr] = true
 			}
 		} else {
 			return nil, fmt.Errorf("Expected GKENetworkParamSet but got unknown param struct [%T] %+v", netParamsObj, netParamsObj)
 		}
 	}
-	return ret, nil
+	var allRoutes []networkv1.Route
+	for cidr := range knownRoutes {
+		allRoutes = append(allRoutes, networkv1.Route{To: cidr})
+	}
+	return allRoutes, nil
 }
 
 func populateInterfaceStatus(intf *networkv1.NetworkInterface, network *networkv1.Network, cfg *interfaceConfiguration, dhcpResp *dhcp.DHCPResponse, podName string, netParamsObj client.Object) error {
