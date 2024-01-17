@@ -2,11 +2,13 @@ package cmd
 
 import (
 	"net"
+	"net/netip"
 	"strings"
 	"testing"
 
 	"github.com/cilium/cilium/pkg/cidr"
 	"github.com/cilium/cilium/pkg/datapath/fake"
+	"github.com/cilium/cilium/pkg/endpoint"
 	"github.com/cilium/cilium/pkg/ipam"
 	ipamOption "github.com/cilium/cilium/pkg/ipam/option"
 	"github.com/cilium/cilium/pkg/k8s/watchers"
@@ -334,5 +336,80 @@ func TestAllocateIP(t *testing.T) {
 			}
 			d.ipam.MultiNetworkAllocators = nil
 		})
+	}
+}
+
+func TestReleaseMultiNICIP(t *testing.T) {
+	option.Config.IPAM = ipamOption.IPAMKubernetes
+	d := Daemon{datapath: fake.NewDatapath(), nodeDiscovery: &nodediscovery.NodeDiscovery{}, k8sWatcher: &watchers.K8sWatcher{}, mtuConfig: mtu.Configuration{}}
+	d.startIPAM()
+
+	testCases := []struct {
+		desc               string
+		preAllocatedIPs    map[string]string
+		releaseIP          string
+		endpoint           *endpoint.Endpoint
+		network            string
+		existingAllocators map[string]ipam.Allocator
+		wantErr            error
+	}{
+		{
+			desc: "should release allocated IP when endpoint IP matches",
+			preAllocatedIPs: map[string]string{
+				"10.0.0.1": "",
+			},
+			network: "my-network",
+			existingAllocators: map[string]ipam.Allocator{
+				"my-network": ipam.NewHostScopeAllocator(&net.IPNet{IP: net.IPv4(10, 0, 0, 0), Mask: net.IPv4Mask(255, 255, 224, 0)}),
+			},
+			endpoint: &endpoint.Endpoint{
+				IPv4: netip.MustParseAddr("10.0.0.1"),
+			},
+		},
+		{
+			desc: "should not release pre-allocated IPs when endpoint IP does not match",
+			preAllocatedIPs: map[string]string{
+				"10.0.0.1": "",
+			},
+			network: "my-network",
+			existingAllocators: map[string]ipam.Allocator{
+				"my-network": ipam.NewHostScopeAllocator(&net.IPNet{IP: net.IPv4(10, 0, 0, 0), Mask: net.IPv4Mask(255, 255, 224, 0)}),
+			},
+			endpoint: &endpoint.Endpoint{
+				IPv4: netip.MustParseAddr("20.0.0.1"),
+			},
+		},
+	}
+	for _, tc := range testCases {
+		// set existing allocators per test case
+		d.ipam.MultiNetworkAllocators = tc.existingAllocators
+		// pre-allocate IPs in allocators
+		for ip := range tc.preAllocatedIPs {
+			allocator := d.ipam.MultiNetworkAllocators[tc.network]
+			if _, err := allocator.Allocate(net.ParseIP(ip), ""); err != nil {
+				t.Fatalf("error while pre allocating ip address %s: %v", ip, err)
+			}
+		}
+		// attempt releasing IP
+		err := d.releaseMultiNICIP(tc.endpoint)
+		if err != tc.wantErr {
+			t.Fatalf("unexpected error, got: %v, want: %v", err, tc.wantErr)
+		}
+		remainingIPs, _ := d.ipam.MultiNetworkAllocators[tc.network].Dump()
+		// verify endpoint's IP should not be present in IPAM allocators remaining IPs
+		for ip := range remainingIPs {
+			if tc.endpoint.GetIPv4Address() == ip {
+				t.Fatalf("ip address %s was expected to be absent from IPAM allocators, still exists", tc.endpoint.GetIPv4Address())
+			}
+		}
+		// verify pre-allocated IPs whose IPs DO NOT match with endpoint being deleted still exist in IPAM allocators.
+		for ip := range tc.preAllocatedIPs {
+			if ip == tc.endpoint.GetIPv4Address() {
+				continue
+			}
+			if _, ok := remainingIPs[ip]; !ok {
+				t.Fatalf("ip address %s was expected to be present in IPAM allocators, is absent", ip)
+			}
+		}
 	}
 }

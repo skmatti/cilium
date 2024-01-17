@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"hash/crc32"
-	"net"
 	"net/netip"
 	"sync"
 	"time"
@@ -557,14 +556,9 @@ func (d *Daemon) deleteMultiNICEndpointQuiet(ep *endpoint.Endpoint, conf endpoin
 		// not released and instead should just expire for this pod.
 		d.dhcpClient.Release(ep.GetContainerID(), netNS, ifNameInPod, podChanged)
 	} else {
-		d.ipam.MultiNetworkAllocatorMutex.Lock()
-		for _, allocator := range d.ipam.MultiNetworkAllocators {
-			err := allocator.Release(net.IP(ep.GetIPv4Address()))
-			if err != nil {
-				errs = append(errs, err)
-			}
+		if err := d.releaseMultiNICIP(ep); err != nil {
+			errs = append(errs, err)
 		}
-		d.ipam.MultiNetworkAllocatorMutex.Unlock()
 	}
 	var err error
 	switch deviceType {
@@ -584,6 +578,19 @@ func (d *Daemon) deleteMultiNICEndpointQuiet(ep *endpoint.Endpoint, conf endpoin
 	}
 
 	return errs
+}
+
+func (d *Daemon) releaseMultiNICIP(ep *endpoint.Endpoint) error {
+	d.ipam.MultiNetworkAllocatorMutex.Lock()
+	defer d.ipam.MultiNetworkAllocatorMutex.Unlock()
+
+	for _, allocator := range d.ipam.MultiNetworkAllocators {
+		err := allocator.Release(ep.IPv4.AsSlice())
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (d *Daemon) restoreInterfaceIfDeviceNetwork(ctx context.Context, ref networkv1.InterfaceRef, netns string) error {
