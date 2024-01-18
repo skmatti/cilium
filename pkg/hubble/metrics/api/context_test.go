@@ -107,6 +107,14 @@ func TestParseGetLabelValues(t *testing.T) {
 	assert.Nil(t, err)
 	assert.EqualValues(t, mustGetLabelValues(opts, &pb.Flow{Destination: &pb.Endpoint{Namespace: "foo", PodName: "bar"}}), []string{"foo/bar"})
 
+	opts, err = ParseContextOptions(Options{"sourceContext": "pod-short"})
+	assert.Nil(t, err)
+	assert.EqualValues(t, mustGetLabelValues(opts, &pb.Flow{Source: &pb.Endpoint{Namespace: "foo", PodName: "foo-123"}}), []string{"foo/foo"})
+
+	opts, err = ParseContextOptions(Options{"destinationContext": "pod-short"})
+	assert.Nil(t, err)
+	assert.EqualValues(t, mustGetLabelValues(opts, &pb.Flow{Destination: &pb.Endpoint{Namespace: "foo", PodName: "bar-bar-123-123"}}), []string{"foo/bar-bar"})
+
 	opts, err = ParseContextOptions(Options{"sourceContext": "pod-name"})
 	assert.Nil(t, err)
 	assert.EqualValues(t, mustGetLabelValues(opts, &pb.Flow{Source: &pb.Endpoint{Namespace: "foo", PodName: "foo-123"}}), []string{"foo-123"})
@@ -285,6 +293,12 @@ func TestParseGetLabelValues(t *testing.T) {
 			"unknown",
 		},
 	)
+}
+
+func TestShortenPodName(t *testing.T) {
+	assert.EqualValues(t, shortenPodName("pod-x-123-1123123"), "pod-x")
+	assert.EqualValues(t, shortenPodName("pod-0000"), "pod")
+	assert.EqualValues(t, shortenPodName("pod-pod-pod-1-1"), "pod-pod-pod")
 }
 
 func Test_reservedIdentityContext(t *testing.T) {

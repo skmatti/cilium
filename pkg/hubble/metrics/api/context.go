@@ -5,6 +5,7 @@ package api
 
 import (
 	"fmt"
+	"regexp"
 	"sort"
 	"strings"
 
@@ -29,6 +30,9 @@ const (
 	ContextNamespace
 	// ContextPod uses the namespace and pod name for identification purposes in the form of namespace/pod-name.
 	ContextPod
+	// ContextPodShort uses a short version of the pod name. It should
+	// typically map to the deployment/replicaset name. Deprecated.
+	ContextPodShort
 	// ContextPodName uses the pod name for identification purposes
 	ContextPodName
 	// ContextDNS uses the DNS name for identification purposes
@@ -56,11 +60,12 @@ const ContextOptionsHelp = `
  destinationEgressContext  ::= identifier , { "|", identifier }
  destinationIngressContext ::= identifier , { "|", identifier }
  labels                    ::= label , { ",", label }
- identifier                ::= identity | namespace | pod | pod-name | dns | ip | reserved-identity | workload | workload-name | app
+ identifier                ::= identity | namespace | pod | pod-short | pod-name | dns | ip | reserved-identity | workload | workload-name | app
  label                     ::= source_ip | source_pod | source_namespace | source_workload | source_workload_kind | source_app | destination_ip | destination_pod | destination_namespace | destination_workload | destination_workload_kind | destination_app | traffic_direction
 `
 
 var (
+	shortPodPattern    = regexp.MustCompile("^(.+?)(-[a-z0-9]+){1,2}$")
 	kubeAPIServerLabel = ciliumLabels.LabelKubeAPIServer.String()
 	// contextLabelsList defines available labels for the ContextLabels
 	// ContextIdentifier and the order of those labels for GetLabelNames and GetLabelValues.
@@ -103,6 +108,8 @@ func (c ContextIdentifier) String() string {
 		return "namespace"
 	case ContextPod:
 		return "pod"
+	case ContextPodShort:
+		return "pod-short"
 	case ContextDNS:
 		return "dns"
 	case ContextIP:
@@ -163,6 +170,8 @@ func parseContextIdentifier(s string) (ContextIdentifier, error) {
 		return ContextNamespace, nil
 	case "pod":
 		return ContextPod, nil
+	case "pod-short":
+		return ContextPodShort, nil
 	case "pod-name":
 		return ContextPodName, nil
 	case "dns":
@@ -351,6 +360,10 @@ func labelsContext(invertSourceDestination bool, wantedLabels labelsSet, flow *p
 	return outputLabels, nil
 }
 
+func shortenPodName(name string) string {
+	return shortPodPattern.ReplaceAllString(name, "${1}")
+}
+
 func handleReservedIdentityLabels(lbls []string) string {
 	// if reserved:kube-apiserver label is present, return it (instead of reserved:world, etc..)
 	if slices.Contains(lbls, kubeAPIServerLabel) {
@@ -465,6 +478,11 @@ func getContextIDLabelValue(contextID ContextIdentifier, flow *pb.Flow, source b
 		labelValue = strings.Join(ep.GetLabels(), ",")
 	case ContextPod:
 		labelValue = ep.GetPodName()
+		if ep.GetNamespace() != "" {
+			labelValue = ep.GetNamespace() + "/" + labelValue
+		}
+	case ContextPodShort:
+		labelValue = shortenPodName(ep.GetPodName())
 		if ep.GetNamespace() != "" {
 			labelValue = ep.GetNamespace() + "/" + labelValue
 		}

@@ -644,6 +644,7 @@ regexes
 relocations
 removeNodeTaints
 reparsing
+replicaset
 repo
 repos
 reproducibility
