@@ -5,6 +5,7 @@ import (
 
 	"github.com/cilium/cilium/pkg/endpoint"
 	multinicep "github.com/cilium/cilium/pkg/gke/multinic/endpoint"
+	"github.com/cilium/cilium/pkg/k8s"
 	cilium_v2 "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2"
 	"github.com/cilium/cilium/pkg/k8s/types"
 	"github.com/cilium/cilium/pkg/logging/logfields"
@@ -80,13 +81,12 @@ func IsL2MultiNICCEP(obj interface{}) bool {
 // 1. For non-multiNIC CEP, return the name of the CiliumEndpoint.
 // 2. For multiNIC CEP, extract pod name from the OwnerReferences object. Returns error if not found.
 func GetPodNameFromCEP(cep *types.CiliumEndpoint) (string, error) {
+	podName := k8s.GetPodNameIfExistsFromCiliumEndpoint(cep)
 	if !IsMultiNICCEP(cep) {
-		return cep.Name, nil
+		return podName, nil
 	}
-	for _, owner := range cep.ObjectMeta.OwnerReferences {
-		if owner.Kind == "Pod" {
-			return owner.Name, nil
-		}
+	if podName == cep.Name {
+		return "", fmt.Errorf("pod name not found in OwnerReferences for multiNIC CEP %q", cep.Name)
 	}
-	return "", fmt.Errorf("pod name not found in OwnerReferences for multiNIC CEP %q", cep.Name)
+	return podName, nil
 }

@@ -236,9 +236,11 @@ func TestCESSubscriber_CEPTransferOnStartup(t *testing.T) {
 	if !ok {
 		t.Fatal(diff)
 	}
+	wantEndpoint := createEndpoint("cep1", "ns1", 3)
+	wantEndpoint.ObjectMeta.OwnerReferences = []slim_metav1.OwnerReference{{Kind: "Pod", Name: "cep1"}}
 	wantCEPMap := map[string]cesToCEPRef{
 		"ns1/cep1": {
-			"new-ces": createEndpoint("cep1", "ns1", 3),
+			"new-ces": wantEndpoint,
 		},
 	}
 	if diff := cmp.Diff(wantCEPMap, cesSub.cepMap.cepMap); diff != "" {
@@ -306,9 +308,11 @@ func TestCESSubscriber_CEPTransferViaUpdate(t *testing.T) {
 	if !ok {
 		t.Fatal(diff)
 	}
+	wantEndpoint := createEndpoint("cep1", "ns1", 3)
+	wantEndpoint.ObjectMeta.OwnerReferences = []slim_metav1.OwnerReference{{Kind: "Pod", Name: "cep1"}}
 	wantCEPMap := map[string]cesToCEPRef{
 		"ns1/cep1": {
-			"new-ces": createEndpoint("cep1", "ns1", 3),
+			"new-ces": wantEndpoint,
 		},
 	}
 	if diff := cmp.Diff(wantCEPMap, cesSub.cepMap.cepMap); diff != "" {

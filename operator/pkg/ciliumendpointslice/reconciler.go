@@ -206,12 +206,12 @@ func (r *reconciler) reconcileCESDelete(ces *cilium_v2a1.CiliumEndpointSlice) (e
 }
 
 func (r *reconciler) getCoreEndpointFromStore(cepName CEPName) *cilium_v2a1.CoreCiliumEndpoint {
-	cepObj, exists, err := r.cepStore.GetByKey(cepName.key())
-	if err == nil && exists {
-		return k8s.ConvertCEPToCoreCEP(cepObj)
+	objs, err := r.cepStore.ByIndex(k8s.CEPIPIndex, cepName.string())
+	if err == nil && len(objs) == 1 {
+		return k8s.ConvertCEPToCoreCEP(objs[0])
 	}
 	r.logger.WithFields(logrus.Fields{
 		logfields.CEPName: cepName.string(),
-	}).Debugf("Couldn't get CEP from Store (err=%v, exists=%v)", err, exists)
+	}).Debugf("Couldn't get CEP from Store (err=%v, exists=%v)", err, len(objs))
 	return nil
 }

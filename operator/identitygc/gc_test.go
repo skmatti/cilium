@@ -32,6 +32,8 @@ func TestIdentitiesGC(t *testing.T) {
 		// To ignore goroutine started from sigs.k8s.io/controller-runtime/pkg/log.go
 		// init function
 		goleak.IgnoreTopFunction("time.Sleep"),
+		// Google: Indexers adds another gorouting in workqueue.
+		goleak.IgnoreTopFunction("k8s.io/client-go/util/workqueue.(*delayingType).waitingLoop"),
 	)
 
 	var clientset k8sClient.Clientset

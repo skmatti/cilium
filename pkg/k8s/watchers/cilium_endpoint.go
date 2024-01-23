@@ -18,6 +18,7 @@ import (
 	hubblemetrics "github.com/cilium/cilium/pkg/hubble/metrics"
 	"github.com/cilium/cilium/pkg/identity"
 	"github.com/cilium/cilium/pkg/ipcache"
+	"github.com/cilium/cilium/pkg/k8s"
 	"github.com/cilium/cilium/pkg/k8s/resource"
 	k8sSynced "github.com/cilium/cilium/pkg/k8s/synced"
 	"github.com/cilium/cilium/pkg/k8s/types"
@@ -229,7 +230,7 @@ func (k *K8sCiliumEndpointsWatcher) endpointUpdated(oldEndpoint, endpoint *types
 
 	k8sMeta := &ipcache.K8sMetadata{
 		Namespace:    endpoint.Namespace,
-		PodName:      endpoint.Name,
+		PodName:      k8s.GetPodNameIfExistsFromCiliumEndpoint(endpoint.Name),
 		NamedPorts:   make(ciliumTypes.NamedPortMap, len(endpoint.NamedPorts)),
 		IsL2MultiNIC: multiniccep.IsL2MultiNICCEP(endpoint),
 	}

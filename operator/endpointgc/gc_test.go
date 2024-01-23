@@ -29,6 +29,8 @@ import (
 func TestRegisterController(t *testing.T) {
 	defer goleak.VerifyNone(
 		t,
+		// Google: Indexers adds another gorouting in workqueue.
+		goleak.IgnoreTopFunction("k8s.io/client-go/util/workqueue.(*delayingType).waitingLoop"),
 	)
 	var ciliumEndpoint resource.Resource[*cilium_v2.CiliumEndpoint]
 	hive := hive.New(
@@ -67,6 +69,8 @@ func TestRegisterController(t *testing.T) {
 func TestRegisterControllerOnce(t *testing.T) {
 	defer goleak.VerifyNone(
 		t,
+		// Google: Indexers adds another gorouting in workqueue.
+		goleak.IgnoreTopFunction("k8s.io/client-go/util/workqueue.(*delayingType).waitingLoop"),
 	)
 	var ciliumEndpoint resource.Resource[*cilium_v2.CiliumEndpoint]
 	hive := hive.New(
@@ -105,6 +109,8 @@ func TestRegisterControllerOnce(t *testing.T) {
 func TestRegisterControllerWithCRDDisabled(t *testing.T) {
 	defer goleak.VerifyNone(
 		t,
+		// Google: Indexers adds another gorouting in workqueue.
+		goleak.IgnoreTopFunction("k8s.io/client-go/util/workqueue.(*delayingType).waitingLoop"),
 	)
 	var ciliumEndpoint resource.Resource[*cilium_v2.CiliumEndpoint]
 	hive := hive.New(

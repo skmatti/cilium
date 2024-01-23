@@ -33,6 +33,8 @@ func TestRegisterController(t *testing.T) {
 		// on unfinished work with default tick period of 0.5s - it terminates
 		// no longer than 0.5s after the workqueue is stopped.
 		goleak.IgnoreTopFunction("k8s.io/client-go/util/workqueue.(*Type).updateUnfinishedWorkLoop"),
+		// Google: Indexers adds another gorouting in workqueue.
+		goleak.IgnoreTopFunction("k8s.io/client-go/util/workqueue.(*delayingType).waitingLoop"),
 	)
 	var fakeClient k8sClient.Clientset
 	var ciliumEndpoint resource.Resource[*cilium_v2.CiliumEndpoint]
@@ -87,6 +89,8 @@ func TestNotRegisterControllerWithCESDisabled(t *testing.T) {
 		// on unfinished work with default tick period of 0.5s - it terminates
 		// no longer than 0.5s after the workqueue is stopped.
 		goleak.IgnoreTopFunction("k8s.io/client-go/util/workqueue.(*Type).updateUnfinishedWorkLoop"),
+		// Google: Indexers adds another gorouting in workqueue.
+		goleak.IgnoreTopFunction("k8s.io/client-go/util/workqueue.(*delayingType).waitingLoop"),
 	)
 	var fakeClient k8sClient.Clientset
 	var ciliumEndpoint resource.Resource[*cilium_v2.CiliumEndpoint]

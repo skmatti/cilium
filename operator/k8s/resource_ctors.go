@@ -12,6 +12,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/cache"
 
+	pkgk8s "github.com/cilium/cilium/pkg/k8s"
 	cilium_api_v2 "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2"
 	cilium_api_v2alpha1 "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2alpha1"
 	"github.com/cilium/cilium/pkg/k8s/client"
@@ -31,6 +32,7 @@ func CiliumEndpointResource(lc cell.Lifecycle, cs client.Clientset, opts ...func
 	indexers := cache.Indexers{
 		cache.NamespaceIndex:        cache.MetaNamespaceIndexFunc,
 		CiliumEndpointIndexIdentity: identityIndexFunc,
+		pkgk8s.CEPIPIndex:           pkgk8s.CEPIndexFunc,
 	}
 	return resource.New[*cilium_api_v2.CiliumEndpoint](
 		lc, lw, resource.WithMetric("CiliumEndpoint"), resource.WithIndexers(indexers)), nil

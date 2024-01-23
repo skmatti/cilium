@@ -49,7 +49,8 @@ func (cs *cesSubscriber) OnAdd(ces *cilium_v2a1.CiliumEndpointSlice) {
 			"CESName": ces.GetName(),
 			"CEPName": CEPName,
 		}).Debug("CES added, calling CoreEndpointUpdate")
-		if p := cs.epCache.LookupCEPName(k8sUtils.GetObjNamespaceName(cep)); p != nil {
+		key := k8s.MaybePodOwnerFor(cep)
+		if p := cs.epCache.LookupCEPName(key); key != "" && p != nil {
 			timeSinceCepCreated := time.Since(p.GetCreatedAt())
 			metrics.EndpointPropagationDelay.WithLabelValues().Observe(timeSinceCepCreated.Seconds())
 		}
@@ -92,7 +93,8 @@ func (cs *cesSubscriber) OnUpdate(oldCES, newCES *cilium_v2a1.CiliumEndpointSlic
 				"CESName": newCES.GetName(),
 				"CEPName": CEPName,
 			}).Debug("CEP inserted, calling endpointUpdated")
-			if p := cs.epCache.LookupCEPName(k8sUtils.GetObjNamespaceName(newCEP)); p != nil {
+			key := k8s.MaybePodOwnerFor(newCEP)
+			if p := cs.epCache.LookupCEPName(key); key != "" && p != nil {
 				timeSinceCepCreated := time.Since(p.GetCreatedAt())
 				metrics.EndpointPropagationDelay.WithLabelValues().Observe(timeSinceCepCreated.Seconds())
 			}

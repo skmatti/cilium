@@ -340,7 +340,7 @@ func ConvertCEPToCoreCEP(cep *cilium_v2.CiliumEndpoint) *cilium_v2alpha1.CoreCil
 		identityID = cep.Status.Identity.ID
 	}
 	return &cilium_v2alpha1.CoreCiliumEndpoint{
-		Name:       cep.GetName(),
+		Name:       GetPodNameIfExistsFromCiliumEndpoint(cep),
 		Networking: epNetworking,
 		Encryption: cep.Status.Encryption,
 		IdentityID: identityID,
@@ -352,8 +352,14 @@ func ConvertCEPToCoreCEP(cep *cilium_v2.CiliumEndpoint) *cilium_v2alpha1.CoreCil
 func ConvertCoreCiliumEndpointToTypesCiliumEndpoint(ccep *cilium_v2alpha1.CoreCiliumEndpoint, ns string) *types.CiliumEndpoint {
 	return &types.CiliumEndpoint{
 		ObjectMeta: slim_metav1.ObjectMeta{
-			Name:      ccep.Name,
+			Name:      GetCEPIndexKeyFrom(ccep, "").Name,
 			Namespace: ns,
+			OwnerReferences: []slim_metav1.OwnerReference{
+				{
+					Kind: "Pod",
+					Name: ccep.Name,
+				},
+			},
 		},
 		Encryption: func() *cilium_v2.EncryptionSpec {
 			enc := ccep.Encryption

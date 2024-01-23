@@ -13,19 +13,23 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/cache"
 
+	"github.com/cilium/cilium/pkg/k8s"
 	cilium_api_v2 "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2"
 	k8sClient "github.com/cilium/cilium/pkg/k8s/client"
 	"github.com/cilium/cilium/pkg/k8s/informer"
 	"github.com/cilium/cilium/pkg/k8s/utils"
 )
 
-const identityIndex = "identity"
+const (
+	identityIndex = "identity"
+)
 
 var (
 	errNoCE  = errors.New("object is not a *cilium_api_v2.CiliumEndpoint")
 	indexers = cache.Indexers{
 		cache.NamespaceIndex: cache.MetaNamespaceIndexFunc,
 		identityIndex:        identityIndexFunc,
+		k8s.CEPIPIndex:       k8s.CEPIndexFunc,
 	}
 
 	// CiliumEndpointStore contains all CiliumEndpoint present in k8s.
