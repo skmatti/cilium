@@ -1,0 +1,6 @@
+resources:
+- ../../base
+- nodenetworkpolicy-crd.yaml
+
+patchesStrategicMerge:
+- configmap.yaml

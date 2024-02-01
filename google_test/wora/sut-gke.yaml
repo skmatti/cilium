@@ -1,0 +1,39 @@
+apiVersion: sut.tailorbird.io/v1alpha1
+kind: Rookery
+metadata:
+  name: wora-sut-gke
+  namespace: tailorbird-users
+spec:
+  ttlSeconds: 86400 # 1 day
+  knests:
+  - apiVersion: sut.tailorbird.io/v1alpha1
+    kind: Knest
+    metadata:
+      name: wora-sut-gke
+      namespace: tailorbird-users
+    spec:
+      clusters:
+      - apiVersion: sut.tailorbird.io/v1alpha1
+        kind: Cluster
+        metadata:
+          name: wora-sut-gke
+          namespace: tailorbird-users
+        spec:
+          distribution: gke
+          provider: gcp
+          provisionerArgs:
+            pluginSpecYaml: |
+              projectOptions:
+                projects: anthos-networking-ci
+              networkOptions:
+                network: anthos-networking-ci-gke-network
+              clusterOptions:
+                clusters: wora-sut-gke
+                regions: us-central1
+                environment: staging
+                gcloudCommandGroup: alpha
+                gcloudExtraFlags: "--enable-dataplane-v2 --enable-ip-alias"
+              componentOverrides:
+              - component: advanceddatapath
+                version: "0.0.1001"
+                testOnlyComponentImage: us-central1-docker.pkg.dev/anthos-networking-ci/gke-component-images/advanceddatapath:0.0.1001

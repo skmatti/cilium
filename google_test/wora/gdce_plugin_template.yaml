@@ -1,0 +1,33 @@
+secretProject: gmec-engprod-1
+serviceBasePath: https://staging-edgecontainer.sandbox.googleapis.com
+adminUsers:
+# Human users are temporarily allowed as adminUsers to help with debug.
+- wanlindu@google.com
+- pcastello@google.com
+- rohakum@google.com
+- tomhe@google.com
+- zhangtom@google.com
+- anthos-networking-plg-wrk@anthos-hercules.iam.gserviceaccount.com
+- anthos-networking-plg-wrk@anthos-hercules-staging.iam.gserviceaccount.com
+- gob-prow@gob-prow.iam.gserviceaccount.com
+cluster:
+  projectID: gmec-engprod-1
+  location: us-west1
+  clusterIpv4CidrBlocks:
+  - 192.168.0.0/16
+  servicesIpv4CidrBlocks:
+  - 10.96.0.0/20
+  loadBalancerIpv4AddressPools:
+  - 10.200.0.231-10.200.0.232
+  controlPlane:
+    nodeCount: 1
+    nodeLocation: us-west1-edge-anthos-networking-cilium-test-staging
+  nodePool:
+    nodeCount: 2
+    zone: us-west1-edge-anthos-networking-cilium-test-staging
+  addon:
+    # All available flags are specified in
+    # google3/cloud/verticals/edge/e2e_testing/tailorbird_gdce_plugin/plugin.go.
+    gcsBucket: anthos-networking-ci-artifacts # required
+    gcsFileLocation: # required
+    verificationWaitTime: 300 # 5 mins optional

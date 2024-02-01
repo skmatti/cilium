@@ -1,0 +1,53 @@
+apiVersion: sut.tailorbird.io/v1alpha1
+kind: Rookery
+metadata:
+  name: wora-sut-gdce
+  namespace: tailorbird-users
+spec:
+  ttlSeconds: 18000 #5 hr
+  knests:
+  - apiVersion: sut.tailorbird.io/v1alpha1
+    kind: Knest
+    metadata:
+      name: wora-sut-gdce
+      namespace: tailorbird-users
+    spec:
+      clusters:
+      - apiVersion: sut.tailorbird.io/v1alpha1
+        kind: Cluster
+        metadata:
+          name: wora-sut-gdce
+          namespace: tailorbird-users
+        spec:
+          provider: gdce
+          distribution: gke
+          provisionerArgs:
+            # pluginSpecYaml here is an example to create a plain GDCE staging
+            # cluster, will be replaced at runtime if the cluster is upgraded
+            # with fresh built component.
+            pluginSpecYaml: |
+              secretProject: gmec-engprod-1
+              serviceBasePath: https://staging-edgecontainer.sandbox.googleapis.com
+              adminUsers:
+              - wanlindu@google.com
+              - pcastello@google.com
+              - zhangtom@google.com
+              - rohakum@google.com
+              - anthos-networking-plg-wrk@anthos-hercules.iam.gserviceaccount.com
+              - anthos-networking-plg-wrk@anthos-hercules-staging.iam.gserviceaccount.com
+              - gob-prow@gob-prow.iam.gserviceaccount.com
+              cluster:
+                projectID: gmec-engprod-1
+                location: us-west1
+                clusterIpv4CidrBlocks:
+                - 192.168.0.0/16
+                servicesIpv4CidrBlocks:
+                - 10.96.0.0/20
+                loadBalancerIpv4AddressPools:
+                - 10.200.0.231-10.200.0.232
+                controlPlane:
+                  nodeCount: 1
+                  nodeLocation: us-west1-edge-anthos-networking-cilium-test-staging
+                nodePool:
+                  nodeCount: 0
+                  zone: us-west1-edge-anthos-networking-cilium-test-staging

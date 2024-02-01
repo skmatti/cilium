@@ -1,0 +1,29 @@
+apiVersion: sut.tailorbird.io/v1alpha1
+kind: Rookery
+metadata:
+  name: wora-sut-abm-atl
+  namespace: tailorbird-users
+spec:
+  ttlSeconds: 86400 # 1 day
+  knests:
+  - apiVersion: sut.tailorbird.io/v1alpha1
+    kind: Knest
+    metadata:
+      name: wora-sut-abm-atl
+    spec:
+      clusters:
+      - apiVersion: sut.tailorbird.io/v1alpha1
+        kind: Cluster
+        metadata:
+          name: wora-sut-abm-atl
+          namespace: tailorbird-users
+        spec:
+          distribution: gke-baremetal
+          provider: vsphere
+          provisionerArgs:
+            # Exact version of ABM is required to generate addon configurations.
+            bmctlVersion: 1.29.0-gke.1023
+            passthroughEnv: |
+              {"MANIFEST_PROFILE_ENV": "staging", "NUM_NETWORKS": "2", "PLATFORM": "vsphere", "LAB_ID": "atl_shared", "NUM_EXTRA_IPS": "3"}
+            proxyPort: "8218"
+            username: prowuser

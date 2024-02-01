@@ -1,0 +1,12 @@
+resources:
+- ../../base
+
+configMapGenerator:
+- name: vars
+  behavior: merge
+  literals:
+  - ENABLE_EGRESS_GATEWAY=false
+  - ENABLE_MCC=false
+  - ENABLE_DPV2MULTINIC=false
+  - CILIUM_CLUSTER_NAME=bmctl
+  - CILIUM_CLUSTER_ID=100

@@ -1,0 +1,26 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  labels:
+    k8s-app: cilium
+  name: anetd
+  namespace: kube-system
+spec:
+  template:
+      spec:
+        containers:
+        - name: cilium-agent
+          image: $(REGISTRY)/cilium/cilium:$(CILIUM_TAG)
+        initContainers:
+        - name: check-kube-proxy-rules
+          image: $(REGISTRY)/cilium/cilium:$(CILIUM_TAG)
+        - name: mount-cgroup
+          image: $(REGISTRY)/cilium/cilium:$(CILIUM_TAG)
+        - name: clean-cilium-state
+          image: $(REGISTRY)/cilium/cilium:$(CILIUM_TAG)
+        - name: apply-sysctl-overwrites
+          image: $(REGISTRY)/cilium/cilium:$(CILIUM_TAG)
+        - name: install-cni-binaries
+          image: $(REGISTRY)/cilium/cilium:$(CILIUM_TAG)
+        - name: cni-install
+          image: $(REGISTRY)/cilium/cilium:$(CILIUM_TAG)

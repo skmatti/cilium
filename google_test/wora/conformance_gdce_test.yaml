@@ -1,0 +1,137 @@
+# GDCE Specific version of conformance test
+apiVersion: sut.tailorbird.io/v1alpha1
+kind: Rookery
+metadata:
+  name: integration-test-rookery
+  namespace: tailorbird-users
+spec:
+  applications:
+  - apiVersion: sut.tailorbird.io/v1alpha1
+    kind: Application
+    metadata:
+      name: integration-test-rookery
+      namespace: tailorbird-users
+    spec:
+      resourceTypeReference:
+        name: anthos-networking-test-workloads
+        version: latest
+      directives:
+      - apiVersion: sut.tailorbird.io/v1alpha1
+        kind: ExecutionDirective
+        metadata:
+          name: integration-test-execution
+        spec:
+          targets:
+          - namePrefix: oob # This should match prefix of cluster name in `--upload-external-clusters`
+            kind: Cluster
+            namespace: tailorbird-users
+          args: # Compare arguments in ../upstream_test/run_k8s_conformance_test.sh
+          - /test/ginkgo
+          - --nodes=5
+          - --focus=\[Conformance\]|\[sig-network\]
+          - --skip=Feature|Federation|PerformanceDNS|DualStack|Disruptive|Serial|KubeProxy|kube-proxy|ExternalIP|LoadBalancer|GCE|Netpol|NetworkPolicy|rejected|externalTrafficPolicy|HostPort|same.port.number.but.different.protocols|should.serve.endpoints.on.same.port.and.different.protocols
+          # GDCE specific conformance test set (b/330362098)
+          # test/e2e/apimachinery/watch.go
+          - --skip=should.receive.events.on.concurrent.watches.in.same.order
+          # test/e2e/apimachinery/webhook.go
+          - --skip=should.be.able.to.deny.attaching.pod
+          # test/e2e/apps/statefulset.go
+          - --skip=should.perform.rolling.updates.and.roll.backs.of.template.modifications
+          - --skip=Scaling.should.happen.in.predictable.order.and.halt.if.any.stateful.pod.is.unhealthy
+          - --skip=Burst.scaling.should.run.to.completion.even.with.unhealthy.pods
+          - --skip=Should.recreate.evicted.statefulset
+          - --skip=should.have.a.working.scale.subresource
+          - --skip=should.validate.Statefulset.Status.endpoints
+          # test/e2e/architecture/conformance.go
+          - --skip=should.have.at.least.two.untainted.nodes
+          # test/e2e/auth/certificates.go
+          - --skip=should.support.CSR.API.operations
+          # test/e2e/auth/service_accounts.go
+          - --skip=should.mount.an.API.token.into.pods
+          # test/e2e/auth/subjectreviews.go
+          - --skip=should.support.SubjectReview.API.operations
+          # test/e2e/common/node/ephemeral_containers.go
+          - --skip=will.start.an.ephemeral.container.in.an.existing.pod
+          # test/e2e/common/node/expansion.go
+          - --skip=should.succeed.in.writing.subpaths.in.container
+          # test/e2e/common/node/kubelet_etc_hosts.go
+          - --skip=should.test.kubelet.managed./etc/hosts.file
+          # test/e2e/common/node/pods.go
+          - --skip=should.support.remote.command.execution.over.websockets
+          - --skip=should.support.retrieving.logs.from.the.container.over.websockets
+          # test/e2e/common/storage/empty_dir.go
+          - --skip=should.support.shared.volumes.between.containers
+          # test/e2e/kubectl/kubectl.go
+          - --skip=should.support.proxy.with.--port.0
+          # test/e2e/network/dns.go
+          - --skip=should.support.configurable.pod.DNS.nameservers
+          - --skip=should.support.configurable.pod.resolv.conf
+          - --skip=should.resolve.DNS.of.partial.qualified.names.for.services.on.hostNetwork.pods.with.dnsPolicy
+          # test/e2e/common/network/networking.go
+          - --skip=should.function.for.intra-pod.communication
+          - --skip=should.function.for.node-pod.communication
+          # test/e2e/network/endpointslice.go
+          - --skip=should.support.a.Service.with.multiple.ports.specified.in.multiple.EndpointSlices
+          - --skip=should.support.a.Service.with.multiple.endpoint.IPs.specified.in.multiple.EndpointSlices
+          # test/e2e/network/endpointslicemirroring.go
+          - --skip=should.mirror.a.custom.Endpoint.with.multiple.subsets.and.same.IP.address
+          # test/e2e/network/networking.go
+          - --skip=should.provide.unchanging,.static.URL.paths.for.kubernetes.api.services
+          - --skip=should.function.for.pod-Service
+          - --skip=should.function.for.node-Service
+          - --skip=should.function.for.endpoint-Service
+          - --skip=should.function.for.multiple.endpoint-Services.with.same.selector
+          - --skip=should.update.endpoints
+          - --skip=should.update.nodePort
+          - --skip=should.support.basic.nodePort
+          - --skip=should.function.for.client.IP.based.session.affinity
+          - --skip=should.be.able.to.handle.large.requests
+          - --skip=should.function.for.service.endpoints.using.hostNetwork
+          # test/e2e/network/pod_lifecycle.go
+          - --skip=should.be.able.to.connect.from.a.Pod.to.a.terminating.Pod
+          - --skip=should.be.able.to.connect.to.other.Pod.from.a.terminating.Pod
+          # test/e2e/network/proxy.go
+          - --skip=should.proxy.logs.on.node.with.explicit.kubelet.port.using.proxy.subresource
+          - --skip=should.proxy.logs.on.node.using.proxy.subresource
+          - --skip=should.proxy.through.a.service.and.a.pod
+          - --skip=A.set.of.valid.responses.are.returned.for.both.pod.and.service.Proxy
+          # test/e2e/network/service.go
+          - --skip=should.serve.a.basic.endpoint.from.pods
+          - --skip=should.serve.multiport.endpoints.from.pods
+          - --skip=should.be.updated.after.adding.or.deleting.ports
+          - --skip=should.preserve.source.pod.IP.for.traffic.thru.service.cluster.IP
+          - --skip=should.allow.pods.to.hairpin.back.to.themselves.through.services
+          - --skip=should.be.able.to.up.and.down.services
+          - --skip=should.work.after.the.service.has.been.recreated
+          - --skip=should.be.able.to.create.a.functioning.NodePort.service
+          - --skip=should.be.able.to.change.the.type.from.ExternalName.to.ClusterIP
+          - --skip=should.be.able.to.change.the.type.from.ExternalName.to.NodePort
+          - --skip=should.be.able.to.change.the.type.from.ClusterIP.to.ExternalName
+          - --skip=should.be.able.to.change.the.type.from.NodePort.to.ExternalName
+          - --skip=should.release.NodePorts.on.delete
+          - --skip=should.create.endpoints.for.unready.pods
+          - --skip=should.be.able.to.connect.to.terminating.and.unready.endpoints.if.PublishNotReadyAddresses.is.true
+          - --skip=should.have.session.affinity.work.for.service.with.type.clusterIP
+          - --skip=should.have.session.affinity.timeout.work.for.service.with.type.clusterIP
+          - --skip=should.be.able.to.switch.session.affinity.for.service.with.type.clusterIP
+          - --skip=should.have.session.affinity.timeout.work.for.NodePort.service
+          - --skip=should.have.session.affinity.work.for.NodePort.service
+          - --skip=should.be.able.to.switch.session.affinity.for.NodePort.service
+          - --skip=should.implement.service.kubernetes.io/service-proxy-name
+          - --skip=should.implement.service.kubernetes.io/headless
+          - --keep-going
+          - --timeout=2h
+          - --no-color
+          - /test/e2e.test
+          - --
+          - --kubeconfig={{ KubeconfigPath "user" ((Ref "Cluster" "oob").Name) }}
+          - --provider=local
+          - --dump-logs-on-failure=true
+          - --report-dir={{ RuntimePath "." }}
+          - --disable-log-dump=true
+          env:
+            HTTP_PROXY: '{{ ResourceVar ((Ref "Cluster" "oob").Name) "HTTP_PROXY" }}'
+            HTTPS_PROXY: '{{ ResourceVar ((Ref "Cluster" "oob").Name) "HTTPS_PROXY" }}'
+            KUBECONFIG: '{{ KubeconfigPath "user" ((Ref "Cluster" "oob").Name) }}'
+            KUBERNETES_CONFORMANCE_TEST: 'y'
+            RESULTS_DIR: '{{ RuntimePath "." }}' # Write results to root of artifacts dir.

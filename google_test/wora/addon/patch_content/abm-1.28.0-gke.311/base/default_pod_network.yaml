@@ -1,0 +1,12 @@
+apiVersion: networking.gke.io/v1
+kind: Network
+metadata:
+  name: pod-network
+spec:
+  type: L3
+  routes:
+  - to: $(CLUSTER_CIDR)
+  - to: $(SERVICE_IPV4_CIDR)
+  dnsConfig:
+    nameservers:
+    - $(CLUSTER_DNS_IP)

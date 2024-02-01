@@ -1,0 +1,13 @@
+apiVersion: baremetal.cluster.gke.io/v1alpha1
+kind: AddOnConfiguration
+metadata:
+  name: patch-metrics-server-wh-mem
+  # This value must match the Cluster name which comes from the PROW_JOB_ID
+  # environment when set, otherwise will be ${USER}-${UNIX_TIME}, generated at
+  # runtime. When the PROW_JOB_ID is set, the namespace is equivalent to
+  # cluster-PROW_JOB_ID-cluster.
+  namespace: cluster-${PROW_JOB_ID}-cluster
+spec:
+  anthosBareMetalVersions:
+  - 0.0.0
+  configs: []

@@ -1,0 +1,20 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: anetd
+  namespace: kube-system
+spec:
+  template:
+    spec:
+      containers:
+      - name: cilium-agent
+        resources:
+          requests:
+            cpu: 40m
+            memory: 120Mi
+      initContainers:
+      - name: clean-cilium-state
+        resources:
+          requests:
+            cpu: 40m
+            memory: 120Mi

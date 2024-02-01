@@ -1,0 +1,450 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  labels:
+    k8s-app: cilium
+  name: anetd
+  namespace: kube-system
+spec:
+  selector:
+    matchLabels:
+      k8s-app: cilium
+  template:
+    metadata:
+      annotations:
+        monitoring.gke.io/port: "9990"
+        monitoring.gke.io/scrape: "true"
+        baremetal.cluster.gke.io/kube-proxy-free: $(ENABLE_SOCK_LB)
+      labels:
+        k8s-app: cilium
+    spec:
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+              matchLabels:
+                k8s-app: cilium
+            topologyKey: kubernetes.io/hostname
+      containers:
+      - args:
+        - --k8s-kubeconfig-path=/etc/kubernetes/kubelet.conf
+        - --config-dir=$(CILIUM_CONFIG_MAP)
+        command:
+        - /run_cilium_agent.sh
+        startupProbe:
+          httpGet:
+            host: "127.0.0.1"
+            path: /healthz
+            port: 9876
+            scheme: HTTP
+            httpHeaders:
+            - name: "brief"
+              value: "true"
+          failureThreshold: 105
+          periodSeconds: 2
+          successThreshold: 1
+        livenessProbe:
+          httpGet:
+            host: "127.0.0.1"
+            path: /healthz
+            port: 9876
+            scheme: HTTP
+            httpHeaders:
+            - name: "brief"
+              value: "true"
+          failureThreshold: 10
+          periodSeconds: 30
+          successThreshold: 1
+          timeoutSeconds: 5
+        readinessProbe:
+          httpGet:
+            host: "127.0.0.1"
+            path: /healthz
+            port: 9876
+            scheme: HTTP
+            httpHeaders:
+            - name: "brief"
+              value: "true"
+          failureThreshold: 3
+          periodSeconds: 30
+          successThreshold: 1
+          timeoutSeconds: 5
+        resources:
+          # TODO: adjust with properly identified values
+          requests:
+            cpu: 100m
+            memory: 100Mi
+        env:
+        - name: K8S_NODE_NAME
+          valueFrom:
+            fieldRef:
+              apiVersion: v1
+              fieldPath: spec.nodeName
+        - name: CILIUM_K8S_NAMESPACE
+          valueFrom:
+            fieldRef:
+              apiVersion: v1
+              fieldPath: metadata.namespace
+        - name: MTU_DEVICE_IP
+          valueFrom:
+            fieldRef:
+              apiVersion: v1
+              fieldPath: status.hostIP
+        # Needed by the run_cilium_agent.sh script
+        - name: CILIUM_CONFIG_MAP
+          value: /tmp/cilium/config-map
+        - name: CILIUM_CLUSTERMESH_CONFIG
+          value: /var/lib/cilium/clustermesh/
+        - name: CILIUM_CNI_CHAINING_MODE
+          valueFrom:
+            configMapKeyRef:
+              key: cni-chaining-mode
+              name: cilium-config
+              optional: true
+        - name: CILIUM_CUSTOM_CNI_CONF
+          valueFrom:
+            configMapKeyRef:
+              key: custom-cni-conf
+              name: cilium-config
+              optional: true
+        image: $(REGISTRY)/cilium/cilium:$(CILIUM_TAG)
+        imagePullPolicy: IfNotPresent
+        name: cilium-agent
+        ports:
+        - containerPort: 9990
+          hostPort: 9990
+          name: prometheus
+          protocol: TCP
+        securityContext:
+          privileged: true
+        terminationMessagePolicy: FallbackToLogsOnError
+        volumeMounts:
+        - mountPath: /sys/fs/bpf
+          name: bpf-maps
+          mountPropagation: Bidirectional
+        - mountPath: /var/run/cilium
+          name: cilium-run
+        - mountPath: /host/opt/cni/bin
+          name: cni-path
+        - mountPath: /host/etc/cni/net.d
+          name: etc-cni-netd
+        - mountPath: /var/lib/cilium/clustermesh
+          name: clustermesh-secrets
+          readOnly: true
+        - mountPath: /tmp/cilium/config-map
+          name: cilium-config-path
+          readOnly: true
+          # Needed to be able to load kernel modules
+        - mountPath: /lib/modules
+          name: lib-modules
+          readOnly: true
+        - mountPath: /run/xtables.lock
+          name: xtables-lock
+        - mountPath: /var/log/network
+          name: network-log
+        - mountPath: /host/proc
+          name: hostproc
+          readOnly: true
+        - mountPath: /host/var/run/netns
+          name: host-var-run-netns
+          mountPropagation: HostToContainer
+          readOnly: true
+        - mountPath: /run/dhcp
+          name: dhcp-socket
+        - mountPath: /var/lib/kubelet
+          name: kubelet-dir
+        - mountPath: /etc/kubernetes/kubelet.conf
+          name: kubelet-kubeconfig
+        - mountPath: /var/log/network/policy-logging.conf
+          name: policy-logging-config
+          subPath: policy-logging.conf
+      - command:
+        - /dhcpplugin
+        - daemon
+        image: $(REGISTRY)/anthos-networking/dhcp-plugin:v2.7.1-gke.4
+        imagePullPolicy: IfNotPresent
+        name: dhcp
+        securityContext:
+          privileged: true
+        resources:
+          limits:
+            cpu: 500m
+            memory: 128Mi
+          requests:
+            cpu: 10m
+            memory: 64Mi
+        volumeMounts:
+        - mountPath: /host/var/run/netns
+          name: host-var-run-netns
+          mountPropagation: HostToContainer
+          readOnly: true
+        - mountPath: /host/proc
+          name: hostproc
+          readOnly: true
+        - mountPath: /run/dhcp
+          name: dhcp-socket
+        - mountPath: /var/run/dhcp
+          name: dhcp-run
+      hostNetwork: true
+      initContainers:
+      # Check if KUBE-FORWARD chain is present in iptables, anetd pod should be
+      # started only after kube-proxy has added iptables rules. This is required
+      # as currently anetd is run with kube-proxy-replacement=partial mode.
+      # TODO(b/264948734): Remove this init container after moving to kube-proxy less mode.
+      - name: check-kube-proxy-rules
+        image: $(REGISTRY)/cilium/cilium:$(CILIUM_TAG)
+        imagePullPolicy: IfNotPresent
+        command:
+        - sh
+        - -ec
+        - |
+          if [ "$KUBE_PROXY_REPLACEMENT" != "strict" ]; then
+            kube_proxy_forward() { iptables -L KUBE-FORWARD; }
+            until kube_proxy_forward; do sleep 2; done
+          fi;
+        env:
+        - name: KUBE_PROXY_REPLACEMENT
+          valueFrom:
+            configMapKeyRef:
+              key: kube-proxy-replacement
+              name: cilium-config
+              optional: true
+        securityContext:
+          privileged: true
+      # Required to mount cgroup2 filesystem on the underlying Kubernetes node.
+      # We use nsenter command with host's cgroup and mount namespaces enabled.
+      - name: mount-cgroup
+        image: $(REGISTRY)/cilium/cilium:$(CILIUM_TAG)
+        imagePullPolicy: IfNotPresent
+        env:
+        - name: CGROUP_ROOT
+          value: /run/cilium/cgroupv2
+        - name: BIN_PATH
+          value: /opt/cni/bin
+        command:
+        - sh
+        - -ec
+        # The statically linked Go program binary is invoked to avoid any
+        # dependency on utilities like sh and mount that can be missing on certain
+        # distros installed on the underlying host. Copy the binary to the
+        # same directory where we install cilium cni plugin so that exec permissions
+        # are available.
+        - |
+          cp /usr/bin/cilium-mount /hostbin/cilium-mount;
+          nsenter --cgroup=/hostproc/1/ns/cgroup --mount=/hostproc/1/ns/mnt "${BIN_PATH}/cilium-mount" $CGROUP_ROOT;
+          rm /hostbin/cilium-mount
+        volumeMounts:
+        - name: hostproc
+          mountPath: /hostproc
+        - name: cni-path
+          mountPath: /hostbin
+        terminationMessagePolicy: FallbackToLogsOnError
+        securityContext:
+          privileged: true
+        resources:
+          requests:
+            cpu: 100m
+            memory: 100Mi
+      - command:
+        - /init-container.sh
+        env:
+        - name: CILIUM_ALL_STATE
+          valueFrom:
+            configMapKeyRef:
+              key: clean-cilium-state
+              name: cilium-config
+              optional: true
+        - name: CILIUM_BPF_STATE
+          valueFrom:
+            configMapKeyRef:
+              key: clean-cilium-bpf-state
+              name: cilium-config
+              optional: true
+        image: $(REGISTRY)/cilium/cilium:$(CILIUM_TAG)
+        imagePullPolicy: IfNotPresent
+        name: clean-cilium-state
+        securityContext:
+          privileged: true
+        volumeMounts:
+        - mountPath: /sys/fs/bpf
+          name: bpf-maps
+          # Required to mount cgroup filesystem from the host to cilium agent pod
+        - name: cilium-cgroup
+          mountPath: /run/cilium/cgroupv2
+          mountPropagation: HostToContainer
+        - mountPath: /var/run/cilium
+          name: cilium-run
+        resources:
+          requests:
+            cpu: 100m
+            memory: 100Mi
+      - name: apply-sysctl-overwrites
+        image: $(REGISTRY)/cilium/cilium:$(CILIUM_TAG)
+        imagePullPolicy: IfNotPresent
+        env:
+        - name: BIN_PATH
+          value: /opt/cni/bin
+        command:
+        - sh
+        - -ec
+        # The statically linked Go program binary is invoked to avoid any
+        # dependency on utilities like sh that can be missing on certain
+        # distros installed on the underlying host. Copy the binary to the
+        # same directory where we install cilium cni plugin so that exec permissions
+        # are available.
+        - |
+          cp /usr/bin/cilium-sysctlfix /hostbin/cilium-sysctlfix;
+          nsenter --mount=/hostproc/1/ns/mnt "${BIN_PATH}/cilium-sysctlfix";
+          rm /hostbin/cilium-sysctlfix
+        volumeMounts:
+        - name: hostproc
+          mountPath: /hostproc
+        - name: cni-path
+          mountPath: /hostbin
+        terminationMessagePolicy: FallbackToLogsOnError
+        securityContext:
+          privileged: true
+      - name: install-cni-binaries
+        command:
+        - "/install-plugin.sh"
+        image: $(REGISTRY)/cilium/cilium:$(CILIUM_TAG)
+        imagePullPolicy: IfNotPresent
+        securityContext:
+          privileged: true
+        terminationMessagePolicy: FallbackToLogsOnError
+        volumeMounts:
+        - name: cni-path
+          mountPath: /host/opt/cni/bin
+      # TODO(b/306499578): This should be a postStart hook inside cilium-agent container according to upstream manifest.
+      #                    It's still a container due to an EngProd bug because it doesn't support lifecycle hooks.
+      - args:
+        - "--enable-debug=false"
+        - "--cni-exclusive=$(CNI_EXCLUSIVE)"
+        command:
+        - "/cni-install.sh"
+        env:
+        - name: CILIUM_CNI_CHAINING_MODE
+          valueFrom:
+            configMapKeyRef:
+              key: cni-chaining-mode
+              name: cilium-config
+              optional: true
+        - name: CILIUM_CUSTOM_CNI_CONF
+          valueFrom:
+            configMapKeyRef:
+              key: custom-cni-conf
+              name: cilium-config
+              optional: true
+        image: $(REGISTRY)/cilium/cilium:$(CILIUM_TAG)
+        imagePullPolicy: IfNotPresent
+        name: cni-install
+        securityContext:
+          privileged: true
+        volumeMounts:
+        - mountPath: /host/opt/cni/bin
+          name: cni-path
+        - mountPath: /host/etc/cni/net.d
+          name: etc-cni-netd
+        - mountPath: /tmp/cilium/config-map
+          name: cilium-config-path
+          readOnly: true
+      restartPolicy: Always
+      priorityClassName: system-node-critical
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: 1
+      nodeSelector:
+        kubernetes.io/os: linux
+      tolerations:
+      - operator: Exists
+      volumes:
+      # To bindmount kubelet kubeconfig into pod to authenticate kube client
+      # Also to access pod-resrouces api in /var/lib/kubelet/pod-resources
+      - hostPath:
+          path: /var/lib/kubelet
+          type: Directory
+        name: kubelet-dir
+      - hostPath:
+          path: /etc/kubernetes/kubelet.conf
+          type: File
+        name: kubelet-kubeconfig
+      # To keep state between restarts / upgrades
+      - hostPath:
+          path: /var/run/cilium
+          type: DirectoryOrCreate
+        name: cilium-run
+        # To keep state between restarts / upgrades for bpf maps
+      - hostPath:
+          path: /sys/fs/bpf
+          type: DirectoryOrCreate
+        name: bpf-maps
+      # To access all network namespaces on the host when using docker
+      # e.g. /proc/{PID}/ns
+      # To mount cgroup2 filesystem on the host
+      - name: hostproc
+        hostPath:
+          path: /proc
+          type: Directory
+      # To keep state between restarts / upgrades for cgroup2 filesystem
+      - name: cilium-cgroup
+        hostPath:
+          path: /run/cilium/cgroupv2
+          type: DirectoryOrCreate
+      # To install cilium cni plugin in the host
+      - hostPath:
+          path: /opt/cni/bin
+          type: DirectoryOrCreate
+        name: cni-path
+        # To install cilium cni configuration in the host
+      - hostPath:
+          path: /etc/cni/net.d
+          type: DirectoryOrCreate
+        name: etc-cni-netd
+        # To be able to load kernel modules
+      - hostPath:
+          path: /lib/modules
+        name: lib-modules
+        # To access iptables concurrently with other processes (e.g. kube-proxy)
+      - hostPath:
+          path: /run/xtables.lock
+          type: FileOrCreate
+        name: xtables-lock
+      # The directory to write network policy action logs.
+      - hostPath:
+          path: /var/log/network
+          type: DirectoryOrCreate
+        name: network-log
+        # To access all network namespaces on the host when using containerd
+        # e.g. /var/run/netns/cni-xxxx
+      - hostPath:
+          path: /var/run/netns
+          type: DirectoryOrCreate
+        name: host-var-run-netns
+        # To read the clustermesh configuration
+      - name: clustermesh-secrets
+        secret:
+          # note: the leading zero means this number is in octal representation: do not remove it
+          defaultMode: 0400
+          optional: true
+          secretName: cilium-clustermesh
+          # To read the configuration from the config map
+      - configMap:
+          name: cilium-config
+        name: cilium-config-path
+      # To keep state between restarts / upgrades for dhcp plugin and share dhcpplugin socket
+      - hostPath:
+          path: /var/run/gke-dhcp
+          type: DirectoryOrCreate
+        name: dhcp-run
+      # To share dhcp socket between dhcp-plugin and anetd containers
+      - emptyDir: {}
+        name: dhcp-socket
+      - configMap:
+          name: policy-logging-config
+          items:
+          - key: policy-logging.conf
+            path: policy-logging.conf
+        name: policy-logging-config
+  updateStrategy:
+    rollingUpdate:
+      maxUnavailable: 2
+    type: RollingUpdate
