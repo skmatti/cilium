@@ -2823,8 +2823,15 @@ static __always_inline int rev_nodeport_lb4(struct __ctx_buff *ctx, __u32 *ifind
 		fib_params.ipv4_src = ip4->saddr;
 		fib_params.ipv4_dst = ip4->daddr;
 
-#if defined(MULTI_NIC_DEVICE_TYPE) && MULTI_NIC_DEVICE_TYPE == EP_DEV_TYPE_INDEX_MULTI_NIC_VETH
-		// MN veth type do not use fib lookup for CT_REPLY nodeport traffic
+	/**
+	 * When reverse nodeport traffic is reverse SNATted, skip the fib_lookup on bpf_host to exit the packet
+	 * from the interface which was recorded in conntrack when nodeport packet first entered.
+	 * This ensures interface index is not overridden by the fib_lookup to that of the default network interface's index
+	 * when traffic is originated from a source that is outside the L2 network of the node and pods.
+	 *
+	 * MN veth type do not use fib lookup for CT_REPLY nodeport traffic.
+	*/
+#if (defined(MULTI_NIC_DEVICE_TYPE) && MULTI_NIC_DEVICE_TYPE == EP_DEV_TYPE_INDEX_MULTI_NIC_VETH) || (defined(ENABLE_GOOGLE_MULTI_NIC) && is_defined(IS_BPF_HOST))
 		fib_ret = BPF_FIB_LKUP_RET_NO_NEIGH;
 #else
 		fib_ret = fib_lookup(ctx, &fib_params, sizeof(fib_params), 0);
