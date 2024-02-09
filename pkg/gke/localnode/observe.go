@@ -1,6 +1,9 @@
 package localnode
 
 import (
+	"context"
+	"sync"
+
 	"github.com/cilium/cilium/pkg/gke/localnodeip"
 	"github.com/cilium/cilium/pkg/hive"
 	"github.com/cilium/cilium/pkg/hive/cell"
@@ -22,20 +25,29 @@ var Cell = cell.Module(
 // NOTE: This does not handle node IPs changing without restart.
 func observeLocalNodeIP(nodeStore node.LocalNodeStore, lc hive.Lifecycle) {
 	doneChan := make(chan struct{})
+	var once sync.Once
 	next := func(n types.Node) {
-		ip := n.GetK8sNodeIP()
-		if ip != nil {
-			log.Infof("Setting local node IP to %s", ip)
-			localnodeip.SetK8sNodeIP(ip)
-			close(doneChan)
+		log.Info("Observed LocalNode event")
+		if ip := n.GetK8sNodeIP(); ip != nil {
+			once.Do(func() {
+				localnodeip.SetK8sNodeIP(ip)
+				log.Infof("LocalNode IP set to %s", ip)
+				close(doneChan)
+			})
+			if !localnodeip.GetK8sNodeIP().Equal(ip) {
+				log.Warnf("LocalNode IP change detected; this change is unsupported by this module. Old/current IP: %s, new IP: %s", localnodeip.GetK8sNodeIP(), ip)
+			}
 		}
 	}
 	lc.Append(hive.Hook{
 		OnStart: func(ctx hive.HookContext) error {
-			nodeStore.Observe(ctx, next, func(error) {})
+			subCtx, cancel := context.WithCancel(ctx)
+			defer cancel()
+			nodeStore.Observe(subCtx, next, func(error) {})
 			select {
 			case <-doneChan:
 			case <-ctx.Done():
+				log.Info("Hive context done for observing LocalNode events")
 			}
 			return nil
 		},
