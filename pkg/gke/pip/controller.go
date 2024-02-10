@@ -60,7 +60,7 @@ type GKEIPRouteReconciler struct {
 }
 
 func (r *GKEIPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (_ ctrl.Result, rerr error) {
-	return r.handleReconcile(ctx, "gkeiproute: "+req.Name)
+	return r.handleReconcile(ctx, "gkeiproute: "+req.String())
 }
 
 func (r *GKEIPRouteReconciler) handleReconcile(ctx context.Context, reconcileSource string) (_ ctrl.Result, rerr error) {
@@ -94,13 +94,14 @@ func (r *GKEIPRouteReconciler) handleReconcile(ctx context.Context, reconcileSou
 }
 
 func (r *GKEIPRouteReconciler) reconcileRoutingMap(ctx context.Context, gkeIPRoutes []pipv1.GKEIPRoute) (updatedGKEIPRoutes []*pipv1.GKEIPRoute, err error) {
-	// map of gkeIPRoutes that are accepted with latest
+	// map of gkeIPRoutes that are accepted with the latest
 	// generation of GKEIPRoute spec
 	acceptedGKEIPRoutes := map[string]*pipv1.GKEIPRoute{}
-	for _, gkeIPRoute := range gkeIPRoutes {
+	for i, gkeIPRoute := range gkeIPRoutes {
+		r.Log.Debugf("listed gkeIPRoute: %s", gkeIPRoute.GetName())
 		accepted := meta.FindStatusCondition(gkeIPRoute.Status.Conditions, string(pipv1.IPRouteAccepted))
 		if accepted != nil && accepted.Status == metav1.ConditionTrue && accepted.ObservedGeneration == gkeIPRoute.Generation {
-			acceptedGKEIPRoutes[gkeIPRoute.Name] = &gkeIPRoute
+			acceptedGKEIPRoutes[gkeIPRoute.Name] = &gkeIPRoutes[i]
 		}
 	}
 
@@ -115,7 +116,9 @@ func (r *GKEIPRouteReconciler) reconcileRoutingMap(ctx context.Context, gkeIPRou
 	// remove outdated entries from existingEntries, can ignore any errors
 	// as deletion failures are not critical.
 	for key := range existingEntries {
+		r.Log.Debugf("existing bpf entry: %s", key.String())
 		if _, ok := desiredEntries[key]; !ok {
+			r.Log.Debugf("deleting bpf entry: %s", key.String())
 			_, err := pip.RoutingMap.SilentDelete(&key)
 			if err != nil {
 				r.Log.WithError(err).Warnf("could not delete outdated routing record: %v", key)
@@ -170,6 +173,7 @@ func (r *GKEIPRouteReconciler) desiredRoutingEntries(ctx context.Context, gkeIPR
 	desiredMap := map[pip.CIDRKey]pipEntry{}
 	r.gkeIPRoutePodsCache = map[gkeIPRoutePod]bool{}
 	for _, gkeIPRoute := range gkeIPRoutes {
+		r.Log.Debugf("accepted gkeIPRoute: %s", gkeIPRoute.GetName())
 		// only support gkeiproutes with 1 matching pod
 		if len(gkeIPRoute.Status.Pods) != 1 {
 			r.Log.Infof("gkeiproute %s must have only one pod, current len=%d, ignoring", gkeIPRoute.Name, len(gkeIPRoute.Status.Pods))
@@ -200,6 +204,7 @@ func (r *GKEIPRouteReconciler) desiredRoutingEntries(ctx context.Context, gkeIPR
 			if err != nil {
 				return nil, fmt.Errorf("error while parsing GKEIPRoute %s address %s", gkeIPRoute.Name, address.Value)
 			}
+			r.Log.Debugf("bpf map entry for %s, entry: %s", gkeIPRoute.GetName(), address.Value)
 			cidrKey := pip.NewCIDRKey(ipNet)
 			routingEntry := pip.NewRoutingEntry(net.ParseIP(ep.GetIPv4Address()))
 			gkeIPRouteEntry := pipEntry{value: *routingEntry, gkeIPRoute: gkeIPRoute.DeepCopy()}
