@@ -7,6 +7,7 @@ import (
 	"github.com/cilium/cilium/pkg/bgpv1"
 	"github.com/cilium/cilium/pkg/datapath/linux"
 	"github.com/cilium/cilium/pkg/defaults"
+	"github.com/cilium/cilium/pkg/gke/localnode"
 	"github.com/cilium/cilium/pkg/gops"
 	"github.com/cilium/cilium/pkg/hive/cell"
 	k8sClient "github.com/cilium/cilium/pkg/k8s/client"
@@ -56,6 +57,9 @@ var (
 		// LocalNodeStore holds onto the information about the local node and allows
 		// observing changes to it.
 		node.LocalNodeStoreCell,
+
+		// localnode cell updates the localnode k8s IP.
+		localnode.Cell,
 
 		// daemonCell wraps the legacy daemon initialization and provides Promise[*Daemon].
 		daemonCell,

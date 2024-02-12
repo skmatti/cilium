@@ -7,6 +7,7 @@ package cmd
 
 import (
 	"context"
+	"net"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -33,6 +34,8 @@ import (
 	"github.com/cilium/cilium/pkg/lock"
 	"github.com/cilium/cilium/pkg/metrics"
 	monitorAPI "github.com/cilium/cilium/pkg/monitor/api"
+	"github.com/cilium/cilium/pkg/node"
+	nodeTypes "github.com/cilium/cilium/pkg/node/types"
 	"github.com/cilium/cilium/pkg/option"
 	"github.com/cilium/cilium/pkg/policy"
 	"github.com/cilium/cilium/pkg/promise"
@@ -151,6 +154,13 @@ func (ds *DaemonSuite) SetUpTest(c *C) {
 			func() *linux.DeviceManager { return nil },
 		),
 		ControlPlane,
+		// Google
+		// This triggers the localnode cell to observe the change and end the cell lifecycle.
+		cell.Invoke(func(nodeStore node.LocalNodeStore) {
+			nodeStore.Update(func(n *nodeTypes.Node) {
+				n.SetNodeExternalIP(net.ParseIP("1.1.1.1"))
+			})
+		}),
 		cell.Invoke(func(p promise.Promise[*Daemon]) {
 			daemonPromise = p
 		}),

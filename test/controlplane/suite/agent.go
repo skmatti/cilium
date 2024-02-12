@@ -6,6 +6,7 @@ package suite
 import (
 	"context"
 	"fmt"
+	"net"
 	"os"
 	"testing"
 
@@ -17,6 +18,7 @@ import (
 	"github.com/cilium/cilium/pkg/hive/cell"
 	k8sClient "github.com/cilium/cilium/pkg/k8s/client"
 	"github.com/cilium/cilium/pkg/node"
+	"github.com/cilium/cilium/pkg/node/types"
 	"github.com/cilium/cilium/pkg/option"
 	agentOption "github.com/cilium/cilium/pkg/option"
 	"github.com/cilium/cilium/pkg/promise"
@@ -70,11 +72,17 @@ func startCiliumAgent(t *testing.T, nodeName string, clientset k8sClient.Clients
 			func() *linux.DeviceManager { return nil },
 		),
 		cmd.ControlPlane,
+		// Google
+		// This triggers the localnode cell to observe the change and end the cell lifecycle.
+		cell.Invoke(func(nodeStore node.LocalNodeStore) {
+			nodeStore.Update(func(n *types.Node) {
+				n.SetNodeExternalIP(net.ParseIP("1.1.1.1"))
+			})
+		}),
 		cell.Invoke(func(p promise.Promise[*cmd.Daemon]) {
 			daemonPromise = p
 		}),
 	)
-
 	if err := handle.hive.Start(context.TODO()); err != nil {
 		return nil, agentHandle{}, err
 	}

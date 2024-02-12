@@ -7,7 +7,6 @@ import (
 	"github.com/cilium/cilium/pkg/gke/disablesourcevalidation"
 	"github.com/cilium/cilium/pkg/gke/features"
 	"github.com/cilium/cilium/pkg/gke/fqdnnetworkpolicy"
-	"github.com/cilium/cilium/pkg/gke/localnode"
 	"github.com/cilium/cilium/pkg/gke/networklogging"
 	"github.com/cilium/cilium/pkg/gke/nodefirewall"
 	"github.com/cilium/cilium/pkg/gke/nodefirewall/types"
@@ -44,7 +43,6 @@ var googleCell = cell.Module(
 	trafficsteering.Cell,
 	fqdnnetworkpolicy.Cell,
 	redirectservice.Cell,
-	localnode.Cell,
 	remotenode.Cell,
 	networklogging.Cell,
 	pip.Cell,
