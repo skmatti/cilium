@@ -1,4 +1,4 @@
-package windows
+package synchronizenode
 
 import (
 	"github.com/cilium/cilium/operator/option"
@@ -7,22 +7,27 @@ import (
 )
 
 var Cell = cell.Module(
-	"windows",
-	"Windows",
+	"synchronizenode",
+	"SynchronizeNode",
 
 	cell.Config(defaultConfig),
-	cell.Invoke(startSynchronizingWindowsNodes),
+	cell.Invoke(startSynchronizingNodes),
 )
 
 type Config struct {
 	SynchronizeK8sWindowsNodes bool
+	SynchronizeMigratingNodes  bool
 }
 
 var defaultConfig = Config{
 	SynchronizeK8sWindowsNodes: false,
+	SynchronizeMigratingNodes:  false,
 }
 
 func (cfg Config) Flags(flags *pflag.FlagSet) {
 	flags.Bool(option.SynchronizeK8sWindowsNodes, false, "")
 	flags.MarkHidden(option.SynchronizeK8sWindowsNodes)
+
+	flags.Bool(option.SynchronizeMigratingNodes, false, "")
+	flags.MarkHidden(option.SynchronizeMigratingNodes)
 }

@@ -12,11 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package windows
+package synchronizenode
 
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 
 	"github.com/cilium/cilium/pkg/hive"
 	"github.com/cilium/cilium/pkg/k8s"
@@ -35,17 +36,27 @@ import (
 	"k8s.io/client-go/tools/cache"
 )
 
+const migrateLabel = "networking.gke.io/cni-type"
+
 var (
 	log = logging.DefaultLogger.WithField(logfields.LogSubsys, "windows")
 )
 
-func startSynchronizingWindowsNodes(config Config, clientset k8sClient.Clientset, lc hive.Lifecycle) {
-	if !config.SynchronizeK8sWindowsNodes {
+func startSynchronizingNodes(config Config, clientset k8sClient.Clientset, lc hive.Lifecycle) {
+	if !config.SynchronizeK8sWindowsNodes && !config.SynchronizeMigratingNodes {
 		return
 	}
 
+	nodeLabels := labels.Set{}
+	if config.SynchronizeK8sWindowsNodes {
+		nodeLabels[v1.LabelOSStable] = "windows"
+	}
+	if config.SynchronizeMigratingNodes {
+		nodeLabels[migrateLabel] = "calico"
+	}
+
 	nodeOptsModifier := func(options *metav1.ListOptions) {
-		options.LabelSelector = labels.Set(map[string]string{v1.LabelOSStable: "windows"}).String()
+		options.LabelSelector = nodeLabels.String()
 	}
 
 	_, nodeController := informer.NewInformer(
@@ -144,6 +155,8 @@ func objToSlimV1Node(obj interface{}) *slim_corev1.Node {
 	if ok {
 		return node
 	}
+	log.WithField(logfields.Object, fmt.Sprintf("%T", obj)).
+		Debug("Unable to convert object to Node, checking if it is a deleted object")
 	deletedObj, ok := obj.(cache.DeletedFinalStateUnknown)
 	if ok {
 		// Delete was not observed by the watcher but is
@@ -155,6 +168,7 @@ func objToSlimV1Node(obj interface{}) *slim_corev1.Node {
 		}
 	}
 	log.WithField(logfields.Object, logfields.Repr(obj)).
-		Warn("Ignoring invalid k8s v1 Node")
+		Warn("Unable to convert object to a valid object")
+
 	return nil
 }
