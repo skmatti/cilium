@@ -92,7 +92,7 @@ func startSynchronizingWindowsNodes(config Config, clientset k8sClient.Clientset
 				}
 			},
 		},
-		nil,
+		k8s.ConvertToNode,
 	)
 
 	stopChan := make(chan struct{})
