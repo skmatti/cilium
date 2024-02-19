@@ -23,11 +23,8 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	networkv1 "k8s.io/cloud-provider-gcp/crd/apis/network/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
-	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
-	"sigs.k8s.io/controller-runtime/pkg/predicate"
 )
 
 var (
@@ -101,7 +98,7 @@ func (r *GKEIPRouteReconciler) reconcileRoutingMap(ctx context.Context, gkeIPRou
 		r.Log.Debugf("listed gkeIPRoute: %s", gkeIPRoute.GetName())
 		accepted := meta.FindStatusCondition(gkeIPRoute.Status.Conditions, string(pipv1.IPRouteAccepted))
 		if accepted != nil && accepted.Status == metav1.ConditionTrue && accepted.ObservedGeneration == gkeIPRoute.Generation {
-			acceptedGKEIPRoutes[gkeIPRoute.Name] = &gkeIPRoutes[i]
+			acceptedGKEIPRoutes[gkeIPRoute.Namespace+"/"+gkeIPRoute.Name] = &gkeIPRoutes[i]
 		}
 	}
 
@@ -149,7 +146,7 @@ func (r *GKEIPRouteReconciler) reconcileRoutingMap(ctx context.Context, gkeIPRou
 			pipMetricTracker[pipMetricKey{string(key.Family), *ipr.Spec.Network}] += 1
 		}
 		// only update those GKEIPRoutes that have a change in the DPV2Ready condition
-		if r.needsUpdate(ipr, acceptedGKEIPRoutes[ipr.Name]) {
+		if r.needsUpdate(ipr, acceptedGKEIPRoutes[ipr.Namespace+"/"+ipr.Name]) {
 			updatedGKEIPRoutes = append(updatedGKEIPRoutes, ipr)
 		}
 		r.Log.Infof("Updated routing entry, %s: %s", &key, &pipEntry.value)
@@ -173,10 +170,10 @@ func (r *GKEIPRouteReconciler) desiredRoutingEntries(ctx context.Context, gkeIPR
 	desiredMap := map[pip.CIDRKey]pipEntry{}
 	r.gkeIPRoutePodsCache = map[gkeIPRoutePod]bool{}
 	for _, gkeIPRoute := range gkeIPRoutes {
-		r.Log.Debugf("accepted gkeIPRoute: %s", gkeIPRoute.GetName())
+		r.Log.Debugf("accepted gkeIPRoute: %s/%s", gkeIPRoute.GetNamespace(), gkeIPRoute.GetName())
 		// only support gkeiproutes with 1 matching pod
 		if len(gkeIPRoute.Status.Pods) != 1 {
-			r.Log.Infof("gkeiproute %s must have only one pod, current len=%d, ignoring", gkeIPRoute.Name, len(gkeIPRoute.Status.Pods))
+			r.Log.Infof("gkeiproute %s/%s must have only one pod, current len=%d, ignoring", gkeIPRoute.Namespace, gkeIPRoute.Name, len(gkeIPRoute.Status.Pods))
 			continue
 		}
 		// compute networkID
@@ -271,16 +268,7 @@ func (r *GKEIPRouteReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		return nil
 	}))
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&pipv1.GKEIPRoute{}, builder.WithPredicates(
-			predicate.Funcs{
-				CreateFunc: func(ce event.CreateEvent) bool {
-					// we are only interested in GKEIPRoutes that are updated with
-					// Accepted conditions by the main GKEIPRoute controller.
-					// Hence we will not reconcile on Create event.
-					return false
-				},
-			},
-		)).
+		For(&pipv1.GKEIPRoute{}).
 		Complete(r)
 }
 
