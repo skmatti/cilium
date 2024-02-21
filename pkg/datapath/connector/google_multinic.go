@@ -1078,7 +1078,7 @@ func configureDHCPInfo(network *networkv1.Network, cfg *interfaceConfiguration, 
 
 func configureIPAMInfo(network *networkv1.Network, cfg *interfaceConfiguration, podIface string, ipam *ipam.IPAM) error {
 	// no IPAM required when external DHCP is true.
-	if network.Spec.ExternalDHCP4 != nil && *network.Spec.ExternalDHCP4 == true {
+	if network.Spec.ExternalDHCP4 != nil && *network.Spec.ExternalDHCP4 {
 		return nil
 	}
 	if cfg.IPV4Address != nil {
@@ -1089,6 +1089,12 @@ func configureIPAMInfo(network *networkv1.Network, cfg *interfaceConfiguration, 
 		// CCC changes and network object changes in place with respect to the provider field.
 		return nil
 	}
+
+	// no IPAM required when IPAMMode is not set to Internal mode.
+	if network.Spec.IPAMMode != nil && *network.Spec.IPAMMode != networkv1.InternalMode {
+		return nil
+	}
+
 	ipam.MultiNetworkAllocatorMutex.Lock()
 	defer ipam.MultiNetworkAllocatorMutex.Unlock()
 	ipa := ipam.MultiNetworkAllocators[network.Name]

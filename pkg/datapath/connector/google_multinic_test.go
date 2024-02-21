@@ -1117,12 +1117,22 @@ func TestConfigureDHCPInfo(t *testing.T) {
 }
 
 func TestConfigureIPAMInfo(t *testing.T) {
+	ipamModeInternal := networkv1.InternalMode
+	ipamModeExternal := networkv1.ExternalMode
 	testNw := "test-nw"
 	l3NwInfo := networkv1.Network{
 		ObjectMeta: metav1.ObjectMeta{Name: testNw},
 		Spec: networkv1.NetworkSpec{
 			Type:   networkv1.L3NetworkType,
 			Routes: []networkv1.Route{{To: "10.0.0.0/21"}},
+		},
+	}
+	l3NwExtIPAMInfo := networkv1.Network{
+		ObjectMeta: metav1.ObjectMeta{Name: testNw},
+		Spec: networkv1.NetworkSpec{
+			Type:     networkv1.L3NetworkType,
+			Routes:   []networkv1.Route{{To: "10.0.0.0/21"}},
+			IPAMMode: &ipamModeExternal,
 		},
 	}
 	l2NwInfo := networkv1.Network{
@@ -1191,9 +1201,25 @@ func TestConfigureIPAMInfo(t *testing.T) {
 				Spec: networkv1.NetworkSpec{
 					Type:            networkv1.L2NetworkType,
 					L2NetworkConfig: &networkv1.L2NetworkConfig{PrefixLength4: pointer.Int32(24)},
+					IPAMMode:        &ipamModeInternal,
 				},
 			},
 			wantMask: 24,
+		},
+		{
+			desc: "l2 network dynamic IP with IPAM Mode set to External",
+			network: &networkv1.Network{
+				ObjectMeta: metav1.ObjectMeta{Name: testNw},
+				Spec: networkv1.NetworkSpec{
+					Type:            networkv1.L2NetworkType,
+					L2NetworkConfig: &networkv1.L2NetworkConfig{PrefixLength4: pointer.Int32(24)},
+					IPAMMode:        &ipamModeExternal,
+				},
+			},
+		},
+		{
+			desc:    "l3 network dynamic IP with external IPAM Mode",
+			network: &l3NwExtIPAMInfo,
 		},
 	}
 
@@ -1212,16 +1238,26 @@ func TestConfigureIPAMInfo(t *testing.T) {
 				}
 				return
 			}
+
+			// Returned IPv4 address must match what was provided when Static IPAM is configured.
 			if tc.infCfg.IPV4Address != nil && tc.infCfg.IPV4Address != infCfg.IPV4Address {
 				t.Fatalf("configureIPAMInfo() returned interface configuration with ipv4 address different from provided static IP")
-			} else if infCfg.IPV4Address == nil {
-				t.Fatalf("configureIPAMInfo() returned interface configuration with nil ipv4 address")
 			}
-			if tc.infCfg.IPV4Address == nil {
-				ones, _ := infCfg.IPV4Address.Mask.Size()
-				if ones != tc.wantMask {
-					t.Fatalf("configureIPAMInfo() returned interface configuration with ipv4 address with incorrect netmask, got %d, want %d", ones, tc.wantMask)
+
+			// Dynamic IPAM expects a valid IPAM config unless IPAM Mode is set to 'External'
+			if tc.network.Spec.IPAMMode == nil || *tc.network.Spec.IPAMMode == networkv1.InternalMode {
+				if infCfg.IPV4Address == nil {
+					t.Fatalf("configureIPAMInfo() returned interface configuration with nil ipv4 address")
 				}
+
+				if tc.infCfg.IPV4Address == nil {
+					ones, _ := infCfg.IPV4Address.Mask.Size()
+					if ones != tc.wantMask {
+						t.Fatalf("configureIPAMInfo() returned interface configuration with ipv4 address with incorrect netmask, got %d, want %d", ones, tc.wantMask)
+					}
+				}
+			} else if tc.infCfg.IPV4Address == nil && infCfg.IPV4Address != nil {
+				t.Fatalf("configureIPAMInfo() returned interface configuration when IPAM Mode was set to external.")
 			}
 		})
 	}
@@ -1271,6 +1307,7 @@ func (dc *fakeDHCPClient) Release(containerID, podNS, podIface string, letLeaseE
 }
 
 func TestConfigureInterface(t *testing.T) {
+	testutils.PrivilegedTest(t)
 	testcases := []struct {
 		desc    string
 		infCfg  interfaceConfiguration

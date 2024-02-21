@@ -85,9 +85,7 @@ func (d *Daemon) AllocateIP(ip, owner string) error {
 	}
 	d.ipam.MultiNetworkAllocatorMutex.Lock()
 	defer d.ipam.MultiNetworkAllocatorMutex.Unlock()
-	// A no-op if there are no allocators to allocate the IP because of backward compatibility for kubevirt
-	// to handle cases like static IP endpoints. We do not have a way to check if endpoints were assigned an IP statically.
-	// TODO(b/264624818) - Update this once design around IPAM mode in network object is finalised.
+	// When there are no networks with internal IPAM mode, length of MultiNetworkAllocators will be zero.
 	if len(d.ipam.MultiNetworkAllocators) == 0 {
 		return nil
 	}
