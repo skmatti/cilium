@@ -34,10 +34,6 @@ type EndpointDatapathConfiguration struct {
 	//
 	EnableMulticast bool `json:"enable-multicast,omitempty"`
 
-	// Network id in the google multinic context, configured for L3 multinic devices only
-	//
-	NetworkID uint32 `json:"network-id,omitempty"`
-
 	// Indicates that IPAM is done external to Cilium. This will prevent the IP from being released and re-allocation of the IP address is skipped on restore.
 	//
 	ExternalIpam bool `json:"external-ipam,omitempty"`
@@ -45,6 +41,10 @@ type EndpointDatapathConfiguration struct {
 	// Installs a route in the Linux routing table pointing to the device of the endpoint's interface.
 	//
 	InstallEndpointRoute bool `json:"install-endpoint-route,omitempty"`
+
+	// NetworkID identifies the network in the Google multinic context. It is configured for L3 multinic devices only.
+	//
+	NetworkID uint32 `json:"network-id,omitempty"`
 
 	// Enable ARP passthrough mode
 	RequireArpPassthrough bool `json:"require-arp-passthrough,omitempty"`

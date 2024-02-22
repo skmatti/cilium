@@ -2511,6 +2511,11 @@ func init() {
           "description": "Installs a route in the Linux routing table pointing to the device of the endpoint's interface.\n",
           "type": "boolean"
         },
+        "network-id": {
+          "description": "NetworkID identifies the network in the Google multinic context. It is configured for L3 multinic devices only.\n",
+          "type": "integer",
+          "format": "uint32"
+        },
         "require-arp-passthrough": {
           "description": "Enable ARP passthrough mode",
           "type": "boolean"
@@ -7482,6 +7487,11 @@ func init() {
         "install-endpoint-route": {
           "description": "Installs a route in the Linux routing table pointing to the device of the endpoint's interface.\n",
           "type": "boolean"
+        },
+        "network-id": {
+          "description": "NetworkID identifies the network in the Google multinic context. It is configured for L3 multinic devices only.\n",
+          "type": "integer",
+          "format": "uint32"
         },
         "require-arp-passthrough": {
           "description": "Enable ARP passthrough mode",

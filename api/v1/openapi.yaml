@@ -1324,6 +1324,11 @@ definitions:
         description: >
           Disable source MAC verification for the endpoint.
         type: boolean
+      network-id:
+        description: >
+          NetworkID identifies the network in the Google multinic context. It is configured for L3 multinic devices only.
+        type: integer
+        format: uint32
   EndpointStatus:
     description: The current state and configuration of the endpoint, its policy & datapath, and subcomponents
     type: object
