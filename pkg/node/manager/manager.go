@@ -68,7 +68,6 @@ type Configuration interface {
 	TunnelingEnabled() bool
 	RemoteNodeIdentitiesEnabled() bool
 	NodeEncryptionEnabled() bool
-	NodeIpsetNeeded() bool
 	IsLocalRouterIP(string) bool
 }
 
@@ -421,7 +420,7 @@ func (m *Manager) NodeUpdated(n nodeTypes.Node) {
 			tunnelIP = nodeIP
 		}
 
-		if m.conf.NodeIpsetNeeded() && address.Type == addressing.NodeInternalIP {
+		if option.Config.NodeIpsetNeeded() && address.Type == addressing.NodeInternalIP {
 			iptables.AddToNodeIpset(address.IP)
 		}
 
@@ -536,7 +535,7 @@ func (m *Manager) NodeUpdated(n nodeTypes.Node) {
 			} else {
 				prefix = ip.IPToNetPrefix(address.IP.To16())
 			}
-			if m.conf.NodeIpsetNeeded() && address.Type == addressing.NodeInternalIP &&
+			if option.Config.NodeIpsetNeeded() && address.Type == addressing.NodeInternalIP &&
 				!slices.Contains(ipsAdded, prefix.String()) {
 				iptables.RemoveFromNodeIpset(address.IP)
 			}
@@ -682,7 +681,7 @@ func (m *Manager) NodeDeleted(n nodeTypes.Node) {
 	}
 
 	for _, address := range entry.node.IPAddresses {
-		if m.conf.NodeIpsetNeeded() && address.Type == addressing.NodeInternalIP {
+		if option.Config.NodeIpsetNeeded() && address.Type == addressing.NodeInternalIP {
 			iptables.RemoveFromNodeIpset(address.IP)
 		}
 

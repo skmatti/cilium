@@ -51,8 +51,8 @@ const (
 	ciliumForwardChain    = "CILIUM_FORWARD"
 	feederDescription     = "cilium-feeder:"
 	xfrmDescription       = "cilium-xfrm-notrack:"
-	CiliumNodeIpsetV4     = "cilium_node_set_v4"
-	CiliumNodeIpsetV6     = "cilium_node_set_v6"
+	ciliumNodeIpsetV4     = "cilium_node_set_v4"
+	ciliumNodeIpsetV6     = "cilium_node_set_v6"
 )
 
 // Minimum iptables versions supporting the -w and -w<seconds> flags
@@ -105,8 +105,8 @@ func (ipt *ipt) initArgs(waitSeconds int) {
 
 // package name is iptables so we use ip4tables internally for "iptables"
 var (
-	ip4tables = &ipt{prog: "iptables", ipset: CiliumNodeIpsetV4}
-	ip6tables = &ipt{prog: "ip6tables", ipset: CiliumNodeIpsetV6}
+	ip4tables = &ipt{prog: "iptables", ipset: ciliumNodeIpsetV4}
+	ip6tables = &ipt{prog: "ip6tables", ipset: ciliumNodeIpsetV6}
 	ipset     = &ipt{prog: "ipset"}
 )
 
@@ -1126,9 +1126,9 @@ func (m *IptablesManager) installForwardChainRulesIpX(prog iptablesInterface, if
 // or the IP already exist.
 func AddToNodeIpset(nodeIP net.IP) {
 	scopedLog := log.WithField(logfields.IPAddr, nodeIP.String())
-	ciliumNodeIpset := CiliumNodeIpsetV4
+	ciliumNodeIpset := ciliumNodeIpsetV4
 	if ip.IsIPv6(nodeIP) {
-		ciliumNodeIpset = CiliumNodeIpsetV6
+		ciliumNodeIpset = ciliumNodeIpsetV6
 	}
 	if err := createIpset(ciliumNodeIpset, ip.IsIPv6(nodeIP)); err != nil {
 		scopedLog.WithError(err).Errorf("Failed to create ipset %s", ciliumNodeIpset)
@@ -1143,9 +1143,9 @@ func AddToNodeIpset(nodeIP net.IP) {
 // RemoveFromBodeIpset removes an IP address from the ipset for cluster nodes.
 func RemoveFromNodeIpset(nodeIP net.IP) {
 	scopedLog := log.WithField(logfields.IPAddr, nodeIP.String())
-	ciliumNodeIpset := CiliumNodeIpsetV4
+	ciliumNodeIpset := ciliumNodeIpsetV4
 	if ip.IsIPv6(nodeIP) {
-		ciliumNodeIpset = CiliumNodeIpsetV6
+		ciliumNodeIpset = ciliumNodeIpsetV6
 	}
 	progArgs := []string{"del", ciliumNodeIpset, nodeIP.String()}
 	if err := ipset.runProg(progArgs); err != nil {
@@ -1336,7 +1336,7 @@ func createIpset(name string, ipv6 bool) error {
 	return ipset.runProg(progArgs)
 }
 
-func RemoveIpset(name string) error {
+func removeIpset(name string) error {
 	if !ipsetExists(name) {
 		return nil
 	}
@@ -1348,22 +1348,6 @@ func ipsetExists(name string) bool {
 	progArgs := []string{"list", name}
 	err := ipset.runProg(progArgs)
 	return err == nil
-}
-
-func IpsetContains(setName string, ip string) bool {
-	progArgs := []string{"list", setName}
-	set, err := ipset.runProgOutput(progArgs)
-	if err != nil {
-		log.WithError(err).Warningf("Failed to dump ipset %s", setName)
-		return false
-	}
-	lines := strings.Split(set, "\n")
-	for _, line := range lines {
-		if line == ip {
-			return true
-		}
-	}
-	return false
 }
 
 func (m *IptablesManager) installHostTrafficMarkRule(prog iptablesInterface) error {
@@ -1472,20 +1456,20 @@ func (m *IptablesManager) doInstallRules(ifName string, firstInitialization, ins
 	// needed depends on the configuration, but the content doesn't.
 	if option.Config.NodeIpsetNeeded() {
 		if option.Config.IptablesMasqueradingIPv4Enabled() {
-			if err := createIpset(CiliumNodeIpsetV4, false); err != nil {
+			if err := createIpset(ciliumNodeIpsetV4, false); err != nil {
 				return err
 			}
 		}
 		if option.Config.IptablesMasqueradingIPv6Enabled() {
-			if err := createIpset(CiliumNodeIpsetV6, true); err != nil {
+			if err := createIpset(ciliumNodeIpsetV6, true); err != nil {
 				return err
 			}
 		}
 	} else {
-		if err := RemoveIpset(CiliumNodeIpsetV4); err != nil {
+		if err := removeIpset(ciliumNodeIpsetV4); err != nil {
 			return err
 		}
-		if err := RemoveIpset(CiliumNodeIpsetV6); err != nil {
+		if err := removeIpset(ciliumNodeIpsetV6); err != nil {
 			return err
 		}
 	}
