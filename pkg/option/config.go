@@ -2317,6 +2317,9 @@ type DaemonConfig struct {
 	// Currently Tunnel is enabled for both IP families by default
 	DisableIPv6Tunnel bool
 
+	// EnableTrafficSteering determines if traffic steering is enabled in the cluster.
+	EnableTrafficSteering bool
+
 	// EnableCustomCalls enables tail call hooks for user-defined custom
 	// eBPF programs, typically used to collect custom per-endpoint
 	// metrics.
@@ -3167,6 +3170,7 @@ func (c *DaemonConfig) Populate(vp *viper.Viper) {
 	c.EnableGDCILB = vp.GetBool(EnableGDCILB)
 	c.EnableFlatIPv4 = vp.GetBool(EnableFlatIPv4)
 	c.DisableIPv6Tunnel = vp.GetBool(DisableIPv6Tunnel)
+	c.EnableTrafficSteering = vp.GetBool(EnableTrafficSteering)
 	c.EnableGNG = vp.GetBool(EnableGNG)
 	c.DisablePodToRemoteNodeTunneling = vp.GetBool(DisablePodToRemoteNodeTunneling)
 	// TODO(b/279040119) Filter out user-provided prefixes until we have a better solution
