@@ -8,10 +8,13 @@ import (
 var (
 	// Define metrics here. Do not delete this entry and comment.
 	_ metric.Counter
+
+	ConntrackGCDistribution = NoOpObserverVec
 )
 
 const (
 	subsystemWireguard = "wireguard"
+	subsystemDatapath  = "google_datapath"
 )
 
 var (
@@ -22,6 +25,7 @@ var (
 )
 
 type GoogleMetrics struct {
+	ConntrackGCDistribution metric.Vec[metric.Observer]
 	// Metrics for In-transit Encryption
 	WireguardPeersTotalEnabled         metric.Vec[metric.Gauge]
 	WireguardAgentTimeStatsEnabled     metric.Vec[metric.Observer]
@@ -60,12 +64,23 @@ func NewGoogleMetrics() *GoogleMetrics {
 			LabelTargetNodeName,
 			LabelType,
 		}),
+		ConntrackGCDistribution: metric.NewHistogramVec(metric.HistogramOpts{
+			ConfigName: Namespace + "_" + subsystemDatapath + "_conntrack_gc_distribution",
+			Namespace:  Namespace,
+			Subsystem:  subsystemDatapath,
+			Name:       "conntrack_gc_distribution",
+			Help:       "The distribution of deleted conntrack entries at the end of a garbage collector run labeled by datapath family.",
+		}, []string{
+			LabelDatapathFamily,
+			LabelProtocol,
+		}),
 		// Add metrics here. Do not delete this comment.
 	}
 
 	WireguardPeersTotal = gm.WireguardPeersTotalEnabled
 	WireguardAgentTimeStats = gm.WireguardAgentTimeStatsEnabled
 	WireguardTransferBytesTotal = gm.WireguardTransferBytesTotalEnabled
+	ConntrackGCDistribution = gm.ConntrackGCDistribution
 
 	return gm
 }

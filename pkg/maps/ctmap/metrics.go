@@ -99,6 +99,7 @@ func (s *gcStats) finish() {
 		status = "completed"
 		metrics.ConntrackGCSize.WithLabelValues(family, proto, metricsAlive).Set(float64(s.aliveEntries))
 		metrics.ConntrackGCSize.WithLabelValues(family, proto, metricsDeleted).Set(float64(s.deleted))
+		metrics.ConntrackGCDistribution.WithLabelValues(family, proto).Observe(float64(s.deleted))
 	} else {
 		status = "uncompleted"
 		scopedLog := log.WithField("interrupted", s.Interrupted)
