@@ -24,6 +24,6 @@ spec:
             # Exact version of ABM is required to generate addon configurations.
             bmctlVersion: 1.29.0-gke.1023
             passthroughEnv: |
-              {"MANIFEST_PROFILE_ENV": "staging", "NUM_NETWORKS": "2", "PLATFORM": "vsphere", "LAB_ID": "atl_shared", "NUM_EXTRA_IPS": "3"}
+              {"MANIFEST_PROFILE_ENV": "staging", "NUM_NETWORKS": "2", "PLATFORM": "vsphere", "LAB_ID": "atl_shared"}
             proxyPort: "8218"
             username: prowuser

@@ -29,7 +29,7 @@ function workdir {
     popd >/dev/null
   fi
   if ! [[ -d "${root}/${dir}" ]]; then
-    echo "Working directory must exist and be a directory: ${root}/${dir}"
+    echo "Working directory must exist and be a directory: ${root}/${dir}." >&2
     return 1
   fi
   echo "${dir}"
@@ -126,8 +126,7 @@ function cluster_platform {
   echo "${provider}-${distribution}"
 }
 
-# Find out what platform we are running against, possible outcome is
-# baremetal-gke, gdce-gke, or gcp-gke.
+# Find out what platform we are running against.
 PLATFORM=$(cluster_platform "${TBCONFIG}")
 
 # Remove proxy env on platforms where it is not supported.
@@ -155,27 +154,38 @@ if [[ -n "${CILIUM_GITREF:-}" ]]; then
   fi
 
   # Update the cluster rookery file.
-  if [[ ${PLATFORM} = baremetal-gke ]]; then
-    ABSOLUTE_PATH_TBCONFIG="${TBCONFIG}" \
-      ADDON_CONFIG_NAME="${ADDON_CONFIG_NAME}" \
-      ADDON_CONFIG_BUCKET_URL="${ADDON_CONFIG_BUCKET_URL}" \
-      IMAGE_REGISTRY="${IMAGE_REGISTRY}" \
-      DOCKER_IMAGE_TAG="${DOCKER_IMAGE_TAG}" \
-      CILIUM_DOCKER_IMAGE_TAG="${CILIUM_DOCKER_IMAGE_TAG}" \
-      PATCH_CONTENT_DIR=${PATCH_CONTENT_DIR} \
-      WORKDIR="${ROOT}/${WORKDIR}" \
-      "${ROOT}/provision_abm.sh"
-  elif [[ ${PLATFORM} = gdce-gke ]]; then
-    working_copy "${ROOT}/gdce_plugin_template.yaml" "${ROOT}/${WORKDIR}"
-    ABSOLUTE_PATH_TBCONFIG="${TBCONFIG}" \
-      ADDON_CONFIG_NAME="${ADDON_CONFIG_NAME}" \
-      ADDON_CONFIG_BUCKET_URL="${ADDON_CONFIG_BUCKET_URL}" \
-      IMAGE_REGISTRY="${IMAGE_REGISTRY}" \
-      DOCKER_IMAGE_TAG="${DOCKER_IMAGE_TAG}" \
-      CILIUM_DOCKER_IMAGE_TAG="${CILIUM_DOCKER_IMAGE_TAG}" \
-      WORKDIR="${ROOT}/${WORKDIR}" \
-      "${ROOT}/provision_gdce.sh"
-  fi
+  case "${PLATFORM}" in
+    baremetal-gke | vsphere-gke-baremetal)
+      ABSOLUTE_PATH_TBCONFIG="${TBCONFIG}" \
+        ADDON_CONFIG_NAME="${ADDON_CONFIG_NAME}" \
+        ADDON_CONFIG_BUCKET_URL="${ADDON_CONFIG_BUCKET_URL}" \
+        IMAGE_REGISTRY="${IMAGE_REGISTRY}" \
+        DOCKER_IMAGE_TAG="${DOCKER_IMAGE_TAG}" \
+        CILIUM_DOCKER_IMAGE_TAG="${CILIUM_DOCKER_IMAGE_TAG}" \
+        PATCH_CONTENT_DIR=${PATCH_CONTENT_DIR} \
+        WORKDIR="${ROOT}/${WORKDIR}" \
+        "${ROOT}/provision_abm.sh"
+      ;;
+    gdce-gke)
+      working_copy "${ROOT}/gdce_plugin_template.yaml" "${ROOT}/${WORKDIR}"
+      ABSOLUTE_PATH_TBCONFIG="${TBCONFIG}" \
+        ADDON_CONFIG_NAME="${ADDON_CONFIG_NAME}" \
+        ADDON_CONFIG_BUCKET_URL="${ADDON_CONFIG_BUCKET_URL}" \
+        IMAGE_REGISTRY="${IMAGE_REGISTRY}" \
+        DOCKER_IMAGE_TAG="${DOCKER_IMAGE_TAG}" \
+        CILIUM_DOCKER_IMAGE_TAG="${CILIUM_DOCKER_IMAGE_TAG}" \
+        WORKDIR="${ROOT}/${WORKDIR}" \
+        "${ROOT}/provision_gdce.sh"
+      ;;
+    gcp-gke)
+      echo "Provisioning not implemented for platform: ${PLATFORM}" >&2
+      exit 1
+      ;;
+    *)
+      echo "Unknown platform: ${PLATFORM}." >&2
+      exit 1
+      ;;
+  esac
 fi
 
 # Build and push plugin image if WORA_IMAGE_TAG is not set.
