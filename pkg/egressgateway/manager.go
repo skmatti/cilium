@@ -411,9 +411,9 @@ func (manager *Manager) removeUnusedEgressRules() {
 
 nextPolicyKey:
 	for policyKey, policyVal := range egressPolicies {
-		if (option.Config.EnableTrafficSteering && policyVal.EgressIP == ciliumTypes.IPv4{}) {
+		if (option.Config.EnableTrafficSteering && policyVal.EgressIP == ciliumTypes.IPv4{255, 255, 255, 255}) {
 			// For the egress policy installed by TrafficSteering CR,
-			// EgressIP is always set to 0.0.0.0. OSS is not aware of the
+			// EgressIP is always set to 255.255.255.255. OSS is not aware of the
 			// TrafficSteering CR and thereby not aware of policies installed
 			// by it. We explicitly have to skip their deletion by identifying
 			// such policies by checking policyVal.EgressIP value.

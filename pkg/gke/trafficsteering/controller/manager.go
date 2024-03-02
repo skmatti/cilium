@@ -7,6 +7,7 @@ import (
 	"github.com/cilium/cilium/pkg/gke/apis/trafficsteering/v1alpha1"
 	"github.com/cilium/cilium/pkg/maps/egressmap"
 	nodeTypes "github.com/cilium/cilium/pkg/node/types"
+	ciliumTypes "github.com/cilium/cilium/pkg/types"
 	"github.com/cilium/ebpf"
 	"k8s.io/apimachinery/pkg/types"
 )
@@ -156,7 +157,9 @@ func (m *manager) delPodIP(ip net.IP) {
 
 func (m *manager) updateEgressMap(src net.IP, dst *net.IPNet, nextHop net.IP) error {
 	key := egressmap.NewEgressPolicyKey4(src, dst.IP, dst.Mask)
-	value := egressmap.EgressPolicyVal4{}
+	value := egressmap.EgressPolicyVal4{
+		EgressIP: ciliumTypes.IPv4{255, 255, 255, 255},
+	}
 	copy(value.GatewayIP[:], nextHop.To4())
 	if err := m.egressMap.Update(key, value, 0); err != nil {
 		return err

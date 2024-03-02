@@ -1161,13 +1161,14 @@ skip_ipv4_local_delivery:
 		 *
 		 * The excpetion to the above decision is in the following case:
 		 * For the egress gateway policy installed by TrafficSteering CR,
-		 * egress_ip is always set to 0x0. For the packet which is outside
-		 * initiated, if egress_gw_policy has egress_ip 0x0, we want this
+		 * egress_ip is always set to 0xffffffff (255.255.255.255).
+		 * For the packet which is outside initiated, if egress_gw_policy has egress_ip
+		 * set to 0xffffffff (255.255.255.255), we want this
 		 * packet not to skip egress gateway and we want this packet to follow
 		 * the egress gw policy and go back to the ANG/GNG node, before going
 		 * back outside of the cluster.
 		 */
-		if ((ct_status == CT_REPLY || ct_status == CT_RELATED) && egress_gw_policy->egress_ip != 0x0)
+		if ((ct_status == CT_REPLY || ct_status == CT_RELATED) && egress_gw_policy->egress_ip != 0xffffffff)
 			goto skip_egress_gateway;
 
 		if (egress_gw_request_needs_redirect(ip4, &tunnel_endpoint)) {
