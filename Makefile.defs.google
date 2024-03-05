@@ -1,5 +1,5 @@
 BASE_IMAGE := gke.gcr.io/gke-distroless/static@sha256:a9bcaff952ad20be9a9d44474445498e516e74622f8099c869ee4af148852e99
-GOLANG_IMAGE := google-go.pkg.dev/golang:1.21.7@sha256:f5895842c9552e90bdf872ee0daed7458b54e02b08bc39b0a29756da8bebb4f2
+GOLANG_IMAGE := google-go.pkg.dev/golang:1.21.8@sha256:553db116d1a8ccfccd0a140ad9c839be11246a4af216eb509279ddc004fbb5e3
 GOLANG_VERSION=$(shell echo $(GOLANG_IMAGE) | awk -F '[:@]' '{print $$2}')
 GOLANG_TARBALL := https://go.dev/dl/go$(GOLANG_VERSION).linux-amd64.tar.gz
 
