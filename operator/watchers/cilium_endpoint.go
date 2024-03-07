@@ -215,7 +215,7 @@ func endpointUpdated(cep *cilium_api_v2.CiliumEndpoint) {
 
 func endpointDeleted(cep *cilium_api_v2.CiliumEndpoint) {
 	if onEndpointDelete != nil {
-		onEndpointUpdate(cep)
+		onEndpointDelete(cep)
 	}
 }
 
