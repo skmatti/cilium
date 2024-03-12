@@ -73,9 +73,12 @@ fi
 function build_and_push_cilium_image {
   local cilium_gitref="${1:?}"
   local image_registry="${2:?}"
+  local current_branch
+  local docker_image_tag
+  local cilium_docker_image_tag
 
   current_branch="$(git rev-parse --abbrev-ref HEAD)"
-  if [[ "${cilium_gitref}" = "${current_branch}" ]]; then
+  if [[ "${cilium_gitref}" = "${current_branch}" ]] || [[ "${cilium_gitref}" = HEAD ]]; then
     # Build and push cilium from current branch HEAD.
     echo "INFO: did not specify CILIUM_GITREF, will be build from current head." >&2
     docker_image_tag="$(git rev-parse --verify HEAD)"
@@ -84,13 +87,13 @@ function build_and_push_cilium_image {
   else
     # Build and push cilium from CILIUM_GITREF.
     echo "INFO: building image from CILIUM_GITREF:${cilium_gitref}." >&2
-    test_binary_dir=test_binary_dir
-    rm -rf "${test_binary_dir}"
-    mkdir -p "${test_binary_dir}"
-    git clone "https://gke-internal.googlesource.com/third_party/cilium" "${test_binary_dir}/"
-    cp "${ROOT}"/../build_and_push_cilium_image.sh "${test_binary_dir}"
+    local cilium_srcdir
+    cilium_srcdir=$(mktemp -d -t cilium_src.XXXXXXXXXX)
+    trap 'rm -rf "${cilium_srcdir}"; trap - RETURN' RETURN
+    git clone "https://gke-internal.googlesource.com/third_party/cilium" "${cilium_srcdir}/"
+    cp "${ROOT}/../build_and_push_cilium_image.sh" "${cilium_srcdir}"
 
-    pushd "${test_binary_dir}"
+    pushd "${cilium_srcdir}"
     git checkout "${cilium_gitref}"
     docker_image_tag="$(git rev-parse --verify HEAD)"
     cilium_docker_image_tag=${docker_image_tag}-dpv2
@@ -106,6 +109,7 @@ function build_and_push_cilium_image {
 # Function to remove given ENV from WORA config.
 function remove_env {
   local config="${1:?}"
+  local e
   shift
   for e in "$@"; do
     yq -i "del(.spec.applications[].spec.directives[].spec.env.${e})" "${config}"
