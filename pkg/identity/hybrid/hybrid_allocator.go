@@ -74,6 +74,8 @@ func NewHybridIDAllocator(owner idcache.IdentityAllocatorOwner) *HybridIDAllocat
 	// rely upon any external resources (e.g., external kvstore).
 	h.LocalIdentities = idcache.NewLocalIdentityCache(identity.MinAllocatorLocalIdentity, identity.MaxAllocatorLocalIdentity, h.events)
 
+	h.SubscribeToCIDEvents()
+
 	return h
 }
 
@@ -85,6 +87,13 @@ func (h *HybridIDAllocator) InitIdentityAllocator(client clientset.Interface, id
 		log.Warningf("InitIdentityAllocator called when CachingIdentityAllocator is already running")
 		return h.globalIdentityAllocatorInitialized
 	}
+
+	close(h.globalIdentityAllocatorInitialized)
+	return h.globalIdentityAllocatorInitialized
+}
+
+func (h *HybridIDAllocator) SubscribeToCIDEvents() {
+	cidWatcherAlreadyInitialized := watchers.CIDStore != nil
 
 	cidHandlerFunc := func(cid *v2.CiliumIdentity, typ kvstore.EventType) {
 		eventsChan := h.events
@@ -121,8 +130,17 @@ func (h *HybridIDAllocator) InitIdentityAllocator(client clientset.Interface, id
 	watchers.AddCIDEventUpdateSubscriber(cidUpdateHandlerFunc)
 	watchers.AddCIDEventDeleteSubscriber(cidDeleteHandlerFunc)
 
-	close(h.globalIdentityAllocatorInitialized)
-	return h.globalIdentityAllocatorInitialized
+	// Process all events from the watcher's store in case allocator subscribed
+	// after CID watcher is initialized.
+	if cidWatcherAlreadyInitialized {
+		cidObjList := watchers.CIDStore.List()
+		for _, cidObj := range cidObjList {
+			cid, ok := cidObj.(*v2.CiliumIdentity)
+			if ok {
+				cidHandlerFunc(cid, kvstore.EventTypeCreate)
+			}
+		}
+	}
 }
 
 // WaitForInitialGlobalIdentities waits for the initial set of global security

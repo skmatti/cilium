@@ -6,12 +6,10 @@ import (
 
 	"github.com/cilium/cilium/pkg/allocator"
 	"github.com/cilium/cilium/pkg/identity/key"
-	"github.com/cilium/cilium/pkg/idpool"
 	v2 "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2"
 	ciliumv2 "github.com/cilium/cilium/pkg/k8s/client/clientset/versioned/typed/cilium.io/v2"
 	"github.com/cilium/cilium/pkg/k8s/informer"
 	metav1 "github.com/cilium/cilium/pkg/k8s/slim/k8s/apis/meta/v1"
-	"github.com/cilium/cilium/pkg/kvstore"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/client-go/tools/cache"
 )
@@ -100,12 +98,6 @@ func GetIdentitiesByKeyFunc(keyFunc func(map[string]string) allocator.AllocatorK
 			return []string{keyFunc(identity.SecurityLabels).GetKey()}, nil
 		}
 		return []string{}, fmt.Errorf("object other than CiliumIdentity was pushed to the store")
-	}
-}
-
-func sendEvent(eventsChan allocator.AllocatorEventChan, typ kvstore.EventType, id idpool.ID, key allocator.AllocatorKey) {
-	if events := eventsChan; events != nil {
-		events <- allocator.AllocatorEvent{Typ: typ, ID: id, Key: key}
 	}
 }
 
