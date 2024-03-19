@@ -27,6 +27,27 @@ WORA_IMAGE_FULL_NAME = $(WORA_IMAGE_REGISTRY)/$(WORA_IMAGE_NAME):$(WORA_IMAGE_TA
 WORA_DOCKERFILE_DIR ?= $(CURDIR)
 WORA_DOCKERFILE = $(realpath $(WORA_DOCKERFILE_DIR)/Dockerfile)
 
+ADVANCEDDATAPATH_BASE_IMAGE_REGISTRY ?= us-central1-docker.pkg.dev/anthos-networking-ci/gke-component-images
+ADVANCEDDATAPATH_BASE_IMAGE_NAME ?= advanceddatapath
+ADVANCEDDATAPATH_BASE_IMAGE_TAG = 0.0.1001
+
+ADVANCEDDATAPATH_IMAGE_REGISTRY ?= $(ADVANCEDDATAPATH_BASE_IMAGE_REGISTRY)
+ADVANCEDDATAPATH_IMAGE_NAME ?= $(ADVANCEDDATAPATH_BASE_IMAGE_NAME)
+
+ADVANCEDDATAPATH_IMAGE_TAG ?= "$(ADVANCEDDATAPATH_BASE_IMAGE_TAG)-$(USER)"
+
+ifeq ($(ADVANCEDDATAPATH_IMAGE_TAG), $(ADVANCEDDATAPATH_BASE_IMAGE_TAG))
+$(error "Cannot overwrite existing base image: $(ADVANCEDDATAPATH_BASE_IMAGE_TAG)")
+endif
+
+ADVANCEDDATAPATH_IMAGE_FULL_NAME = $(ADVANCEDDATAPATH_IMAGE_REGISTRY)/$(ADVANCEDDATAPATH_IMAGE_NAME):$(ADVANCEDDATAPATH_IMAGE_TAG)
+
+ADVANCEDDATAPATH_DOCKERFILE_DIR ?= $(CURDIR)/gke_component_override
+ADVANCEDDATAPATH_DOCKERFILE = $(realpath $(ADVANCEDDATAPATH_DOCKERFILE_DIR)/Dockerfile)
+
+# Cilium version to be used in the advanceddatapath image for component override.
+CILIUM_TAG ?= nightly
+
 # Working directory for intermediate files.
 WORKDIR ?= .
 
@@ -74,3 +95,17 @@ wora-image: ## Build WORA image.
 push-wora-image: ## Push WORA image.
 	docker push $(WORA_IMAGE_FULL_NAME)
 	@echo "Pushed image with TBENV=$(TBENV)."
+
+advanceddatapath-image: ## Build advanceddatapath image.
+	docker build \
+		--platform=x86_64 \
+		--build-arg=BASE_IMAGE_REGISTRY="$(ADVANCEDDATAPATH_BASE_IMAGE_REGISTRY)" \
+		--build-arg=BASE_IMAGE_NAME="$(ADVANCEDDATAPATH_BASE_IMAGE_NAME)" \
+		--build-arg=BASE_IMAGE_TAG="$(ADVANCEDDATAPATH_BASE_IMAGE_TAG)" \
+		--build-arg=cilium_tag="$(CILIUM_TAG)" \
+		-t "${ADVANCEDDATAPATH_IMAGE_FULL_NAME}" \
+		-f "${ADVANCEDDATAPATH_DOCKERFILE}" \
+		"$(CURDIR)"
+
+push-advanceddatapath-image: ## Push advanceddatapath image.
+	docker push "${ADVANCEDDATAPATH_IMAGE_FULL_NAME}"
