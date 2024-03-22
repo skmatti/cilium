@@ -801,13 +801,27 @@ func NewDeleteEndpointIDHandler(d *Daemon) DeleteEndpointIDHandler {
 func (h *deleteEndpointID) Handle(params DeleteEndpointIDParams) middleware.Responder {
 	log.WithField(logfields.Params, logfields.Repr(params)).Debug("DELETE /endpoint/{id} request")
 
+	d := h.daemon
+	var apiErr *api.APIError
+
+	// check if endpointID exists before processing delete request. This improves processing time for deleted
+	// endpoints since the request won't be queued to the rate-limiter. Context: b/330608350
+	if option.Config.EnableGoogleMultiNIC {
+		apiErr = multiNicEndpointLookup(d, params.ID)
+	} else {
+		apiErr = endpointLookup(d, params.ID)
+	}
+
+	if apiErr != nil {
+		return apiErr
+	}
+
 	r, err := h.daemon.apiLimiterSet.Wait(params.HTTPRequest.Context(), apiRequestEndpointDelete)
 	if err != nil {
 		return api.Error(http.StatusTooManyRequests, err)
 	}
 	defer r.Done()
 
-	d := h.daemon
 	var nerr int
 	if option.Config.EnableGoogleMultiNIC {
 		nerr, err = d.DeleteEndpoints(params.HTTPRequest.Context(), params.ID)
@@ -832,6 +846,38 @@ func (h *deleteEndpointID) Handle(params DeleteEndpointIDParams) middleware.Resp
 	} else {
 		return NewDeleteEndpointIDOK()
 	}
+}
+
+func endpointLookup(d *Daemon, id string) *api.APIError {
+	if ep, err := d.endpointManager.Lookup(id); err != nil {
+		return api.Error(DeleteEndpointIDInvalidCode, err)
+	} else if ep == nil {
+		return api.New(DeleteEndpointIDNotFoundCode, "endpoint not found")
+	} else if err = endpoint.APICanModify(ep); err != nil {
+		return api.Error(DeleteEndpointIDInvalidCode, err)
+	}
+	return nil
+}
+
+func multiNicEndpointLookup(d *Daemon, id string) *api.APIError {
+	prefix, eid, err := endpointid.Parse(id)
+	if err != nil {
+		return api.Error(DeleteEndpointIDInvalidCode, err)
+	}
+	var eps []*endpoint.Endpoint
+	switch prefix {
+	case endpointid.ContainerIdPrefix:
+		eps = d.endpointManager.LookupEndpointsByContainerID(eid)
+	case endpointid.PodNamePrefix:
+		eps = d.endpointManager.LookupEndpointsByPodName(eid)
+	default:
+		return endpointLookup(d, id)
+	}
+
+	if len(eps) == 0 {
+		return api.New(DeleteEndpointIDNotFoundCode, "endpoints %q not found", id)
+	}
+	return nil
 }
 
 // EndpointUpdate updates the options of the given endpoint and regenerates the endpoint
