@@ -51,7 +51,9 @@ const (
 	// AllowIMDSAccessInHostNSOnly adds bpf logic that will block non-hostnetwork
 	// pods from accessing IMDS at 169.254.169.254.
 	AllowIMDSAccessInHostNSOnly = "allow-imds-access-in-hostns-only"
-
+	// EnableGoogleIPOptionTracing is the name of the option to enable packet tracing
+	// using IP options.
+	EnableGoogleIPOptionTracing = "enable-ip-option-tracing"
 	// EnableGoogleMultiNICHaipin is the name of the option to enable gogole multi nic hairpin support.
 	EnableGoogleMultiNICHairpin = "enable-google-multi-nic-hairpin"
 

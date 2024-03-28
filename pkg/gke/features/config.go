@@ -1,6 +1,7 @@
 package features
 
 import (
+	"github.com/cilium/cilium/pkg/datapath/linux/config/defines"
 	"github.com/cilium/cilium/pkg/gke/multinic/multinicconfig"
 	"github.com/cilium/cilium/pkg/option"
 	"github.com/cilium/hive/cell"
@@ -29,9 +30,7 @@ var Cell = cell.Module(
 
 	cell.Config(defaultConfig),
 	multinicconfig.Cell,
-	cell.Invoke(func(config Config) {
-		GlobalConfig = config
-	}),
+	cell.Provide(configure),
 )
 
 // Config struct used to gate OSS features that otherwise have no means to be disabled
@@ -73,6 +72,11 @@ type Config struct {
 
 	// GoogleRestrictK8sNPScopeToLocalCluster is a flag to restrict K8s NetworkPolicy scope to the local cluster.
 	GoogleRestrictK8sNPScopeToLocalCluster bool `mapstructure:"google-restrict-k8s-np-scope-to-local-cluster"`
+
+	// EnableGoogleIPOptionTracing enables packet tracing using a trace ID in the
+	// first Stream ID IP option. This feature ignores packets where the SID
+	// option is not in the first 3 IP options. The default is false.
+	EnableGoogleIPOptionTracing bool `mapstructure:"enable-ip-option-tracing"`
 }
 
 var defaultConfig = Config{
@@ -94,6 +98,9 @@ var defaultConfig = Config{
 	EnableGDCILB:                           false,
 	EnableGoogleMultiNICEgressNAT:          false,
 	GoogleRestrictK8sNPScopeToLocalCluster: false,
+
+	// EnableGoogleIPOptionTracing is disabled by default.
+	EnableGoogleIPOptionTracing: false,
 }
 
 func (cfg Config) Flags(flags *pflag.FlagSet) {
@@ -149,4 +156,23 @@ func (cfg Config) Flags(flags *pflag.FlagSet) {
 
 	flags.Bool(option.GoogleRestrictK8sNPScopeToLocalCluster, defaultConfig.GoogleRestrictK8sNPScopeToLocalCluster, "Restrict K8s NetworkPolicy scope to the local cluster")
 	flags.MarkHidden(option.GoogleRestrictK8sNPScopeToLocalCluster)
+
+	flags.Bool(option.EnableGoogleIPOptionTracing, cfg.EnableGoogleIPOptionTracing, "Enables packet tracing using a trace ID in the IP option header")
+	flags.MarkHidden(option.EnableGoogleIPOptionTracing)
+}
+
+func configure(cfg Config) (out struct {
+	cell.Out
+
+	defines.NodeOut
+},
+) {
+	GlobalConfig = cfg
+
+	out.NodeDefines = make(defines.Map)
+	if cfg.EnableGoogleIPOptionTracing {
+		out.NodeDefines["ENABLE_GOOGLE_IP_OPTION_TRACING"] = "1"
+	}
+
+	return
 }
