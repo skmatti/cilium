@@ -2430,6 +2430,11 @@ type DaemonConfig struct {
 	// EnableGDCILB is a feature flag for google GDC-H ILB Support, default is false
 	EnableGDCILB bool
 
+	// EnableGoogleIPOptionTracing enables packet tracing using a trace ID in the
+	// first Steam ID IP option. This feature ignores packets where the SID
+	// option is not in the first 3 IP options. The default is false.
+	EnableGoogleIPOptionTracing bool
+
 	// EnableGoogleMultiNIC is a feature flag for google multi nic support, default is false.
 	EnableGoogleMultiNIC bool
 
@@ -2565,7 +2570,8 @@ var (
 		BPFEventsPolicyVerdictEnabled: defaults.BPFEventsPolicyVerdictEnabled,
 		BPFEventsTraceEnabled:         defaults.BPFEventsTraceEnabled,
 
-		GoogleMultiNICHostMapping: make(map[string]string),
+		GoogleMultiNICHostMapping:   make(map[string]string),
+		EnableGoogleIPOptionTracing: defaults.EnableGoogleIPOptionTracing,
 	}
 )
 
@@ -3126,6 +3132,7 @@ func (c *DaemonConfig) Populate(vp *viper.Viper) {
 	c.CgroupPathMKE = vp.GetString(CgroupPathMKE)
 	c.EnableHostFirewall = vp.GetBool(EnableHostFirewall)
 	c.EnableLocalRedirectPolicy = vp.GetBool(EnableLocalRedirectPolicy)
+	c.EnableGoogleIPOptionTracing = vp.GetBool(EnableGoogleIPOptionTracing)
 	c.EnableGoogleMultiNIC = vp.GetBool(EnableGoogleMultiNIC)
 	c.EnableGoogleMultiNICHairpin = vp.GetBool(EnableGoogleMultiNICHairpin)
 	c.EnableGoogleMultiNICHostFirewall = vp.GetBool(EnableHostFirewall) && vp.GetBool(EnableGoogleMultiNIC) && vp.GetBool(EnableGoogleMultiNICHostFirewall)

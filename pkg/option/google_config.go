@@ -27,6 +27,10 @@ const (
 	// EnableGoogleMultiNIC is the name of the option to enable gogole multi nic support.
 	EnableGoogleMultiNIC = "enable-google-multi-nic"
 
+	// EnableGoogleIPOptionTracing is the name of the option to enable packet tracing
+	// using IP options.
+	EnableGoogleIPOptionTracing = "enable-ip-option-tracing"
+
 	// EnableGoogleMultiNICHaipin is the name of the option to enable gogole multi nic hairpin support.
 	EnableGoogleMultiNICHairpin = "enable-google-multi-nic-hairpin"
 

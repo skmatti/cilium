@@ -537,6 +537,9 @@ const (
 	// Enable BGP control plane features.
 	EnableBGPControlPlane = false
 
+	// EnableGoogleIPOptionTracing is disabled by default.
+	EnableGoogleIPOptionTracing = false
+
 	// EnableHubbleCorrelatePolicies controls whether to correlate policies for hubble flows.
 	EnableHubbleCorrelatePolicies = false
 

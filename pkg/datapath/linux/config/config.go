@@ -644,6 +644,10 @@ func (h *HeaderfileWriter) WriteNodeConfig(w io.Writer, cfg *datapath.LocalNodeC
 		}
 	}
 
+	if option.Config.EnableGoogleIPOptionTracing {
+		cDefinesMap["ENABLE_GOOGLE_IP_OPTION_TRACING"] = "1"
+	}
+
 	if option.Config.EnableGoogleServiceSteering {
 		cDefinesMap["SFC_PATH_MAP"] = sfc.PathMapName
 		cDefinesMap["SFC_PATH_MAP_SIZE"] = strconv.Itoa(sfc.PathMaxEntries)
