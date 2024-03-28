@@ -132,6 +132,7 @@ cilium-agent [flags]
       --enable-policy string                                    Enable policy enforcement (default "default")
       --enable-recorder                                         Enable BPF datapath pcap recorder
       --enable-remote-node-identity                             Enable use of remote node identity (default true)
+      --enable-remove-dsr-ip-opt                                Enable removal of the DSR IP option for packets destined to the backend
       --enable-runtime-device-detection                         Enable runtime device detection and datapath reconfiguration (experimental)
       --enable-sctp                                             Enable SCTP support (beta)
       --enable-service-topology                                 Enable support for service topology aware hints
