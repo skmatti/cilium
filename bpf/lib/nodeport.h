@@ -1802,42 +1802,45 @@ static __always_inline int encap_geneve_dsr_opt4(struct __ctx_buff *ctx,
 }
 #endif /* DSR_ENCAP_MODE */
 
-// trim_dsr_ip_opt_v4 removes the DSR IP Option from the packet and recalculates
-// the checksums.
+/* remove_dsr_ip_opt_v4 removes the DSR IP Option from the packet and
+ * recalculates the IPv4 checksum.
+ */
 static __always_inline int
-trim_dsr_ip_opt_v4(struct __ctx_buff *ctx, struct iphdr *ip4) {
+remove_dsr_ip_opt_v4(struct __ctx_buff *ctx, struct iphdr *ip4) {
 	struct dsr_opt_v4 opt;
-    __u32 iph_old, iph_new, sum_l3;
+	__u32 sum_l3;
 
-	/* Check for DSR IP Option */
+		/* Check for DSR IP Option */
 	if (ip4->ihl < 0x7)
 		return CTX_ACT_OK;
-	if (ctx_load_bytes(ctx, ETH_HLEN + sizeof(struct iphdr), &opt, sizeof(opt)) < 0)
+
+	if (ctx_load_bytes(ctx, ETH_HLEN + sizeof(struct iphdr),
+			&opt, sizeof(opt)) < 0)
 		return DROP_INVALID;
+
 	if (opt.type != DSR_IPV4_OPT_TYPE)
 		return CTX_ACT_OK;
 
-	iph_old = *(__u32 *)ip4;
-	/*  Remove option */
-	ip4->ihl -= sizeof(opt) >> 2;
-    ip4->tot_len = bpf_htons(bpf_ntohs(ip4->tot_len) - sizeof(opt));
+	memset(&opt, IPOPT_NOOP, sizeof(struct dsr_opt_v4));
 
-	/*  Recalculate L3 checksum */
-	iph_new = *(__u32 *)ip4;
-	sum_l3 = csum_diff(&iph_old, 4, &iph_new, 4, 0);
-	sum_l3 = csum_diff(&opt, sizeof(opt), NULL, 0, sum_l3);
+	/*  Recalculate L3 checksum
+	 * As the L4 checksum only uses the psuedo IP header information (i.e. does
+	 * not include IP Options in the checksum calculation), there is no need to
+	 * recalculate the L4 checksum.
+	 */
+	sum_l3 = csum_diff(&opt, sizeof(opt), &opt, sizeof(opt), 0);
+
+	if (ctx_store_bytes(ctx, ETH_HLEN + sizeof(struct iphdr), &opt, sizeof(opt), 0) < 0)
+		return DROP_INVALID;
 	if (l3_csum_replace(ctx, ETH_HLEN + offsetof(struct iphdr, check), 0, sum_l3, 0) < 0)
 		return DROP_CSUM_L3;
-
-	if (ctx_adjust_hroom(ctx, -(int)sizeof(opt), BPF_ADJ_ROOM_NET, ctx_adjust_hroom_dsr_flags())) {
-		return DROP_INVALID;
-	}
 
 	return CTX_ACT_OK;
 }
 
 static __always_inline int
-nodeport_extract_dsr_v4(struct __ctx_buff *ctx, const struct iphdr *ip4 __maybe_unused,
+nodeport_extract_dsr_v4(struct __ctx_buff *ctx,
+			struct iphdr *ip4 __maybe_unused,
 			const struct ipv4_ct_tuple *tuple, int l4_off,
 			__be32 *addr,
 			__be16 *port, bool *dsr)
@@ -1902,6 +1905,7 @@ nodeport_extract_dsr_v4(struct __ctx_buff *ctx, const struct iphdr *ip4 __maybe_
 			*dsr = true;
 			*addr = bpf_ntohl(opt.addr);
 			*port = bpf_ntohs(opt.port);
+
 			return 0;
 		}
 	}
@@ -2177,6 +2181,13 @@ int tail_nodeport_dsr_ingress_ipv4(struct __ctx_buff *ctx)
 		goto drop_err;
 	}
 
+#ifdef REMOVE_DSR_IP_OPTION
+	// This cannot occur within nodeport_extract_dsr_v4 because that function is used in other contexts.
+	ret = remove_dsr_ip_opt_v4(ctx, ip4);
+	if (IS_ERR(ret))
+		return ret;
+#endif /* REMOVE_DSR_IP_OPTION */
+
 	ret = ct_lazy_lookup4(get_ct_map4(&tuple), &tuple, ctx, l4_off,
 			      has_l4_header, ACTION_CREATE, CT_EGRESS, &ct_state, &monitor);
 	switch (ret) {
@@ -2226,10 +2237,6 @@ create_ct:
 		ret = DROP_UNKNOWN_CT;
 		goto drop_err;
 	}
-
-	ret = trim_dsr_ip_opt_v4(ctx, ip4);
-	if (IS_ERR(ret))
-		goto drop_err;
 
 	/* Recircle, so packet can continue on its way to the local backend: */
 	ctx_skip_nodeport_set(ctx);
