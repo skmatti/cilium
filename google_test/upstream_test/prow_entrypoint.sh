@@ -124,12 +124,10 @@ function allow_ssh {
 # Create GCE instance with specific OS image, with the nested virtualization enabled
 function create_gce_instance_with_os {
   log "Creating gce instance with OS image: IMAGE_PROJECT = ${IMAGE_PROJECT}, IMAGE_FAMILY = ${IMAGE_FAMILY} to run ${TEST_TYPE} test."
-  gcloud components update
-  gcloud compute instances create "${TEST_VM_NAME}" \
+  gcloud beta compute instances create "${TEST_VM_NAME}" \
     --project "${PROJECT}" --zone "${ZONE}" \
-    --enable-nested-virtualization \
-    --metadata-from-file=startup-script=./google_test/countdown-and-self-destruct.sh \
-    --scopes=compute-rw \
+    --max-run-duration 24h \
+    --instance-termination-action=DELETE \
     --image-project="${IMAGE_PROJECT}" \
     --image-family="${IMAGE_FAMILY}" \
     --machine-type="${TEST_VM_MACHINE_TYPE}" \
@@ -139,6 +137,12 @@ function create_gce_instance_with_os {
 function clean_up_gce_instance {
   log "Deleting GCE instance ${TEST_VM_NAME}.${ZONE}.${PROJECT}."
   gcloud compute instances delete "${TEST_VM_NAME}" --quiet --project="${PROJECT}" --zone="${ZONE}" || true
+}
+
+function remove_symlinks_in_repo {
+  local repo_path=$1
+  log "Remove symlinks in ${repo_path}, since they are not supported by scp."
+  find "${repo_path}" -mindepth 1 -type l -print0 | xargs -r0 rm
 }
 
 function copy_code_from_prow_to_test_vm {
@@ -170,12 +174,14 @@ create_gce_instance_with_os
 trap clean_up_gce_instance EXIT
 
 # Internal source code is always copied for test scrips.
+remove_symlinks_in_repo "${PROW_INTERNAL_SOURCE_CODE_PATH}"
 copy_code_from_prow_to_test_vm "${PROW_INTERNAL_SOURCE_CODE_PATH}"
 
 if [[ -z "${UPSTREAM_CILIUM_BRANCH}" ]]; then
   run_test_script_in_vm "${TEST_VM_INTERNAL_SOURCE_CODE_PATH}"
   copy_back_report "${TEST_VM_INTERNAL_SOURCE_CODE_PATH}/${TEST_RESULTS_NAME}"
 else
+  remove_symlinks_in_repo "${PROW_UPSTREAM_SOURCE_CODE_PATH}"
   copy_code_from_prow_to_test_vm "${PROW_UPSTREAM_SOURCE_CODE_PATH}"
   run_test_script_in_vm "${TEST_VM_UPSTREAM_SOURCE_CODE_PATH}"
   copy_back_report "${TEST_VM_UPSTREAM_SOURCE_CODE_PATH}/${TEST_RESULTS_NAME}"
