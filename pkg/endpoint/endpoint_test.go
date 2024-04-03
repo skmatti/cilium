@@ -13,6 +13,7 @@ import (
 	. "github.com/cilium/checkmate"
 
 	"github.com/cilium/cilium/api/v1/models"
+	"github.com/cilium/cilium/pkg/checker"
 	fakeTypes "github.com/cilium/cilium/pkg/datapath/fake/types"
 	datapath "github.com/cilium/cilium/pkg/datapath/types"
 	"github.com/cilium/cilium/pkg/endpoint/regeneration"
@@ -555,6 +556,27 @@ func (s *EndpointSuite) TestProxyID(c *C) {
 	c.Assert(id, Equals, "")
 	c.Assert(port, Equals, uint16(0))
 	c.Assert(proto, Equals, uint8(0))
+}
+
+func (s *EndpointSuite) TestModifyIdentityLabels(c *C) {
+	ep := NewTestEndpointWithState(c, s, s, testipcache.NewMockIPCache(), &FakeEndpointProxy{}, testidentity.NewMockIdentityAllocator(nil), 12345, StateReady)
+	ep.properties[PropertyFakeEndpoint] = true
+	ep.properties[PropertySkipBPFPolicy] = true
+
+	lbls := labels.NewLabelsFromModel([]string{"k8s:key1=value1", "k8s:key2=value2"})
+	c.Assert(ep.ModifyIdentityLabels(labels.LabelSourceK8s, lbls, nil), IsNil)
+	c.Assert(ep.OpLabels.AllLabels(), checker.DeepEquals, lbls)
+
+	// key3=value3 is not present in existing labels, so this returns an error.
+	delLbls := labels.NewLabelsFromModel([]string{"k8s:key3=value3", "k8s:key2=value2"})
+	addLbls := labels.NewLabelsFromModel([]string{"k8s:key1=value1_1", "k8s:key2=value2_2"})
+	c.Assert(ep.ModifyIdentityLabels(labels.LabelSourceK8s, addLbls, delLbls), NotNil)
+	c.Assert(ep.OpLabels.AllLabels(), checker.DeepEquals, lbls)
+
+	// Make it a host endpoint, now the update is allowed.
+	ep.isHost = true
+	c.Assert(ep.ModifyIdentityLabels(labels.LabelSourceK8s, addLbls, delLbls), IsNil)
+	c.Assert(ep.OpLabels.AllLabels(), checker.DeepEquals, addLbls)
 }
 
 func TestEndpoint_GetK8sPodLabels(t *testing.T) {

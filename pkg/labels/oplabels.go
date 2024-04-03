@@ -154,15 +154,17 @@ func (o *OpLabels) ReplaceIdentityLabels(sourceFilter string, l Labels, logger *
 	return changed
 }
 
-func (o *OpLabels) ModifyIdentityLabels(addLabels, delLabels Labels) (changed bool, err error) {
-	for k := range delLabels {
-		// The change request is accepted if the label is on
-		// any of the lists. If the label is already disabled,
-		// we will simply ignore that change.
-		if _, found := o.Custom[k]; !found {
-			if _, found := o.OrchestrationIdentity[k]; !found {
-				if _, found := o.Disabled[k]; !found {
-					return false, fmt.Errorf("label %s not found", k)
+func (o *OpLabels) ModifyIdentityLabels(addLabels, delLabels Labels, checkPrecondition bool) (changed bool, err error) {
+	if checkPrecondition {
+		for k := range delLabels {
+			// The change request is accepted if the label is on
+			// any of the lists. If the label is already disabled,
+			// we will simply ignore that change.
+			if _, found := o.Custom[k]; !found {
+				if _, found := o.OrchestrationIdentity[k]; !found {
+					if _, found := o.Disabled[k]; !found {
+						return false, fmt.Errorf("label %s not found", k)
+					}
 				}
 			}
 		}

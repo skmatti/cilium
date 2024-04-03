@@ -1927,7 +1927,12 @@ func (e *Endpoint) ModifyIdentityLabels(source string, addLabels, delLabels labe
 		return err
 	}
 
-	changed, err := e.OpLabels.ModifyIdentityLabels(addLabels, delLabels)
+	// Skip checking if all labels being deleted are present in the internal
+	// state for host endpoint. If the k8s node watcher initializes before the
+	// host endpoint is created, then some node label updates might have been
+	// missed by the agent. See GH-29649.
+	checkPrecondition := !e.IsHost()
+	changed, err := e.OpLabels.ModifyIdentityLabels(addLabels, delLabels, checkPrecondition)
 	if err != nil {
 		e.unlock()
 		return err
