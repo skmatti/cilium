@@ -1,0 +1,382 @@
+presubmits:
+# Presubmit WORA jobs.
+- name: wora-abm-gce_cilium
+  trigger: /test wora-abm-gce$
+  rerun_command: /test wora-abm-gce
+  always_run: false
+  decorate: true
+  decoration_config:
+    timeout: 240m
+  labels:
+    preset-cookie-file: "true"
+    preset-cookie-file-env: "true"
+    preset-service-account: "true"
+    preset-dind-enabled: "true"
+    preset-k8s-ssh: "true"
+  path_alias: gke-internal.googlesource.com/third_party/cilium
+  spec:
+    containers:
+    - image: gcr.io/anthos-networking-ci/kubetest2-tailorbird:latest
+      securityContext:
+        # needed for docker-in-docker
+        privileged: true
+      env:
+      - name: TBCONFIG
+        value: sut-abm-gce.yaml
+      command:
+      - runner.sh
+      args:
+      - ./google_test/wora/prow_entrypoint.sh
+- name: wora-conformance-abm-gce_cilium
+  trigger: /test wora-conformance-abm-gce$
+  rerun_command: /test wora-conformance-abm-gce
+  always_run: false
+  decorate: true
+  decoration_config:
+    timeout: 240m
+  labels:
+    preset-cookie-file: "true"
+    preset-cookie-file-env: "true"
+    preset-service-account: "true"
+    preset-dind-enabled: "true"
+    preset-k8s-ssh: "true"
+  path_alias: gke-internal.googlesource.com/third_party/cilium
+  spec:
+    containers:
+    - image: gcr.io/anthos-networking-ci/kubetest2-tailorbird:latest
+      securityContext:
+        # needed for docker-in-docker
+        privileged: true
+      env:
+      - name: TBCONFIG
+        value: sut-abm-gce.yaml
+      - name: WORA_CONFIG
+        value: conformance_test.yaml
+      - name: WORA_DOCKERFILE_DIR
+        value: conformance
+      command:
+      - runner.sh
+      args:
+      - ./google_test/wora/prow_entrypoint.sh
+- name: wora-abm-atl_cilium
+  cluster: build-onprem-atl
+  trigger: /test wora-abm-atl$
+  rerun_command: /test wora-abm-atl
+  always_run: false
+  decorate: true
+  decoration_config:
+    timeout: 240m
+  labels:
+    preset-cookie-file: "true"
+    preset-cookie-file-env: "true"
+    preset-service-account-onprem: "true"
+    preset-dind-enabled: "true"
+  path_alias: gke-internal.googlesource.com/third_party/cilium
+  spec:
+    imagePullSecrets:
+    - name: gcr-secret
+    containers:
+    - image: gcr.io/anthos-networking-ci/kubetest2-tailorbird:latest
+      securityContext:
+        # needed for docker-in-docker
+        privileged: true
+      env:
+      - name: TBCONFIG
+        value: sut-abm-atl.yaml
+      - name: WORA_CONTROL_PLANE
+        value: atl
+      command:
+      - runner.sh
+      args:
+      - ./google_test/wora/prow_entrypoint.sh
+- name: wora-conformance-abm-atl_cilium
+  cluster: build-onprem-atl
+  trigger: /test wora-conformance-abm-atl$
+  rerun_command: /test wora-conformance-abm-atl
+  always_run: false
+  decorate: true
+  decoration_config:
+    timeout: 240m
+  labels:
+    preset-cookie-file: "true"
+    preset-cookie-file-env: "true"
+    preset-service-account-onprem: "true"
+    preset-dind-enabled: "true"
+  path_alias: gke-internal.googlesource.com/third_party/cilium
+  spec:
+    imagePullSecrets:
+    - name: gcr-secret
+    containers:
+    - image: gcr.io/anthos-networking-ci/kubetest2-tailorbird:latest
+      securityContext:
+        # needed for docker-in-docker
+        privileged: true
+      env:
+      - name: TBCONFIG
+        value: sut-abm-atl.yaml
+      - name: WORA_CONFIG
+        value: conformance_test.yaml
+      - name: WORA_CONTROL_PLANE
+        value: atl
+      - name: WORA_DOCKERFILE_DIR
+        value: conformance
+      command:
+      - runner.sh
+      args:
+      - ./google_test/wora/prow_entrypoint.sh
+- name: wora-abm-mtv_cilium
+  cluster: build-onprem-mtv
+  trigger: /test wora-abm-mtv$
+  rerun_command: /test wora-abm-mtv
+  always_run: false
+  decorate: true
+  decoration_config:
+    timeout: 240m
+  labels:
+    preset-cookie-file: "true"
+    preset-cookie-file-env: "true"
+    preset-service-account-onprem: "true"
+    preset-dind-enabled: "true"
+  path_alias: gke-internal.googlesource.com/third_party/cilium
+  spec:
+    imagePullSecrets:
+    - name: gcr-secret
+    containers:
+    - image: gcr.io/anthos-networking-ci/kubetest2-tailorbird:latest
+      securityContext:
+        # needed for docker-in-docker
+        privileged: true
+      env:
+      - name: TBCONFIG
+        value: sut-abm-mtv.yaml
+      - name: WORA_CONTROL_PLANE
+        value: mtv
+      command:
+      - runner.sh
+      args:
+      - ./google_test/wora/prow_entrypoint.sh
+- name: wora-conformance-abm-mtv_cilium
+  cluster: build-onprem-mtv
+  trigger: /test wora-conformance-abm-mtv$
+  rerun_command: /test wora-conformance-abm-mtv
+  always_run: false
+  decorate: true
+  decoration_config:
+    timeout: 240m
+  labels:
+    preset-cookie-file: "true"
+    preset-cookie-file-env: "true"
+    preset-service-account-onprem: "true"
+    preset-dind-enabled: "true"
+  path_alias: gke-internal.googlesource.com/third_party/cilium
+  spec:
+    imagePullSecrets:
+    - name: gcr-secret
+    containers:
+    - image: gcr.io/anthos-networking-ci/kubetest2-tailorbird:latest
+      securityContext:
+        # needed for docker-in-docker
+        privileged: true
+      env:
+      - name: TBCONFIG
+        value: sut-abm-mtv.yaml
+      - name: WORA_CONFIG
+        value: conformance_test.yaml
+      - name: WORA_CONTROL_PLANE
+        value: mtv
+      - name: WORA_DOCKERFILE_DIR
+        value: conformance
+      command:
+      - runner.sh
+      args:
+      - ./google_test/wora/prow_entrypoint.sh
+- name: wora-gdce_cilium
+  trigger: /test wora-gdce$
+  rerun_command: /test wora-gdce
+  always_run: false
+  decorate: true
+  decoration_config:
+    timeout: 240m
+  labels:
+    preset-cookie-file: "true"
+    preset-cookie-file-env: "true"
+    preset-service-account: "true"
+    preset-dind-enabled: "true"
+    preset-k8s-ssh: "true"
+  path_alias: gke-internal.googlesource.com/third_party/cilium
+  spec:
+    containers:
+    - image: gcr.io/anthos-networking-ci/kubetest2-tailorbird:latest
+      securityContext:
+        # needed for docker-in-docker
+        privileged: true
+      env:
+      - name: CILIUM_GITREF
+        value: v1.12.6-anthos1.15-gke4.2
+      - name: TBCONFIG
+        value: sut-gdce.yaml
+      command:
+      - runner.sh
+      args:
+      - ./google_test/wora/prow_entrypoint.sh
+- name: wora-conformance-gdce_cilium
+  trigger: /test wora-conformance-gdce$
+  rerun_command: /test wora-conformance-gdce
+  always_run: false
+  decorate: true
+  decoration_config:
+    timeout: 240m
+  labels:
+    preset-cookie-file: "true"
+    preset-cookie-file-env: "true"
+    preset-service-account: "true"
+    preset-dind-enabled: "true"
+    preset-k8s-ssh: "true"
+  path_alias: gke-internal.googlesource.com/third_party/cilium
+  spec:
+    containers:
+    - image: gcr.io/anthos-networking-ci/kubetest2-tailorbird:latest
+      securityContext:
+        # needed for docker-in-docker
+        privileged: true
+      env:
+      - name: CILIUM_GITREF
+        value: v1.12.6-anthos1.15-gke4.2
+      - name: DOCKER_BUILD_EXTRA_ARGS
+        value: --build-arg=K8S_VERSION=v1.27.3
+      - name: TBCONFIG
+        value: sut-gdce.yaml
+      - name: WORA_CONFIG
+        value: conformance_gdce_test.yaml
+      - name: WORA_DOCKERFILE_DIR
+        value: conformance
+      command:
+      - runner.sh
+      args:
+      - ./google_test/wora/prow_entrypoint.sh
+- name: wora-gke_cilium
+  trigger: /test wora-gke$
+  rerun_command: /test wora-gke
+  always_run: false
+  decorate: true
+  decoration_config:
+    timeout: 240m
+  labels:
+    preset-cookie-file: "true"
+    preset-cookie-file-env: "true"
+    preset-service-account: "true"
+    preset-dind-enabled: "true"
+    preset-k8s-ssh: "true"
+  path_alias: gke-internal.googlesource.com/third_party/cilium
+  spec:
+    containers:
+    - image: gcr.io/anthos-networking-ci/kubetest2-tailorbird:latest
+      securityContext:
+        # needed for docker-in-docker
+        privileged: true
+      env:
+      - name: DOCKER_BUILD_EXTRA_ARGS
+        value: --build-arg=K8S_VERSION=v1.28.3
+      - name: TBCONFIG
+        value: sut-gke.yaml
+      command:
+      - runner.sh
+      args:
+      - ./google_test/wora/prow_entrypoint.sh
+- name: wora-conformance-gke_cilium
+  trigger: /test wora-conformance-gke$
+  rerun_command: /test wora-conformance-gke
+  always_run: false
+  decorate: true
+  decoration_config:
+    timeout: 240m
+  labels:
+    preset-cookie-file: "true"
+    preset-cookie-file-env: "true"
+    preset-service-account: "true"
+    preset-dind-enabled: "true"
+    preset-k8s-ssh: "true"
+  path_alias: gke-internal.googlesource.com/third_party/cilium
+  spec:
+    containers:
+    - image: gcr.io/anthos-networking-ci/kubetest2-tailorbird:latest
+      securityContext:
+        # needed for docker-in-docker
+        privileged: true
+      env:
+      - name: DOCKER_BUILD_EXTRA_ARGS
+        value: --build-arg=K8S_VERSION=v1.28.3
+      - name: TBCONFIG
+        value: sut-gke.yaml
+      - name: WORA_CONFIG
+        value: conformance_test.yaml
+      - name: WORA_DOCKERFILE_DIR
+        value: conformance
+      command:
+      - runner.sh
+      args:
+      - ./google_test/wora/prow_entrypoint.sh
+
+# Presubmit WORA jobs on v1.13-anthos1.28
+- name: wora-abm-gce_cilium-v1.13
+  trigger: /test wora-abm-gce-v1.13$
+  rerun_command: /test wora-abm-gce-v1.13
+  always_run: false
+  decorate: true
+  decoration_config:
+    timeout: 240m
+  labels:
+    preset-cookie-file: "true"
+    preset-cookie-file-env: "true"
+    preset-service-account: "true"
+    preset-dind-enabled: "true"
+    preset-k8s-ssh: "true"
+  path_alias: gke-internal.googlesource.com/third_party/cilium
+  spec:
+    containers:
+    - image: gcr.io/anthos-networking-ci/kubetest2-tailorbird:latest
+      securityContext:
+        # needed for docker-in-docker
+        privileged: true
+      env:
+      - name: CILIUM_GITREF
+        value: v1.13-anthos1.28
+      - name: TBCONFIG
+        value: sut-abm-gce.yaml
+      command:
+      - runner.sh
+      args:
+      - ./google_test/wora/prow_entrypoint.sh
+- name: wora-conformance-abm-gce_cilium-v1.13
+  trigger: /test wora-conformance-abm-gce-v1.13$
+  rerun_command: /test wora-conformance-abm-gce-v1.13
+  always_run: false
+  decorate: true
+  decoration_config:
+    timeout: 240m
+  labels:
+    preset-cookie-file: "true"
+    preset-cookie-file-env: "true"
+    preset-service-account: "true"
+    preset-dind-enabled: "true"
+    preset-k8s-ssh: "true"
+  path_alias: gke-internal.googlesource.com/third_party/cilium
+  spec:
+    containers:
+    - image: gcr.io/anthos-networking-ci/kubetest2-tailorbird:latest
+      securityContext:
+        # needed for docker-in-docker
+        privileged: true
+      env:
+      - name: CILIUM_GITREF
+        value: v1.13-anthos1.28
+      - name: TBCONFIG
+        value: sut-abm-gce.yaml
+      - name: WORA_CONFIG
+        value: conformance_test.yaml
+      - name: WORA_DOCKERFILE_DIR
+        value: conformance
+      command:
+      - runner.sh
+      args:
+      - ./google_test/wora/prow_entrypoint.sh
