@@ -1177,9 +1177,6 @@ func initializeFlags() {
 	flags.Bool(option.EnableBGPControlPlane, false, "Enable the BGP control plane.")
 	option.BindEnv(Vp, option.EnableBGPControlPlane)
 
-	flags.Bool(option.EnableRemoveDSRIPOption, false, "Enable removal of the DSR IP option for packets destined to the backend")
-	option.BindEnv(Vp, option.EnableRemoveDSRIPOption)
-
 	flags.Bool(option.EnablePMTUDiscovery, false, "Enable path MTU discovery to send ICMP fragmentation-needed replies to the client")
 	option.BindEnv(Vp, option.EnablePMTUDiscovery)
 
