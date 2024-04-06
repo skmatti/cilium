@@ -1,0 +1,459 @@
+presubmits:
+- name: gke-advanced-datapath-presubmit-unit
+  always_run: true
+  decorate: true
+  decoration_config:
+    timeout: 120m
+  labels:
+    preset-cookie-file: "true"
+    preset-cookie-file-env: "true"
+    preset-service-account: "true"
+    preset-k8s-ssh: "true"
+    prow.k8s.io/gerrit-report-label: Unit-Verified
+  path_alias: gke-internal.googlesource.com/third_party/cilium
+  spec:
+    containers:
+    - image: gcr.io/gke-test-infra/kubekins-e2e:v20230124-0f88b78d2-go-canary
+      env:
+      - name: GCP_PROJECT
+        value: gke-anthos-datapath-presubmits
+      command:
+      - runner.sh
+      - ./google_test/presubmit-unit.sh
+- name: gke-advanced-datapath-presubmit-ebpf-ubuntu2204
+  trigger: /test ebpf-ubuntu2204
+  rerun_command: /test ebpf-ubuntu2204
+  always_run: true
+  decorate: true
+  decoration_config:
+    timeout: 240m
+  labels:
+    preset-cookie-file: "true"
+    preset-cookie-file-env: "true"
+    preset-service-account: "true"
+    preset-k8s-ssh: "true"
+    prow.k8s.io/gerrit-report-label: Unit-Verified
+  path_alias: gke-internal.googlesource.com/third_party/cilium
+  spec:
+    containers:
+    - image: gcr.io/gke-test-infra/kubekins-e2e:v20240104-dc2c09a68a-1.29
+      env:
+      - name: GCP_PROJECT
+        value: anthos-networking-ci
+      - name: TEST_TYPE
+        value: ebpf
+      - name: IMAGE_PROJECT
+        value: anthos-baremetal-ci
+      - name: IMAGE_FAMILY
+        value: ubuntu-2204-docker
+      command:
+      - runner.sh
+      - ./google_test/upstream_test/prow_entrypoint.sh
+- name: gke-advanced-datapath-presubmit-ebpf-ubuntu2204-upstream
+  trigger: /test ebpf-ubuntu2204
+  rerun_command: /test ebpf-ubuntu2204
+  always_run: false
+  decorate: true
+  decoration_config:
+    timeout: 240m
+  labels:
+    preset-cookie-file: "true"
+    preset-cookie-file-env: "true"
+    preset-service-account: "true"
+    preset-k8s-ssh: "true"
+  path_alias: gke-internal.googlesource.com/third_party/cilium
+  spec:
+    containers:
+    - image: gcr.io/gke-test-infra/kubekins-e2e:v20240104-dc2c09a68a-1.29
+      env:
+      - name: GCP_PROJECT
+        value: anthos-networking-ci
+      - name: TEST_TYPE
+        value: ebpf
+      - name: IMAGE_PROJECT
+        value: anthos-baremetal-ci
+      - name: IMAGE_FAMILY
+        value: ubuntu-2204-docker
+      - name: UPSTREAM_CILIUM_BRANCH
+        value: main
+      command:
+      - runner.sh
+      - ./google_test/upstream_test/prow_entrypoint.sh
+- name: gke-advanced-datapath-presubmit-ebpf-ubuntu2004
+  trigger: /test ebpf-ubuntu2004
+  rerun_command: /test ebpf-ubuntu2004
+  always_run: true
+  decorate: true
+  decoration_config:
+    timeout: 240m
+  labels:
+    preset-cookie-file: "true"
+    preset-cookie-file-env: "true"
+    preset-service-account: "true"
+    preset-k8s-ssh: "true"
+    prow.k8s.io/gerrit-report-label: Unit-Verified
+  path_alias: gke-internal.googlesource.com/third_party/cilium
+  spec:
+    containers:
+    - image: gcr.io/gke-test-infra/kubekins-e2e:v20240104-dc2c09a68a-1.29
+      env:
+      - name: GCP_PROJECT
+        value: anthos-networking-ci
+      - name: TEST_TYPE
+        value: ebpf
+      - name: IMAGE_PROJECT
+        value: anthos-baremetal-ci
+      - name: IMAGE_FAMILY
+        value: ubuntu-2004-docker
+      command:
+      - runner.sh
+      - ./google_test/upstream_test/prow_entrypoint.sh
+- name: gke-advanced-datapath-presubmit-ebpf-rocky86
+  trigger: /test ebpf-rocky86
+  rerun_command: /test ebpf-rocky86
+  # TODO(b/331804100): Reenable when tests are passing.
+  always_run: false
+  decorate: true
+  decoration_config:
+    timeout: 240m
+  labels:
+    preset-cookie-file: "true"
+    preset-cookie-file-env: "true"
+    preset-service-account: "true"
+    preset-k8s-ssh: "true"
+  path_alias: gke-internal.googlesource.com/third_party/cilium
+  spec:
+    containers:
+    - image: gcr.io/gke-test-infra/kubekins-e2e:v20240104-dc2c09a68a-1.29
+      env:
+      - name: GCP_PROJECT
+        value: anthos-networking-ci
+      - name: TEST_TYPE
+        value: ebpf
+      - name: IMAGE_PROJECT
+        value: anthos-baremetal-ci
+      - name: IMAGE_FAMILY
+        value: rocky86
+      command:
+      - runner.sh
+      - ./google_test/upstream_test/prow_entrypoint.sh
+- name: gke-advanced-datapath-presubmit-ebpf-rocky86-upstream
+  trigger: /test ebpf-rocky86
+  rerun_command: /test ebpf-rocky86
+  always_run: false
+  decorate: true
+  decoration_config:
+    timeout: 240m
+  labels:
+    preset-cookie-file: "true"
+    preset-cookie-file-env: "true"
+    preset-service-account: "true"
+    preset-k8s-ssh: "true"
+  path_alias: gke-internal.googlesource.com/third_party/cilium
+  spec:
+    containers:
+    - image: gcr.io/gke-test-infra/kubekins-e2e:v20240104-dc2c09a68a-1.29
+      env:
+      - name: GCP_PROJECT
+        value: anthos-networking-ci
+      - name: TEST_TYPE
+        value: ebpf
+      - name: IMAGE_PROJECT
+        value: anthos-baremetal-ci
+      - name: IMAGE_FAMILY
+        value: rocky86
+      - name: UPSTREAM_CILIUM_BRANCH
+        value: main
+      command:
+      - runner.sh
+      - ./google_test/upstream_test/prow_entrypoint.sh
+- name: gke-advanced-datapath-presubmit-ebpf-cos101
+  trigger: /test ebpf-cos101
+  rerun_command: /test ebpf-cos101
+  always_run: true
+  decorate: true
+  decoration_config:
+    timeout: 240m
+  labels:
+    preset-cookie-file: "true"
+    preset-cookie-file-env: "true"
+    preset-service-account: "true"
+    preset-k8s-ssh: "true"
+    prow.k8s.io/gerrit-report-label: Unit-Verified
+  path_alias: gke-internal.googlesource.com/third_party/cilium
+  spec:
+    containers:
+    - image: gcr.io/gke-test-infra/kubekins-e2e:v20240104-dc2c09a68a-1.29
+      env:
+      - name: GCP_PROJECT
+        value: anthos-networking-ci
+      - name: TEST_TYPE
+        value: ebpf
+      - name: IMAGE_PROJECT
+        value: cos-cloud
+      - name: IMAGE_FAMILY
+        value: cos-101-lts
+      command:
+      - runner.sh
+      - ./google_test/upstream_test/prow_entrypoint.sh
+- name: gke-advanced-datapath-presubmit-ebpf-cos101-upstream
+  trigger: /test ebpf-cos101
+  rerun_command: /test ebpf-cos101
+  always_run: false
+  decorate: true
+  decoration_config:
+    timeout: 240m
+  labels:
+    preset-cookie-file: "true"
+    preset-cookie-file-env: "true"
+    preset-service-account: "true"
+    preset-k8s-ssh: "true"
+  path_alias: gke-internal.googlesource.com/third_party/cilium
+  spec:
+    containers:
+    - image: gcr.io/gke-test-infra/kubekins-e2e:v20240104-dc2c09a68a-1.29
+      env:
+      - name: GCP_PROJECT
+        value: anthos-networking-ci
+      - name: TEST_TYPE
+        value: ebpf
+      - name: IMAGE_PROJECT
+        value: cos-cloud
+      - name: IMAGE_FAMILY
+        value: cos-101-lts
+      - name: UPSTREAM_CILIUM_BRANCH
+        value: main
+      command:
+      - runner.sh
+      - ./google_test/upstream_test/prow_entrypoint.sh
+- name: gke-advanced-datapath-presubmit-ebpf-cos109
+  trigger: /test ebpf-cos109
+  rerun_command: /test ebpf-cos109
+  always_run: true
+  decorate: true
+  decoration_config:
+    timeout: 240m
+  labels:
+    preset-cookie-file: "true"
+    preset-cookie-file-env: "true"
+    preset-service-account: "true"
+    preset-k8s-ssh: "true"
+    prow.k8s.io/gerrit-report-label: Unit-Verified
+  path_alias: gke-internal.googlesource.com/third_party/cilium
+  spec:
+    containers:
+    - image: gcr.io/gke-test-infra/kubekins-e2e:v20240104-dc2c09a68a-1.29
+      env:
+      - name: GCP_PROJECT
+        value: anthos-networking-ci
+      - name: TEST_TYPE
+        value: ebpf
+      - name: IMAGE_PROJECT
+        value: cos-cloud
+      - name: IMAGE_FAMILY
+        value: cos-109-lts
+      command:
+      - runner.sh
+      - ./google_test/upstream_test/prow_entrypoint.sh
+- name: gke-advanced-datapath-presubmit-ebpf-cos105
+  trigger: /test ebpf-cos105
+  rerun_command: /test ebpf-cos105
+  always_run: true
+  decorate: true
+  decoration_config:
+    timeout: 240m
+  labels:
+    preset-cookie-file: "true"
+    preset-cookie-file-env: "true"
+    preset-service-account: "true"
+    preset-k8s-ssh: "true"
+    prow.k8s.io/gerrit-report-label: Unit-Verified
+  path_alias: gke-internal.googlesource.com/third_party/cilium
+  spec:
+    containers:
+    - image: gcr.io/gke-test-infra/kubekins-e2e:v20240104-dc2c09a68a-1.29
+      env:
+      - name: GCP_PROJECT
+        value: anthos-networking-ci
+      - name: TEST_TYPE
+        value: ebpf
+      - name: IMAGE_PROJECT
+        value: cos-cloud
+      - name: IMAGE_FAMILY
+        value: cos-105-lts
+      command:
+      - runner.sh
+      - ./google_test/upstream_test/prow_entrypoint.sh
+- name: gke-advanced-datapath-presubmit-ebpf-rhel86
+  trigger: /test ebpf-rhel86
+  rerun_command: /test ebpf-rhel86
+  # TODO(b/331804100): Reenable when tests are passing.
+  always_run: false
+  decorate: true
+  decoration_config:
+    timeout: 240m
+  labels:
+    preset-cookie-file: "true"
+    preset-cookie-file-env: "true"
+    preset-service-account: "true"
+    preset-k8s-ssh: "true"
+    prow.k8s.io/gerrit-report-label: Unit-Verified
+  path_alias: gke-internal.googlesource.com/third_party/cilium
+  spec:
+    containers:
+    - image: gcr.io/gke-test-infra/kubekins-e2e:v20240104-dc2c09a68a-1.29
+      env:
+      - name: GCP_PROJECT
+        value: anthos-networking-ci
+      - name: TEST_TYPE
+        value: ebpf
+      - name: IMAGE_PROJECT
+        value: anthos-baremetal-ci
+      - name: IMAGE_FAMILY
+        value: rhel86
+      command:
+      - runner.sh
+      - ./google_test/upstream_test/prow_entrypoint.sh
+- name: gke-advanced-datapath-presubmit-ebpf-rhel87
+  trigger: /test ebpf-rhel87
+  rerun_command: /test ebpf-rhel87
+  always_run: true
+  decorate: true
+  decoration_config:
+    timeout: 240m
+  labels:
+    preset-cookie-file: "true"
+    preset-cookie-file-env: "true"
+    preset-service-account: "true"
+    preset-k8s-ssh: "true"
+    prow.k8s.io/gerrit-report-label: Unit-Verified
+  path_alias: gke-internal.googlesource.com/third_party/cilium
+  spec:
+    containers:
+    - image: gcr.io/gke-test-infra/kubekins-e2e:v20240104-dc2c09a68a-1.29
+      env:
+      - name: GCP_PROJECT
+        value: anthos-networking-ci
+      - name: TEST_TYPE
+        value: ebpf
+      - name: IMAGE_PROJECT
+        value: anthos-baremetal-ci
+      - name: IMAGE_FAMILY
+        value: rhel87
+      command:
+      - runner.sh
+      - ./google_test/upstream_test/prow_entrypoint.sh
+- name: gke-advanced-datapath-presubmit-ebpf-rhel88
+  trigger: /test ebpf-rhel88
+  rerun_command: /test ebpf-rhel88
+  always_run: true
+  decorate: true
+  decoration_config:
+    timeout: 240m
+  labels:
+    preset-cookie-file: "true"
+    preset-cookie-file-env: "true"
+    preset-service-account: "true"
+    preset-k8s-ssh: "true"
+    prow.k8s.io/gerrit-report-label: Unit-Verified
+  path_alias: gke-internal.googlesource.com/third_party/cilium
+  spec:
+    containers:
+    - image: gcr.io/gke-test-infra/kubekins-e2e:v20240104-dc2c09a68a-1.29
+      env:
+      - name: GCP_PROJECT
+        value: anthos-networking-ci
+      - name: TEST_TYPE
+        value: ebpf
+      - name: IMAGE_PROJECT
+        value: anthos-baremetal-ci
+      - name: IMAGE_FAMILY
+        value: rhel88
+      command:
+      - runner.sh
+      - ./google_test/upstream_test/prow_entrypoint.sh
+- name: gke-advanced-datapath-presubmit-upstream-k8s-conformance
+  trigger: /test upstream-k8s-conformance
+  rerun_command: /test upstream-k8s-conformance
+  always_run: true
+  decorate: true
+  decoration_config:
+    timeout: 240m
+  labels:
+    preset-cookie-file: "true"
+    preset-cookie-file-env: "true"
+    preset-service-account: "true"
+    preset-dind-enabled: "true"
+    preset-k8s-ssh: "true"
+    prow.k8s.io/gerrit-report-label: "Verified"
+  path_alias: gke-internal.googlesource.com/third_party/cilium
+  spec:
+    containers:
+    - image: gcr.io/anthos-networking-ci/kubetest2-tailorbird:latest
+      securityContext:
+        # needed for docker-in-docker
+        privileged: true
+      env:
+      - name: GCP_PROJECT
+        value: anthos-networking-ci
+      - name: TEST_TYPE
+        value: conformance
+      command:
+      - runner.sh
+      args:
+      - ./google_test/upstream_test/run_e2e_tailorbird_with_kind_cluster.sh
+- name: gke-advanced-datapath-presubmit-ebpf-new-os-evaluation
+  trigger: /test ebpf-new-os
+  rerun_command: /test ebpf-new-os
+  always_run: false
+  decorate: true
+  decoration_config:
+    timeout: 240m
+  labels:
+    preset-cookie-file: "true"
+    preset-cookie-file-env: "true"
+    preset-service-account: "true"
+    preset-k8s-ssh: "true"
+  path_alias: gke-internal.googlesource.com/third_party/cilium
+  spec:
+    containers:
+    - image: gcr.io/gke-test-infra/kubekins-e2e:v20240104-dc2c09a68a-1.29
+      env:
+      - name: GCP_PROJECT
+        value: anthos-networking-ci
+      - name: TEST_TYPE
+        value: experiment
+      - name: TEST_SPECIFIC_RUN_TEST_SCRIPT
+        value: google_test/upstream_test/ebpf/run_ebpf_tests.sh
+      command:
+      - runner.sh
+      - ./google_test/upstream_test/experiment_prow_entrypoint.sh
+- name: gke-advanced-datapath-presubmit-upstream-connectivity
+  trigger: /test upstream-connectivity
+  rerun_command: /test upstream-connectivity
+  always_run: true
+  decorate: true
+  decoration_config:
+    timeout: 240m
+  labels:
+    preset-cookie-file: "true"
+    preset-cookie-file-env: "true"
+    preset-service-account: "true"
+    preset-dind-enabled: "true"
+    preset-k8s-ssh: "true"
+  path_alias: gke-internal.googlesource.com/third_party/cilium
+  spec:
+    containers:
+    - image: gcr.io/anthos-networking-ci/kubetest2-tailorbird:latest
+      securityContext:
+        # needed for docker-in-docker
+        privileged: true
+      env:
+      - name: GCP_PROJECT
+        value: anthos-networking-ci
+      - name: TEST_TYPE
+        value: connectivity
+      command:
+      - runner.sh
+      args:
+      - ./google_test/upstream_test/run_e2e_tailorbird_with_kind_cluster.sh
