@@ -178,8 +178,16 @@ if [[ -n "${CILIUM_GITREF:-}" ]]; then
         "${ROOT}/provision_gdce.sh"
       ;;
     gcp-gke)
-      echo "Provisioning not implemented for platform: ${PLATFORM}" >&2
-      exit 1
+      ADVANCEDDATAPATH_BASE_IMAGE_REGISTRY="${ADVANCEDDATAPATH_BASE_IMAGE_REGISTRY:-us-central1-docker.pkg.dev/anthos-networking-ci/gke-component-images}"
+      ADVANCEDDATAPATH_BASE_IMAGE_NAME="${ADVANCEDDATAPATH_BASE_IMAGE_NAME:-advanceddatapath}"
+      ADVANCEDDATAPATH_BASE_IMAGE_TAG="${ADVANCEDDATAPATH_BASE_IMAGE_TAG:-0.0.1001}"
+      ADVANCEDDATAPATH_IMAGE_TAG="$(ADVANCEDDATAPATH_BASE_IMAGE_TAG)-$(USER)"
+      ADVANCEDDATAPATH_IMAGE_FULL_NAME=$(ADVANCEDDATAPATH_IMAGE_REGISTRY)/$(ADVANCEDDATAPATH_IMAGE_NAME):$(ADVANCEDDATAPATH_IMAGE_TAG)
+
+      ADVANCEDDATAPATH_IMAGE_TAG="${ADVANCEDDATAPATH_IMAGE_TAG}" \
+        ADVANCEDDATAPATH_IMAGE_FULL_NAME="${ADVANCEDDATAPATH_IMAGE_FULL_NAME}" \
+        TBCONFIG="${TBCONFIG}" \
+        "${ROOT}/provision_gke.sh"
       ;;
     *)
       echo "Unknown platform: ${PLATFORM}." >&2
