@@ -590,6 +590,12 @@ func (l4 *L4Filter) toMapState(p *EndpointPolicy, features policyFeatures, redir
 
 		if cs.IsWildcard() {
 			keyToAdd.Identity = 0
+			logger.WithFields(
+				logrus.Fields{
+					"key":        keyToAdd,
+					"endpointID": p.PolicyOwner.GetID(),
+					"value":      entry,
+				}).Infof("L4Filter to MapState")
 			p.policyMapState.denyPreferredInsertWithChanges(keyToAdd, entry, p.SelectorCache, features, changes)
 
 			if port == 0 {
@@ -618,6 +624,12 @@ func (l4 *L4Filter) toMapState(p *EndpointPolicy, features policyFeatures, redir
 		}
 		for _, id := range idents {
 			keyToAdd.Identity = id.Uint32()
+			logger.WithFields(
+				logrus.Fields{
+					"key":        keyToAdd,
+					"endpointID": p.PolicyOwner.GetID(),
+					"value":      entry,
+				}).Infof("L4Filter to MapState")
 			p.policyMapState.denyPreferredInsertWithChanges(keyToAdd, entry, p.SelectorCache, features, changes)
 			// If Cilium is in dual-stack mode then the "World" identity
 			// needs to be split into two identities to represent World
