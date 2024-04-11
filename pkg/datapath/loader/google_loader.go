@@ -5,7 +5,11 @@ import (
 	"fmt"
 	"net"
 	"path"
+	"strconv"
+	"strings"
 
+	"github.com/cilium/cilium/pkg/bpf"
+	"github.com/cilium/cilium/pkg/command/exec"
 	"github.com/cilium/cilium/pkg/datapath"
 	"github.com/cilium/cilium/pkg/datapath/connector"
 	"github.com/cilium/cilium/pkg/logging/logfields"
@@ -16,7 +20,7 @@ import (
 
 func setupMultiNICDataPath(ctx context.Context, ep datapath.Endpoint, objPath string) error {
 	// Graft from-container section for the egress direction.
-	if err := graftDatapath(ctx, ep.MapPath(), objPath, "from-container", int(connector.EgressMapIndex)); err != nil {
+	if err := graftL2Datapath(ctx, ep.MapPath(), objPath, "from-container", int(connector.EgressMapIndex)); err != nil {
 		scopedLog := ep.Logger(Subsystem).WithFields(logrus.Fields{
 			logfields.Path: objPath,
 		})
@@ -29,7 +33,7 @@ func setupMultiNICDataPath(ctx context.Context, ep datapath.Endpoint, objPath st
 		return err
 	}
 	// Graft to-container section for the ingress direction.
-	if err := graftDatapath(ctx, ep.MapPath(), objPath, "to-container", int(connector.IngressMapIndex)); err != nil {
+	if err := graftL2Datapath(ctx, ep.MapPath(), objPath, "to-container", int(connector.IngressMapIndex)); err != nil {
 		scopedLog := ep.Logger(Subsystem).WithFields(logrus.Fields{
 			logfields.Path: objPath,
 		})
@@ -88,6 +92,61 @@ func ReloadParentDevDatapath(ctx context.Context, device, objDir string, ep data
 		}
 		defer finalize()
 	}
+	return nil
+}
+
+// graftL2Datapath replaces obj in tail call map for L2 interfaces.
+// Since L2 interfaces are already moved to the pod namespace, we use graft
+// to load tail call to the predefined map. Therefore, we need to avoid
+// unconditionally migrating cilium_calls introduced in upstream: https://github.com/cilium/cilium/pull/28740
+func graftL2Datapath(ctx context.Context, mapPath, objPath, progSec string, key int) error {
+	scopedLog := log.WithField("mapPath", mapPath).WithField("objPath", objPath).
+		WithField("progSection", progSec).WithField("direction", key)
+
+	scopedLog.Debug("Loading CollectionSpec from ELF")
+	spec, err := bpf.LoadCollectionSpec(objPath)
+	if err != nil {
+		return fmt.Errorf("loading eBPF ELF: %w", err)
+	}
+
+	// Remove "cilium_calls_" from CollectionSpec to prevent map migration.
+	// For macvtap interfaces, the map is prdefined and remains stabel
+	// in pkg/datapath/connector/utils.go.
+	// "cilium_policy_" map can still be migrated and repinned
+	// if the map properties have changed.
+	for name := range spec.Maps {
+		if strings.HasPrefix(name, "cilium_calls_") {
+			delete(spec.Maps, name)
+			scopedLog.Debug("Removing cilium_calls_ from CollectionSpec during graft process")
+		}
+	}
+
+	scopedLog.Debug("Starting bpffs map migration")
+	if err := bpf.StartBPFFSMigration(bpf.MapPrefixPath(), spec); err != nil {
+		return fmt.Errorf("Failed to start bpffs map migration: %w", err)
+	}
+
+	var revert bool
+	defer func() {
+		scopedLog.Debug("Finalizing bpffs map migration")
+		if err := bpf.FinalizeBPFFSMigration(bpf.MapPrefixPath(), spec, revert); err != nil {
+			scopedLog.WithError(err).WithFields(logrus.Fields{logfields.BPFMapPath: mapPath, "objPath": objPath}).
+				Error("Could not finalize bpffs map migration")
+		}
+	}()
+
+	// FIXME: replace exec with native call
+	// Load the object from the tail call map with the provided key.
+	args := []string{"exec", "bpf", "graft", mapPath, "key", strconv.Itoa(key),
+		"obj", objPath, "sec", progSec,
+	}
+	scopedLog.Info("Grafting program")
+	cmd := exec.CommandContext(ctx, "tc", args...).WithFilters(libbpfFixupMsg)
+	if _, err := cmd.CombinedOutput(log, true); err != nil {
+		revert = true
+		return fmt.Errorf("Failed to graft tc object: %s", err)
+	}
+
 	return nil
 }
 
