@@ -1,0 +1,2 @@
+(.spec.template.spec.volumes[] | select(.name == "cilium-config-path") | select (.projected != null) | .projected.sources[].configMap | select(.name == "cilium-config") | .name) |= "cilium-config-modified" |
+(.spec.template.spec.volumes[] | select(.name == "cilium-config-path") | select (.projected != null) | .projected.sources[].configMap | select(.name == "cilium-hubble-config") | .name) |= "cilium-hubble-config-modified"
