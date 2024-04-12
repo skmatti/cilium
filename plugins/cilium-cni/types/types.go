@@ -32,6 +32,8 @@ type NetConf struct {
 	LogFormat      string                 `json:"log-format"`
 	LogFile        string                 `json:"log-file"`
 	ChainingMode   string                 `json:"chaining-mode"`
+	// FastStartNamespaces is a comma-separated list of namespaces that are compatible with fast start.
+	FastStartNamespaces string `json:"dpv2-fast-start-namespaces"`
 }
 
 // IPAM is the Cilium specific CNI IPAM configuration

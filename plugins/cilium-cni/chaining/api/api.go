@@ -42,7 +42,7 @@ type PluginContext struct {
 type ChainingPlugin interface {
 	// Add is called on CNI ADD. It is given the plugin context from the
 	// previous plugin. It must return a CNI result or an error.
-	Add(ctx context.Context, pluginContext PluginContext, client *client.Client) (res *cniTypesVer.Result, err error)
+	Add(ctx context.Context, pluginContext PluginContext, createClient *lib.CreationFallbackClient) (res *cniTypesVer.Result, err error)
 
 	// Delete is called on CNI DELETE. It is given the plugin context from
 	// the previous plugin.

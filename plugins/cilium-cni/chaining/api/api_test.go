@@ -16,7 +16,7 @@ import (
 
 type pluginTest struct{}
 
-func (p *pluginTest) Add(ctx context.Context, pluginContext PluginContext, cli *client.Client) (res *cniTypesVer.Result, err error) {
+func (p *pluginTest) Add(ctx context.Context, pluginContext PluginContext, createClient *lib.CreationFallbackClient) (res *cniTypesVer.Result, err error) {
 	return nil, nil
 }
 

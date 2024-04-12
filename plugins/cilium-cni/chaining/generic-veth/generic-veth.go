@@ -28,7 +28,7 @@ import (
 
 type GenericVethChainer struct{}
 
-func (f *GenericVethChainer) Add(ctx context.Context, pluginCtx chainingapi.PluginContext, cli *client.Client) (res *cniTypesVer.Result, err error) {
+func (f *GenericVethChainer) Add(ctx context.Context, pluginCtx chainingapi.PluginContext, createClient *lib.CreationFallbackClient) (res *cniTypesVer.Result, err error) {
 	err = cniVersion.ParsePrevResult(&pluginCtx.NetConf.NetConf)
 	if err != nil {
 		err = fmt.Errorf("unable to understand network config: %w", err)
@@ -110,7 +110,7 @@ func (f *GenericVethChainer) Add(ctx context.Context, pluginCtx chainingapi.Plug
 			return errors.New("no link found inside container")
 		}
 
-		if pluginCtx.NetConf.EnableRouteMTU || pluginCtx.CiliumConf.EnableRouteMTUForCNIChaining {
+		if (pluginCtx.NetConf.EnableRouteMTU || pluginCtx.CiliumConf.EnableRouteMTUForCNIChaining) && pluginCtx.CiliumConf != nil {
 			routes, err := safenetlink.RouteList(nil, netlink.FAMILY_V4)
 			if err != nil {
 				err = fmt.Errorf("unable to list the IPv4 routes: %w", err)
@@ -214,8 +214,9 @@ func (f *GenericVethChainer) Add(ctx context.Context, pluginCtx chainingapi.Plug
 		logfields.ContainerID:        ep.ContainerID,
 		logfields.ContainerInterface: ep.ContainerInterfaceName,
 	})
+
 	var newEp *models.Endpoint
-	newEp, err = cli.EndpointCreate(ep)
+	newEp, err = createClient.EndpointCreate(ep)
 	if err != nil {
 		scopedLog.WithError(err).Warn("Unable to create endpoint")
 		err = fmt.Errorf("unable to create endpoint: %w", err)

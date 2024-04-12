@@ -10,8 +10,10 @@ import (
 	"net"
 	"net/netip"
 	"os"
+	"slices"
 	"sort"
 	"strconv"
+	"strings"
 
 	cniInvoke "github.com/containernetworking/cni/pkg/invoke"
 	"github.com/containernetworking/cni/pkg/skel"
@@ -456,20 +458,37 @@ func (cmd *Cmd) Add(args *skel.CmdArgs) (err error) {
 	}
 	logger = loggerWithCNIArgs(logger, cniArgs)
 
-	c, err := client.NewDefaultClientWithTimeout(defaults.ClientConnectTimeout)
-	if err != nil {
-		return fmt.Errorf("unable to connect to Cilium agent: %w", client.Hint(err))
+	chainedMode := len(n.NetConf.RawPrevResult) != 0 && n.Name != chainingapi.DefaultConfigName
+	fastStartEnabled := false
+	var conf *models.DaemonConfigurationStatus
+	// Enable fast start only if cilium is used in chained plugin.
+	if chainedMode {
+		fastStartNamespacesList := strings.Split(n.FastStartNamespaces, ",")
+		if slices.Contains(fastStartNamespacesList, string(cniArgs.K8S_POD_NAMESPACE)) {
+			fastStartEnabled = true
+		}
 	}
 
-	conf, err := getConfigFromCiliumAgent(c)
+	fc, err := lib.NewCreationFallbackClient(logger, fastStartEnabled)
 	if err != nil {
 		return err
+	}
+
+	if !fastStartEnabled && fc.CiliumClient == nil {
+		return fmt.Errorf("invalid direct cilium client and fast start is disabled")
+	}
+
+	if fc.CiliumClient != nil {
+		conf, err = getConfigFromCiliumAgent(fc.CiliumClient)
+		if err != nil {
+			return err
+		}
 	}
 
 	// If CNI ADD gives us a PrevResult, we're a chained plugin and *must* detect a
 	// valid chained mode. If no chained mode we understand is specified, error out.
 	// Otherwise, continue with normal plugin execution.
-	if len(n.NetConf.RawPrevResult) != 0 {
+	if chainedMode {
 		if chainAction, err := getChainedAction(n, logger); chainAction != nil {
 			var (
 				res *cniTypesV1.Result
@@ -482,7 +501,7 @@ func (cmd *Cmd) Add(args *skel.CmdArgs) (err error) {
 				}
 			)
 
-			res, err = chainAction.Add(context.TODO(), ctx, c)
+			res, err = chainAction.Add(context.TODO(), ctx, fc)
 			if err != nil {
 				logger.WithError(err).Warn("Chained ADD failed")
 				return err
@@ -526,7 +545,7 @@ func (cmd *Cmd) Add(args *skel.CmdArgs) (err error) {
 		if conf.IpamMode == ipamOption.IPAMDelegatedPlugin {
 			ipam, releaseIPsFunc, err = allocateIPsWithDelegatedPlugin(context.TODO(), conf, n, args.StdinData)
 		} else {
-			ipam, releaseIPsFunc, err = allocateIPsWithCiliumAgent(c, cniArgs, epConf.IPAMPool())
+			ipam, releaseIPsFunc, err = allocateIPsWithCiliumAgent(fc.CiliumClient, cniArgs, epConf.IPAMPool())
 		}
 
 		// release addresses on failure
@@ -696,7 +715,7 @@ func (cmd *Cmd) Add(args *skel.CmdArgs) (err error) {
 		// Specify that endpoint must be regenerated synchronously. See GH-4409.
 		ep.SyncBuildEndpoint = true
 		var newEp *models.Endpoint
-		if newEp, err = c.EndpointCreate(ep); err != nil {
+		if newEp, err = fc.EndpointCreate(ep); err != nil {
 			logger.WithError(err).WithField(logfields.ContainerID, ep.ContainerID).Warn("Unable to create endpoint")
 			return fmt.Errorf("unable to create endpoint: %w", err)
 		}

@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 
+	"github.com/cilium/cilium/pkg/gke/endpointqueue"
 	"github.com/cilium/cilium/pkg/gke/enhancedservices"
 	"github.com/cilium/cilium/pkg/gke/features"
 	"github.com/cilium/cilium/pkg/gke/networklogging"
@@ -35,6 +36,9 @@ var googleCell = cell.Module(
 
 	cell.Provide(newLocalNodePromise),
 	subnet.Cell,
+
+	cell.Provide(newEndpointCreationSinkPromise),
+	endpointqueue.Cell,
 
 	cell.Provide(newRedirectPolicyManagerPromise),
 	redirectservice.Cell,
@@ -117,4 +121,24 @@ func newIPCachePromise(dp promise.Promise[*Daemon], lc cell.Lifecycle, config *o
 	}
 
 	return rnPromise
+}
+
+// Converts Daemon promise into a EndpointCreationSink promise
+func newEndpointCreationSinkPromise(dp promise.Promise[*Daemon], lc cell.Lifecycle) promise.Promise[endpointqueue.EndpointCreationSink] {
+	sResolver, sPromise := promise.New[endpointqueue.EndpointCreationSink]()
+	lc.Append(cell.Hook{
+		OnStart: func(hc cell.HookContext) error {
+			daemon, err := dp.Await(hc)
+			if err != nil {
+				return err
+			}
+			sResolver.Resolve(daemon)
+			return nil
+		},
+		OnStop: func(_ cell.HookContext) error {
+			sResolver.Reject(fmt.Errorf("failed to initialize endpoint creation sink"))
+			return nil
+		},
+	})
+	return sPromise
 }

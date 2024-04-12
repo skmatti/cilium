@@ -4,12 +4,11 @@
 package lib
 
 import (
-	"context"
-	"crypto/sha256"
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/sirupsen/logrus"
@@ -17,6 +16,8 @@ import (
 	"github.com/cilium/cilium/api/v1/models"
 	"github.com/cilium/cilium/pkg/client"
 	"github.com/cilium/cilium/pkg/defaults"
+	endpointid "github.com/cilium/cilium/pkg/endpoint/id"
+	epqueue "github.com/cilium/cilium/pkg/gke/endpointqueue"
 	"github.com/cilium/cilium/pkg/lock/lockfile"
 	"github.com/cilium/cilium/pkg/logging/logfields"
 )
@@ -54,8 +55,8 @@ func NewDeletionFallbackClient(logger *logrus.Entry) (*DeletionFallbackClient, e
 	}
 	dc.logger.WithError(err).Warnf("Failed to connect to agent socket at %s.", client.DefaultSockPath())
 
-	// We failed to connect: get the queue lock
-	if err := dc.tryQueueLock(); err != nil {
+	// We failed to connect:acquire a shared queue lock
+	if dc.lockfile, err = AcquireLock(defaults.DeleteQueueDir, defaults.DeleteQueueLockfile, SharedLock, lockAcquireTimeout); err != nil {
 		return nil, fmt.Errorf("failed to acquire deletion queue: %w", err)
 	}
 
@@ -83,31 +84,6 @@ func (dc *DeletionFallbackClient) tryConnect() error {
 	return nil
 }
 
-func (dc *DeletionFallbackClient) tryQueueLock() error {
-	dc.logger.Debugf("attempting to acquire deletion queue lock at %s", defaults.DeleteQueueLockfile)
-
-	// Ensure deletion queue directory exists, obtain shared lock
-	err := os.MkdirAll(defaults.DeleteQueueDir, 0755)
-	if err != nil {
-		return fmt.Errorf("failed to create deletion queue directory %s: %w", defaults.DeleteQueueDir, err)
-	}
-
-	lf, err := lockfile.NewLockfile(defaults.DeleteQueueLockfile)
-	if err != nil {
-		return fmt.Errorf("failed to open lockfile %s: %w", defaults.DeleteQueueLockfile, err)
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), timeoutSeconds*time.Second)
-	defer cancel()
-
-	err = lf.Lock(ctx, false) // get the shared lock
-	if err != nil {
-		return fmt.Errorf("failed to acquire lock: %w", err)
-	}
-	dc.lockfile = lf
-	return nil
-}
-
 // EndpointDelete deletes an endpoint given by an endpoint id, either
 // by directly accessing the API or dropping in a queued-deletion file.
 // endpoint-id is a qualified endpoint reference, e.g. "container-id:XXXXXXX"
@@ -119,7 +95,8 @@ func (dc *DeletionFallbackClient) EndpointDelete(id string) error {
 	// fall-back mode
 	if dc.lockfile != nil {
 		dc.logger.WithField(logfields.EndpointID, id).Info("Queueing deletion request for endpoint")
-		return dc.enqueueDeletionRequestLocked(id)
+		return dc.enqueueDeletionRequestLocked(id, id)
+
 	}
 
 	return errors.New("attempt to delete with no valid connection")
@@ -129,7 +106,22 @@ func (dc *DeletionFallbackClient) EndpointDelete(id string) error {
 // either by directly accessing the API or dropping in a queued-deletion file.
 func (dc *DeletionFallbackClient) EndpointDeleteMany(req *models.EndpointBatchDeleteRequest) error {
 	if dc.cli != nil {
-		return dc.cli.EndpointDeleteMany(req)
+		err := dc.cli.EndpointDeleteMany(req)
+		if err == nil || (err != nil && !strings.Contains(err.Error(), "deleteEndpointNotFound")) {
+			return err
+		}
+
+		dc.logger.WithField(logfields.Request, req).WithError(err).Info("Unable to delete cilium endpoint.")
+		endpointId := endpointid.NewID(endpointid.ContainerIdPrefix, req.ContainerID)
+		removed, innerErr := DeleteFromQueueIfPresent(QueueFilename(endpointId, "create"), epqueue.CreateQueueDir, epqueue.CreateQueueLockfile, lockAcquireTimeout)
+		if innerErr != nil {
+			return errors.Join(err, innerErr)
+		}
+		if removed {
+			dc.logger.WithField(logfields.EndpointID, endpointId).Infof("Unprocessed create queue entry was found and deleted")
+			return nil
+		}
+		return err
 	}
 
 	// fall-back mode
@@ -139,7 +131,7 @@ func (dc *DeletionFallbackClient) EndpointDeleteMany(req *models.EndpointBatchDe
 		if err != nil {
 			return fmt.Errorf("failed to marshal endpoint delete request: %w", err)
 		}
-		return dc.enqueueDeletionRequestLocked(string(b))
+		return dc.enqueueDeletionRequestLocked(string(b), endpointid.NewID(endpointid.ContainerIdPrefix, req.ContainerID))
 	}
 
 	return errors.New("attempt to delete with no valid connection")
@@ -147,8 +139,8 @@ func (dc *DeletionFallbackClient) EndpointDeleteMany(req *models.EndpointBatchDe
 
 // enqueueDeletionRequestLocked enqueues the encoded endpoint deletion request into the
 // endpoint deletion queue. Requires the caller to hold the deletion queue lock.
-func (dc *DeletionFallbackClient) enqueueDeletionRequestLocked(contents string) error {
-	// sanity check: if there are too many queued deletes, just return error
+func (dc *DeletionFallbackClient) enqueueDeletionRequestLocked(contents string, endpointId string) error {
+	// Validity check: if there are too many queued deletes, just return error
 	// back up to the kubelet. If we get here, it's either because something
 	// has gone wrong with the kubelet, or the agent has been down for a very
 	// long time. To guard against long agent startup times (when it empties the
@@ -163,17 +155,24 @@ func (dc *DeletionFallbackClient) enqueueDeletionRequestLocked(contents string) 
 		return fmt.Errorf("deletion queue directory %s has too many entries; aborting", defaults.DeleteQueueDir)
 	}
 
-	// hash endpoint id for a random filename
-	h := sha256.New()
-	h.Write([]byte(contents))
-	filename := fmt.Sprintf("%x.delete", h.Sum(nil))
-	path := filepath.Join(defaults.DeleteQueueDir, filename)
-
-	err = os.WriteFile(path, []byte(contents), 0644)
-	if err != nil {
-		dc.logger.WithField(logfields.Path, path).WithError(err).Error("failed to write deletion file")
-		return fmt.Errorf("failed to write deletion file %s: %w", path, err)
+	// Prevent queueing both creation and deletion requests for the same pod.
+	// This is needed here to prevent having synchronization mechanisms in the
+	// cilium agent to guarantee correct processing order for pod creation and deletion queues.
+	removed := false
+	if removed, err = DeleteFromQueueIfPresent(QueueFilename(endpointId, "create"), epqueue.CreateQueueDir, epqueue.CreateQueueLockfile, lockAcquireTimeout); err != nil {
+		return fmt.Errorf("check create queue before queueing delete: %w", err)
 	}
-	dc.logger.Info("wrote queued deletion file")
+	if removed {
+		dc.logger.WithField(logfields.EndpointID, endpointId).Infof("Unprocessed queued create found for the same container. Removing it and skipping delete.")
+		return nil
+	}
+
+	deleteEndpointPath := filepath.Join(defaults.DeleteQueueDir, QueueFilename(endpointId, "delete"))
+	err = os.WriteFile(deleteEndpointPath, []byte(contents), 0644)
+	if err != nil {
+		dc.logger.WithField(logfields.Path, deleteEndpointPath).WithError(err).Error("failed to write deletion file")
+		return fmt.Errorf("failed to write deletion file %s: %w", deleteEndpointPath, err)
+	}
+	dc.logger.WithField(logfields.EndpointID, endpointId).Info("wrote queued deletion file")
 	return nil
 }
