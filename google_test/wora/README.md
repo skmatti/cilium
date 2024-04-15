@@ -107,8 +107,7 @@ The following jobs are currently running periodically and displayed on TestGrid:
 8. [wora-conformance-gke_cilium][]: Kubernetes conformance test suite on GKE,
    using a nightly build of the GKE advanced datapath component.
 
-> Note: The first four jobs above set `CILIUM_GITREF=v1.13-anthos1.28`. The GDCE
-> job sets `CILIUM_GITREF=v1.12.6-anthos1.15-gke4.2`.
+> Note: The first six jobs above set `CILIUM_GITREF=v1.13-anthos1.28`.
 
 [wora-abm-gce_cilium]:
   https://testgrid.corp.google.com/cilium#wora-abm-gce_cilium
