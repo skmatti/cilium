@@ -3,6 +3,8 @@
 set -euxo pipefail
 shopt -s inherit_errexit
 
+CILIUM_GITREF="${CILIUM_GITREF?variable must be set, even when set to empty.}"
+
 # Extract the pluginSpecYaml from the rookery config file.
 function extract_plugin_spec_yaml {
   local config="${1:?}"
@@ -60,7 +62,10 @@ suffix="$(cluster_name_suffix)"
 
 extract_plugin_spec_yaml "${TBCONFIG:?}" "${plugin_spec_yaml}"
 insert_cluster_name_suffix "${plugin_spec_yaml}" "${suffix}"
-insert_component_version "${plugin_spec_yaml}" advanceddatapath "${ADVANCEDDATAPATH_IMAGE_TAG:?}"
-insert_component_image "${plugin_spec_yaml}" advanceddatapath "${ADVANCEDDATAPATH_IMAGE_FULL_NAME:?}"
+
+if [[ -n "${CILIUM_GITREF}" ]]; then
+  insert_component_version "${plugin_spec_yaml}" advanceddatapath "${ADVANCEDDATAPATH_IMAGE_TAG:?}"
+  insert_component_image "${plugin_spec_yaml}" advanceddatapath "${ADVANCEDDATAPATH_IMAGE_FULL_NAME:?}"
+fi
 
 insert_plugin_spec_yaml "${TBCONFIG}" "${plugin_spec_yaml}"

@@ -152,44 +152,47 @@ if [[ -n "${CILIUM_GITREF:-}" ]]; then
   if [[ -z "${DOCKER_IMAGE_TAG}" ]] || [[ -z "${CILIUM_DOCKER_IMAGE_TAG}" ]]; then
     build_and_push_cilium_image "${CILIUM_GITREF}" "${IMAGE_REGISTRY}"
   fi
-
-  # Update the cluster rookery file.
-  case "${PLATFORM}" in
-    baremetal-gke | vsphere-gke-baremetal)
-      ABSOLUTE_PATH_TBCONFIG="${TBCONFIG}" \
-        ADDON_CONFIG_NAME="${ADDON_CONFIG_NAME}" \
-        ADDON_CONFIG_BUCKET_URL="${ADDON_CONFIG_BUCKET_URL}" \
-        IMAGE_REGISTRY="${IMAGE_REGISTRY}" \
-        DOCKER_IMAGE_TAG="${DOCKER_IMAGE_TAG}" \
-        CILIUM_DOCKER_IMAGE_TAG="${CILIUM_DOCKER_IMAGE_TAG}" \
-        PATCH_CONTENT_DIR=${PATCH_CONTENT_DIR} \
-        WORKDIR="${ROOT}/${WORKDIR}" \
-        "${ROOT}/provision_abm.sh"
-      ;;
-    gdce-gke)
-      working_copy "${ROOT}/gdce_plugin_template.yaml" "${ROOT}/${WORKDIR}"
-      ABSOLUTE_PATH_TBCONFIG="${TBCONFIG}" \
-        ADDON_CONFIG_NAME="${ADDON_CONFIG_NAME}" \
-        ADDON_CONFIG_BUCKET_URL="${ADDON_CONFIG_BUCKET_URL}" \
-        IMAGE_REGISTRY="${IMAGE_REGISTRY}" \
-        DOCKER_IMAGE_TAG="${DOCKER_IMAGE_TAG}" \
-        CILIUM_DOCKER_IMAGE_TAG="${CILIUM_DOCKER_IMAGE_TAG}" \
-        WORKDIR="${ROOT}/${WORKDIR}" \
-        "${ROOT}/provision_gdce.sh"
-      ;;
-    gcp-gke)
-      make -C "${ROOT}" \
-        ADVANCEDDATAPATH_IMAGE_SUFFIX="${PROW_JOB_ID}" \
-        CILIUM_TAG="${CILIUM_DOCKER_IMAGE_TAG}" \
-        TBCONFIG="$(realpath "${TBCONFIG}" || true)" \
-        provision-gke
-      ;;
-    *)
-      echo "Unknown platform: ${PLATFORM}." >&2
-      exit 1
-      ;;
-  esac
 fi
+
+# Update the cluster rookery file.
+case "${PLATFORM}" in
+  baremetal-gke | {baremetal,vsphere}-gke-baremetal)
+    ABSOLUTE_PATH_TBCONFIG="${TBCONFIG}" \
+      ADDON_CONFIG_NAME="${ADDON_CONFIG_NAME}" \
+      ADDON_CONFIG_BUCKET_URL="${ADDON_CONFIG_BUCKET_URL}" \
+      IMAGE_REGISTRY="${IMAGE_REGISTRY}" \
+      DOCKER_IMAGE_TAG="${DOCKER_IMAGE_TAG}" \
+      CILIUM_DOCKER_IMAGE_TAG="${CILIUM_DOCKER_IMAGE_TAG}" \
+      PATCH_CONTENT_DIR=${PATCH_CONTENT_DIR} \
+      WORKDIR="${ROOT}/${WORKDIR}" \
+      CILIUM_GITREF="${CILIUM_GITREF}" \
+      "${ROOT}/provision_abm.sh"
+    ;;
+  gdce-gke)
+    working_copy "${ROOT}/gdce_plugin_template.yaml" "${ROOT}/${WORKDIR}"
+    ABSOLUTE_PATH_TBCONFIG="${TBCONFIG}" \
+      ADDON_CONFIG_NAME="${ADDON_CONFIG_NAME}" \
+      ADDON_CONFIG_BUCKET_URL="${ADDON_CONFIG_BUCKET_URL}" \
+      IMAGE_REGISTRY="${IMAGE_REGISTRY}" \
+      DOCKER_IMAGE_TAG="${DOCKER_IMAGE_TAG}" \
+      CILIUM_DOCKER_IMAGE_TAG="${CILIUM_DOCKER_IMAGE_TAG}" \
+      WORKDIR="${ROOT}/${WORKDIR}" \
+      CILIUM_GITREF="${CILIUM_GITREF}" \
+      "${ROOT}/provision_gdce.sh"
+    ;;
+  gcp-gke)
+    make -C "${ROOT}" \
+      ADVANCEDDATAPATH_IMAGE_SUFFIX="${PROW_JOB_ID}" \
+      CILIUM_TAG="${CILIUM_DOCKER_IMAGE_TAG}" \
+      TBCONFIG="$(realpath "${TBCONFIG}" || true)" \
+      CILIUM_GITREF="${CILIUM_GITREF}" \
+      provision-gke
+    ;;
+  *)
+    echo "Unknown platform: ${PLATFORM}." >&2
+    exit 1
+    ;;
+esac
 
 # Build and push plugin image if WORA_IMAGE_TAG is not set.
 if [[ -z "${WORA_IMAGE_TAG:-}" ]]; then

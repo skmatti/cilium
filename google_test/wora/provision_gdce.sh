@@ -11,6 +11,7 @@ IMAGE_REGISTRY="${IMAGE_REGISTRY:-}"
 DOCKER_IMAGE_TAG="${DOCKER_IMAGE_TAG:-}"
 CILIUM_DOCKER_IMAGE_TAG="${CILIUM_DOCKER_IMAGE_TAG:-}"
 PATCH_CONTENT_DIR=${PATCH_CONTENT_DIR:-${ROOT}/addon/patch_content/abm-1.28.0-gke.311/image-only-templates}
+CILIUM_GITREF="${CILIUM_GITREF?variable must be set, even when set to empty.}"
 
 # Add the remoteAddOnBundle field for the gdce-gke cluster Rookery(TBCONFIG).
 function insert_addon_config_gcs_location_gdce {
@@ -36,6 +37,11 @@ function insert_addon_config_gcs_location_gdce {
   # Adjust the yaml multiline string block scalar.
   sed -i -e 's/|-/|/g' "${tbconfig_path}"
 }
+
+if [[ -z "${CILIUM_GITREF}" ]]; then
+  echo "CILIUM_GITREF is empty, skipping Cilium build." >&2
+  exit 0
+fi
 
 insert_addon_config_gcs_location_gdce "${ABSOLUTE_PATH_TBCONFIG}" "${ADDON_CONFIG_NAME}" "${ADDON_CONFIG_BUCKET_URL}"
 
