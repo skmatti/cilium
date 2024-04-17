@@ -1,0 +1,3 @@
+# HELP cilium_google_1n_hybrid_cache_kubeapi_or_td_lost_event_total Lost resource event received from Kube API or via xDS from Traffic Director because the matching event from the other source is missing.
+# TYPE cilium_google_1n_hybrid_cache_kubeapi_or_td_lost_event_total counter
+cilium_google_1n_hybrid_cache_kubeapi_or_td_lost_event_total{event="add",resource="service",source="Kube API"} 1

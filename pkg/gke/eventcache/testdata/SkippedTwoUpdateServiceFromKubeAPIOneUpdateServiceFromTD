@@ -1,0 +1,4 @@
+# HELP cilium_google_1n_hybrid_cache_kubeapi_or_td_skipped_event_total Skipped resource event received from Kube API or via xDS from Traffic Director because it was overwritten before being matched with an event from the other source.
+# TYPE cilium_google_1n_hybrid_cache_kubeapi_or_td_skipped_event_total counter
+cilium_google_1n_hybrid_cache_kubeapi_or_td_skipped_event_total{event="update",resource="service",source="Kube API"} 2
+cilium_google_1n_hybrid_cache_kubeapi_or_td_skipped_event_total{event="update",resource="service",source="Traffic Director xDS"} 1

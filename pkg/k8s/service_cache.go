@@ -359,10 +359,12 @@ func (s *ServiceCache) UpdateService(k8sSvc *slim_corev1.Service, swg *lock.Stop
 
 	s.metrics.AddService(newService)
 	s.services[svcID] = newService
+	updateOrDeleteServiceInHybrid(svcID, oldService, newService, swg)
 
 	// Check if the corresponding Endpoints resource is already available
 	endpoints, serviceReady := s.correlateEndpoints(svcID)
 	if serviceReady {
+		updateOrDeleteEndpointsInHybrid(svcID, oldService, newService, endpoints, swg)
 		swg.Add()
 		s.emitEvent(ServiceEvent{
 			Action:       UpdateService,
@@ -413,6 +415,7 @@ func (s *ServiceCache) DeleteService(k8sSvc *slim_corev1.Service, swg *lock.Stop
 
 	if serviceOK {
 		s.metrics.DelService(oldService)
+		deleteServiceInHybrid(svcID, oldService, swg)
 		swg.Add()
 		s.emitEvent(ServiceEvent{
 			Action:    DeleteService,
@@ -467,6 +470,12 @@ func (s *ServiceCache) UpdateEndpoints(newEndpoints *Endpoints, swg *lock.Stoppa
 
 	// Check if the corresponding Endpoints resource is already available
 	svc, ok := s.services[esID.ServiceID]
+	if ok {
+		updateOrDeleteEndpointsInHybrid(esID.ServiceID, svc, svc, newEndpoints, swg)
+	} else {
+		// After Cilium restart, the control flow sometimes goes here (these endpoints are not added to the Hybrid Cache), which is why we need to also call updateEndpointsInHybrid in UpdateService().
+		log.Debugf("Not adding endpoints %+v for service %s to the Hybrid Cache because the service is not ready.", newEndpoints.Backends, esID.ServiceID)
+	}
 	endpoints, serviceReady := s.correlateEndpoints(esID.ServiceID)
 	if ok && serviceReady {
 		swg.Add()
@@ -491,6 +500,9 @@ func (s *ServiceCache) DeleteEndpoints(svcID EndpointSliceID, swg *lock.Stoppabl
 
 	var oldEPs *Endpoints
 	svc, serviceOK := s.services[svcID.ServiceID]
+	if serviceOK {
+		deleteEndpointsInHybrid(svcID.ServiceID, svc, s.endpoints[svcID.ServiceID].epSlices[svcID.EndpointSliceName], swg)
+	}
 	eps, ok := s.endpoints[svcID.ServiceID]
 	if ok {
 		oldEPs = eps.epSlices[svcID.EndpointSliceName].DeepCopy() // copy for passing to ServiceEvent
