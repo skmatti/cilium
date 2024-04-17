@@ -34,7 +34,8 @@ ADVANCEDDATAPATH_BASE_IMAGE_TAG = 0.0.1001
 ADVANCEDDATAPATH_IMAGE_REGISTRY ?= $(ADVANCEDDATAPATH_BASE_IMAGE_REGISTRY)
 ADVANCEDDATAPATH_IMAGE_NAME ?= $(ADVANCEDDATAPATH_BASE_IMAGE_NAME)
 
-ADVANCEDDATAPATH_IMAGE_TAG ?= "$(ADVANCEDDATAPATH_BASE_IMAGE_TAG)-$(USER)"
+ADVANCEDDATAPATH_IMAGE_SUFFIX ?= $(USER)
+ADVANCEDDATAPATH_IMAGE_TAG ?= "$(ADVANCEDDATAPATH_BASE_IMAGE_TAG)-$(ADVANCEDDATAPATH_IMAGE_SUFFIX)"
 
 ifeq ($(ADVANCEDDATAPATH_IMAGE_TAG), $(ADVANCEDDATAPATH_BASE_IMAGE_TAG))
 $(error "Cannot overwrite existing base image: $(ADVANCEDDATAPATH_BASE_IMAGE_TAG)")
@@ -64,6 +65,17 @@ MAKEFLAGS += --always-make
 
 help: ## Display this help.
 	@awk 'BEGIN {FS = ":.*##"; printf "\nUsage:\n  make \033[36m<target>\033[0m\n"} /^[a-zA-Z_0-9-]+:.*?##/ { printf "  \033[36m%-25s\033[0m %s\n", $$1, $$2 } /^##@/ { printf "\n\033[1m%s\033[0m\n", substr($$0, 5) } ' $(MAKEFILE_LIST)
+
+print-% : ## Print environment variables.
+	$(info $*=$($*)) @true
+
+##@ Provisioning
+
+provision-gke:
+	ADVANCEDDATAPATH_IMAGE_TAG=$(ADVANCEDDATAPATH_IMAGE_TAG) \
+	ADVANCEDDATAPATH_IMAGE_FULL_NAME=$(ADVANCEDDATAPATH_IMAGE_FULL_NAME) \
+	TBCONFIG="$(TBCONFIG)" \
+	./provision_gke.sh
 
 ##@ Container images
 

@@ -80,7 +80,7 @@ function build_and_push_cilium_image {
   current_branch="$(git rev-parse --abbrev-ref HEAD)"
   if [[ "${cilium_gitref}" = "${current_branch}" ]] || [[ "${cilium_gitref}" = HEAD ]]; then
     # Build and push cilium from current branch HEAD.
-    echo "INFO: did not specify CILIUM_GITREF, will be build from current head." >&2
+    echo "INFO: building image from CILIUM_GITREF:HEAD." >&2
     docker_image_tag="$(git rev-parse --verify HEAD)"
     cilium_docker_image_tag=${docker_image_tag}-dpv2
     IMAGE_REGISTRY=${image_registry} DOCKER_IMAGE_TAG=${docker_image_tag} CILIUM_DOCKER_IMAGE_TAG=${cilium_docker_image_tag} "${ROOT}/../build_and_push_cilium_image.sh"
@@ -178,16 +178,11 @@ if [[ -n "${CILIUM_GITREF:-}" ]]; then
         "${ROOT}/provision_gdce.sh"
       ;;
     gcp-gke)
-      ADVANCEDDATAPATH_BASE_IMAGE_REGISTRY="${ADVANCEDDATAPATH_BASE_IMAGE_REGISTRY:-us-central1-docker.pkg.dev/anthos-networking-ci/gke-component-images}"
-      ADVANCEDDATAPATH_BASE_IMAGE_NAME="${ADVANCEDDATAPATH_BASE_IMAGE_NAME:-advanceddatapath}"
-      ADVANCEDDATAPATH_BASE_IMAGE_TAG="${ADVANCEDDATAPATH_BASE_IMAGE_TAG:-0.0.1001}"
-      ADVANCEDDATAPATH_IMAGE_TAG="$(ADVANCEDDATAPATH_BASE_IMAGE_TAG)-$(USER)"
-      ADVANCEDDATAPATH_IMAGE_FULL_NAME=$(ADVANCEDDATAPATH_IMAGE_REGISTRY)/$(ADVANCEDDATAPATH_IMAGE_NAME):$(ADVANCEDDATAPATH_IMAGE_TAG)
-
-      ADVANCEDDATAPATH_IMAGE_TAG="${ADVANCEDDATAPATH_IMAGE_TAG}" \
-        ADVANCEDDATAPATH_IMAGE_FULL_NAME="${ADVANCEDDATAPATH_IMAGE_FULL_NAME}" \
-        TBCONFIG="${TBCONFIG}" \
-        "${ROOT}/provision_gke.sh"
+      make -C "${ROOT}" \
+        ADVANCEDDATAPATH_IMAGE_SUFFIX="${PROW_JOB_ID}" \
+        CILIUM_TAG="${CILIUM_DOCKER_IMAGE_TAG}" \
+        TBCONFIG="$(realpath "${TBCONFIG}" || true)" \
+        provision-gke
       ;;
     *)
       echo "Unknown platform: ${PLATFORM}." >&2

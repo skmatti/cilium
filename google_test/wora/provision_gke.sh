@@ -7,14 +7,14 @@ shopt -s inherit_errexit
 function extract_plugin_spec_yaml {
   local config="${1:?}"
   local plugin_spec_yaml="${2:?}"
-  yq '.spec.knests.[0].spec.clusters.[0].spec.provisionerArgs.pluginSpecYaml' "${config}" > "${plugin_spec_yaml}"
+  yq '.spec.knests.[].spec.clusters.[].spec.provisionerArgs.pluginSpecYaml' "${config}" >"${plugin_spec_yaml}"
 }
 
 # Generate a unique suffix to add to the cluster name.
 function cluster_name_suffix {
-    local suffix
-    suffix="$(uuidgen | tr -d '-')"
-    echo "${suffix::16}"
+  local suffix
+  suffix="$(uuidgen | tr -d '-')"
+  echo "${suffix::16}"
 }
 
 # Insert a suffix into the cluster name.
@@ -30,7 +30,7 @@ function insert_component_version {
   local component="${2:?}"
   local version="${3:?}"
   yq -i "(.componentOverrides[]
-    | select( .component == \"${component}\" )
+    | select(.component == \"${component}\")
     | .version) = \"${version}\"" "${config}"
 }
 
@@ -40,7 +40,7 @@ function insert_component_image {
   local component="${2:?}"
   local image="${3:?}"
   yq -i "(.componentOverrides[]
-    | select( .component == \"${component}\" )
+    | select(.component == \"${component}\")
     | .testOnlyComponentImage) = \"${image}\"" "${config}"
 }
 
