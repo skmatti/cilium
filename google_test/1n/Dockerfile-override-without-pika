@@ -1,0 +1,20 @@
+ARG org_tag=30.3.3
+ARG project_id=gke-1n-dev
+
+FROM us-central1-docker.pkg.dev/${project_id}/gke-component-images/advanceddatapath:${org_tag} as base
+
+FROM eu.gcr.io/gke-release/debian-base@sha256:7753303ed2fb66aa071266005820d690a2943fed231488dc216673e8114ac9e7 as runner
+
+COPY --from=base cilium.yaml.template .
+COPY --from=base cilium-agent-config.yaml.template .
+
+ARG project_id=gke-1n-dev
+ARG tag=30.999.999
+ARG mesh_id=mesh-30-999-999
+
+RUN sed -i 's|\"{{.AddonsImageRegistry}}/cilium\/cilium:.*\"|\"'gcr.io/${project_id?}/cilium/cilium:${tag?}'\"|' cilium.yaml.template
+RUN echo "  enable-enhanced-services: \"true\"" >> cilium-agent-config.yaml.template
+RUN echo "  traffic-director-mesh: \"${mesh_id?}\"" >> cilium-agent-config.yaml.template
+
+FROM us-central1-docker.pkg.dev/${project_id}/gke-component-images/advanceddatapath:${org_tag}
+COPY --from=runner cilium.yaml.template cilium-agent-config.yaml.template ./

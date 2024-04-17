@@ -35,7 +35,7 @@ spec:
                 clusterVersion: "1.29"
                 environment: staging
                 gcloudCommandGroup: alpha
-                gcloudExtraFlags: "--enable-dataplane-v2 --enable-ip-alias"
+                gcloudExtraFlags: "--enable-dataplane-v2 --enable-ip-alias --scopes https://www.googleapis.com/auth/cloud-platform"
               componentOverrides:
               - component: advanceddatapath
                 version: "0.0.1001"
