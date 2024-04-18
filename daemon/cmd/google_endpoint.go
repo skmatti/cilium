@@ -305,7 +305,7 @@ func (d *Daemon) createMultiNICEndpoints(ctx context.Context, owner regeneration
 				if err = d.multinicClient.PatchNetworkInterfaceAnnotations(ctx, intfCR); err != nil {
 					return d.errorWithMultiNICCleanup(primaryEp, PutEndpointIDInvalidCode, fmt.Errorf("failed updating annotations of interface CR %q for pod %q: %v", intfCR.Name, podID, err), nil)
 				}
-				intfLog.Debugf("Successfully updated interface CR %+v", intfCR)
+				intfLog.Infof("Successfully updated interface CR %+v", intfCR)
 			}
 		}
 	}

@@ -557,6 +557,7 @@ func SetupL2Interface(ifNameInPod, podName string, podResources map[string][]str
 		logfields.DeviceType:     ep.DeviceType,
 		logfields.InterfaceInPod: ifNameInPod,
 		logfields.NetNSName:      ep.NetworkNamespace,
+		"network":                network.Name,
 		"sourceInterface":        srcIfName,
 		"parentInterface":        cfg.ParentInterfaceName,
 	}).Info("Set up L2 interface")
@@ -1071,8 +1072,11 @@ func configureDHCPInfo(network *networkv1.Network, cfg *interfaceConfiguration, 
 
 	// if Network has static information, only the IPAddress should be returned
 	if staticConfig {
+		log.Infof("Network is static, only returning IP address %q from DHCP server %q", dhcpInfo.IPAddresses, dhcpInfo.ServerIP)
 		return &dhcp.DHCPResponse{IPAddresses: dhcpInfo.IPAddresses, ServerIP: dhcpInfo.ServerIP}, nil
 	}
+
+	log.Infof("DHCP response from server: %v", dhcpInfo)
 	return dhcpInfo, nil
 }
 
@@ -1212,13 +1216,17 @@ func populateInterfaceStatus(intf *networkv1.NetworkInterface, network *networkv
 		}
 	}
 
-	// Respect DHCP response if not nil and override interface parameters with DHCP response values.
 	if dhcpResp != nil {
-		intf.Status.Routes = dhcpResp.Routes
-		intf.Status.Gateway4 = dhcpResp.Gateway4
-		intf.Status.DNSConfig = dhcpResp.DNSConfig
 		setupDHCPServerAnnotations()
+		// Respect DHCP response if network is not static,
+		// override interface parameters with DHCP response values.
+		if !isStaticNetwork(network) {
+			intf.Status.Routes = dhcpResp.Routes
+			intf.Status.Gateway4 = dhcpResp.Gateway4
+			intf.Status.DNSConfig = dhcpResp.DNSConfig
+		}
 	}
+
 	if network.Spec.Type == networkv1.L3NetworkType {
 		routes, err := extractRoutes(network, netParamsObj)
 		if err != nil {
