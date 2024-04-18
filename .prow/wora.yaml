@@ -21,6 +21,8 @@ presubmits:
         # needed for docker-in-docker
         privileged: true
       env:
+      - name: CILIUM_GITREF
+        value: HEAD
       - name: TBCONFIG
         value: sut-abm-gce.yaml
       command:
@@ -48,6 +50,8 @@ presubmits:
         # needed for docker-in-docker
         privileged: true
       env:
+      - name: CILIUM_GITREF
+        value: HEAD
       - name: TBCONFIG
         value: sut-abm-gce.yaml
       - name: WORA_CONFIG
@@ -81,6 +85,8 @@ presubmits:
         # needed for docker-in-docker
         privileged: true
       env:
+      - name: CILIUM_GITREF
+        value: HEAD
       - name: TBCONFIG
         value: sut-abm-atl.yaml
       - name: WORA_CONTROL_PLANE
@@ -112,6 +118,8 @@ presubmits:
         # needed for docker-in-docker
         privileged: true
       env:
+      - name: CILIUM_GITREF
+        value: HEAD
       - name: TBCONFIG
         value: sut-abm-atl.yaml
       - name: WORA_CONFIG
@@ -147,6 +155,8 @@ presubmits:
         # needed for docker-in-docker
         privileged: true
       env:
+      - name: CILIUM_GITREF
+        value: HEAD
       - name: TBCONFIG
         value: sut-abm-mtv.yaml
       - name: WORA_CONTROL_PLANE
@@ -178,6 +188,8 @@ presubmits:
         # needed for docker-in-docker
         privileged: true
       env:
+      - name: CILIUM_GITREF
+        value: HEAD
       - name: TBCONFIG
         value: sut-abm-mtv.yaml
       - name: WORA_CONFIG
@@ -275,8 +287,8 @@ presubmits:
         # needed for docker-in-docker
         privileged: true
       env:
-      - name: DOCKER_BUILD_EXTRA_ARGS
-        value: --build-arg=K8S_VERSION=v1.28.3
+      - name: CILIUM_GITREF
+        value: HEAD
       - name: TBCONFIG
         value: sut-gke.yaml
       command:
@@ -304,8 +316,8 @@ presubmits:
         # needed for docker-in-docker
         privileged: true
       env:
-      - name: DOCKER_BUILD_EXTRA_ARGS
-        value: --build-arg=K8S_VERSION=v1.28.3
+      - name: CILIUM_GITREF
+        value: HEAD
       - name: TBCONFIG
         value: sut-gke.yaml
       - name: WORA_CONFIG
