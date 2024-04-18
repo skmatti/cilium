@@ -6,6 +6,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
+	_ "gke-internal.googlesource.com/third_party/cilium/google_test/wora/e2e/verifiers/multinetwork"
 	_ "gke-internal.googlesource.com/third_party/cilium/google_test/wora/e2e/verifiers/sample"
 )
 
