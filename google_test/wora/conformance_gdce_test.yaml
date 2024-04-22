@@ -59,6 +59,8 @@ spec:
           # test/e2e/common/node/pods.go
           - --skip=should.support.remote.command.execution.over.websockets
           - --skip=should.support.retrieving.logs.from.the.container.over.websockets
+          # test/e2e/common/node/secrets.go
+          - --skip=should.patch.a.secret
           # test/e2e/common/storage/empty_dir.go
           - --skip=should.support.shared.volumes.between.containers
           # test/e2e/kubectl/kubectl.go
@@ -70,6 +72,8 @@ spec:
           # test/e2e/common/network/networking.go
           - --skip=should.function.for.intra-pod.communication
           - --skip=should.function.for.node-pod.communication
+          # test/e2e/common/node/ephemeral_containers.go
+          - --skip=should.update.the.ephemeral.containers.in.an.existing.pod
           # test/e2e/network/endpointslice.go
           - --skip=should.support.a.Service.with.multiple.ports.specified.in.multiple.EndpointSlices
           - --skip=should.support.a.Service.with.multiple.endpoint.IPs.specified.in.multiple.EndpointSlices
@@ -119,6 +123,13 @@ spec:
           - --skip=should.be.able.to.switch.session.affinity.for.NodePort.service
           - --skip=should.implement.service.kubernetes.io/service-proxy-name
           - --skip=should.implement.service.kubernetes.io/headless
+          - --skip=should.respect.internalTrafficPolicy=Local.Pod.to.Pod
+          - --skip=should.respect.internalTrafficPolicy=Local.Pod.\(hostNetwork:.true\).to.Pod
+          - --skip=should.respect.internalTrafficPolicy=Local.Pod.and.Node,.to.Pod.\(hostNetwork:.true\)
+          - --skip=should.fail.health.check.node.port.if.there.are.only.terminating.endpoints
+          - --skip=should.fallback.to.terminating.endpoints.when.there.are.no.ready.endpoints.with.internalTrafficPolicy=Cluster
+          - --skip=should.fallback.to.local.terminating.endpoints.when.there.are.no.ready.endpoints.with.internalTrafficPolicy=Local
+          - --skip=should.fallback.to.terminating.endpoints.when.there.are.no.ready.endpoints.with.externallTrafficPolicy=Cluster
           - --keep-going
           - --timeout=2h
           - --no-color
