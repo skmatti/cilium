@@ -15,8 +15,11 @@ function extract_plugin_spec_yaml {
 # Generate a unique suffix to add to the cluster name.
 function cluster_name_suffix {
   local suffix
-  suffix="$(uuidgen | tr -d '-')"
-  echo "${suffix::16}"
+  suffix="$(tr -dc a-z0-9 < /dev/urandom | head -c 16 || true)"
+  if (( ${#suffix} != 16 )); then
+    return 1
+  fi
+  echo "${suffix}"
 }
 
 # Insert a suffix into the cluster name.
