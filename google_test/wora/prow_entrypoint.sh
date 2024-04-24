@@ -134,18 +134,20 @@ if [[ ${PLATFORM} = gdce-gke ]] || [[ ${PLATFORM} = gcp-gke ]]; then
   remove_env "${WORA_CONFIG}" HTTPS_PROXY HTTP_PROXY
 fi
 
+# Set up building and pushing images and add-on configs.
+PROJECT=${GCP_PROJECT:-"anthos-networking-ci"}
+IMAGE_REGISTRY=${IMAGE_REGISTRY:-"gcr.io/${PROJECT}/integration-test"}
+DOCKER_IMAGE_TAG=${DOCKER_IMAGE_TAG:-}
+CILIUM_DOCKER_IMAGE_TAG=${CILIUM_DOCKER_IMAGE_TAG:-}
+ADDON_CONFIG_NAME=addonConfig-${PROW_JOB_ID:?}.yaml
+ADDON_CONFIG_BUCKET_URL=gs://anthos-networking-ci-artifacts/addon-configs
+# PATCH_CONTENT_DIR defaults to an option that only patches the Cilium
+# and Cilium operator images. See http://b/327682436#comment3.
+PATCH_CONTENT_DIR=${PATCH_CONTENT_DIR:-${ROOT}/addon/patch_content/abm-1.28.0-gke.311/image-only-templates}
+
 # Update rookery file to specify upgraded Cilium, and build the corresponding
 # Cilium images. This step is only performed if CILIUM_GITREF is specified.
 if [[ -n "${CILIUM_GITREF:-}" ]]; then
-  PROJECT=${GCP_PROJECT:-"anthos-networking-ci"}
-  IMAGE_REGISTRY=${IMAGE_REGISTRY:-"gcr.io/${PROJECT}/integration-test"}
-  DOCKER_IMAGE_TAG=${DOCKER_IMAGE_TAG:-}
-  CILIUM_DOCKER_IMAGE_TAG=${CILIUM_DOCKER_IMAGE_TAG:-}
-  # PATCH_CONTENT_DIR defaults to an option that only patches the Cilium
-  # and Cilium operator images. See http://b/327682436#comment3.
-  PATCH_CONTENT_DIR=${PATCH_CONTENT_DIR:-${ROOT}/addon/patch_content/abm-1.28.0-gke.311/image-only-templates}
-  ADDON_CONFIG_NAME=addonConfig-${PROW_JOB_ID:?}.yaml
-  ADDON_CONFIG_BUCKET_URL=gs://anthos-networking-ci-artifacts/addon-configs
 
   # Only build and push images when the image tags are not specified,
   # DOCKER_IMAGE_TAG and CILIUM_DOCKER_IMAGE_TAG will also be updated here.
@@ -156,7 +158,20 @@ fi
 
 # Update the cluster rookery file.
 case "${PLATFORM}" in
-  baremetal-gke | {baremetal,vsphere}-gke-baremetal)
+  baremetal-gke)
+    ABSOLUTE_PATH_TBCONFIG="${TBCONFIG}" \
+      ADDON_CONFIG_NAME="${ADDON_CONFIG_NAME}" \
+      ADDON_CONFIG_BUCKET_URL="${ADDON_CONFIG_BUCKET_URL}" \
+      IMAGE_REGISTRY="${IMAGE_REGISTRY}" \
+      DOCKER_IMAGE_TAG="${DOCKER_IMAGE_TAG}" \
+      CREATE_NAMESPACE="false" \
+      CILIUM_DOCKER_IMAGE_TAG="${CILIUM_DOCKER_IMAGE_TAG}" \
+      PATCH_CONTENT_DIR=${PATCH_CONTENT_DIR} \
+      WORKDIR="${ROOT}/${WORKDIR}" \
+      CILIUM_GITREF="${CILIUM_GITREF:-}" \
+      "${ROOT}/provision_abm.sh"
+    ;;
+  baremetal-gke-baremetal | vsphere-gke-baremetal)
     ABSOLUTE_PATH_TBCONFIG="${TBCONFIG}" \
       ADDON_CONFIG_NAME="${ADDON_CONFIG_NAME}" \
       ADDON_CONFIG_BUCKET_URL="${ADDON_CONFIG_BUCKET_URL}" \
@@ -165,7 +180,7 @@ case "${PLATFORM}" in
       CILIUM_DOCKER_IMAGE_TAG="${CILIUM_DOCKER_IMAGE_TAG}" \
       PATCH_CONTENT_DIR=${PATCH_CONTENT_DIR} \
       WORKDIR="${ROOT}/${WORKDIR}" \
-      CILIUM_GITREF="${CILIUM_GITREF}" \
+      CILIUM_GITREF="${CILIUM_GITREF:-}" \
       "${ROOT}/provision_abm.sh"
     ;;
   gdce-gke)
@@ -177,7 +192,7 @@ case "${PLATFORM}" in
       DOCKER_IMAGE_TAG="${DOCKER_IMAGE_TAG}" \
       CILIUM_DOCKER_IMAGE_TAG="${CILIUM_DOCKER_IMAGE_TAG}" \
       WORKDIR="${ROOT}/${WORKDIR}" \
-      CILIUM_GITREF="${CILIUM_GITREF}" \
+      CILIUM_GITREF="${CILIUM_GITREF:-}" \
       "${ROOT}/provision_gdce.sh"
     ;;
   gcp-gke)
@@ -185,7 +200,7 @@ case "${PLATFORM}" in
       ADVANCEDDATAPATH_IMAGE_SUFFIX="${PROW_JOB_ID}" \
       CILIUM_TAG="${CILIUM_DOCKER_IMAGE_TAG}" \
       TBCONFIG="$(realpath "${TBCONFIG}" || true)" \
-      CILIUM_GITREF="${CILIUM_GITREF}" \
+      CILIUM_GITREF="${CILIUM_GITREF:-}" \
       provision-gke
     ;;
   *)
