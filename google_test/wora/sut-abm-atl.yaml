@@ -19,11 +19,17 @@ spec:
           namespace: tailorbird-users
         spec:
           distribution: gke-baremetal
+          location: atl
           provider: vsphere
           provisionerArgs:
             # Exact version of ABM is required to generate addon configurations.
             bmctlVersion: 1.29.100-gke.76
             passthroughEnv: |
-              {"MANIFEST_PROFILE_ENV": "staging", "NUM_NETWORKS": "2", "PLATFORM": "vsphere", "LAB_ID": "atl_shared"}
+              {
+                "MANIFEST_PROFILE_ENV": "staging",
+                "NUM_NETWORKS": "2",
+                "PLATFORM": "vsphere",
+                "LAB_ID": "atl_shared"
+              }
             proxyPort: "8218"
             username: prowuser

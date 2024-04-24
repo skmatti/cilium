@@ -20,11 +20,19 @@ spec:
         spec:
           distribution: gke-baremetal
           location: mtv
-          provider: vsphere
+          provider: baremetal
           provisionerArgs:
-            # Exact version of ABM is required to generate addon configurations.
             bmctlVersion: 1.29.100-gke.76
             passthroughEnv: |
-              {"MANIFEST_PROFILE_ENV": "staging", "NUM_NETWORKS": "2", "PLATFORM": "vsphere", "LAB_ID": "mtv_baremetal", "NUM_EXTRA_IPS": "3"}
-            proxyPort: "8218"
+              {
+                "MANIFEST_PROFILE_ENV": "staging",
+                "PLATFORM": "baremetal",
+                "LAB_ID": "mtv_baremetal",
+                "HERCULES_VLANS": "339,340,346,347,348",
+                "HERCULES_MAX_RETRY_ATTEMPTS": "1",
+                "HERCULES_RETRY_STRATEGY": "reboot",
+                "HERCULES_RETRY_INTERVAL": "45m",
+                "CONTAINER_RUNTIME": "containerd"
+              }
+            serverOS: ubuntu2004
             username: prowuser
