@@ -281,6 +281,7 @@ presubmits:
     preset-k8s-ssh: "true"
   path_alias: gke-internal.googlesource.com/third_party/cilium
   spec:
+    serviceAccountName: anthos-networking-ci-prow-sa
     containers:
     - image: gcr.io/anthos-networking-ci/kubetest2-tailorbird:latest
       securityContext:
@@ -310,6 +311,7 @@ presubmits:
     preset-k8s-ssh: "true"
   path_alias: gke-internal.googlesource.com/third_party/cilium
   spec:
+    serviceAccountName: anthos-networking-ci-prow-sa
     containers:
     - image: gcr.io/anthos-networking-ci/kubetest2-tailorbird:latest
       securityContext:
@@ -578,6 +580,66 @@ presubmits:
         value: conformance_test.yaml
       - name: WORA_CONTROL_PLANE
         value: mtv
+      - name: WORA_DOCKERFILE_DIR
+        value: conformance
+      command:
+      - runner.sh
+      args:
+      - ./google_test/wora/prow_entrypoint.sh
+- name: wora-gke_cilium-nobuild
+  trigger: /test wora-gke-nobuild$
+  rerun_command: /test wora-gke-nobuild
+  always_run: false
+  decorate: true
+  decoration_config:
+    timeout: 240m
+  labels:
+    preset-cookie-file: "true"
+    preset-cookie-file-env: "true"
+    preset-service-account: "true"
+    preset-dind-enabled: "true"
+    preset-k8s-ssh: "true"
+  path_alias: gke-internal.googlesource.com/third_party/cilium
+  spec:
+    serviceAccountName: anthos-networking-ci-prow-sa
+    containers:
+    - image: gcr.io/anthos-networking-ci/kubetest2-tailorbird:latest
+      securityContext:
+        # needed for docker-in-docker
+        privileged: true
+      env:
+      - name: TBCONFIG
+        value: sut-gke.yaml
+      command:
+      - runner.sh
+      args:
+      - ./google_test/wora/prow_entrypoint.sh
+- name: wora-conformance-gke_cilium-nobuild
+  trigger: /test wora-conformance-gke-nobuild$
+  rerun_command: /test wora-conformance-gke-nobuild
+  always_run: false
+  decorate: true
+  decoration_config:
+    timeout: 240m
+  labels:
+    preset-cookie-file: "true"
+    preset-cookie-file-env: "true"
+    preset-service-account: "true"
+    preset-dind-enabled: "true"
+    preset-k8s-ssh: "true"
+  path_alias: gke-internal.googlesource.com/third_party/cilium
+  spec:
+    serviceAccountName: anthos-networking-ci-prow-sa
+    containers:
+    - image: gcr.io/anthos-networking-ci/kubetest2-tailorbird:latest
+      securityContext:
+        # needed for docker-in-docker
+        privileged: true
+      env:
+      - name: TBCONFIG
+        value: sut-gke.yaml
+      - name: WORA_CONFIG
+        value: conformance_test.yaml
       - name: WORA_DOCKERFILE_DIR
         value: conformance
       command:

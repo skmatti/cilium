@@ -201,7 +201,7 @@ case "${PLATFORM}" in
       CILIUM_TAG="${CILIUM_DOCKER_IMAGE_TAG}" \
       TBCONFIG="$(realpath "${TBCONFIG}" || true)" \
       CILIUM_GITREF="${CILIUM_GITREF:-}" \
-      provision-gke
+      configure-docker advanceddatapath-image push-advanceddatapath-image provision-gke
     ;;
   *)
     echo "Unknown platform: ${PLATFORM}." >&2

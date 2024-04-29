@@ -71,7 +71,7 @@ print-% : ## Print environment variables.
 
 ##@ Provisioning
 
-provision-gke:
+provision-gke: ## Update version of advanceddatapath component.
 	ADVANCEDDATAPATH_IMAGE_TAG=$(ADVANCEDDATAPATH_IMAGE_TAG) \
 	ADVANCEDDATAPATH_IMAGE_FULL_NAME=$(ADVANCEDDATAPATH_IMAGE_FULL_NAME) \
 	TBCONFIG="$(TBCONFIG)" \
@@ -79,8 +79,15 @@ provision-gke:
 
 ##@ Container images
 
+comma =,
+
+# Command requires a comma-separated list of top-level registry names that need
+# to be accessed to pull and push images. The expression generates this list
+# from Cilium and advanceddatapath component registry names. See
+# http://yaqs/5946736126617190400#a1n6.
 configure-docker: ## Configure docker.
-	gcloud auth configure-docker
+	gcloud auth configure-docker \
+		$(subst $(eval) $(eval),$(comma),$(sort $(foreach path,$(WORA_BASE_IMAGE_REGISTRY) $(WORA_IMAGE_REGISTRY) $(ADVANCEDDATAPATH_BASE_IMAGE_REGISTRY) $(ADVANCEDDATAPATH_IMAGE_REGISTRY),$(firstword $(subst /, , $(path))))))
 
 ifeq ($(WORA_DOCKERFILE_DIR),$(CURDIR))
 
