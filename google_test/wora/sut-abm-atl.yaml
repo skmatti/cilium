@@ -27,9 +27,14 @@ spec:
             passthroughEnv: |
               {
                 "MANIFEST_PROFILE_ENV": "staging",
+                "CLUSTER_SIZE": "variable",
+                "NUM_CONTROL": "1",
+                "NUM_WORKER": "2",
+                "NUM_LB": "0",
                 "NUM_NETWORKS": "2",
                 "PLATFORM": "vsphere",
                 "LAB_ID": "atl_shared"
               }
             proxyPort: "8218"
+            serverOS: ubuntu2004
             username: prowuser
