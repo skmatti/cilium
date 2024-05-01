@@ -145,8 +145,8 @@ ADDON_CONFIG_BUCKET_URL=gs://anthos-networking-ci-artifacts/addon-configs
 # and Cilium operator images. See http://b/327682436#comment3.
 PATCH_CONTENT_DIR=${ROOT}/${PATCH_CONTENT_DIR:-addon/patch_content/abm-1.29.100-gke.76/overlays/image-only}
 
-# Update rookery file to specify upgraded Cilium, and build the corresponding
-# Cilium images. This step is only performed if CILIUM_GITREF is specified.
+# Build the corresponding Cilium images and upload to the registry.
+# This step is only performed if CILIUM_GITREF is specified.
 if [[ -n "${CILIUM_GITREF:-}" ]]; then
 
   # Only build and push images when the image tags are not specified,
@@ -259,7 +259,12 @@ insert_control_plane \
   "${WORA_RESOURCE_NAME:-"anthos-networking-test-workloads"}" \
   "${WORA_CONTROL_PLANE}"
 
-kubetest2-tailorbird \
+if [[ -n "${CILIUM_DOCKER_IMAGE_TAG}" ]]; then
+  CILIUM_IMAGE_WITH_TAG=${IMAGE_REGISTRY}/cilium/cilium:${CILIUM_DOCKER_IMAGE_TAG}
+fi
+
+CILIUM_IMAGE_WITH_TAG=${CILIUM_IMAGE_WITH_TAG:-} \
+  kubetest2-tailorbird \
   --verbose \
   --up \
   --down="${RUN_DOWN:-true}" \
