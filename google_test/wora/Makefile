@@ -35,10 +35,11 @@ ADVANCEDDATAPATH_IMAGE_REGISTRY ?= $(ADVANCEDDATAPATH_BASE_IMAGE_REGISTRY)
 ADVANCEDDATAPATH_IMAGE_NAME ?= $(ADVANCEDDATAPATH_BASE_IMAGE_NAME)
 
 ADVANCEDDATAPATH_IMAGE_SUFFIX ?= $(USER)
-ADVANCEDDATAPATH_IMAGE_TAG ?= "$(ADVANCEDDATAPATH_BASE_IMAGE_TAG)-$(ADVANCEDDATAPATH_IMAGE_SUFFIX)"
 
-ifeq ($(ADVANCEDDATAPATH_IMAGE_TAG), $(ADVANCEDDATAPATH_BASE_IMAGE_TAG))
-$(error "Cannot overwrite existing base image: $(ADVANCEDDATAPATH_BASE_IMAGE_TAG)")
+ifneq ($(ADVANCEDDATAPATH_IMAGE_SUFFIX),)
+ADVANCEDDATAPATH_IMAGE_TAG ?= "$(ADVANCEDDATAPATH_BASE_IMAGE_TAG)-$(ADVANCEDDATAPATH_IMAGE_SUFFIX)"
+else
+ADVANCEDDATAPATH_IMAGE_TAG ?= $(ADVANCEDDATAPATH_BASE_IMAGE_TAG)
 endif
 
 ADVANCEDDATAPATH_IMAGE_FULL_NAME = $(ADVANCEDDATAPATH_IMAGE_REGISTRY)/$(ADVANCEDDATAPATH_IMAGE_NAME):$(ADVANCEDDATAPATH_IMAGE_TAG)
@@ -115,7 +116,12 @@ push-wora-image: ## Push WORA image.
 	docker push $(WORA_IMAGE_FULL_NAME)
 	@echo "Pushed image with TBENV=$(TBENV)."
 
-advanceddatapath-image: ## Build advanceddatapath image.
+check-advanceddatapath-image-tag: ## Prevent overwriting component image tag.
+ifeq ($(ADVANCEDDATAPATH_IMAGE_TAG),$(ADVANCEDDATAPATH_BASE_IMAGE_TAG))
+	@error "Refusing to overwrite advanceddatapath base image."
+endif
+
+advanceddatapath-image: check-advanceddatapath-image-tag ## Build advanceddatapath image.
 	docker build \
 		--platform=x86_64 \
 		--build-arg=BASE_IMAGE_REGISTRY="$(ADVANCEDDATAPATH_BASE_IMAGE_REGISTRY)" \
@@ -126,5 +132,5 @@ advanceddatapath-image: ## Build advanceddatapath image.
 		-f "${ADVANCEDDATAPATH_DOCKERFILE}" \
 		"$(CURDIR)"
 
-push-advanceddatapath-image: ## Push advanceddatapath image.
+push-advanceddatapath-image: check-advanceddatapath-image-tag ## Push advanceddatapath image.
 	docker push "${ADVANCEDDATAPATH_IMAGE_FULL_NAME}"
