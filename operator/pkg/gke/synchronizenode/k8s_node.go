@@ -47,76 +47,81 @@ func startSynchronizingNodes(config Config, clientset k8sClient.Clientset, lc hi
 		return
 	}
 
-	nodeLabels := labels.Set{}
+	nodeLabels := []labels.Set{}
 	if config.SynchronizeK8sWindowsNodes {
-		nodeLabels[v1.LabelOSStable] = "windows"
+		nodeLabels = append(nodeLabels, labels.Set{v1.LabelOSStable: "windows"})
 	}
 	if config.SynchronizeMigratingNodes {
-		nodeLabels[migrateLabel] = "calico"
+		nodeLabels = append(nodeLabels, labels.Set{migrateLabel: "calico"})
 	}
 
-	nodeOptsModifier := func(options *metav1.ListOptions) {
-		options.LabelSelector = nodeLabels.String()
+	// Have to create an informer per node label since K8s does not support OR
+	// operations natively.
+	for _, nodeLabel := range nodeLabels {
+		nodeOptsModifier := func(options *metav1.ListOptions) {
+			options.LabelSelector = nodeLabel.String()
+		}
+
+		_, nodeController := informer.NewInformer(
+			cache.NewFilteredListWatchFromClient(clientset.CoreV1().RESTClient(),
+				"nodes", v1.NamespaceAll,
+				nodeOptsModifier,
+			),
+			&slim_corev1.Node{},
+			0,
+			cache.ResourceEventHandlerFuncs{
+				AddFunc: func(obj interface{}) {
+					if node := objToSlimV1Node(obj); node != nil {
+						cn := convertToCiliumNode(node)
+						if _, err := clientset.CiliumV2().CiliumNodes().Create(context.TODO(), cn, metav1.CreateOptions{}); err != nil {
+							log.WithError(err).Warn("Unable to create CiliumNode resource")
+						}
+					}
+				},
+				UpdateFunc: func(oldObj, newObj interface{}) {
+					if node := objToSlimV1Node(newObj); node != nil {
+						cn := convertToCiliumNode(node)
+						replaceCNSpec := []k8s.JSONPatch{
+							{
+								OP:    "replace",
+								Path:  "/spec",
+								Value: cn.Spec,
+							},
+						}
+						specPatch, err := json.Marshal(replaceCNSpec)
+						if err != nil {
+							log.WithError(err).Warn("Unable to create a Patch")
+							return
+						}
+						if _, err := clientset.CiliumV2().CiliumNodes().Patch(context.TODO(), node.ObjectMeta.Name, types.JSONPatchType, specPatch, metav1.PatchOptions{}); err != nil {
+							log.WithError(err).Warn("Unable to update CiliumNode resource")
+						}
+					}
+				},
+				DeleteFunc: func(obj interface{}) {
+					if node := objToSlimV1Node(obj); node != nil {
+						if err := clientset.CiliumV2().CiliumNodes().Delete(context.TODO(), node.ObjectMeta.Name, metav1.DeleteOptions{}); err != nil && !k8serrors.IsNotFound(err) {
+							log.WithError(err).Warn("Unable to delete CiliumNode resource")
+						}
+					}
+				},
+			},
+			k8s.ConvertToNode,
+		)
+
+		stopChan := make(chan struct{})
+		lc.Append(hive.Hook{
+			OnStart: func(_ hive.HookContext) error {
+				nodeController.Run(stopChan)
+				return nil
+			},
+			OnStop: func(_ hive.HookContext) error {
+				close(stopChan)
+				return nil
+			},
+		})
 	}
 
-	_, nodeController := informer.NewInformer(
-		cache.NewFilteredListWatchFromClient(clientset.CoreV1().RESTClient(),
-			"nodes", v1.NamespaceAll,
-			nodeOptsModifier,
-		),
-		&slim_corev1.Node{},
-		0,
-		cache.ResourceEventHandlerFuncs{
-			AddFunc: func(obj interface{}) {
-				if node := objToSlimV1Node(obj); node != nil {
-					cn := convertToCiliumNode(node)
-					if _, err := clientset.CiliumV2().CiliumNodes().Create(context.TODO(), cn, metav1.CreateOptions{}); err != nil {
-						log.WithError(err).Warn("Unable to create CiliumNode resource")
-					}
-				}
-			},
-			UpdateFunc: func(oldObj, newObj interface{}) {
-				if node := objToSlimV1Node(newObj); node != nil {
-					cn := convertToCiliumNode(node)
-					replaceCNSpec := []k8s.JSONPatch{
-						{
-							OP:    "replace",
-							Path:  "/spec",
-							Value: cn.Spec,
-						},
-					}
-					specPatch, err := json.Marshal(replaceCNSpec)
-					if err != nil {
-						log.WithError(err).Warn("Unable to create a Patch")
-						return
-					}
-					if _, err := clientset.CiliumV2().CiliumNodes().Patch(context.TODO(), node.ObjectMeta.Name, types.JSONPatchType, specPatch, metav1.PatchOptions{}); err != nil {
-						log.WithError(err).Warn("Unable to update CiliumNode resource")
-					}
-				}
-			},
-			DeleteFunc: func(obj interface{}) {
-				if node := objToSlimV1Node(obj); node != nil {
-					if err := clientset.CiliumV2().CiliumNodes().Delete(context.TODO(), node.ObjectMeta.Name, metav1.DeleteOptions{}); err != nil && !k8serrors.IsNotFound(err) {
-						log.WithError(err).Warn("Unable to delete CiliumNode resource")
-					}
-				}
-			},
-		},
-		k8s.ConvertToNode,
-	)
-
-	stopChan := make(chan struct{})
-	lc.Append(hive.Hook{
-		OnStart: func(_ hive.HookContext) error {
-			nodeController.Run(stopChan)
-			return nil
-		},
-		OnStop: func(_ hive.HookContext) error {
-			close(stopChan)
-			return nil
-		},
-	})
 }
 
 func convertToCiliumNode(node *slim_corev1.Node) *ciliumv2.CiliumNode {
