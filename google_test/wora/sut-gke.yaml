@@ -23,6 +23,8 @@ spec:
           provider: gcp
           provisionerArgs:
             pluginSpecYaml: |
+              pluginOptions:
+                skipNetworkTeardowns: true
               projectOptions:
                 projects: anthos-networking-ci
               networkOptions:
