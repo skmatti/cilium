@@ -207,6 +207,7 @@ case "${PLATFORM}" in
         ADVANCEDDATAPATH_IMAGE_SUFFIX="${PROW_JOB_ID}" \
         IMAGE_REGISTRY="${IMAGE_REGISTRY}" \
         CILIUM_DOCKER_IMAGE_TAG="${CILIUM_DOCKER_IMAGE_TAG}" \
+        CILIUM_OPERATOR_DOCKER_IMAGE_TAG="${DOCKER_IMAGE_TAG}" \
         TBCONFIG="$(realpath "${TBCONFIG}" || true)" \
         CILIUM_GITREF="${CILIUM_GITREF}" \
         advanceddatapath-image push-advanceddatapath-image

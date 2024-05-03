@@ -49,6 +49,7 @@ ADVANCEDDATAPATH_DOCKERFILE = $(realpath $(ADVANCEDDATAPATH_DOCKERFILE_DIR)/Dock
 
 # Cilium version to be used in the advanceddatapath image for component override.
 CILIUM_DOCKER_IMAGE_TAG ?= nightly
+CILIUM_OPERATOR_DOCKER_IMAGE_TAG ?= nightly
 
 # Working directory for intermediate files.
 WORKDIR ?= .
@@ -123,12 +124,12 @@ endif
 
 advanceddatapath-image: check-advanceddatapath-image-tag ## Build advanceddatapath image.
 	docker build \
-		--platform=x86_64 \
 		--build-arg=BASE_IMAGE_REGISTRY="$(ADVANCEDDATAPATH_BASE_IMAGE_REGISTRY)" \
 		--build-arg=BASE_IMAGE_NAME="$(ADVANCEDDATAPATH_BASE_IMAGE_NAME)" \
 		--build-arg=BASE_IMAGE_TAG="$(ADVANCEDDATAPATH_BASE_IMAGE_TAG)" \
 		--build-arg=CILIUM_IMAGE_REGISTRY="$(IMAGE_REGISTRY)" \
 		--build-arg=CILIUM_IMAGE_TAG="$(CILIUM_DOCKER_IMAGE_TAG)" \
+		--build-arg=CILIUM_OPERATOR_IMAGE_TAG="$(CILIUM_OPERATOR_DOCKER_IMAGE_TAG)" \
 		-t "${ADVANCEDDATAPATH_IMAGE_FULL_NAME}" \
 		-f "${ADVANCEDDATAPATH_DOCKERFILE}" \
 		"$(CURDIR)"

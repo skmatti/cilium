@@ -8,9 +8,11 @@ FROM gcr.io/anthos-baremetal-staging/debian-cloud-rapture-base/debian-cloud-rapt
 
 ARG CILIUM_IMAGE_REGISTRY="gcr.io/gke-networking-test-images"
 ARG CILIUM_IMAGE_TAG="nightly"
+ARG CILIUM_OPERATOR_IMAGE_TAG="nightly"
 
-COPY --from=base cilium.yaml.template .
-RUN sed -i 's|image: \"gcr.io\/gke-networking-test-images\/cilium\/cilium:.*\"|image: \"'${CILIUM_IMAGE_REGISTRY}/cilium/cilium:${CILIUM_IMAGE_TAG}'\"|' cilium.yaml.template
+COPY --from=base cilium.yaml.template cilium-operator.yaml.template ./
+RUN sed -i 's|image: \"gcr.io\/gke-networking-test-images\/cilium\/cilium:.*\"|image: \"'${CILIUM_IMAGE_REGISTRY}/cilium/cilium:${CILIUM_IMAGE_TAG}'\"|' cilium.yaml.template && \
+    sed -i 's|image: \"gcr.io\/gke-networking-test-images\/cilium\/operator:.*\"|image: \"'${CILIUM_IMAGE_REGISTRY}/cilium/operator-generic:${CILIUM_OPERATOR_IMAGE_TAG}'\"|' cilium-operator.yaml.template
 
 FROM "${BASE_IMAGE_REGISTRY}/${BASE_IMAGE_NAME}:${BASE_IMAGE_TAG}"
-COPY --from=runner cilium.yaml.template .
+COPY --from=runner cilium.yaml.template cilium-operator.yaml.template ./
