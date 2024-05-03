@@ -224,7 +224,7 @@ presubmits:
         privileged: true
       env:
       - name: CILIUM_GITREF
-        value: v1.13.7-anthos1.28-gke.36
+        value: v1.13-anthos1.28
       - name: TBCONFIG
         value: sut-gdce.yaml
       command:
@@ -253,7 +253,7 @@ presubmits:
         privileged: true
       env:
       - name: CILIUM_GITREF
-        value: v1.13.7-anthos1.28-gke.36
+        value: v1.13-anthos1.28
       - name: DOCKER_BUILD_EXTRA_ARGS
         value: --build-arg=K8S_VERSION=v1.28.7
       - name: TBCONFIG
