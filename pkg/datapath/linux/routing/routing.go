@@ -68,6 +68,7 @@ func (info *RoutingInfo) Configure(ip net.IP, mtu int, compat bool, host bool) e
 			Priority: linux_defaults.RulePriorityIngress,
 			To:       &ipWithMask,
 			Table:    route.MainTable,
+			Protocol: linux_defaults.RTProto,
 		}); err != nil {
 			return fmt.Errorf("unable to install ip rule: %s", err)
 		}
@@ -92,6 +93,7 @@ func (info *RoutingInfo) Configure(ip net.IP, mtu int, compat bool, host bool) e
 				From:     &ipWithMask,
 				To:       &cidr,
 				Table:    tableID,
+				Protocol: linux_defaults.RTProto,
 			}); err != nil {
 				return fmt.Errorf("unable to install ip rule: %s", err)
 			}
@@ -102,6 +104,7 @@ func (info *RoutingInfo) Configure(ip net.IP, mtu int, compat bool, host bool) e
 			Priority: egressPriority,
 			From:     &ipWithMask,
 			Table:    tableID,
+			Protocol: linux_defaults.RTProto,
 		}); err != nil {
 			return fmt.Errorf("unable to install ip rule: %s", err)
 		}
@@ -116,15 +119,17 @@ func (info *RoutingInfo) Configure(ip net.IP, mtu int, compat bool, host bool) e
 		Dst:       &net.IPNet{IP: info.IPv4Gateway, Mask: net.CIDRMask(32, 32)},
 		Scope:     netlink.SCOPE_LINK,
 		Table:     tableID,
+		Protocol:  linux_defaults.RTProto,
 	}); err != nil {
 		return fmt.Errorf("unable to add L2 nexthop route: %s", err)
 	}
 
 	// Default route to the VPC or subnet gateway
 	if err := netlink.RouteReplace(&netlink.Route{
-		Dst:   &net.IPNet{IP: net.IPv4zero, Mask: net.CIDRMask(0, 32)},
-		Table: tableID,
-		Gw:    info.IPv4Gateway,
+		Dst:      &net.IPNet{IP: net.IPv4zero, Mask: net.CIDRMask(0, 32)},
+		Table:    tableID,
+		Gw:       info.IPv4Gateway,
+		Protocol: linux_defaults.RTProto,
 	}); err != nil {
 		return fmt.Errorf("unable to add L2 nexthop route: %s", err)
 	}
@@ -226,9 +231,10 @@ func Delete(ip netip.Addr, compat bool) error {
 		// In CRD-based IPAM, when an IP is unassigned from the CiliumNode, we delete this route
 		// to avoid blackholing traffic to this IP if it gets reassigned to another node
 		if err := netlink.RouteReplace(&netlink.Route{
-			Dst:   ipWithMask,
-			Table: route.MainTable,
-			Type:  unix.RTN_UNREACHABLE,
+			Dst:      ipWithMask,
+			Table:    route.MainTable,
+			Type:     unix.RTN_UNREACHABLE,
+			Protocol: linux_defaults.RTProto,
 		}); err != nil {
 			return fmt.Errorf("unable to add unreachable route for ip %s: %w", ipWithMask.String(), err)
 		}
@@ -252,7 +258,7 @@ func deleteRule(r route.Rule) error {
 		}).Warning("Found too many rules matching, skipping deletion")
 		return errors.New("unexpected number of rules found to delete")
 	case length == 1:
-		return route.DeleteRule(r)
+		return route.DeleteRule(netlink.FAMILY_V4, r)
 	}
 
 	log.WithFields(logrus.Fields{
