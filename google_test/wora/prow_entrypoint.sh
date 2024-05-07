@@ -198,14 +198,15 @@ case "${PLATFORM}" in
   gcp-gke)
     make -C "${ROOT}" \
       ADVANCEDDATAPATH_IMAGE_SUFFIX="${CILIUM_GITREF:+"${PROW_JOB_ID}"}" \
-      CILIUM_TAG="${CILIUM_DOCKER_IMAGE_TAG}" \
+      CILIUM_DOCKER_IMAGE_TAG="${CILIUM_DOCKER_IMAGE_TAG}" \
       TBCONFIG="$(realpath "${TBCONFIG}" || true)" \
       CILIUM_GITREF="${CILIUM_GITREF:-}" \
       configure-docker provision-gke
     if [[ -n "${CILIUM_GITREF:-}" ]]; then
       make -C "${ROOT}" \
         ADVANCEDDATAPATH_IMAGE_SUFFIX="${PROW_JOB_ID}" \
-        CILIUM_TAG="${CILIUM_DOCKER_IMAGE_TAG}" \
+        IMAGE_REGISTRY="${IMAGE_REGISTRY}" \
+        CILIUM_DOCKER_IMAGE_TAG="${CILIUM_DOCKER_IMAGE_TAG}" \
         TBCONFIG="$(realpath "${TBCONFIG}" || true)" \
         CILIUM_GITREF="${CILIUM_GITREF}" \
         advanceddatapath-image push-advanceddatapath-image

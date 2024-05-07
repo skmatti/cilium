@@ -178,10 +178,10 @@ function generate_complete_addon_config {
   # addon_config_name is the actually name of the file being uploaded to gcs.
   local addon_config_name="${8:?}"
   local namespace_name="${9:?}"
+  local generated_content_tmp_dir
 
-
-  local generated_content_tmp_dir="$(mktemp -d -t generated_content.XXXXX)"
-  trap "rm -r \"${generated_content_tmp_dir}\"; trap - RETURN" RETURN
+  generated_content_tmp_dir="$(mktemp -d -t generated_content.XXXXX)"
+  trap 'rm -r "${generated_content_tmp_dir}"; trap - RETURN' RETURN
 
   local namespace_config_path=${generated_config_dir}/addon_configuration_namespace.yaml
   local addon_configuration_only_path=${generated_config_dir}/addon_configuration.yaml

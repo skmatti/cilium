@@ -48,7 +48,7 @@ ADVANCEDDATAPATH_DOCKERFILE_DIR ?= $(CURDIR)/gke_component_override
 ADVANCEDDATAPATH_DOCKERFILE = $(realpath $(ADVANCEDDATAPATH_DOCKERFILE_DIR)/Dockerfile)
 
 # Cilium version to be used in the advanceddatapath image for component override.
-CILIUM_TAG ?= nightly
+CILIUM_DOCKER_IMAGE_TAG ?= nightly
 
 # Working directory for intermediate files.
 WORKDIR ?= .
@@ -127,7 +127,8 @@ advanceddatapath-image: check-advanceddatapath-image-tag ## Build advanceddatapa
 		--build-arg=BASE_IMAGE_REGISTRY="$(ADVANCEDDATAPATH_BASE_IMAGE_REGISTRY)" \
 		--build-arg=BASE_IMAGE_NAME="$(ADVANCEDDATAPATH_BASE_IMAGE_NAME)" \
 		--build-arg=BASE_IMAGE_TAG="$(ADVANCEDDATAPATH_BASE_IMAGE_TAG)" \
-		--build-arg=cilium_tag="$(CILIUM_TAG)" \
+		--build-arg=CILIUM_IMAGE_REGISTRY="$(IMAGE_REGISTRY)" \
+		--build-arg=CILIUM_IMAGE_TAG="$(CILIUM_DOCKER_IMAGE_TAG)" \
 		-t "${ADVANCEDDATAPATH_IMAGE_FULL_NAME}" \
 		-f "${ADVANCEDDATAPATH_DOCKERFILE}" \
 		"$(CURDIR)"
