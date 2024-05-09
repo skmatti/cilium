@@ -62,9 +62,6 @@ func ReloadParentDevDatapath(ctx context.Context, device, objDir string, ep data
 	})
 	scopedLog.Info("Loading bpf progs for the parent device")
 
-	symbols := []string{symbolFromHostNetdevEp, symbolToHostNetdevEp}
-	directions := []string{dirIngress, dirEgress}
-
 	v4Address, err := node.FirstV4GlobalAddr(device)
 	if err != nil {
 		return err
@@ -78,20 +75,22 @@ func ReloadParentDevDatapath(ctx context.Context, device, objDir string, ep data
 		return err
 	}
 
-	for i, symbol := range symbols {
-		progs := []progDefinition{{progName: symbol, direction: directions[i]}}
-		finalize, err := replaceDatapath(ctx, device, parentDevObjPath, progs, "")
-		if err != nil {
-			// Don't log an error here if the context was canceled or timed out;
-			// this log message should only represent failures with respect to
-			// loading the program.
-			if ctx.Err() == nil {
-				scopedLog.WithError(err).Warningf("JoinEP: Failed to load program for host endpoint (%s)", symbol)
-			}
-			return err
-		}
-		defer finalize()
+	progs := []progDefinition{
+		{progName: symbolFromHostNetdevEp, direction: dirIngress},
+		{progName: symbolToHostNetdevEp, direction: dirEgress},
 	}
+
+	finalize, err := replaceDatapath(ctx, device, parentDevObjPath, progs, "")
+	if err != nil {
+		// Don't log an error here if the context was canceled or timed out;
+		// this log message should only represent failures with respect to
+		// loading the program.
+		if ctx.Err() == nil {
+			scopedLog.WithError(err).Warningf("JoinEP: Failed to load program for host endpoint (%s)", device)
+		}
+		return err
+	}
+	defer finalize()
 	return nil
 }
 
