@@ -53,3 +53,15 @@ ARTIFACTS="${WORA_ARTIFACTS}" \
   --status-check-interval=90 \
   --up \
   --down
+
+mapfile -t junit_files < <(find "${WORA_ARTIFACTS}" -name junit_\*.xml)
+for junit_file in "${junit_files[@]}"; do
+  echo "Checking ${junit_file} for failures"
+  line="$(grep -E '(<testsuites).*>' "${junit_file}")"
+  errors="$(sed -e 's/.*errors="//' -e 's/".*//' <(echo "${line}"))"
+  failures="$(sed -e 's/.*failures="//' -e 's/".*//' <(echo "${line}"))"
+  if ((${errors:-0} != 0)) || ((${failures:-0} != 0)); then
+    echo "Failures found in produced ${junit_file} output. Failing workflow" >&2
+    exit 1
+  fi
+done
