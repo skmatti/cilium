@@ -32,6 +32,7 @@ spec:
               clusterOptions:
                 clusters: wora-sut-gke
                 regions: us-central1
+                clusterVersion: "1.29"
                 environment: staging
                 gcloudCommandGroup: alpha
                 gcloudExtraFlags: "--enable-dataplane-v2 --enable-ip-alias"
