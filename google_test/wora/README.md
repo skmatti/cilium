@@ -40,7 +40,7 @@ platform version.
 generate the add-on configuration containing the newly built Cilium images. If
 not set, will generate an add-on configuration that only updates the Cilium and
 Cilium-operator images, from
-[these templates](addon/patch_content/abm1.28.0-gke.311/image-only-templates/).
+[these templates](addon/patch_content/abm-1.28.0-gke.311/image-only-templates/).
 This is a workaround for b/327682436.
 
 `TBCONFIG`: Tailorbird rookery configuration used to provision the cluster.
