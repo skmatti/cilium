@@ -24,6 +24,7 @@ import (
 	"github.com/cilium/cilium/api/v1/models"
 	"github.com/cilium/cilium/pkg/defaults"
 	dhcp "github.com/cilium/cilium/pkg/gke/multinic/dhcp"
+	"github.com/cilium/cilium/pkg/gke/multinic/endpoint"
 	multinicep "github.com/cilium/cilium/pkg/gke/multinic/endpoint"
 	"github.com/cilium/cilium/pkg/gke/multinic/nic"
 	"github.com/cilium/cilium/pkg/ipam"
@@ -257,7 +258,7 @@ func configureInterface(cfg *interfaceConfiguration, netNs ns.NetNS, ifName stri
 			return fmt.Errorf("unable to set MTU %d to %q: %v", cfg.MTU, l.Attrs().Name, err)
 		}
 
-		if cfg.MacAddress != nil && cfg.Type != "ipvlan" {
+		if cfg.MacAddress != nil && cfg.Type != endpoint.EndpointDeviceVETH {
 			if err := applyMACToLink(cfg.MacAddress, l); err != nil {
 				return fmt.Errorf("failed to apply mac address to %q: %v", l.Attrs().Name, err)
 			}
@@ -715,6 +716,7 @@ func SetupL3Interface(ifNameInPod, podName string, podResources map[string][]str
 
 	// Update the endpoint addressing after the veth interface is configured.
 	ep.Addressing.IPV4 = cfg.IPV4Address.IP.String()
+	ep.Mac = cfg.MacAddress.String()
 	ep.ParentDeviceMac = parentDevLink.Attrs().HardwareAddr.String()
 	ep.InterfaceName = veth.Name
 	ep.InterfaceNameInPod = ifNameInPod

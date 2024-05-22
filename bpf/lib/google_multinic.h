@@ -220,6 +220,11 @@ static __always_inline __maybe_unused bool ctx_google_local_redirect(struct __ct
 	return false;
 }
 
+static __always_inline __maybe_unused bool should_skip_local_delivery(const struct endpoint_info *ep __maybe_unused)
+{
+	return false;
+}
+
 #else
 
 static __always_inline bool ctx_google_local_redirect(struct __ctx_buff *ctx)
@@ -331,6 +336,57 @@ static __always_inline __maybe_unused void skip_policy_if_dhcp(struct __ctx_buff
         }
     }
     return;
+}
+
+static __always_inline __maybe_unused bool should_skip_local_delivery(const struct endpoint_info *ep __maybe_unused)
+{
+#if MULTI_NIC_DEVICE_TYPE == EP_DEV_TYPE_INDEX_MULTI_NIC_VETH
+{
+	union macaddr *dmac;
+	const struct multi_nic_dev_info *dev;
+
+	dmac = (union macaddr *)&ep->mac;
+	dev = lookup_multi_nic_dev(dmac);
+#ifdef TUNNEL_MODE
+	// Temporary solution for VPC peering in GDCH:
+	// Remove the network isolation between multi NIC endpoint veth
+	// and the default network veth.
+	// TUNNEL_MODE and EP_DEV_TYPE_INDEX_MULTI_NIC_VETH macros
+	// assume running the datapath in the GDCH environment.
+	// The network isolation still applies to multi NIC veth endpoints
+	// with different NETWORK_IDs.
+	if (dev != NULL && dev->net_id != NETWORK_ID)
+	{
+		return true;
+	}
+#else
+	// If the destination endpoint is a multi NIC endpoint veth pair,
+	// we want local delivery to be done only between endpoints that
+	// share the same NETWORK_ID.
+	if (dev == NULL || dev->net_id != NETWORK_ID)
+	{
+		return true;
+	}
+#endif /* TUNNEL_MODE */
+	return false;
+}
+#endif /* MULTI_NIC_DEVICE_TYPE == EP_DEV_TYPE_INDEX_MULTI_NIC_VETH */
+	// Temporary solution for VPC peering in GDCH:
+	// If the source endpoint is not a multinic veth endpoint,
+	// we always enable local delivery if TUNNEL_MODE is defined.
+#ifndef TUNNEL_MODE
+	// Skip local delivery if src is a default network veth and dst is
+	// a multinic-veth. This helps enforce isolation between default
+	// network and multinic L3 networks.
+	// This section is only excercised by default (L3) network when
+	// ENABLE_ROUTING is true. L2 multinic endpoints does not reach here
+	// because it doesn't have ENABLE_ROUTING.
+	if (ep->flags & ENDPOINT_F_MULTI_NIC_VETH)
+	{
+		return true;
+	}
+#endif /* TUNNEL_MODE */
+	return false;
 }
 
 #endif
