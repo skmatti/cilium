@@ -6,6 +6,7 @@
 #include "trace.h"
 #include "stubs.h"
 #include "google_common.h"
+#include "lib/eps.h"
 
 #include <bpf/ctx/ctx.h>
 #include <bpf/api.h>
@@ -161,8 +162,9 @@ multinic_redirect_ipv4(struct __ctx_buff *ctx __maybe_unused)
 
 static __always_inline __maybe_unused int try_google_L3_fast_redirect(struct __ctx_buff *ctx __maybe_unused,
 																	  __u32 seclabel __maybe_unused,
-																	  struct iphdr *ip4 __maybe_unused)
+																	  struct iphdr *ip4 __maybe_unused, bool *should_route_endpoint)
 {
+	*should_route_endpoint = false;
 	return CTX_ACT_OK;
 }
 
@@ -171,26 +173,35 @@ static __always_inline __maybe_unused int try_google_L3_fast_redirect(struct __c
 /**
  * Redirect packets from host to L3 multinic endpoints if IP is found
  * in local ep map and is intended for the correct native dev index.
- * @arg ctx:      packet
- * @arg seclabel: identity of the source
- * @arg ip4:      ipv4 header
+ * @arg ctx:      			packet
+ * @arg seclabel: 			identity of the source
+ * @arg ip4:      			ipv4 header
+ * @arg should_to_endpoint: Set to true if the endpoint is a multi-NIC VETH
+ * endpoint AND endpoint routes are disabled. Set to false by default.
  *
  * Return CTX_ACT_OK if the packet needs further processing (not redirected).
  *        Or a possitive code returned by bpf_redirect where no futher processing needed.
  *        DROP_UNROUTABLE if packets is intended to be from a different native device.
  */
 static __always_inline int try_google_L3_fast_redirect(struct __ctx_buff *ctx, __u32 seclabel,
-													   struct iphdr *ip4)
+													   struct iphdr *ip4, bool *should_to_endpoint)
 {
 	struct endpoint_info *ep;
 	const struct multi_nic_dev_info __maybe_unused *dev;
 	union macaddr __maybe_unused *dmac;
+	// Initialize the output parameter.
+	*should_to_endpoint = false;
 	/* Lookup IPv4 address in list of local endpoints and host IPs */
 	ep = lookup_ip4_endpoint(ip4);
 	if (!(ep && ep->flags & ENDPOINT_F_MULTI_NIC_VETH)) {
 		// Not a multinic-veth ep, pass through
 		return CTX_ACT_OK;
 	}
+
+#ifndef ENABLE_ENDPOINT_ROUTES
+	*should_to_endpoint = true;
+	return CTX_ACT_OK;
+#endif /* ENABLE_ENDPOINT_ROUTES */
 
 	dmac = (union macaddr *)&ep->mac;
 	dev = lookup_multi_nic_dev(dmac);
@@ -333,6 +344,12 @@ static __always_inline __maybe_unused bool ctx_google_local_redirect(struct __ct
 	return false;
 }
 
+static __always_inline __maybe_unused bool
+should_skip_local_delivery(struct __ctx_buff *ctx __maybe_unused)
+{
+	return false;
+}
+
 #else
 
 static __always_inline bool ctx_google_local_redirect(struct __ctx_buff *ctx)
@@ -453,6 +470,66 @@ static __always_inline __maybe_unused void skip_policy_if_dhcp(struct __ctx_buff
         }
     }
     return;
+}
+
+static __always_inline __maybe_unused bool
+should_skip_local_delivery(struct __ctx_buff *ctx)
+{
+	struct endpoint_info *ep;
+	void *data, *data_end;
+	struct iphdr *ip4;
+
+	if (!revalidate_data(ctx, &data, &data_end, &ip4))
+		return false;
+
+	ep = __lookup_ip4_endpoint(ip4->daddr);
+	if (!ep)
+		return false;
+#if MULTI_NIC_DEVICE_TYPE == EP_DEV_TYPE_INDEX_MULTI_NIC_VETH
+	{
+		union macaddr *dmac;
+		const struct multi_nic_dev_info *dev;
+
+		dmac = (union macaddr *)&ep->mac;
+		dev = lookup_multi_nic_dev(dmac);
+#ifdef TUNNEL_MODE
+		// Temporary solution for VPC peering in GDCH:
+		// Remove the network isolation between multi NIC endpoint veth
+		// and the default network veth.
+		// TUNNEL_MODE and EP_DEV_TYPE_INDEX_MULTI_NIC_VETH macros
+		// assume running the datapath in the GDCH environment.
+		// The network isolation still applies to multi NIC veth endpoints
+		// with different NETWORK_IDs.
+		if (dev != NULL && dev->net_id != NETWORK_ID) {
+			return true;
+		}
+#else
+		// If the destination endpoint is a multi NIC endpoint veth pair,
+		// we want local delivery to be done only between endpoints that
+		// share the same NETWORK_ID.
+		if (dev == NULL || dev->net_id != NETWORK_ID) {
+			return true;
+		}
+#endif /* TUNNEL_MODE */
+		return false;
+	}
+#endif /* MULTI_NIC_DEVICE_TYPE == EP_DEV_TYPE_INDEX_MULTI_NIC_VETH */
+	// Temporary solution for VPC peering in GDCH:
+	// If the source endpoint is not a multinic veth endpoint,
+	// we always enable local delivery if TUNNEL_MODE is defined.
+#ifndef TUNNEL_MODE
+	// Skip local delivery if src is a default network veth and dst is
+	// a multinic-veth. This helps enforce isolation between default
+	// network and multinic L3 networks.
+	// This section is only excercised by default (L3) network when
+	// ENABLE_ROUTING is true. L2 multinic endpoints does not reach here
+	// because it doesn't have ENABLE_ROUTING.
+	if (ep->flags & ENDPOINT_F_MULTI_NIC_VETH)
+	{
+		return true;
+	}
+#endif /* TUNNEL_MODE */
+	return false;
 }
 
 #endif

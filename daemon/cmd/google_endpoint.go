@@ -364,6 +364,9 @@ func (d *Daemon) createMultiNICEndpoints(ctx context.Context, multiNICWaitCh cha
 		}
 
 		if intfCR != nil {
+			if metadata.IdentityLabels.HasKubevirtVMLabel() || metadata.InfoLabels.HasKubevirtVMLabel() {
+				skipRouteInstallation = true
+			}
 			if err := connector.SetupNetworkRoutes(ref.InterfaceName, intfCR, netCR, multinicTemplate.NetworkNamespace,
 				isDefaultInterface, defaultPodNetworkMTU, skipRouteInstallation); err != nil {
 				return d.errorWithMultiNICCleanup(primaryEp, PutEndpointIDInvalidCode, fmt.Errorf("failed setting up network %q for pod %q: %v", intfCR.Spec.NetworkName, podID, err), nil)

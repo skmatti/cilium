@@ -1202,34 +1202,6 @@ skip_egress_policy:
 				    .skip_local_delivery)
 				goto skip_ipv4_local_delivery;
 
-#if MULTI_NIC_DEVICE_TYPE == EP_DEV_TYPE_INDEX_MULTI_NIC_VETH
-{
-			union macaddr *dmac;
-			const struct multi_nic_dev_info *dev;
-
-			// If the destination endpoint is a multi NIC endpoint veth pair,
-			// we want local delivery to be done only between endpoints that
-			// share the same NETWORK_ID.
-			dmac = (union macaddr *)&ep->mac;
-			dev = lookup_multi_nic_dev(dmac);
-			if (dev == NULL || dev->net_id != NETWORK_ID)
-			{
-				goto skip_ipv4_local_delivery;
-			}
-}
-#else
-			// Skip local delivery if src is a default network veth and dst is
-			// a multinic-veth. This helps enforce isolation between default
-			// network and multinic L3 networks.
-			// This section is only excercised by default (L3) network when
-			// ENABLE_ROUTING is true. L2 multinic endpoints does not reach here
-			// because it doesn't have ENABLE_ROUTING.
-			if (ep->flags & ENDPOINT_F_MULTI_NIC_VETH)
-			{
-				goto skip_ipv4_local_delivery;
-			}
-#endif /* MULTI_NIC_DEVICE_TYPE == EP_DEV_TYPE_INDEX_MULTI_NIC_VETH */
-
 			policy_clear_mark(ctx);
 			/* If the packet is from L7 LB it is coming from the host */
 			return ipv4_local_delivery(ctx, ETH_HLEN, SECLABEL_IPV4,

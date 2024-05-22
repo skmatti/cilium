@@ -69,6 +69,8 @@ type Config struct {
 	// DisablePodToRemoteNodeTunneling disables tunneling for all traffic to the remote nodes.
 	DisablePodToRemoteNodeTunneling bool `mapstructure:"disable-pod-to-remote-node-tunneling"`
 	EnableGDCILB                    bool `mapstructure:"enable-gdc-ilb"`
+	// EnableGoogleMultiNICEgressNAT is the option to enable egress NAT policies for multi NIC endpoints.
+	EnableGoogleMultiNICEgressNAT bool
 }
 
 var defaultConfig = Config{
@@ -89,6 +91,7 @@ var defaultConfig = Config{
 
 	DisablePodToRemoteNodeTunneling: false,
 	EnableGDCILB:                    false,
+	EnableGoogleMultiNICEgressNAT:   false,
 }
 
 func (cfg Config) Flags(flags *pflag.FlagSet) {
@@ -141,4 +144,7 @@ func (cfg Config) Flags(flags *pflag.FlagSet) {
 
 	flags.Bool(option.EnableGDCILB, defaultConfig.EnableGDCILB, "Enable google GDC-H ILB Support")
 	flags.MarkHidden(option.EnableGDCILB)
+
+	flags.Bool(option.EnableGoogleMultiNICEgressNAT, defaultConfig.EnableGoogleMultiNICEgressNAT, "Enable Egress NAT policies for Google multi NIC endpoints")
+	flags.MarkHidden(option.EnableGoogleMultiNICEgressNAT)
 }

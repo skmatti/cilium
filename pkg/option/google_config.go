@@ -90,4 +90,7 @@ const (
 	// (the first IP in the Pod CIDR) as a host identity. This allows kubelet
 	// health-checks to be recognized as coming from the host.
 	RegisterIPv4PodGateway = "register-ipv4-pod-gateway"
+
+	// EnableGoogleMultiNICEgressNAT is the name of the option to enable egress nat policies for google multi NIC endpointpoints.
+	EnableGoogleMultiNICEgressNAT = "enable-google-multi-nic-egress-nat"
 )

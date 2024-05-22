@@ -72,3 +72,11 @@ func FetchMultiNICAnnotation(annotations map[string]string) (string, networkv1.I
 	}
 	return "", nil, fmt.Errorf("default interface %q must be referenced in the interface annotation %s", defaultInterface, interfaces)
 }
+
+func (l *Labels) HasKubevirtVMLabel() bool {
+	if l == nil {
+		return false
+	}
+	_, exist := l.K8sStringMap()["kubevirt/vm"]
+	return exist
+}

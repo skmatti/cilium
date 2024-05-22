@@ -39,11 +39,12 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/afero"
 	"github.com/vishvananda/netlink"
-	anutils "gke-internal.googlesource.com/anthos-networking/apis/v2/utils"
 	"golang.org/x/sys/unix"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	anutils "gke-internal.googlesource.com/anthos-networking/apis/v2/utils"
 )
 
 const (
@@ -265,7 +266,7 @@ func configureInterface(cfg *interfaceConfiguration, ns *netns.NetNS, ifName str
 			return fmt.Errorf("unable to set MTU %d to %q: %v", cfg.MTU, l.Attrs().Name, err)
 		}
 
-		if cfg.MacAddress != nil && cfg.Type != "ipvlan" {
+		if cfg.MacAddress != nil && cfg.Type != multinicep.EndpointDeviceVETH {
 			if err := applyMACToLink(cfg.MacAddress, l); err != nil {
 				return fmt.Errorf("failed to apply mac address to %q: %v", l.Attrs().Name, err)
 			}
@@ -750,6 +751,7 @@ func SetupL3Interface(ifNameInPod, podName string, podResources map[string][]str
 
 	// Update the endpoint addressing after the veth interface is configured.
 	ep.Addressing.IPV4 = cfg.IPV4Address.IP.String()
+	ep.Mac = cfg.MacAddress.String()
 	ep.ParentDeviceMac = parentDevLink.Attrs().HardwareAddr.String()
 	ep.InterfaceName = veth.Name
 	ep.ContainerInterfaceName = ifNameInPod

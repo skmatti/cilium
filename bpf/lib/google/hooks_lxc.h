@@ -6,6 +6,7 @@
 
 #include "lib/google/sfc.h"
 #include "lib/google/plugin.h"
+#include "lib/google_multinic.h"
 
 /**
  * This file contains hook implementations for hook points inside the container
@@ -117,5 +118,9 @@ static __always_inline int
 pre_ctr_egress_fwd4(struct __ctx_buff *ctx,
 		    struct goog_ctr_egress_fwd4_ctx *stage_ctx)
 {
-	return goog_sfc_maybe_encap_new(ctx, stage_ctx);
+	int ret = goog_sfc_maybe_encap_new(ctx, stage_ctx);
+	if (ret != HOOK_ACT_CONTINUE)
+		return ret;
+	stage_ctx->skip_local_delivery = should_skip_local_delivery(ctx);
+	return HOOK_ACT_CONTINUE;
 }
