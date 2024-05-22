@@ -54,14 +54,26 @@ ARTIFACTS="${WORA_ARTIFACTS}" \
   --up \
   --down
 
-mapfile -t junit_files < <(find "${WORA_ARTIFACTS}" -name junit_\*.xml)
-for junit_file in "${junit_files[@]}"; do
-  echo "Checking ${junit_file} for failures"
-  line="$(grep -E '(<testsuites).*>' "${junit_file}")"
-  errors="$(sed -e 's/.*errors="//' -e 's/".*//' <(echo "${line}"))"
-  failures="$(sed -e 's/.*failures="//' -e 's/".*//' <(echo "${line}"))"
-  if ((${errors:-0} != 0)) || ((${failures:-0} != 0)); then
-    echo "Failures found in produced ${junit_file} output. Failing workflow" >&2
-    exit 1
-  fi
-done
+function check_junit_files_for_errors() {
+  local junit_files
+  local junit_file
+  local test_suites
+  local test_suite
+  local errors
+  local failures
+  mapfile -t junit_files < <(find "${WORA_ARTIFACTS}" -name junit_\*.xml)
+  for junit_file in "${junit_files[@]}"; do
+    echo "Checking ${junit_file} for failures"
+    readarray -t test_suites < <(grep -E '(<testsuite).*>' "${junit_file}" || true)
+    for test_suite in "${test_suites[@]}"; do
+      errors="$(sed -e 's/.*errors="//' -e 's/".*//' <(echo "${test_suite:-}"))"
+      failures="$(sed -e 's/.*failures="//' -e 's/".*//' <(echo "${test_suite:-}"))"
+      if ((${errors:-0} != 0)) || ((${failures:-0} != 0)); then
+        echo "Failures found in produced ${junit_file} output. Failing workflow" >&2
+        return 1
+      fi
+    done
+  done
+}
+
+check_junit_files_for_errors
