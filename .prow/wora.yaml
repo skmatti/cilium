@@ -91,6 +91,8 @@ presubmits:
         value: sut-abm-atl.yaml
       - name: WORA_CONTROL_PLANE
         value: atl
+      - name: WORA_CONFIG
+        value: integration-abm-atl_test.yaml
       command:
       - runner.sh
       args:
@@ -417,6 +419,8 @@ presubmits:
         value: sut-abm-atl.yaml
       - name: WORA_CONTROL_PLANE
         value: atl
+      - name: WORA_CONFIG
+        value: integration-abm-atl_test.yaml
       command:
       - runner.sh
       args:

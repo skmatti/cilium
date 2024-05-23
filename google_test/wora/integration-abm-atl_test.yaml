@@ -1,3 +1,4 @@
+# Specific version of integrations tests available in ATL lab.
 apiVersion: sut.tailorbird.io/v1alpha1
 kind: Rookery
 metadata:
@@ -28,7 +29,6 @@ spec:
           - /test/ginkgo
           - --keep-going
           - --timeout=2h
-          - --label-filter=!multinetwork
           - -vv
           - --no-color
           - --output-dir={{ RuntimePath "." }}
