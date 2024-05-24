@@ -219,3 +219,62 @@ func newTestEndpoint(network, dev string, isHost bool) *endpoint.Endpoint {
 	ep.SetIsHost(isHost)
 	return ep
 }
+
+func TestDeleteMultiNICHostEndpoint(t *testing.T) {
+	tests := []struct {
+		desc                    string
+		endpoints               []*endpoint.Endpoint
+		network                 string
+		dev                     string
+		expectedRestoredHostEPs []*endpoint.Endpoint
+	}{
+		{
+			desc: "delete multi nic host endpoint and remove from RestoredHostEPs",
+			endpoints: []*endpoint.Endpoint{
+				newTestEndpoint("node-network1", "dev1", true),
+			},
+			network:                 "node-network1",
+			dev:                     "dev1",
+			expectedRestoredHostEPs: []*endpoint.Endpoint{},
+		},
+		{
+			desc: "no deletion when endpoint not in RestoredHostEPs",
+			endpoints: []*endpoint.Endpoint{
+				newTestEndpoint("node-network2", "dev2", true),
+			},
+			network: "node-network1",
+			dev:     "dev1",
+			expectedRestoredHostEPs: []*endpoint.Endpoint{
+				newTestEndpoint("node-network2", "dev2", true),
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.desc, func(t *testing.T) {
+			epManager := &fakeEpMgrImpl{endpoints: tc.endpoints}
+			testReconciler := &NetworkReconciler{
+				EndpointManager:     epManager,
+				HostEndpointManager: epManager,
+				Log:                 testLog,
+				RestoredHostEPs:     tc.endpoints,
+			}
+
+			err := testReconciler.deleteMultiNICHostEndpoint(tc.network, tc.dev)
+			if err != nil {
+				t.Fatalf("deleteMultiNICHostEndpoint(_, %s, %s) = %v, want nil", tc.network, tc.dev, err)
+			}
+
+			if len(testReconciler.RestoredHostEPs) != len(tc.expectedRestoredHostEPs) {
+				t.Fatalf("RestoredHostEPs length = %d, want %d", len(testReconciler.RestoredHostEPs), len(tc.expectedRestoredHostEPs))
+			}
+
+			for i, ep := range testReconciler.RestoredHostEPs {
+				if ep.GetNodeNetworkName() != tc.expectedRestoredHostEPs[i].GetNodeNetworkName() || ep.GetParentDevName() != tc.expectedRestoredHostEPs[i].GetParentDevName() {
+					t.Errorf("RestoredHostEPs[%d] = %+v, want %+v", i, ep, tc.expectedRestoredHostEPs[i])
+				}
+			}
+		})
+	}
+}

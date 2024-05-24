@@ -196,6 +196,12 @@ func (r *NetworkReconciler) loadEBPFOnParent(ctx context.Context, network *netwo
 		"network":           network.Name,
 		logfields.Interface: devToLoad,
 	})
+
+	if isCiliumManaged(devToLoad) {
+		scopedLog.Info("Skipping datapath loading for cilium-managed device")
+		return nil
+	}
+
 	scopedLog.Info("Loading ebpf for network")
 	// This returns nil if path already exists.
 	objDir := path.Join(multinicObjDir, devToLoad)
@@ -246,6 +252,23 @@ func (r *NetworkReconciler) createHostEndpointIfNeeded(networkName, devToLoad st
 	return hostEp, nil
 }
 
+// Delete the multi-NIC host endpoint and update RestoredHostEPs.
+func (r *NetworkReconciler) deleteMultiNICHostEndpoint(network, devToUnload string) error {
+	// Delete multinic host endpoint if exist.
+	if err := r.HostEndpointManager.DeleteMultiNICHostEndpoint(network, devToUnload); err != nil {
+		return err
+	}
+	// Remove the endpoint from RestoredHostEPs.
+	updatedHostEPs := []*endpoint.Endpoint{}
+	for _, ep := range r.RestoredHostEPs {
+		if ep.GetNodeNetworkName() != network {
+			updatedHostEPs = append(updatedHostEPs, ep)
+		}
+	}
+	r.RestoredHostEPs = updatedHostEPs
+	return nil
+}
+
 func (r *NetworkReconciler) unloadEBPFOnParent(ctx context.Context, network *networkv1.Network, node *corev1.Node) error {
 	devToUnload, _, err := anutils.InterfaceInfo(network, node.GetAnnotations())
 	if err != nil {
@@ -254,8 +277,13 @@ func (r *NetworkReconciler) unloadEBPFOnParent(ctx context.Context, network *net
 	}
 
 	scopedLog := r.Log.WithField(logfields.Interface, devToUnload)
+
+	if err := r.deleteMultiNICHostEndpoint(network.Name, devToUnload); err != nil {
+		return err
+	}
+
 	if isCiliumManaged(devToUnload) {
-		scopedLog.Info("The parent interface is already a cilium-managed device. No need to reconcile")
+		scopedLog.Info("The parent interface is already a cilium-managed device. No need to unload datapath")
 		return nil
 	}
 
@@ -266,10 +294,6 @@ func (r *NetworkReconciler) unloadEBPFOnParent(ctx context.Context, network *net
 
 	if err := os.RemoveAll(path.Join(multinicObjDir, devToUnload)); err != nil {
 		return fmt.Errorf("failed to remove multinic object dir: %v", err)
-	}
-
-	if err := r.HostEndpointManager.DeleteMultiNICHostEndpoint(network.Name, devToUnload); err != nil {
-		return err
 	}
 
 	scopedLog.Info("Datapath ebpf unloaded successfully")
