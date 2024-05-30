@@ -1,6 +1,0 @@
-resources:
-- ../../base
-
-patchesStrategicMerge:
-- anet.yaml
-- operator.yaml

@@ -6,7 +6,7 @@ set -ex
 SCRIPT_DIR=$(dirname -- "${BASH_SOURCE[0]}")
 WORKDIR=${WORKDIR:-${SCRIPT_DIR}}
 GENERATED_CONFIGS_DIR="${GENERATED_CONFIGS_DIR:-"${WORKDIR}/generated_configs"}"
-PATCH_CONTENT_DIR="${PATCH_CONTENT_DIR:-"${SCRIPT_DIR}/addon/patch_content/abm-1.28.0-gke.311/image-only-templates"}"
+PATCH_CONTENT_DIR="${PATCH_CONTENT_DIR:-"${SCRIPT_DIR}/addon/patch_content/abm-1.29.100-gke.76/overlays/image-only"}"
 
 if [[ -z ${PROW_JOB_ID:-} ]]; then
   echo "ERROR: must specify PROW_JOB_ID." >&2
@@ -189,7 +189,7 @@ function generate_complete_addon_config {
   local gcr_secret_name=anthos-networking-ci-registry-token
 
   # Process content for addon configurations.
-  if [[ $(basename "${PATCH_CONTENT_DIR}") != image-only-templates ]]; then
+  if [[ -n $(find "${PATCH_CONTENT_DIR}" -name "kustomization*") ]]; then
     kubectl kustomize "${patch_content_dir}" -o "${generated_content_tmp_dir}"/
     # Delete the generated placeholder var file.
     find "${generated_content_tmp_dir}"/ -name 'default_v1_configmap_vars-*' -delete

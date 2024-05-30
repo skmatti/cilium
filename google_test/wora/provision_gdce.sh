@@ -10,7 +10,7 @@ ADDON_CONFIG_BUCKET_URL=${ADDON_CONFIG_BUCKET_URL:-}
 IMAGE_REGISTRY="${IMAGE_REGISTRY:-}"
 DOCKER_IMAGE_TAG="${DOCKER_IMAGE_TAG:-}"
 CILIUM_DOCKER_IMAGE_TAG="${CILIUM_DOCKER_IMAGE_TAG:-}"
-PATCH_CONTENT_DIR=${PATCH_CONTENT_DIR:-${ROOT}/addon/patch_content/abm-1.28.0-gke.311/image-only-templates}
+PATCH_CONTENT_DIR=${PATCH_CONTENT_DIR:-${ROOT}/addon/patch_content/abm-1.29.100-gke.76/overlays/image-only}
 CILIUM_GITREF="${CILIUM_GITREF?variable must be set, even when set to empty.}"
 
 # Add the remoteAddOnBundle field for the gdce-gke cluster Rookery(TBCONFIG).
