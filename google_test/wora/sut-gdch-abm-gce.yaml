@@ -1,0 +1,30 @@
+apiVersion: sut.tailorbird.io/v1alpha1
+kind: Rookery
+metadata:
+  name: wora-sut-gdch-abm-gce
+  namespace: tailorbird-users
+spec:
+  ttlSeconds: 86400 # 1 day
+  knests:
+  - apiVersion: sut.tailorbird.io/v1alpha1
+    kind: Knest
+    metadata:
+      name: wora-sut-gdch-abm-gce
+    spec:
+      clusters:
+      - apiVersion: sut.tailorbird.io/v1alpha1
+        kind: Cluster
+        metadata:
+          name: wora-sut-gdch-abm-gce
+          namespace: tailorbird-users
+        spec:
+          distribution: gke
+          provider: baremetal
+          provisionerArgs:
+            # Exact version of ABM is required to generate addon configurations.
+            bmctlVersion: 1.29.100-gke.76
+            passthroughEnv: |
+              {"MANIFEST_PROFILE_ENV": "staging"}
+            proxyPort: "8222"
+            username: prowuser
+            serverOS: gdch-rocky

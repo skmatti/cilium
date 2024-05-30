@@ -1,0 +1,3 @@
+resources:
+- gdch-cilium-config.yaml
+- ../../image-only-templates
