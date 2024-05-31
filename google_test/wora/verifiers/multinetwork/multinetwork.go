@@ -6,6 +6,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"strings"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -161,7 +162,8 @@ func createWorkloadPodOnEachNode(c client.Interface, ctx context.Context, additi
 		return err
 	}
 	for _, node := range allNodes.Items {
-		podName := fmt.Sprintf("multinetworkpod-%s", node.Name)
+		nodeNameSplitted := strings.Split(node.Name, "-")
+		podName := fmt.Sprintf("multinetworkpod-%s", nodeNameSplitted[len(nodeNameSplitted)-1])
 		_, err := network.CreateMultiNetworkPodOnNode(ctx, c, testNamespace, podName, node.Name, map[string]string{additionalNetworkName: podInterfaceName})
 		if err != nil {
 			klog.Error("failed to created pod(%s)", podName, err)
