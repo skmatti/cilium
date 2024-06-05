@@ -389,7 +389,7 @@ presubmits:
   path_alias: gke-internal.googlesource.com/third_party/cilium
   spec:
     containers:
-    - image: gcr.io/anthos-networking-ci/kubetest2-tailorbird:latest
+    - image: gcr.io/tailorbird/kubetest2-tailorbird:latest
       securityContext:
         # needed for docker-in-docker
         privileged: true
@@ -444,7 +444,7 @@ presubmits:
   path_alias: gke-internal.googlesource.com/third_party/cilium
   spec:
     containers:
-    - image: gcr.io/anthos-networking-ci/kubetest2-tailorbird:latest
+    - image: gcr.io/tailorbird/kubetest2-tailorbird:latest
       securityContext:
         # needed for docker-in-docker
         privileged: true
