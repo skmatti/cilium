@@ -1336,7 +1336,7 @@ skip_vtep:
 		else
 			return ret;
 	}
-#endif /* (TUNNEL_MODE || ENABLE_HIGH_SCALE_IPCACHE) && !MULTI_NIC_DEVICE_TYPE */
+#endif /* TUNNEL_MODE || ENABLE_HIGH_SCALE_IPCACHE */
 
 #ifdef MULTI_NIC_DEVICE_TYPE
 #if MULTI_NIC_DEVICE_TYPE == EP_DEV_TYPE_INDEX_MULTI_NIC_VETH
@@ -1528,14 +1528,17 @@ static __always_inline int __tail_handle_ipv4(struct __ctx_buff *ctx,
 	}
 #endif /* ENABLE_MULTICAST */
 
-#if defined(ENABLE_PER_PACKET_LB) && (!defined(MULTI_NIC_DEVICE_TYPE) || defined(ENABLE_GOOGLE_SERVICE_STEERING))
+#if defined(ENABLE_PER_PACKET_LB) && \
+(!defined(MULTI_NIC_DEVICE_TYPE) || \
+defined(ENABLE_GOOGLE_SERVICE_STEERING) || \
+(defined(TUNNEL_MODE) && MULTI_NIC_DEVICE_TYPE == EP_DEV_TYPE_INDEX_MULTI_NIC_VETH))
 	/* will tailcall internally or return error */
 	return __per_packet_lb_svc_xlate_4(ctx, ip4, ext_err);
 #else
     /* Google: should always tailcall if ENABLE_PER_PACKET_LB. */
     return invoke_tailcall_if(is_defined(ENABLE_PER_PACKET_LB),
 			      CILIUM_CALL_IPV4_CT_EGRESS, tail_ipv4_ct_egress, ext_err);
-#endif /* ENABLE_PER_PACKET_LB && (!MULTI_NIC_DEVICE_TYPE || ENABLE_GOOGLE_SERVICE_STEERING) */
+#endif /* ENABLE_PER_PACKET_LB && (!MULTI_NIC_DEVICE_TYPE || ENABLE_GOOGLE_SERVICE_STEERING || (ENABLE_GOOGLE_VPC && MULTI_NIC_DEVICE_TYPE == EP_DEV_TYPE_INDEX_MULTI_NIC_VETH)) */
 }
 
 __section_tail(CILIUM_MAP_CALLS, CILIUM_CALL_IPV4_FROM_LXC)
