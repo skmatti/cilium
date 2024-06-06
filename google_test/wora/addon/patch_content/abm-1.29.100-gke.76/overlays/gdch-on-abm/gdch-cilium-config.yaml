@@ -1,20 +1,18 @@
 apiVersion: v1
 data:
   agent-health-port: "9876"
-  allow-disable-source-ip-validation: "true"
+  allow-disable-source-ip-validation: "false"
   allow-disable-source-mac-validation: "false"
   annotate-k8s-node-subnet: "true"
-  api-rate-limit: '{"endpoint-create": "rate-limit:4/s,auto-adjust:false", "endpoint-delete":
-    "rate-limit:8/s,auto-adjust:false"}'
+  api-rate-limit: '{"endpoint-create": "rate-limit:4/s,auto-adjust:false", "endpoint-delete": "rate-limit:4/s,auto-adjust:false"}'
   auto-direct-node-routes: "false"
-  auto-direct-node-routes-ipv4: "true"
+  auto-direct-node-routes-ipv4: "false"
   auto-direct-node-routes-ipv6: "false"
   blacklist-conflicting-routes: "false"
-  bpf-lb-dsr-dispatch: opt
+  bpf-lb-dsr-dispatch: geneve
   bpf-lb-external-clusterip: "false"
   bpf-lb-map-max: "524288"
-  bpf-lb-mode: dsr
-  bpf-lb-preserve-world-id: "false"
+  bpf-lb-mode: snat
   bpf-lb-sock: "false"
   bpf-lb-sock-hostns-only: "false"
   bpf-map-dynamic-size-ratio: "0.0025"
@@ -28,15 +26,14 @@ data:
   disable-endpoint-crd: "false"
   disable-envoy-version-check: "true"
   disable-ipv6-tunnel: "true"
-  disable-network-policy-crd: "false"
+  disable-network-policy-crd: "true"
   enable-auto-protect-node-port-range: "true"
   enable-bpf-clock-probe: "true"
-  enable-bpf-masquerade: "false"
+  enable-bpf-masquerade: "true"
   enable-endpoint-health-checking: "true"
   enable-endpoint-routes: "false"
   enable-external-ips: "true"
-  enable-flat-ipv4: "true"
-  enable-gdc-ilb: "true"
+  enable-flat-ipv4: "false"
   enable-gng: "false"
   enable-google-multi-nic: "true"
   enable-google-multi-nic-host-firewall: "true"
@@ -47,20 +44,15 @@ data:
   enable-host-port: "true"
   enable-host-reachable-services: "false"
   enable-hubble: "true"
-  enable-hubble-correlate-policies: "true"
   enable-ipv4: "true"
   enable-ipv4-egress-gateway: "true"
-  enable-ipv4-masquerade: "false"
+  enable-ipv4-masquerade: "true"
   enable-ipv6: "false"
   enable-ipv6-masquerade: "false"
   enable-ipv6-ndp: "false"
-  enable-l7-proxy: "false"
   enable-local-node-route: "true"
-  enable-merge-cidr-prefix-ip-labels: "false"
   enable-metrics: "true"
-  enable-node-network-policy-crd: "false"
   enable-node-port: "true"
-  enable-pmtu-discovery: "true"
   enable-policy: default
   enable-remote-node-identity: "true"
   enable-session-affinity: "true"
@@ -68,20 +60,12 @@ data:
   enable-well-known-identities: "false"
   enable-xt-socket-fallback: "true"
   google-multi-nic-host-mapping: 128=mgmt-network
-  hubble-disable-tls: "false"
-  hubble-listen-address: :4244
-  hubble-metrics: gke-flow:sourceContext=pod-short;sourceEgressContext=pod-short;destinationContext=pod-short;destinationIngressContext=pod-short
-  hubble-metrics-server: :9965
-  hubble-tls-cert-file: /var/lib/cilium/tls/hubble/server.crt
-  hubble-tls-client-ca-files: /var/lib/cilium/tls/hubble/client-ca.crt
-  hubble-tls-key-file: /var/lib/cilium/tls/hubble/server.key
   identity-allocation-mode: crd
   install-iptables-rules: "true"
   install-no-conntrack-iptables-rules: "false"
   ipam: kubernetes
-  ipv4-native-routing-cidr: 172.16.0.0/21
-  k8s-api-server: https://10.136.19.0:6443
-  k8s-interface-only: "false"
+  ipv4-native-routing-cidr: 10.240.0.0/13
+  k8s-api-server: https://10.200.0.6:443
   k8s-require-ipv4-pod-cidr: "true"
   k8s-require-ipv6-pod-cidr: "false"
   kube-proxy-replacement: partial
@@ -100,7 +84,7 @@ data:
   synchronize-k8s-nodes: "true"
   synchronize-k8s-windows-nodes: "true"
   tofqdns-enable-poller: "false"
-  tunnel: disabled
+  tunnel: geneve
   vlan-bpf-bypass: "0"
   wait-bpf-mount: "false"
 kind: ConfigMap

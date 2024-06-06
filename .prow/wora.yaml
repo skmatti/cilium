@@ -45,13 +45,17 @@ presubmits:
   path_alias: gke-internal.googlesource.com/third_party/cilium
   spec:
     containers:
-    - image: gcr.io/anthos-networking-ci/kubetest2-tailorbird:latest
+    - image: gcr.io/tailorbird/kubetest2-tailorbird:latest
       securityContext:
         # needed for docker-in-docker
         privileged: true
       env:
       - name: CILIUM_GITREF
         value: HEAD
+      # The path for the PATCH_CONTENT_DIR is from the script dir of
+      # prow_entrypoint.sh.
+      - name: PATCH_CONTENT_DIR
+        value: addon/patch_content/abm-1.29.100-gke.76/overlays/gdch-on-abm
       - name: TBCONFIG
         value: sut-gdch-abm-gce.yaml
       command:
