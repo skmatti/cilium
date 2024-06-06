@@ -1187,7 +1187,7 @@ skip_egress_gateway:
 skip_vtep:
 #endif
 
-#if defined(TUNNEL_MODE) && !defined(MULTI_NIC_DEVICE_TYPE)
+#if defined(TUNNEL_MODE)
 # ifdef ENABLE_WIREGUARD
 	/* In the tunnel mode we encapsulate pod2pod traffic only via Wireguard
 	 * device, i.e. we do not encapsulate twice.
@@ -1215,7 +1215,7 @@ skip_vtep:
 		else
 			return ret;
 	}
-#endif /* TUNNEL_MODE && !MULTI_NIC_DEVICE_TYPE */
+#endif /* TUNNEL_MODE */
 
 #ifdef MULTI_NIC_DEVICE_TYPE
 #if MULTI_NIC_DEVICE_TYPE == EP_DEV_TYPE_INDEX_MULTI_NIC_VETH

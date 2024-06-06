@@ -55,8 +55,8 @@ type K8sMetadata struct {
 	// NamedPorts is the set of named ports for the pod
 	NamedPorts types.NamedPortMap
 
-	// IsMultiNIC indicates if the ip belongs to a multi NIC endpoint.
-	IsMultiNIC bool
+	// IsL2MultiNIC indicates if the ip belongs to a Layer 2 multi NIC endpoint (macvtap).
+	IsL2MultiNIC bool
 }
 
 // Configuration is init-time configuration for the IPCache.
@@ -266,7 +266,7 @@ func (ipc *IPCache) upsertLocked(
 				logfields.K8sPodName:   k8sMeta.PodName,
 				logfields.K8sNamespace: k8sMeta.Namespace,
 				logfields.NamedPorts:   k8sMeta.NamedPorts,
-				"isMultiNIC":           k8sMeta.IsMultiNIC,
+				"isL2MultiNIC":         k8sMeta.IsL2MultiNIC,
 			})
 		}
 	}
