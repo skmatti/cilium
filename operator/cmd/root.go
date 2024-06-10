@@ -14,6 +14,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/cilium/cilium/operator/pkg/ciliumidentity"
 	"github.com/cilium/hive/cell"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
@@ -169,6 +170,14 @@ var (
 			}
 		}),
 
+		cell.Provide(func(
+			daemonCfg *option.DaemonConfig,
+		) ciliumidentity.SharedConfig {
+			return ciliumidentity.SharedConfig{
+				EnableCiliumEndpointSlice: daemonCfg.EnableCiliumEndpointSlice,
+			}
+		}),
+
 		api.HealthHandlerCell(
 			kvstoreEnabled,
 			isLeader.Load,
@@ -201,6 +210,11 @@ var (
 			// setup operations. This is a hacky workaround until the kvstore is
 			// refactored into a proper cell.
 			identitygc.Cell,
+
+			// CiliumIdentity controller manages Cilium Identity API objects. It
+			// creates and updates Cilium Identities (CIDs) based on CID,
+			// Pod, Namespace and CES events.
+			ciliumidentity.Cell,
 
 			// CiliumEndpointSlice controller depends on the CiliumEndpoint and
 			// CiliumEndpointSlice resources. It reconciles the state of CESs in the

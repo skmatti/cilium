@@ -680,6 +680,9 @@ const (
 	// CEPUID is the UID of the CiliumEndpoint.
 	CEPUID = "ciliumEndpointUID"
 
+	// CIDName is the name of the CiliumIdentity.
+	CIDName = "ciliumIdentityName"
+
 	// CESName is the name of the CiliumEndpointSlice.
 	CESName = "ciliumEndpointSliceName"
 
@@ -690,7 +693,8 @@ const (
 	WorkQueueBurstLimit = "workQueueBurstLimit"
 
 	// WorkQueueSyncBackoff is the backoff time used by workqueues before an attempt to retry sync with k8s-apiserver.
-	WorkQueueSyncBackOff = "workQueueSyncBackOff"
+	WorkQueueSyncBackOff    = "workQueueSyncBackOff"
+	WorkQueueMaxSyncBackOff = "workQueueMaxSyncBackOff"
 
 	// SourceIP is a source IP
 	SourceIP = "sourceIP"

@@ -76,3 +76,14 @@ func PodNodeNameIndexFunc(obj interface{}) ([]string, error) {
 	}
 	return []string{}, nil
 }
+
+// HasCEWithIdentity returns true or false if the Cilium Endpoint store has
+// the given identity.
+func HasCEWithIdentity(cepStore resource.Store[*cilium_api_v2.CiliumEndpoint], identity string) bool {
+	if cepStore == nil {
+		return false
+	}
+	ces, _ := cepStore.IndexKeys(CiliumEndpointIndexIdentity, identity)
+
+	return len(ces) != 0
+}
