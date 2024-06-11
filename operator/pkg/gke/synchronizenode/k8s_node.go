@@ -29,7 +29,6 @@ import (
 	"github.com/cilium/cilium/pkg/logging/logfields"
 	"github.com/cilium/cilium/pkg/node/addressing"
 	v1 "k8s.io/api/core/v1"
-	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/types"
@@ -98,13 +97,6 @@ func startSynchronizingNodes(config Config, clientset k8sClient.Clientset, lc hi
 						}
 					}
 				},
-				DeleteFunc: func(obj interface{}) {
-					if node := objToSlimV1Node(obj); node != nil {
-						if err := clientset.CiliumV2().CiliumNodes().Delete(context.TODO(), node.ObjectMeta.Name, metav1.DeleteOptions{}); err != nil && !k8serrors.IsNotFound(err) {
-							log.WithError(err).Warn("Unable to delete CiliumNode resource")
-						}
-					}
-				},
 			},
 			k8s.ConvertToNode,
 		)
@@ -128,6 +120,14 @@ func convertToCiliumNode(node *slim_corev1.Node) *ciliumv2.CiliumNode {
 	cn := &ciliumv2.CiliumNode{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: node.ObjectMeta.Name,
+			OwnerReferences: []metav1.OwnerReference{
+				{
+					APIVersion: "v1",
+					Kind:       "Node",
+					Name:       node.Name,
+					UID:        node.UID,
+				},
+			},
 		},
 	}
 
