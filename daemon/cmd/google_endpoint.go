@@ -410,21 +410,9 @@ func (d *Daemon) getInterfaceAndNetworkCR(ctx context.Context, ref *networkv1.In
 		networkName string
 	)
 
+	// Determine the network name
 	if ref.Network != nil {
 		networkName = *ref.Network
-		if !networkv1.IsDefaultNetwork(networkName) {
-			log.Info("Constructing network interface CR based on Network information")
-			intfCR = constructNetworkInterfaceObject(ctx, networkName, pod)
-			err = d.multinicClient.CreateNetworkInterface(ctx, intfCR)
-			if err != nil {
-				if k8sErrors.IsAlreadyExists(err) {
-					log.Warnf("Failed creating interface CR - already exists %s/%s: %v. Re-using existing interface object.", pod.Namespace, intfCR.Name, err)
-				} else {
-					return nil, nil, fmt.Errorf("failed creating interface CR %s/%s: %v", pod.Namespace, intfCR.Name, err)
-				}
-			}
-			log.Infof("Done constructing interface CR based on network info, interfaceObjName: %s", intfCR.Name)
-		}
 	} else if ref.Interface != nil {
 		intfCR, err = d.getInterfaceCR(ctx, *ref.Interface, pod.Namespace)
 		if err != nil {
@@ -433,10 +421,36 @@ func (d *Daemon) getInterfaceAndNetworkCR(ctx context.Context, ref *networkv1.In
 		networkName = intfCR.Spec.NetworkName
 	}
 
+	// Fetch the network CR based on the name
 	netCR, err := d.multinicClient.GetNetwork(ctx, networkName)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed getting network CR %s: %v", networkName, err)
 	}
+
+	// No further checks for default network
+	if networkv1.IsDefaultNetwork(networkName) {
+		return intfCR, netCR, nil
+	}
+
+	if *netCR.Spec.IPAMMode == networkv1.ExternalMode {
+		if ref.Interface == nil {
+			return nil, nil, fmt.Errorf("pod must reference to an interface to connect to external IPAM mode network %s", networkName)
+		}
+		return intfCR, netCR, nil
+	}
+
+	// Create interface CRs only for internal IPAM mode "non-default" networks.
+	log.Info("Constructing network interface CR based on Network information")
+	intfCR = constructNetworkInterfaceObject(ctx, networkName, pod)
+	err = d.multinicClient.CreateNetworkInterface(ctx, intfCR)
+	if err != nil {
+		if k8sErrors.IsAlreadyExists(err) {
+			log.Warnf("Failed creating interface CR - already exists %s/%s: %v. Re-using existing interface object.", pod.Namespace, intfCR.Name, err)
+		} else {
+			return nil, nil, fmt.Errorf("failed creating interface CR %s/%s: %v", pod.Namespace, intfCR.Name, err)
+		}
+	}
+	log.Infof("Done constructing interface CR based on network info, interfaceObjName: %s", intfCR.Name)
 	return intfCR, netCR, nil
 }
 

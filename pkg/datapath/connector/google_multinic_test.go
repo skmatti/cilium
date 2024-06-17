@@ -1214,12 +1214,42 @@ func TestConfigureIPAMInfo(t *testing.T) {
 					Type:            networkv1.L2NetworkType,
 					L2NetworkConfig: &networkv1.L2NetworkConfig{PrefixLength4: pointer.Int32(24)},
 					IPAMMode:        &ipamModeExternal,
+					Gateway4:        pointer.String("10.0.0.255"),
 				},
 			},
+			infCfg: staticInfCfg,
+		},
+		{
+			desc: "l2 network static IP with external DHCP set to true",
+			network: &networkv1.Network{
+				ObjectMeta: metav1.ObjectMeta{Name: testNw},
+				Spec: networkv1.NetworkSpec{
+					Type:            networkv1.L2NetworkType,
+					L2NetworkConfig: &networkv1.L2NetworkConfig{PrefixLength4: pointer.Int32(24)},
+					ExternalDHCP4:   pointer.Bool(true),
+					IPAMMode:        &ipamModeExternal,
+					Gateway4:        pointer.String("10.0.0.255"),
+				},
+			},
+			infCfg: staticInfCfg,
 		},
 		{
 			desc:    "l3 network dynamic IP with external IPAM Mode",
 			network: &l3NwExtIPAMInfo,
+			infCfg:  staticInfCfg,
+		},
+		{
+			desc: "network with External IPAM mode having neither DHCP not static IP set should fail",
+			network: &networkv1.Network{
+				ObjectMeta: metav1.ObjectMeta{Name: testNw},
+				Spec: networkv1.NetworkSpec{
+					Type:            networkv1.L2NetworkType,
+					L2NetworkConfig: &networkv1.L2NetworkConfig{PrefixLength4: pointer.Int32(24)},
+					IPAMMode:        &ipamModeExternal,
+					Gateway4:        pointer.String("10.0.0.255"),
+				},
+			},
+			wantErr: "interface for external IPAM mode network should have a valid static IP specified in its spec or requested via externalDHCP",
 		},
 	}
 
@@ -1227,6 +1257,9 @@ func TestConfigureIPAMInfo(t *testing.T) {
 		t.Run(tc.desc, func(t *testing.T) {
 			infCfg := tc.infCfg
 			gotErr := configureIPAMInfo(tc.network, &infCfg, "podIface", ipa)
+			if gotErr != nil && tc.wantErr == "" {
+				t.Fatalf("configureIPAMInfo() returned unexpected error: %v", gotErr)
+			}
 			if tc.wantErr != "" {
 				if gotErr == nil {
 					t.Fatalf("configureIPAMInfo() should have returned an error")

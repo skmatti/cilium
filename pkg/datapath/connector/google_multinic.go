@@ -1094,8 +1094,12 @@ func configureIPAMInfo(network *networkv1.Network, cfg *interfaceConfiguration, 
 		return nil
 	}
 
-	// no IPAM required when IPAMMode is not set to Internal mode.
-	if network.Spec.IPAMMode != nil && *network.Spec.IPAMMode != networkv1.InternalMode {
+	// no IPAM required when IPAMMode is set to External mode.
+	if isExternalIPAMModeNetwork(network) {
+		// ensure interface config has IPv4Address set for external IPAM mode networks.
+		if cfg.IPV4Address == nil {
+			return errors.New("interface for external IPAM mode network should have a valid static IP specified in its spec or requested via externalDHCP")
+		}
 		return nil
 	}
 
@@ -1128,6 +1132,13 @@ func configureIPAMInfo(network *networkv1.Network, cfg *interfaceConfiguration, 
 	log.Infof("Reserved ip address %s with mask %s", cfg.IPV4Address.IP.String(), cfg.IPV4Address.Mask.String())
 	metrics.MultiNetworkIpamEvent.WithLabelValues(metricAllocate, network.Name, familyIPv4).Inc()
 	return nil
+}
+
+func isExternalIPAMModeNetwork(network *networkv1.Network) bool {
+	if network.Spec.ExternalDHCP4 != nil && *network.Spec.ExternalDHCP4 {
+		return true
+	}
+	return network.Spec.IPAMMode != nil && *network.Spec.IPAMMode == networkv1.ExternalMode
 }
 
 func releaseIP(network *networkv1.Network, cfg *interfaceConfiguration, ipam *ipam.IPAM) {
