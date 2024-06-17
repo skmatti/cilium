@@ -42,7 +42,7 @@ require (
 	github.com/prometheus/common v0.50.0 // indirect
 	github.com/prometheus/procfs v0.13.0 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
-	gke-internal.googlesource.com/syllogi/sanitized-klog v0.0.0-00010101000000-000000000000 // indirect
+	gke-internal.googlesource.com/syllogi/sanitized-klog v0.0.0-00010101000000-000000000000
 	golang.org/x/net v0.23.0 // indirect
 	golang.org/x/oauth2 v0.18.0 // indirect
 	golang.org/x/sys v0.18.0 // indirect
@@ -55,8 +55,8 @@ require (
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
-	k8s.io/api v0.30.0 // indirect
-	k8s.io/client-go v0.30.0 // indirect
+	k8s.io/api v0.30.0
+	k8s.io/client-go v0.30.0
 	k8s.io/cloud-provider-gcp/crd v0.0.0-20240515211753-278a7c4c5fb6
 	k8s.io/component-base v0.29.2 // indirect
 	k8s.io/klog v1.0.0 // indirect
@@ -69,7 +69,7 @@ require (
 )
 
 replace (
-	gke-internal.googlesource.com/anthos-networking/test-infra => gke-internal.googlesource.com/anthos-networking.git/test-infra v0.0.0-20240516005627-e14b69dd95cf
+	gke-internal.googlesource.com/anthos-networking/test-infra => gke-internal.googlesource.com/anthos-networking.git/test-infra v0.0.0-20240708170551-2457224fdb4c
 	gke-internal.googlesource.com/syllogi/sanitized-klog => gke-internal.googlesource.com/syllogi/sanitized-klog.git v0.0.11
 	gke-internal.googlesource.com/third_party/cilium/google_test/wora/e2e/verifiers/multinetwork => ./verifiers/multinetwork
 	gke-internal.googlesource.com/third_party/cilium/google_test/wora/e2e/verifiers/sample => ./verifiers/sample

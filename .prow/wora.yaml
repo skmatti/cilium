@@ -27,6 +27,8 @@ presubmits:
         value: sut-abm-gce.yaml
       - name: PATCH_CONTENT_DIR
         value: addon/patch_content/abm-1.29.100-gke.76/overlays/v1.14
+      - name: WORA_CONFIG
+        value: integration-abm-multinetwork_test.yaml
       command:
       - runner.sh
       args:
@@ -127,7 +129,7 @@ presubmits:
       - name: WORA_CONTROL_PLANE
         value: atl
       - name: WORA_CONFIG
-        value: integration-abm-atl_test.yaml
+        value: integration-abm-multinetwork_test.yaml
       command:
       - runner.sh
       args:
@@ -394,6 +396,8 @@ presubmits:
         value: v1.13-anthos1.29
       - name: TBCONFIG
         value: sut-abm-gce.yaml
+      - name: WORA_CONFIG
+        value: integration-abm-multinetwork_test.yaml
       command:
       - runner.sh
       args:
@@ -461,7 +465,7 @@ presubmits:
       - name: WORA_CONTROL_PLANE
         value: atl
       - name: WORA_CONFIG
-        value: integration-abm-atl_test.yaml
+        value: integration-abm-multinetwork_test.yaml
       command:
       - runner.sh
       args:
@@ -663,6 +667,8 @@ presubmits:
       env:
       - name: TBCONFIG
         value: sut-abm-gce.yaml
+      - name: WORA_CONFIG
+        value: integration-abm-multinetwork_test.yaml
       command:
       - runner.sh
       args:
@@ -726,7 +732,7 @@ presubmits:
       - name: WORA_CONTROL_PLANE
         value: atl
       - name: WORA_CONFIG
-        value: integration-abm-atl_test.yaml
+        value: integration-abm-multinetwork_test.yaml
       command:
       - runner.sh
       args:

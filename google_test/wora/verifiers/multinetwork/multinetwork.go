@@ -2,6 +2,8 @@ package multinetwork
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"net"
 	"os"
@@ -38,11 +40,12 @@ const (
 
 var _ = Describe("Verifiers/multinetwork", Label("multinetwork"), Ordered, func() {
 	var (
-		c                 client.Interface
-		dc                *dynamic.DynamicClient
-		nc                *networkclientset.Clientset
-		err               error
-		nodeInterfaceName = "ens224"
+		c                         client.Interface
+		dc                        *dynamic.DynamicClient
+		nc                        *networkclientset.Clientset
+		err                       error
+		nodeInterfaceName         string
+		additionalNodeNetworkInfo *artifact.NodeNetworkInfo
 	)
 	ctx := context.Background()
 	BeforeAll(func() {
@@ -60,10 +63,25 @@ var _ = Describe("Verifiers/multinetwork", Label("multinetwork"), Ordered, func(
 		Expect(err).NotTo(HaveOccurred())
 
 		hercEnvJsonFilePath := filepath.Join(filepath.Dir(kubeconfig), "herc_env.json")
-		Expect(hercEnvJsonFilePath).NotTo(BeEmpty())
-		Expect(filepath.IsAbs(hercEnvJsonFilePath)).To(BeTrue())
-		additionalNodeNetworkInfo, err := artifact.ExtractNodeNetworkInfo(hercEnvJsonFilePath)
-		Expect(err).NotTo(HaveOccurred())
+		_, err = os.Stat(hercEnvJsonFilePath)
+		if errors.Is(err, os.ErrNotExist) {
+			additionalNodeNetworkInfo = &artifact.NodeNetworkInfo{
+				NetworkName:             "additional-network-2",
+				Netmask:                 "255.255.248.0",
+				GatewayServer:           "10.250.79.254",
+				GatewayServerSubnetMask: "21",
+			}
+			nodeInterfaceName = "vxlan0"
+		} else {
+			Expect(err).NotTo(HaveOccurred())
+			Expect(filepath.IsAbs(hercEnvJsonFilePath)).To(BeTrue())
+			additionalNodeNetworkInfo, err = artifact.ExtractNodeNetworkInfo(hercEnvJsonFilePath)
+			Expect(err).NotTo(HaveOccurred())
+			nodeInterfaceName = "ens224"
+		}
+		s, _ := json.MarshalIndent(additionalNodeNetworkInfo, "", "\t")
+		networkConfigLogMessage := fmt.Sprintf("Running multinetwork test on ABM on GCE cluster, use following info to create network:\n%s\nnodeInterfaceName: %s", s, nodeInterfaceName)
+		klog.Info(networkConfigLogMessage)
 
 		prefixLength, _ := net.IPMask(net.ParseIP(additionalNodeNetworkInfo.Netmask).To4()).Size()
 		prefixLength4 := int32(prefixLength)
@@ -162,8 +180,8 @@ func createWorkloadPodOnEachNode(c client.Interface, ctx context.Context, additi
 		return err
 	}
 	for _, node := range allNodes.Items {
-		nodeNameSplitted := strings.Split(node.Name, "-")
-		podName := fmt.Sprintf("multinetworkpod-%s", nodeNameSplitted[len(nodeNameSplitted)-1])
+		nodeNameSplitted := strings.Split(node.Name, "--")
+		podName := fmt.Sprintf("multinetworkpod-%s", nodeNameSplitted[0])
 		_, err := network.CreateMultiNetworkPodOnNode(ctx, c, testNamespace, podName, node.Name, map[string]string{additionalNetworkName: podInterfaceName})
 		if err != nil {
 			klog.Error("failed to created pod(%s)", podName, err)
