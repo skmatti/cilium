@@ -33,4 +33,6 @@ func GetEndpointID() uint64 {
 // SetEndpointID sets the ID of the host endpoint this node.
 func SetEndpointID(id uint64) {
 	endpointID = id
+	// Set the flag to true when endpoint ID is set
+	endpointIDIsSet = true
 }

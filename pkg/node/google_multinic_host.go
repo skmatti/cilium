@@ -5,6 +5,9 @@ var (
 	// This is used for loading bpf on correct host interfaces when multi
 	// interface host firewall is enabled.
 	multiNICHostDevices map[string]bool
+
+	// Boolean flag to track if endpoint ID is set
+	endpointIDIsSet bool = false
 )
 
 // IsMultiNICHostDevice returns true if given device in the map.
@@ -27,4 +30,9 @@ func AddMultiNICHostDevice(dev string) {
 // DeleteMultiNICHostDevice deletes the given device from the map.
 func DeleteMultiNICHostDevice(dev string) {
 	delete(multiNICHostDevices, dev)
+}
+
+// IsEndpointIDSet returns whether the endpoint ID has been set.
+func IsEndpointIDSet() bool {
+	return endpointIDIsSet
 }

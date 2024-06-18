@@ -21,6 +21,15 @@ func (h *HeaderfileWriter) writeMultinicEndpointConfig(w io.Writer, e datapath.E
 		// More details: pkg/endpoint/google_endpoint.go:GetDeviceTypeIndex()
 		fmt.Fprintf(w, "#define MULTI_NIC_DEVICE_TYPE %d\n", e.GetDeviceTypeIndex())
 	}
+	if e.IsHost() && !e.IsMultiNICHost() && !node.IsEndpointIDSet() {
+		// Panic if the endpoint ID has not been set for the default host endpoint.
+		// This usually means something is wrong with the compiliation
+		// process of the host endpoint.
+		// For lxc endpoints, no need to check if endpoint ID is already set because
+		// it's possible that bpf_lxc endpoint program will compile and attach
+		// before host endpoint acquires compiliation lock when agent first starts.
+		panic(fmt.Sprintf("Endpoint ID is not set for host endpoint: %d", e.GetID()))
+	}
 	return nil
 }
 
