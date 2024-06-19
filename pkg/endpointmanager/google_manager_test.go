@@ -11,9 +11,13 @@ import (
 	"github.com/cilium/cilium/pkg/endpointmanager/idallocator"
 	multinicep "github.com/cilium/cilium/pkg/gke/multinic/endpoint"
 	"github.com/cilium/cilium/pkg/ipcache"
+	"github.com/cilium/cilium/pkg/labelsfilter"
+	"github.com/cilium/cilium/pkg/lock"
 	"github.com/cilium/cilium/pkg/option"
 	testidentity "github.com/cilium/cilium/pkg/testutils/identity"
 	testipcache "github.com/cilium/cilium/pkg/testutils/ipcache"
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	. "gopkg.in/check.v1"
 )
@@ -586,11 +590,81 @@ func (s *EndpointManagerSuite) TestGetMultiNICHostEndpoints(c *C) {
 	}
 }
 
+func (s *EndpointManagerSuite) TestNodeUpdate(c *C) {
+	// Initialize label filter config.
+	labelsfilter.ParseLabelPrefixCfg([]string{"k8s:!ignore1", "k8s:!ignore2"}, "")
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	mgr := NewEndpointManager(&dummyEpSyncher{})
+
+	hostEPID := uint16(17)
+	hostEP := newTestHostEndpoint(ctx, s, hostEPID, "", true /*isHost*/)
+	mgr.expose(hostEP)
+
+	tests := []struct {
+		desc       string
+		oldLabels  map[string]string
+		newLabels  map[string]string
+		wantLabels map[string]string
+	}{
+		{
+			desc: "validate host endpoint labels",
+			// oldLabels = {}
+			newLabels:  map[string]string{"k2": "v2"},
+			wantLabels: map[string]string{"k2": "v2"},
+		},
+		{
+			desc: "modify labels",
+			// oldLabels = {"k2": "v2"}
+			newLabels:  map[string]string{"k3": "v3"},
+			wantLabels: map[string]string{"k3": "v3"},
+		},
+		{
+			desc: "ignore labels",
+			// oldLabels = {"k3": "v3"}
+			newLabels:  map[string]string{"k3": "v3", "ignore1": "v1", "ignore2": "v3"},
+			wantLabels: map[string]string{"k3": "v3"},
+		},
+		{
+			desc: "add more labels",
+			// oldLabels = {"k3": "v3"}
+			newLabels:  map[string]string{"k3": "v3", "ignore3": "v3"},
+			wantLabels: map[string]string{"k3": "v3", "ignore3": "v3"},
+		},
+	}
+
+	for _, tc := range tests {
+		// Host endpoint labels state is preserved across test cases so old labels
+		// must be same as the current host endpoint labels.
+		// Otherwise, the label update is rejected.
+		oldLabels := make(map[string]string)
+		if hostIP, ok := mgr.endpoints[hostEPID]; ok {
+			oldLabels = hostIP.OpLabels.IdentityLabels().K8sStringMap()
+		}
+		oldNode := &corev1.Node{
+			ObjectMeta: metav1.ObjectMeta{
+				Labels: oldLabels,
+			},
+		}
+		newNode := &corev1.Node{
+			ObjectMeta: metav1.ObjectMeta{
+				Labels: tc.newLabels,
+			},
+		}
+		c.Assert(mgr.OnUpdateNode(oldNode, newNode, lock.NewStoppableWaitGroup()), IsNil)
+		currHostIP, ok := mgr.endpoints[hostEPID]
+		c.Assert(ok, Equals, true)
+		c.Assert(currHostIP.OpLabels.IdentityLabels().K8sStringMap(), checker.DeepEquals, tc.wantLabels)
+
+	}
+}
+
 func newTestHostEndpoint(ctx context.Context, s *EndpointManagerSuite, id uint16, network string, isHost bool) *endpoint.Endpoint {
 	ipc := ipcache.NewIPCache(&ipcache.Configuration{
 		Context: ctx,
 	})
-	ep := endpoint.NewEndpointWithState(s, s, ipc, &endpoint.FakeEndpointProxy{}, &testidentity.MockIdentityAllocator{}, id, endpoint.StateReady)
+	ep := endpoint.NewEndpointWithState(s, s, ipc, &endpoint.FakeEndpointProxy{}, testidentity.NewMockIdentityAllocator(nil), id, endpoint.StateReady)
 	ep.SetIsHost(isHost)
 	ep.SetNodeNetworkName(network)
 	return ep

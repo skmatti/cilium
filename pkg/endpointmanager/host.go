@@ -10,6 +10,9 @@ import (
 	"github.com/cilium/cilium/pkg/labels"
 	"github.com/cilium/cilium/pkg/lock"
 	"github.com/cilium/cilium/pkg/node"
+
+	"github.com/cilium/cilium/pkg/comparator"
+	"github.com/cilium/cilium/pkg/labelsfilter"
 )
 
 // GetHostEndpoint returns the host endpoint.
@@ -54,6 +57,13 @@ func (mgr *EndpointManager) OnUpdateNode(oldNode, newNode *v1.Node,
 	}
 
 	node.SetLabels(newNodeLabels)
+
+	newNodeIdtyLabels, _ := labelsfilter.Filter(labels.Map2Labels(newNodeLabels, labels.LabelSourceK8s))
+	oldNodeIdtyLabels, _ := labelsfilter.Filter(labels.Map2Labels(oldNodeLabels, labels.LabelSourceK8s))
+	if comparator.MapStringEquals(oldNodeIdtyLabels.K8sStringMap(), newNodeIdtyLabels.K8sStringMap()) {
+		log.Debug("Host endpoint identity labels unchanged, skipping labels update")
+		return nil
+	}
 
 	err := nodeEP.UpdateLabelsFrom(oldNodeLabels, newNodeLabels, labels.LabelSourceK8s)
 	if err != nil {
