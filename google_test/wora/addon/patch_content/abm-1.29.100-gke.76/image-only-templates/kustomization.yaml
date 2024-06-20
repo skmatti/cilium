@@ -1,0 +1,3 @@
+resources:
+- anet-operator.yaml
+- anetd.yaml
