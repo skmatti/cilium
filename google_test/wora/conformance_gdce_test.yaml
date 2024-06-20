@@ -27,7 +27,7 @@ spec:
             namespace: tailorbird-users
           args: # Compare arguments in ../upstream_test/run_k8s_conformance_test.sh
           - /test/ginkgo
-          - --nodes=5
+          - --procs=5
           - --focus=\[Conformance\]|\[sig-network\]
           - --skip=Feature|Federation|PerformanceDNS|DualStack|Disruptive|Serial|KubeProxy|kube-proxy|ExternalIP|LoadBalancer|GCE|Netpol|NetworkPolicy|rejected|externalTrafficPolicy|HostPort|same.port.number.but.different.protocols|should.serve.endpoints.on.same.port.and.different.protocols
           # GDCE specific conformance test set (b/330362098)

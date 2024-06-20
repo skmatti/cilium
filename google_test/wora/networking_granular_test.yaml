@@ -1,3 +1,4 @@
+# Configuration for just the Networking Granular Checks in the conformance tests. This is kept separately in order to run these specific tests serially so they will not skip. See b/352125967 for more details.
 apiVersion: sut.tailorbird.io/v1alpha1
 kind: Rookery
 metadata:
@@ -26,13 +27,15 @@ spec:
             namespace: tailorbird-users
           args: # Compare arguments in ../upstream_test/run_k8s_conformance_test.sh
           - /test/ginkgo
-          - --procs=10
-          - --focus=\[Conformance\]|\[sig-network\]
+          - --procs=1
+          - --focus=Networking.Granular.Checks:.Services
           - --skip=Feature|Federation|PerformanceDNS|DualStack|Disruptive|Serial|KubeProxy|kube-proxy|ExternalIP|LoadBalancer|GCE|Netpol|NetworkPolicy|rejected|externalTrafficPolicy|HostPort|same.port.number.but.different.protocols|should.serve.endpoints.on.same.port.and.different.protocols
+          - --seed=1720648721
           - --skip=should.support.remote.command.execution.over.websockets
           - --skip=should.support.retrieving.logs.from.the.container.over.websockets
           - --keep-going
           - --timeout=2h
+          - -v
           - --no-color
           - /test/e2e.test
           - --
