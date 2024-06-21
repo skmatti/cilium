@@ -9,8 +9,12 @@ import (
 	"github.com/cilium/cilium/pkg/byteorder"
 	"github.com/cilium/cilium/pkg/datapath"
 	"github.com/cilium/cilium/pkg/datapath/link"
+	"github.com/cilium/cilium/pkg/gke/features"
 	"github.com/cilium/cilium/pkg/node"
+	"github.com/cilium/cilium/pkg/option"
 )
+
+const GoogleVPC_VNI_Default int = 0
 
 // writeMultinicEndpointConfig writes endpoint configurations specifically for multinic endpoints.
 func (h *HeaderfileWriter) writeMultinicEndpointConfig(w io.Writer, e datapath.EndpointConfiguration) error {
@@ -29,6 +33,14 @@ func (h *HeaderfileWriter) writeMultinicEndpointConfig(w io.Writer, e datapath.E
 		// it's possible that bpf_lxc endpoint program will compile and attach
 		// before host endpoint acquires compiliation lock when agent first starts.
 		panic(fmt.Sprintf("Endpoint ID is not set for host endpoint: %d", e.GetID()))
+	}
+	return nil
+}
+
+// writeInfrastructureModConfig writes endpoint configurations specifically infrastructure endpoints.
+func (h *HeaderfileWriter) writeInfrastructureModeConfig(w io.Writer, cfg features.Config) error {
+	if cfg.EnableGoogleVPC {
+		fmt.Fprintf(w, "#define GOOGLE_VPC_VNI %d\n", GoogleVPC_VNI_Default)
 	}
 	return nil
 }
@@ -56,4 +68,16 @@ __ip; })`))
 		return "", fmt.Errorf("failed to execute template: %q", err)
 	}
 	return macro.String(), nil
+}
+
+// GoogleDefines sets C defines based on the configuration of Google-specific features.
+func GoogleDefines(cDefinesMap map[string]string, daemonConfig *option.DaemonConfig, featureConfig features.Config) error {
+	if featureConfig.EnableGoogleVPC {
+		if !daemonConfig.TunnelingEnabled() {
+			return fmt.Errorf("Google VPC requires tunnel mode to be configured")
+		}
+		cDefinesMap["ENABLE_GOOGLE_VPC"] = "1"
+	}
+
+	return nil
 }

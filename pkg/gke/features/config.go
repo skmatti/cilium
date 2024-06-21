@@ -49,6 +49,8 @@ type Config struct {
 	// K8sInterfaceOnly instructs Cilium to attach bpf_host programs only to the
 	// interface with the k8s IP.
 	K8sInterfaceOnly bool `mapstructure:"k8s-interface-only"`
+	// EnableGoogleVPC is the option to enable Google VPC mode.
+	EnableGoogleVPC bool
 }
 
 var defaultConfig = Config{
@@ -61,6 +63,7 @@ var defaultConfig = Config{
 	EnableAutoDirectRoutingIPv4:          false,
 	EnableAutoDirectRoutingIPv6:          false,
 	K8sInterfaceOnly:                     false,
+	EnableGoogleVPC:                      false,
 }
 
 func (cfg Config) Flags(flags *pflag.FlagSet) {
@@ -91,4 +94,7 @@ func (cfg Config) Flags(flags *pflag.FlagSet) {
 
 	flags.Bool(option.K8sInterfaceOnly, defaultConfig.K8sInterfaceOnly, "Only use k8s node interface as host device")
 	flags.MarkHidden(option.K8sInterfaceOnly)
+
+	flags.Bool(option.EnableGoogleVPC, defaultConfig.EnableGoogleVPC, "Enable Google VPC mode")
+	flags.MarkHidden(option.EnableGoogleVPC)
 }

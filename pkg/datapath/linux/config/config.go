@@ -24,6 +24,7 @@ import (
 	"github.com/cilium/cilium/pkg/datapath"
 	"github.com/cilium/cilium/pkg/datapath/link"
 	"github.com/cilium/cilium/pkg/defaults"
+	"github.com/cilium/cilium/pkg/gke/features"
 	pip "github.com/cilium/cilium/pkg/gke/pip/config"
 	"github.com/cilium/cilium/pkg/identity"
 	"github.com/cilium/cilium/pkg/labels"
@@ -697,6 +698,10 @@ func (h *HeaderfileWriter) WriteNodeConfig(w io.Writer, cfg *datapath.LocalNodeC
 		fmt.Fprintf(fw, "\n// JSON_OUTPUT: %s\n", encodedConfig)
 	}
 
+	if err := GoogleDefines(cDefinesMap, option.Config, features.GlobalConfig); err != nil {
+		return fmt.Errorf("set Google feature defines: %v", err)
+	}
+
 	return fw.Flush()
 }
 
@@ -941,6 +946,7 @@ func (h *HeaderfileWriter) WriteEndpointConfig(w io.Writer, e datapath.EndpointC
 
 func (h *HeaderfileWriter) writeTemplateConfig(fw *bufio.Writer, e datapath.EndpointConfiguration) error {
 	h.writeMultinicEndpointConfig(fw, e)
+	h.writeInfrastructureModeConfig(fw, features.GlobalConfig)
 
 	if e.RequireEgressProg() {
 		fmt.Fprintf(fw, "#define USE_BPF_PROG_FOR_INGRESS_POLICY 1\n")

@@ -115,6 +115,9 @@ const (
 
 	// AllowDisableSourceMACValidation is the name of the option to allow disabling source MAC validation for multi-nic endpoints.
 	AllowDisableSourceMACValidation = "allow-disable-source-mac-validation"
+
+	// EnableGoogleVPC is the name of the option to enable Google VPC.
+	EnableGoogleVPC = "enable-google-vpc"
 )
 
 func (c *DaemonConfig) SyncPredicate() func(string) bool {

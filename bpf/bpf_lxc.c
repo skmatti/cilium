@@ -12,6 +12,9 @@
 #include <linux/icmpv6.h>
 
 #define IS_BPF_LXC 1
+#ifndef GOOGLE_VPC_VNI
+#define GOOGLE_VPC_VNI SECLABEL
+#endif
 
 /* Controls the inclusion of the CILIUM_CALL_SRV6 section in the object file.
  */
@@ -1199,9 +1202,16 @@ skip_vtep:
 
 		key.ip4 = ip4->daddr & IPV4_MASK;
 		key.family = ENDPOINT_KEY_IPV4;
-
+#ifdef ENABLE_GOOGLE_VPC
+		ret = nested_remote_endpoint_v4(&tunnel_endpoint, dst_id, &encrypt_key);
+		if (ret != CTX_ACT_OK)
+			return ret;
+		ret = encap_and_redirect_lxc(ctx, tunnel_endpoint, encrypt_key,
+               &key, GOOGLE_VPC_VNI, *dst_id, &trace);
+#else
 		ret = encap_and_redirect_lxc(ctx, tunnel_endpoint, encrypt_key,
 					     &key, SECLABEL, *dst_id, &trace);
+#endif /* ENABLE_GOOGLE_VPC */
 		if (ret == DROP_NO_TUNNEL_ENDPOINT)
 			goto pass_to_stack;
 		/* If not redirected noteably due to IPSEC then pass up to stack
