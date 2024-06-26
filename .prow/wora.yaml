@@ -55,7 +55,7 @@ presubmits:
       # The path for the PATCH_CONTENT_DIR is from the script dir of
       # prow_entrypoint.sh.
       - name: PATCH_CONTENT_DIR
-        value: addon/patch_content/abm-1.29.100-gke.76/overlays/gdch-on-abm
+        value: addon/patch_content/abm-1.29.100-gke.76/overlays/gdch-abm
       - name: TBCONFIG
         value: sut-gdch-abm-gce.yaml
       command:
