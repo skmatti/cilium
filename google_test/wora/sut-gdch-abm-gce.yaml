@@ -23,8 +23,18 @@ spec:
           provisionerArgs:
             # Exact version of ABM is required to generate addon configurations.
             bmctlVersion: 1.29.100-gke.76
+            # Per yaqs/6581285177727647744 only machine type N2 is supported for
+            # nested-virtualization. The nested virtualization is enabled
+            # through USE_EMULATION ENV. All passthroughEnv supported can be
+            # found
+            # https://source.corp.google.com/h/gke-internal/syllogi/baremetal/+/master:test-infra/api/v1/config.go;drc=921bb69df401eb9da234a009af3e86c0844ef0fc
             passthroughEnv: |
-              {"MANIFEST_PROFILE_ENV": "staging"}
+              {
+                "MANIFEST_PROFILE_ENV": "staging",
+                "USE_EMULATION": "false",
+                "NODE_IMAGE_SIZE": "n2-standard-4",
+                "BOOTSTRAP_IMAGE_SIZE": "n2-standard-4"
+              }
             proxyPort: "8222"
             username: prowuser
             serverOS: gdch-rocky
