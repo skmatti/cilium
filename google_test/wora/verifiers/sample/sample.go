@@ -8,9 +8,10 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	klog "gke-internal.googlesource.com/syllogi/sanitized-klog"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	klog "gke-internal.googlesource.com/syllogi/sanitized-klog"
 
 	"gke-internal.googlesource.com/anthos-networking/test-infra/pkg/client"
 )
@@ -33,6 +34,7 @@ var _ = Describe("Verifiers/Sample", Label("sample"), func() {
 	It("can list nodes", func() {
 		nodes, err := c.CoreV1().Nodes().List(context.Background(), metav1.ListOptions{})
 		Expect(err).NotTo(HaveOccurred())
+		klog.Infof("Found %d nodes.", len(nodes.Items))
 		Expect(nodes.Items).NotTo(HaveLen(0))
 	})
 
