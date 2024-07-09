@@ -19,10 +19,10 @@ import (
 	networkv1 "k8s.io/cloud-provider-gcp/crd/apis/network/v1"
 	networkclientset "k8s.io/cloud-provider-gcp/crd/client/network/clientset/versioned"
 
-	"gke-internal.googlesource.com/anthos-networking/test-infra/pkg/client"
 	klog "gke-internal.googlesource.com/syllogi/sanitized-klog"
 
 	"gke-internal.googlesource.com/anthos-networking/test-infra/pkg/artifact"
+	"gke-internal.googlesource.com/anthos-networking/test-infra/pkg/client"
 	"gke-internal.googlesource.com/anthos-networking/test-infra/pkg/network"
 )
 
