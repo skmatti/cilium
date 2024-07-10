@@ -158,6 +158,7 @@ multinic_redirect_ipv4(struct __ctx_buff *ctx)
 {
 	struct ethhdr *eth = ctx_data(ctx);
 	const union macaddr *dmac = (union macaddr *)&eth->h_dest;
+	const union macaddr *smac = (union macaddr *)&eth->h_source;
 	const union macaddr host_mac = THIS_INTERFACE_MAC;
 	__u16 proto = 0;
 	const struct multi_nic_dev_info *dev;
@@ -182,6 +183,13 @@ multinic_redirect_ipv4(struct __ctx_buff *ctx)
 
 	if (!eth_addrcmp(dmac, &host_mac)) {
 		goto to_ingress;
+	}
+
+	// Redirect should only happen between local host and local multinic.
+	// Pass through to kernel if the packet is different from
+	// the host MAC.
+	if (eth_addrcmp(smac, &host_mac)) {
+		return CTX_ACT_OK;
 	}
 
 	dev = lookup_multi_nic_dev(dmac);

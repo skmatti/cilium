@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"reflect"
 	"sort"
+	"strings"
 
 	"github.com/cilium/cilium/pkg/datapath/linux/safenetlink"
 	"github.com/cilium/cilium/pkg/datapath/tables"
@@ -65,7 +66,6 @@ func (r *NetworkReconciler) reconcileHighPerfNetworks(ctx context.Context, node 
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to get nic-info: %v", err)
 	}
-	r.Log.Infof("Got nic info: %v", nicInfo)
 	// network names. Will return to indicate what needs updating on the network-status annotation
 	toAdd := make([]string, 0)
 	toRemove := make([]string, 0)
@@ -114,7 +114,7 @@ func (r *NetworkReconciler) reconcileHighPerfNetworks(ctx context.Context, node 
 		if err != nil {
 			return nil, nil, fmt.Errorf("unable to find interface %s in sysfs: %v", dev, err)
 		}
-		if isVirt || dev == nic.LoopbackDevName {
+		if isVirt || dev == nic.LoopbackDevName || strings.HasPrefix(dev, nic.TempDevPrefix) {
 			continue
 		}
 		// TODO(pnaduthota): CNI_DEL could fail and dump an interface with a weird name

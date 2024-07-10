@@ -2,6 +2,7 @@ package endpointmanager
 
 import (
 	"fmt"
+	"slices"
 
 	"github.com/cilium/cilium/pkg/endpoint"
 	endpointid "github.com/cilium/cilium/pkg/endpoint/id"
@@ -31,7 +32,7 @@ func (e ErrUnsupportedWhenMultiNIC) Error() string {
 // May return nil or zero length slice if not found.
 func (mgr *endpointManager) LookupEndpointsByContainerID(id string) []*endpoint.Endpoint {
 	mgr.mutex.RLock()
-	eps := mgr.endpointsMultiNIC[endpointid.NewID(endpointid.ContainerIdPrefix, id)]
+	eps := slices.Clone(mgr.endpointsMultiNIC[endpointid.NewID(endpointid.ContainerIdPrefix, id)])
 	mgr.mutex.RUnlock()
 	return eps
 }
@@ -41,7 +42,7 @@ func (mgr *endpointManager) LookupEndpointsByContainerID(id string) []*endpoint.
 // May return nil or zero length slice if not found.
 func (mgr *endpointManager) LookupEndpointsByPodName(name string) []*endpoint.Endpoint {
 	mgr.mutex.RLock()
-	eps := mgr.endpointsMultiNIC[endpointid.NewID(endpointid.PodNamePrefix, name)]
+	eps := slices.Clone(mgr.endpointsMultiNIC[endpointid.NewID(endpointid.PodNamePrefix, name)])
 	mgr.mutex.RUnlock()
 	return eps
 }

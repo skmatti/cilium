@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path"
+	"reflect"
 
 	"github.com/cilium/cilium/pkg/datapath/linux/safenetlink"
 	"github.com/cilium/cilium/pkg/datapath/loader"
@@ -109,7 +110,26 @@ func (r *NetworkReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		return nil
 	}))
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&networkv1.Network{}).
+		For(&networkv1.Network{}, builder.WithPredicates(
+			predicate.Funcs{
+				UpdateFunc: func(e event.UpdateEvent) bool {
+					oldNet := e.ObjectOld.(*networkv1.Network)
+					newNet := e.ObjectNew.(*networkv1.Network)
+					if !reflect.DeepEqual(oldNet.Spec, newNet.Spec) {
+						return true
+					}
+					if !reflect.DeepEqual(oldNet.Status, newNet.Status) {
+						return true
+					}
+					if !reflect.DeepEqual(oldNet.Finalizers, newNet.Finalizers) {
+						return true
+					}
+					if !reflect.DeepEqual(oldNet.DeletionTimestamp, newNet.DeletionTimestamp) {
+						return true
+					}
+					return false
+				},
+			})).
 		Watches(&corev1.Node{},
 			handler.EnqueueRequestsFromMapFunc(r.mapNodeToNetwork),
 			builder.WithPredicates(
@@ -180,7 +200,6 @@ func (r *NetworkReconciler) loadEBPFOnParent(ctx context.Context, network *netwo
 		return nil
 	}
 	if networkv1.IsDefaultNetwork(network.Name) {
-		r.Log.Infof("No need to load ebpf for default network: %v", network.Name)
 		return nil
 	}
 	devToLoad, _, err := anutils.InterfaceInfo(network, node.GetAnnotations())
@@ -285,31 +304,23 @@ func ensureVlanID(vlanIntName string, vlanID int, parentLink netlink.Link, log *
 }
 
 func updateNodeNetworkStatusAnnotation(ctx context.Context, node *corev1.Node, networkName string, ipv4, ipv6 string, log *logrus.Entry, isAdd bool) error {
-	log.WithFields(logrus.Fields{
-		logfields.NodeName: node.Name,
-		"network":          networkName,
-	}).Info("Updating node network status annotation")
 	netStatusMap, err := getNetworkStatusMap(node)
 	if err != nil {
 		return fmt.Errorf("failed to get network status map from node %q: %v", node.Name, err)
 	}
-	log.Infof("existing node network status annotation %+v", netStatusMap)
 
 	oldNetAnnotation, exist := netStatusMap[networkName]
 	if isAdd {
 		if exist && oldNetAnnotation.IPv4Subnet == ipv4 && oldNetAnnotation.IPv6Subnet == ipv6 {
-			log.Infof("network %q already exists on the node %q", networkName, node.Name)
 			return nil
 		}
 		netStatusMap[networkName] = networkv1.NodeNetworkStatus{Name: networkName, IPv4Subnet: ipv4, IPv6Subnet: ipv6}
 	} else {
 		if !exist {
-			log.Infof("network %q doesn't exist on the node %q", networkName, node.Name)
 			return nil
 		}
 		delete(netStatusMap, networkName)
 	}
-	log.Infof("node network status annotation to update %+v", netStatusMap)
 	netAnnotations, err := marshalNodeNetworkAnnotation(netStatusMap)
 	if err != nil {
 		return fmt.Errorf("failed to marshal node network annotation %v: %v", netStatusMap, err)
@@ -319,7 +330,6 @@ func updateNodeNetworkStatusAnnotation(ctx context.Context, node *corev1.Node, n
 		node.Annotations = make(map[string]string)
 	}
 	node.Annotations[networkv1.NodeNetworkAnnotationKey] = netAnnotations
-	log.Info("Updated node network status annotation")
 	return nil
 }
 
@@ -340,6 +350,7 @@ func (r *NetworkReconciler) patchNodeAnnotations(ctx context.Context, oldNode, n
 		oldVal = oldNode.Annotations[networkv1.NodeNetworkAnnotationKey]
 	}
 	if oldVal != newVal {
+		r.Log.Infof("Patching %s annotation (old vs new): %s vs %s", networkv1.NodeNetworkAnnotationKey, oldVal, newVal)
 		annotation := map[string]string{networkv1.NodeNetworkAnnotationKey: node.Annotations[networkv1.NodeNetworkAnnotationKey]}
 		raw, err := json.Marshal(annotation)
 		if err != nil {
@@ -354,12 +365,16 @@ func (r *NetworkReconciler) patchNodeAnnotations(ctx context.Context, oldNode, n
 }
 
 func (r *NetworkReconciler) reconcileNetwork(ctx context.Context, node *corev1.Node, network *networkv1.Network) (_ ctrl.Result, rerr error) {
-	var err error
-
+	defer func() {
+		if rerr == nil {
+			r.Log.Info("Reconciled successfully")
+		}
+	}()
 	if network.Spec.Type == networkv1.DeviceNetworkType {
 		return ctrl.Result{}, nil
 	}
 
+	var err error
 	var intfName string
 	if !networkv1.IsDefaultNetwork(network.Name) {
 		intfName, _, err = anutils.InterfaceInfo(network, node.GetAnnotations())
@@ -398,7 +413,6 @@ func (r *NetworkReconciler) reconcileNetwork(ctx context.Context, node *corev1.N
 		r.Log.WithError(err).Error("Failed to reserve gateway IP")
 		return ctrl.Result{}, err
 	}
-	r.Log.Info("Reconciled successfully")
 	return ctrl.Result{}, nil
 }
 

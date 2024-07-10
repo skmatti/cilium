@@ -404,7 +404,7 @@ func RevertDeviceInterface(ifNameInPod string, network *networkv1.Network, nsPat
 		if err := netlink.LinkSetDown(iface); err != nil {
 			return fmt.Errorf("failed to set link %q DOWN: %v", iface.Attrs().Name, err)
 		}
-		tempName = "gketmp" + fmt.Sprint(rand.Intn(1000000))
+		tempName = nic.TempDevPrefix + fmt.Sprint(rand.Intn(1000000))
 		log.Infof("Setting Device name to tempname %s in reverting Device network", tempName)
 		if err = netlink.LinkSetName(iface, tempName); err != nil {
 			return fmt.Errorf("failed to rename interface from %q to %q: %v", iface.Attrs().Name, tempName, err)
@@ -879,7 +879,7 @@ func SetupDeviceInterface(ifNameInPod, podName string, podResources map[string][
 		}
 		cid := ep.ContainerID
 		// use last 8B of container ID for a unique tempname
-		tempName := "gketmp"
+		tempName := nic.TempDevPrefix
 		if len(cid) > 8 {
 			tempName = tempName + cid[len(cid)-8:]
 		} else {
@@ -1112,8 +1112,12 @@ func configureIPAMInfo(network *networkv1.Network, cfg *interfaceConfiguration, 
 		return nil
 	}
 
-	// no IPAM required when IPAMMode is not set to Internal mode.
-	if network.Spec.IPAMMode != nil && *network.Spec.IPAMMode != networkv1.InternalMode {
+	// no IPAM required when IPAMMode is set to External mode.
+	if isExternalIPAMModeNetwork(network) {
+		// ensure interface config has IPv4Address set for external IPAM mode networks.
+		if cfg.IPV4Address == nil {
+			return errors.New("interface for external IPAM mode network should have a valid static IP specified in its spec or requested via externalDHCP")
+		}
 		return nil
 	}
 
@@ -1146,6 +1150,13 @@ func configureIPAMInfo(network *networkv1.Network, cfg *interfaceConfiguration, 
 	log.Infof("Reserved ip address %s with mask %s", cfg.IPV4Address.IP.String(), cfg.IPV4Address.Mask.String())
 	metrics.MultiNetworkIpamEvent.WithLabelValues(metricAllocate, network.Name, familyIPv4).Inc()
 	return nil
+}
+
+func isExternalIPAMModeNetwork(network *networkv1.Network) bool {
+	if network.Spec.ExternalDHCP4 != nil && *network.Spec.ExternalDHCP4 {
+		return true
+	}
+	return network.Spec.IPAMMode != nil && *network.Spec.IPAMMode == networkv1.ExternalMode
 }
 
 func releaseIP(network *networkv1.Network, cfg *interfaceConfiguration, ipamConfig *ipam.IPAM) {
@@ -1191,25 +1202,29 @@ func isStaticNetwork(network *networkv1.Network) bool {
 }
 
 func extractRoutes(network *networkv1.Network, netParamsObj client.Object) ([]networkv1.Route, error) {
-	if netParamsObj == nil {
-		return network.Spec.Routes, nil
-	}
 	knownRoutes := make(map[string]bool)
+	// Collect all CIDRs from the network routes.
 	for _, route := range network.Spec.Routes {
+		// Configured network routes must be unique.
 		if _, exists := knownRoutes[route.To]; exists {
 			return nil, fmt.Errorf("Routes in Network %s are not unique %+v", network.Name, network.Spec.Routes)
 		}
 		knownRoutes[route.To] = true
 	}
-	if network.Spec.Type == networkv1.L3NetworkType || network.Spec.Type == networkv1.DeviceNetworkType {
+	// For certain network types, collect all CIDRs from GNP PodCIDRs, if
+	// they're configured.
+	if netParamsObj != nil && (network.Spec.Type == networkv1.L3NetworkType || network.Spec.Type == networkv1.DeviceNetworkType) {
 		if gkeparam, ok := netParamsObj.(*networkv1.GKENetworkParamSet); ok {
-			for _, cidr := range gkeparam.Status.PodCIDRs.CIDRBlocks {
-				knownRoutes[cidr] = true
+			if gkeparam.Status.PodCIDRs != nil {
+				for _, cidr := range gkeparam.Status.PodCIDRs.CIDRBlocks {
+					knownRoutes[cidr] = true
+				}
 			}
 		} else {
 			return nil, fmt.Errorf("Expected GKENetworkParamSet but got unknown param struct [%T] %+v", netParamsObj, netParamsObj)
 		}
 	}
+	// Create Route objects for all of the collected CIDRs.
 	var allRoutes []networkv1.Route
 	for cidr := range knownRoutes {
 		allRoutes = append(allRoutes, networkv1.Route{To: cidr})

@@ -3,9 +3,11 @@ package config
 import (
 	"bytes"
 	"fmt"
-	datapath "github.com/cilium/cilium/pkg/datapath/types"
 	"io"
 	"text/template"
+
+	"github.com/cilium/cilium/pkg/byteorder"
+	datapath "github.com/cilium/cilium/pkg/datapath/types"
 )
 
 // writeMultinicEndpointConfig writes endpoint configurations specifically for multinic endpoints.
@@ -24,7 +26,8 @@ func (h *HeaderfileWriter) nodePortIPv4AddrsMacro() (string, error) {
 	var macro bytes.Buffer
 	ips := make(map[int]string)
 	for idx, ip := range h.nodeAddressing.IPv4().LoadBalancerNodeAddressesV4ByIndex() {
-		ips[idx] = ip.String()
+		ip := byteorder.NetIPv4ToHost32(ip)
+		ips[idx] = fmt.Sprintf("%d", ip)
 	}
 
 	tmpl := template.Must(template.New("nodePortIPv4ByIfIndex").Parse(

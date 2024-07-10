@@ -36,6 +36,7 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/pointer"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 const (
@@ -1211,12 +1212,42 @@ func TestConfigureIPAMInfo(t *testing.T) {
 					Type:            networkv1.L2NetworkType,
 					L2NetworkConfig: &networkv1.L2NetworkConfig{PrefixLength4: pointer.Int32(24)},
 					IPAMMode:        &ipamModeExternal,
+					Gateway4:        pointer.String("10.0.0.255"),
 				},
 			},
+			infCfg: staticInfCfg,
+		},
+		{
+			desc: "l2 network static IP with external DHCP set to true",
+			network: &networkv1.Network{
+				ObjectMeta: metav1.ObjectMeta{Name: testNw},
+				Spec: networkv1.NetworkSpec{
+					Type:            networkv1.L2NetworkType,
+					L2NetworkConfig: &networkv1.L2NetworkConfig{PrefixLength4: pointer.Int32(24)},
+					ExternalDHCP4:   pointer.Bool(true),
+					IPAMMode:        &ipamModeExternal,
+					Gateway4:        pointer.String("10.0.0.255"),
+				},
+			},
+			infCfg: staticInfCfg,
 		},
 		{
 			desc:    "l3 network dynamic IP with external IPAM Mode",
 			network: &l3NwExtIPAMInfo,
+			infCfg:  staticInfCfg,
+		},
+		{
+			desc: "network with External IPAM mode having neither DHCP not static IP set should fail",
+			network: &networkv1.Network{
+				ObjectMeta: metav1.ObjectMeta{Name: testNw},
+				Spec: networkv1.NetworkSpec{
+					Type:            networkv1.L2NetworkType,
+					L2NetworkConfig: &networkv1.L2NetworkConfig{PrefixLength4: pointer.Int32(24)},
+					IPAMMode:        &ipamModeExternal,
+					Gateway4:        pointer.String("10.0.0.255"),
+				},
+			},
+			wantErr: "interface for external IPAM mode network should have a valid static IP specified in its spec or requested via externalDHCP",
 		},
 	}
 
@@ -1224,6 +1255,9 @@ func TestConfigureIPAMInfo(t *testing.T) {
 		t.Run(tc.desc, func(t *testing.T) {
 			infCfg := tc.infCfg
 			gotErr := configureIPAMInfo(tc.network, &infCfg, "podIface", ipa)
+			if gotErr != nil && tc.wantErr == "" {
+				t.Fatalf("configureIPAMInfo() returned unexpected error: %v", gotErr)
+			}
 			if tc.wantErr != "" {
 				if gotErr == nil {
 					t.Fatalf("configureIPAMInfo() should have returned an error")
@@ -1426,6 +1460,197 @@ func TestConfigureInterface(t *testing.T) {
 			}
 			if tc.infCfg.EnableMulticast != (mv.Attrs().Allmulti == 1) {
 				t.Fatalf("unexpected multicast configuration, got %v\n, want %v", mv.Attrs().Allmulti == 1, tc.infCfg.EnableMulticast)
+			}
+		})
+	}
+}
+
+func TestExtractRoutes(t *testing.T) {
+	testNetworkName := "test-network"
+	testRouteCIDR1 := "10.0.0.0/21"
+	testRouteCIDR2 := "10.1.0.0/19"
+	testPodCIDR1 := "10.2.0.0/16"
+	testPodCIDR2 := "10.3.0.0/22"
+
+	createRoutes := func(cidrs ...string) []networkv1.Route {
+		routes := []networkv1.Route{}
+		for _, cidr := range cidrs {
+			routes = append(routes, networkv1.Route{To: cidr})
+		}
+		return routes
+	}
+	createNetwork := func(netType networkv1.NetworkType, cidrs ...string) *networkv1.Network {
+		return &networkv1.Network{
+			ObjectMeta: metav1.ObjectMeta{Name: testNetworkName},
+			Spec: networkv1.NetworkSpec{
+				Type:   netType,
+				Routes: createRoutes(cidrs...),
+			},
+		}
+	}
+	createGNP := func(podCIDRs ...string) *networkv1.GKENetworkParamSet {
+		gnp := &networkv1.GKENetworkParamSet{
+			Status: networkv1.GKENetworkParamSetStatus{
+				PodCIDRs: &networkv1.NetworkRanges{},
+			},
+		}
+
+		for _, cidr := range podCIDRs {
+			gnp.Status.PodCIDRs.CIDRBlocks = append(gnp.Status.PodCIDRs.CIDRBlocks, cidr)
+		}
+
+		return gnp
+	}
+
+	testcases := []struct {
+		desc       string
+		network    *networkv1.Network
+		gnp        client.Object
+		wantRoutes []networkv1.Route
+		wantErr    string
+	}{
+		{
+			desc:       "L2 network with network routes but nil gnp",
+			network:    createNetwork(networkv1.L2NetworkType, testRouteCIDR1, testRouteCIDR2),
+			wantRoutes: createRoutes(testRouteCIDR1, testRouteCIDR2),
+		},
+		{
+			desc: "L2 network with nil network routes, ignore gnp pod CIDRs",
+			network: &networkv1.Network{
+				ObjectMeta: metav1.ObjectMeta{Name: testNetworkName},
+				Spec: networkv1.NetworkSpec{
+					Type: networkv1.L2NetworkType,
+				},
+			},
+			gnp: createGNP(testPodCIDR1, testPodCIDR2),
+		},
+		{
+			desc:       "L2 network with network routes, ignore gnp pod CIDRs",
+			network:    createNetwork(networkv1.L2NetworkType, testRouteCIDR1, testRouteCIDR2),
+			gnp:        createGNP(testPodCIDR1, testPodCIDR2),
+			wantRoutes: createRoutes(testRouteCIDR1, testRouteCIDR2),
+		},
+		{
+			desc:    "L2 network with non-unique routes",
+			network: createNetwork(networkv1.L2NetworkType, testRouteCIDR1, testRouteCIDR1),
+			wantErr: "are not unique",
+		},
+		{
+			desc:       "L3 network with network routes but nil gnp",
+			network:    createNetwork(networkv1.L3NetworkType, testRouteCIDR1, testRouteCIDR2),
+			wantRoutes: createRoutes(testRouteCIDR1, testRouteCIDR2),
+		},
+		{
+			desc: "L3 network with nil network routes but gnp pod CIDRs",
+			network: &networkv1.Network{
+				ObjectMeta: metav1.ObjectMeta{Name: testNetworkName},
+				Spec: networkv1.NetworkSpec{
+					Type: networkv1.L3NetworkType,
+				},
+			},
+			gnp:        createGNP(testPodCIDR1, testPodCIDR2),
+			wantRoutes: createRoutes(testPodCIDR1, testPodCIDR2),
+		},
+		{
+			desc:       "L3 network with network routes and gnp pod CIDRs",
+			network:    createNetwork(networkv1.L3NetworkType, testRouteCIDR1, testRouteCIDR2),
+			gnp:        createGNP(testPodCIDR1, testPodCIDR2),
+			wantRoutes: createRoutes(testRouteCIDR1, testRouteCIDR2, testPodCIDR1, testPodCIDR2),
+		},
+		{
+			desc:    "L3 network with non-unique routes",
+			network: createNetwork(networkv1.L3NetworkType, testRouteCIDR1, testRouteCIDR1),
+			wantErr: "are not unique",
+		},
+		{
+			desc:    "L3 network with network routes but can't cast gnp",
+			network: createNetwork(networkv1.L3NetworkType, testRouteCIDR1, testRouteCIDR2),
+			gnp:     struct{ client.Object }{},
+			wantErr: "Expected GKENetworkParamSet but got unknown param struct",
+		},
+		{
+			desc:       "L3 network with network routes same as gnp pod CIDRs",
+			network:    createNetwork(networkv1.L3NetworkType, testRouteCIDR1, testRouteCIDR2),
+			gnp:        createGNP(testRouteCIDR1, testRouteCIDR2),
+			wantRoutes: createRoutes(testRouteCIDR1, testRouteCIDR2),
+		},
+		{
+			desc:    "L3 network with network routes and gnp has nil PodCIDRs",
+			network: createNetwork(networkv1.L3NetworkType, testRouteCIDR1, testRouteCIDR2),
+			gnp: &networkv1.GKENetworkParamSet{
+				Status: networkv1.GKENetworkParamSetStatus{},
+			},
+			wantRoutes: createRoutes(testRouteCIDR1, testRouteCIDR2),
+		},
+		{
+			desc:       "Device network with network routes but nil gnp",
+			network:    createNetwork(networkv1.DeviceNetworkType, testRouteCIDR1, testRouteCIDR2),
+			wantRoutes: createRoutes(testRouteCIDR1, testRouteCIDR2),
+		},
+		{
+			desc: "Device network with nil network routes but gnp pod CIDRs",
+			network: &networkv1.Network{
+				ObjectMeta: metav1.ObjectMeta{Name: testNetworkName},
+				Spec: networkv1.NetworkSpec{
+					Type: networkv1.DeviceNetworkType,
+				},
+			},
+			gnp:        createGNP(testPodCIDR1, testPodCIDR2),
+			wantRoutes: createRoutes(testPodCIDR1, testPodCIDR2),
+		},
+		{
+			desc:       "Device network with network routes and gnp pod CIDRs",
+			network:    createNetwork(networkv1.DeviceNetworkType, testRouteCIDR1, testRouteCIDR2),
+			gnp:        createGNP(testPodCIDR1, testPodCIDR2),
+			wantRoutes: createRoutes(testRouteCIDR1, testRouteCIDR2, testPodCIDR1, testPodCIDR2),
+		},
+		{
+			desc:    "Device network with non-unique routes",
+			network: createNetwork(networkv1.DeviceNetworkType, testRouteCIDR1, testRouteCIDR1),
+			wantErr: "are not unique",
+		},
+		{
+			desc:    "Device network with network routes but can't cast gnp",
+			network: createNetwork(networkv1.DeviceNetworkType, testRouteCIDR1, testRouteCIDR2),
+			gnp:     struct{ client.Object }{},
+			wantErr: "Expected GKENetworkParamSet but got unknown param struct",
+		},
+		{
+			desc:       "Device network with network routes same as gnp pod CIDRs",
+			network:    createNetwork(networkv1.DeviceNetworkType, testRouteCIDR1, testRouteCIDR2),
+			gnp:        createGNP(testRouteCIDR1, testRouteCIDR2),
+			wantRoutes: createRoutes(testRouteCIDR1, testRouteCIDR2),
+		},
+		{
+			desc:    "Device network with network routes and gnp has nil PodCIDRs",
+			network: createNetwork(networkv1.DeviceNetworkType, testRouteCIDR1, testRouteCIDR2),
+			gnp: &networkv1.GKENetworkParamSet{
+				Status: networkv1.GKENetworkParamSetStatus{},
+			},
+			wantRoutes: createRoutes(testRouteCIDR1, testRouteCIDR2),
+		},
+	}
+
+	for _, tc := range testcases {
+		t.Run(tc.desc, func(t *testing.T) {
+			gotRoutes, gotErr := extractRoutes(tc.network, tc.gnp)
+			if gotErr != nil && tc.wantErr == "" {
+				t.Fatalf("extractRoutes() returned unexpected error: %v", gotErr)
+			}
+			if tc.wantErr != "" {
+				if gotErr == nil {
+					t.Fatalf("extractRoutes() should have returned an error")
+					return
+				}
+				if !strings.Contains(gotErr.Error(), tc.wantErr) {
+					t.Fatalf("extractRoutes() returned incorrect error, got: %s but want to contain: %s", gotErr.Error(), tc.wantErr)
+					return
+				}
+				return
+			}
+
+			if diff := cmp.Diff(gotRoutes, tc.wantRoutes, cmpopts.SortSlices(func(x, y networkv1.Route) bool { return x.To < y.To })); diff != "" {
+				t.Fatalf("extractRoutes() returned unexpected routes (-got, +want): %s", diff)
 			}
 		})
 	}

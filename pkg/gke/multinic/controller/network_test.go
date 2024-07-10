@@ -646,6 +646,7 @@ func TestUpdateNodeNetworkStatusAnnotation(t *testing.T) {
 				Client:   k8sClient,
 				NodeName: tc.nodeName,
 				IPAMMgr:  testIPAMMgr{},
+				Log:      logging.DefaultLogger.WithField(logfields.LogSubsys, "test"),
 			}
 			oldNode := testNode.DeepCopy()
 			gotErr := updateNodeNetworkStatusAnnotation(ctx, testNode, tc.network, tc.ipv4Subnet, tc.ipv6Subnet, logger, tc.isAdd)
