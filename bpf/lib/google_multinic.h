@@ -187,6 +187,48 @@ multinic_redirect_ipv4(struct __ctx_buff *ctx)
 		goto to_ingress;
 	}
 
+#ifdef ENABLE_GOOGLE_VPC
+{
+	struct endpoint_info *ep;
+	struct iphdr *ip4;
+	void *data, *data_end;
+	struct remote_endpoint_info *info = NULL;
+
+	if (!revalidate_data(ctx, &data, &data_end, &ip4))
+		goto l2_redirect;
+
+	ep = lookup_ip4_endpoint(ip4);
+
+	// Redirect to cilium_host interface if ipcache lookup
+	// is successful and tunnel endpoint exists. The traffic
+	// is exepcted to get tunneld to the remote host.
+	if (!ep) {
+		info = lookup_ip4_remote_endpoint(ip4->daddr);
+		if (info && info->tunnel_endpoint != 0) {
+			return redirect(CILIUM_IFINDEX, 0);
+		}
+	}
+
+	if (!(ep && ep->flags & ENDPOINT_F_MULTI_NIC_VETH)) {
+		// Not a multinic-veth ep, pass through to l2 redirect.
+		goto l2_redirect;
+	}
+
+	dmac = (union macaddr *)&ep->mac;
+	dev = lookup_multi_nic_dev(dmac);
+	if (dev == NULL || dev->ifindex != NATIVE_DEV_IFINDEX)
+	{
+		// Recieved traffic intended for a multinic veth endpoint,
+		// but packet is sent to the wrong native/parent device. Drop it.
+		return DROP_UNROUTABLE;
+	}
+
+	goto to_ingress;
+
+}
+l2_redirect:
+#endif /* ENABLE_GOOGLE_VPC */
+
 	dev = lookup_multi_nic_dev(dmac);
 	if (dev != NULL && dev->ifindex == NATIVE_DEV_IFINDEX) {
 		goto to_ingress;
