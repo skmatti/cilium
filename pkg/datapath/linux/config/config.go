@@ -732,6 +732,10 @@ func (h *HeaderfileWriter) WriteNodeConfig(w io.Writer, cfg *datapath.LocalNodeC
 		cDefinesMap["ENABLE_ICMP_RULE"] = "1"
 	}
 
+	if option.Config.EnableFlatIPv4 {
+		cDefinesMap["ENABLE_FLAT_IPV4"] = "1"
+	}
+
 	if features.GlobalConfig.EnableGoogleMultiNIC {
 		cDefinesMap["ENABLE_GOOGLE_MULTI_NIC"] = "1"
 		cDefinesMap["MULTI_NIC_DEV_MAP"] = multinicdev.MapName

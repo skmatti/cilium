@@ -55,6 +55,7 @@
 #include "lib/wireguard.h"
 #include "lib/vxlan.h"
 #include "lib/google_multinic.h"
+#include "lib/google_arp.h"
 
 #define host_egress_policy_hook(ctx, src_sec_identity, ext_err) CTX_ACT_OK
 /* Bit 0 is skipped for robustness, as it's used in some places to indicate from_host itself. */
@@ -1175,7 +1176,7 @@ do_netdev(struct __ctx_buff *ctx, __u16 proto, const bool from_host)
 		#ifdef ENABLE_L2_ANNOUNCEMENTS
 			ret = handle_l2_announcement(ctx);
 		#else
-			ret = CTX_ACT_OK;
+			ret = handle_google_arp(ctx, from_host);
 		#endif
 		break;
 # endif

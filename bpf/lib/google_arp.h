@@ -15,7 +15,7 @@ handle_google_arp(struct __ctx_buff *ctx __maybe_unused, const bool from_host __
 {
 #if !defined(TUNNEL_MODE) && defined(ENABLE_FLAT_IPV4)
    if (!from_host) {
-      union macaddr mac = NODE_MAC;
+      union macaddr mac = THIS_INTERFACE_MAC;
       __be32 sip;
       __be32 tip;
       union macaddr smac;

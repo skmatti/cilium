@@ -48,6 +48,9 @@ const (
 	// EnableTrafficSteering enables google traffic steering for the host.
 	EnableTrafficSteering = "enable-traffic-steering"
 
+	// EnableFlatIPv4 is the name of the option to enable flat IP for IPv4
+	EnableFlatIPv4 = "enable-flat-ipv4"
+
 	// EnableGKEMultiTenancy is used to enable GKE Multi-tenancy mode.
 	//
 	// Ref. http://go/dpv2-with-gke-multi-tenancy
