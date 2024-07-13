@@ -62,6 +62,7 @@
 #include "lib/google_sfc.h"
 #include "lib/google_pip.h"
 #include "lib/google_arp.h"
+#include "lib/google_vpc.h"
 
 /* Per-packet LB is needed if all LB cases can not be handled in bpf_sock.
  * Most services with L7 LB flag can not be redirected to their proxy port

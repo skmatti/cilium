@@ -667,6 +667,10 @@ func (h *HeaderfileWriter) WriteNodeConfig(w io.Writer, cfg *datapath.LocalNodeC
 	cDefinesMap["CIDR_IDENTITY_RANGE_START"] = fmt.Sprintf("%d", identity.MinLocalIdentity)
 	cDefinesMap["CIDR_IDENTITY_RANGE_END"] = fmt.Sprintf("%d", identity.MaxLocalIdentity)
 
+	if err := GoogleDefines(cDefinesMap, option.Config, features.GlobalConfig); err != nil {
+		return fmt.Errorf("set Google feature defines: %v", err)
+	}
+
 	// Since golang maps are unordered, we sort the keys in the map
 	// to get a consistent written format to the writer. This maintains
 	// the consistency when we try to calculate hash for a datapath after
@@ -696,10 +700,6 @@ func (h *HeaderfileWriter) WriteNodeConfig(w io.Writer, cfg *datapath.LocalNodeC
 		// to the writer.
 		encodedConfig := base64.StdEncoding.EncodeToString(jsonBytes)
 		fmt.Fprintf(fw, "\n// JSON_OUTPUT: %s\n", encodedConfig)
-	}
-
-	if err := GoogleDefines(cDefinesMap, option.Config, features.GlobalConfig); err != nil {
-		return fmt.Errorf("set Google feature defines: %v", err)
 	}
 
 	return fw.Flush()

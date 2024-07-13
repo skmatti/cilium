@@ -14,7 +14,7 @@
  * the infrastructure for the remote endpoint.
  */
 static __always_inline bool
-nested_remote_endpoint_v4(__u32 *tunnel_endpoint, __u16 *dst_sec_identity, __u8 *encrypt_key)
+nested_remote_endpoint_v4(__u32 *tunnel_endpoint, __u32 *dst_sec_identity, __u8 *encrypt_key)
 {
 	struct remote_endpoint_info *infra_info;
 
@@ -33,6 +33,9 @@ nested_remote_endpoint_v4(__u32 *tunnel_endpoint, __u16 *dst_sec_identity, __u8 
 	// TODO: determine whether this is relevant.
 	*encrypt_key = get_min_encrypt_key(infra_info->key);
 
-	return CTX_ACT_OK
+	return CTX_ACT_OK;
 }
+
 #endif /* ENABLE_GOOGLE_VPC */
+
+#endif /* __LIB_GOOGLE_VPC_H_ */
