@@ -14,6 +14,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/yaml"
 
+	"github.com/cilium/cilium/pkg/gke/features"
+	multitenancyconfig "github.com/cilium/cilium/pkg/gke/multitenancy/config"
 	"github.com/cilium/cilium/pkg/gke/util"
 	k8sconst "github.com/cilium/cilium/pkg/k8s/apis/cilium.io"
 	k8sconstv2 "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2"
@@ -393,7 +395,7 @@ func constructV1CRD(
 	name string,
 	template apiextensionsv1.CustomResourceDefinition,
 ) *apiextensionsv1.CustomResourceDefinition {
-	return &apiextensionsv1.CustomResourceDefinition{
+	crd := &apiextensionsv1.CustomResourceDefinition{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: name,
 			Labels: map[string]string{
@@ -414,6 +416,12 @@ func constructV1CRD(
 			Conversion: template.Spec.Conversion, // conversion strategy is needed to support several versions of a same CRD
 		},
 	}
+
+	if features.GlobalConfig.EnableGKEMultiTenancy {
+		crd.Labels[multitenancyconfig.TenantAccessControlLabel] = multitenancyconfig.TenantAccessControlAllTenantsVisibility
+	}
+
+	return crd
 }
 
 // RegisterCRDs registers all CRDs with the K8s apiserver.

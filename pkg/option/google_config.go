@@ -47,4 +47,14 @@ const (
 
 	// EnableTrafficSteering enables google traffic steering for the host.
 	EnableTrafficSteering = "enable-traffic-steering"
+
+	// EnableGKEMultiTenancy is used to enable GKE Multi-tenancy mode.
+	//
+	// Ref. http://go/dpv2-with-gke-multi-tenancy
+	//
+	// NOTE: The flag name is deliberately obscured to "enable-multi-project" to
+	// avoid directly revealing the GKE Multi-tenancy feature to all customers
+	// during startup logs, even those not using it. This decision was made in
+	// consultation with the wider GKE Multi-tenancy team.
+	EnableGKEMultiTenancy = "enable-multi-project"
 )

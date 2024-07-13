@@ -51,6 +51,10 @@ type Config struct {
 	// DevicePrefixesToExclude excludes google-managed devices with the provided prefixes.
 	DevicePrefixesToExclude []string
 	PopulateGCENICInfo      bool
+	// EnableGKEMultiTenancy is used to enable GKE Multi-tenancy mode.
+	//
+	// Ref. http://go/dpv2-with-gke-multi-tenancy
+	EnableGKEMultiTenancy bool `mapstructure:"enable-multi-project"`
 }
 
 var defaultConfig = Config{
@@ -61,6 +65,7 @@ var defaultConfig = Config{
 	DevicePrefixesToExclude:     []string{},
 	PopulateGCENICInfo:          false,
 	EnableMultiPoolIPAM:         false,
+	EnableGKEMultiTenancy:       false,
 }
 
 func (cfg Config) Flags(flags *pflag.FlagSet) {
@@ -86,4 +91,11 @@ func (cfg Config) Flags(flags *pflag.FlagSet) {
 
 	flags.Bool(option.PopulateGCENICInfo, defaultConfig.PopulateGCENICInfo, "Populate GCE NIC information as node annotation.")
 	flags.MarkHidden(option.PopulateGCENICInfo)
+
+	// The lack of clarity in the description of this flag is deliberate. Aim is
+	// to avoid directly revealing the GKE Multi-tenancy feature to all
+	// customers during startup logs, even those not using it. This decision was
+	// made in consultation with the wider GKE Multi-tenancy team.
+	flags.Bool(option.EnableGKEMultiTenancy, defaultConfig.EnableGKEMultiTenancy, "Enable multi-project support for Cilium.")
+	flags.MarkHidden(option.EnableGKEMultiTenancy)
 }

@@ -6,6 +6,7 @@ import (
 	fqdnv1alpha1 "github.com/cilium/cilium/pkg/gke/apis/fqdnnetworkpolicy/v1alpha1"
 	fqdnversioned "github.com/cilium/cilium/pkg/gke/client/fqdnnetworkpolicy/clientset/versioned"
 	"github.com/cilium/cilium/pkg/gke/client/networklogging/clientset/versioned"
+	"github.com/cilium/cilium/pkg/gke/features"
 	gkeflow "github.com/cilium/cilium/pkg/gke/flow"
 	"github.com/cilium/cilium/pkg/gke/fqdnnetworkpolicy"
 	"github.com/cilium/cilium/pkg/gke/networklogging/controller"
@@ -56,6 +57,7 @@ type netpolLoggingParams struct {
 
 	Lifecycle    cell.Lifecycle
 	DaemonConfig *option.DaemonConfig
+	Features     features.Config
 	Clientset    k8sClient.Clientset
 	NLClient     *versioned.Clientset
 	FlowPlugin   gkeflow.FlowPlugin
@@ -83,6 +85,9 @@ func netpolLoggingClient(clientset k8sClient.Clientset) (*versioned.Clientset, e
 }
 
 func registerNetpolLogging(params netpolLoggingParams) {
+	if params.Features.EnableGKEMultiTenancy {
+		return
+	}
 	if !params.DaemonConfig.EnableHubble {
 		return
 	}

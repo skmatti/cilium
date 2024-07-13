@@ -8,6 +8,7 @@ import (
 	"github.com/cilium/cilium/pkg/gke/features"
 	"github.com/cilium/cilium/pkg/gke/fqdnnetworkpolicy"
 	"github.com/cilium/cilium/pkg/gke/imds"
+	"github.com/cilium/cilium/pkg/gke/multitenancy"
 	"github.com/cilium/cilium/pkg/gke/networklogging"
 	"github.com/cilium/cilium/pkg/gke/nodefirewall/types"
 	"github.com/cilium/cilium/pkg/gke/redirectservice"
@@ -56,6 +57,8 @@ var googleCell = cell.Module(
 	servicesteering.Cell,
 
 	imds.Cell,
+
+	multitenancy.Cell,
 )
 
 // Converts Daemon promise into a PolicyManager promise

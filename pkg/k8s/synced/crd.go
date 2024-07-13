@@ -18,6 +18,7 @@ import (
 	"k8s.io/client-go/tools/cache"
 
 	"github.com/cilium/cilium/pkg/gke/features"
+	multitenancyconfig "github.com/cilium/cilium/pkg/gke/multitenancy/config"
 	v2 "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2"
 	v2alpha1 "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2alpha1"
 	"github.com/cilium/cilium/pkg/k8s/client"
@@ -36,7 +37,19 @@ func CRDResourceName(crd string) string {
 	return "crd:" + crd
 }
 
+func CRDResourceNames(crds []string) []string {
+	result := []string{}
+	for _, crd := range crds {
+		result = append(result, CRDResourceName(crd))
+	}
+	return result
+}
+
 func agentCRDResourceNames() []string {
+	if features.GlobalConfig.EnableGKEMultiTenancy {
+		return CRDResourceNames(multitenancyconfig.SupportedCRDs())
+	}
+
 	result := []string{
 		CRDResourceName(v2.CNName),
 		CRDResourceName(v2.CIDName),
@@ -117,6 +130,10 @@ func ClusterMeshAPIServerResourceNames() []string {
 // AllCiliumCRDResourceNames returns a list of all Cilium CRD resource names
 // that the cilium operator or testsuite may register.
 func AllCiliumCRDResourceNames() []string {
+	if features.GlobalConfig.EnableGKEMultiTenancy {
+		return CRDResourceNames(multitenancyconfig.SupportedCRDs())
+	}
+
 	return append(
 		AgentCRDResourceNames(),
 		CRDResourceName(v2.CEWName),

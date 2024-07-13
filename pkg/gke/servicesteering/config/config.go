@@ -7,7 +7,7 @@ import (
 )
 
 const (
-	enableFlag         = "enable-google-service-steering"
+	EnableFlag         = "enable-google-service-steering"
 	flowMapEntriesFlag = "bpf-sfc-flow-map-max"
 )
 
@@ -29,8 +29,8 @@ var defaultConfig = Config{
 }
 
 func (cfg Config) Flags(flags *pflag.FlagSet) {
-	flags.Bool(enableFlag, defaultConfig.EnableGoogleServiceSteering, "Enable Service Steering support")
-	flags.MarkHidden(enableFlag)
+	flags.Bool(EnableFlag, defaultConfig.EnableGoogleServiceSteering, "Enable Service Steering support")
+	flags.MarkHidden(EnableFlag)
 	flags.Int(flowMapEntriesFlag, defaultConfig.FlowMapEntries, "Maximum number of entries in the sfcflow BPF map")
 	flags.MarkHidden(flowMapEntriesFlag)
 }
