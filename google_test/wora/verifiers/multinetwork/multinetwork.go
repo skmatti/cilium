@@ -8,7 +8,6 @@ import (
 	"net"
 	"os"
 	"path/filepath"
-	"strings"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -66,21 +65,23 @@ var _ = Describe("Verifiers/multinetwork", Label("multinetwork"), Ordered, func(
 		_, err = os.Stat(hercEnvJsonFilePath)
 		if errors.Is(err, os.ErrNotExist) {
 			additionalNodeNetworkInfo = &artifact.NodeNetworkInfo{
-				NetworkName:             "additional-network-2",
+				NetworkName:             "placeholder-additional-network",
 				Netmask:                 "255.255.248.0",
 				GatewayServer:           "10.250.79.254",
 				GatewayServerSubnetMask: "21",
 			}
 			nodeInterfaceName = "vxlan0"
+			klog.Info("Running on ABM on GCE.")
 		} else {
 			Expect(err).NotTo(HaveOccurred())
 			Expect(filepath.IsAbs(hercEnvJsonFilePath)).To(BeTrue())
 			additionalNodeNetworkInfo, err = artifact.ExtractNodeNetworkInfo(hercEnvJsonFilePath)
 			Expect(err).NotTo(HaveOccurred())
 			nodeInterfaceName = "ens224"
+			klog.Info("Running on ABM on ATL lab.")
 		}
 		s, _ := json.MarshalIndent(additionalNodeNetworkInfo, "", "\t")
-		networkConfigLogMessage := fmt.Sprintf("Running multinetwork test on ABM on GCE cluster, use following info to create network:\n%s\nnodeInterfaceName: %s", s, nodeInterfaceName)
+		networkConfigLogMessage := fmt.Sprintf("Running multinetwork test, use following info to create network:\n%s\nnodeInterfaceName: %s", s, nodeInterfaceName)
 		klog.Info(networkConfigLogMessage)
 
 		prefixLength, _ := net.IPMask(net.ParseIP(additionalNodeNetworkInfo.Netmask).To4()).Size()
@@ -179,9 +180,8 @@ func createWorkloadPodOnEachNode(c client.Interface, ctx context.Context, additi
 		klog.Error("Failed to list nodes: %v", err)
 		return err
 	}
-	for _, node := range allNodes.Items {
-		nodeNameSplitted := strings.Split(node.Name, "--")
-		podName := fmt.Sprintf("multinetworkpod-%s", nodeNameSplitted[0])
+	for i, node := range allNodes.Items {
+		podName := fmt.Sprintf("multinetworkpod-%d", i)
 		_, err := network.CreateMultiNetworkPodOnNode(ctx, c, testNamespace, podName, node.Name, map[string]string{additionalNetworkName: podInterfaceName})
 		if err != nil {
 			klog.Error("failed to created pod(%s)", podName, err)
