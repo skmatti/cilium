@@ -35,6 +35,7 @@
 #include "lib/drop.h"
 #include "lib/identity.h"
 #include "lib/nodeport.h"
+#include "lib/google_vpc.h"
 
 #ifdef ENABLE_VTEP
 #include "lib/arp.h"
@@ -85,12 +86,19 @@ static __always_inline int handle_ipv6(struct __ctx_buff *ctx,
 
 	decrypted = ((ctx->mark & MARK_MAGIC_HOST_MASK) == MARK_MAGIC_DECRYPT);
 	if (decrypted) {
-		if (info)
+		if (info) {
 			*identity = key.tunnel_id = info->sec_label;
+#ifdef ENABLE_GOOGLE_VPC
+			set_gooogle_vpc_identity(identity, info);
+#endif /* ENABLE_GOOGLE_VPC */
+		}
 	} else {
 		if (unlikely(ctx_get_tunnel_key(ctx, &key, sizeof(key), 0) < 0))
 			return DROP_NO_TUNNEL_KEY;
 		*identity = key.tunnel_id;
+#ifdef ENABLE_GOOGLE_VPC
+		set_gooogle_vpc_identity(identity, info);
+#endif /* ENABLE_GOOGLE_VPC */
 
 		/* Any node encapsulating will map any HOST_ID source to be
 		 * presented as REMOTE_NODE_ID, therefore any attempt to signal
@@ -252,12 +260,20 @@ static __always_inline int handle_ipv4(struct __ctx_buff *ctx, __u32 *identity)
 	decrypted = ((ctx->mark & MARK_MAGIC_HOST_MASK) == MARK_MAGIC_DECRYPT);
 	/* If packets are decrypted the key has already been pushed into metadata. */
 	if (decrypted) {
-		if (info)
+		if (info) {
+			// TODO(b/354739481): use correct VNI for key.tunnel_id
 			*identity = key.tunnel_id = info->sec_label;
+#ifdef ENABLE_GOOGLE_VPC
+			set_gooogle_vpc_identity(identity, info);
+#endif /* ENABLE_GOOGLE_VPC */
+		}
 	} else {
 		if (unlikely(ctx_get_tunnel_key(ctx, &key, sizeof(key), 0) < 0))
 			return DROP_NO_TUNNEL_KEY;
 		*identity = key.tunnel_id;
+#ifdef ENABLE_GOOGLE_VPC
+		set_gooogle_vpc_identity(identity, info);
+#endif /* ENABLE_GOOGLE_VPC */
 
 		if (*identity == HOST_ID)
 			return DROP_INVALID_IDENTITY;
@@ -317,6 +333,13 @@ not_esp:
 
 	/* Lookup IPv4 address in list of local endpoints */
 	ep = lookup_ip4_endpoint(ip4);
+#ifdef ENABLE_GOOGLE_VPC
+	if (!ep) {
+		info = lookup_ip4_remote_endpoint(ip4->daddr);
+		if (info && info->tunnel_endpoint)
+			ep = __lookup_ip4_endpoint(info->tunnel_endpoint);
+	}
+#endif /* ENABLE_GOOGLE_VPC */
 	if (ep) {
 		/* If identity is empty, try to look it up from ipcache. Because if the packet
 		 * is coming into the tunnel from a windows node, it doesn't have identity info
