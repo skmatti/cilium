@@ -20,6 +20,9 @@ trap log_finish exit
 
 set -x
 
+# shellcheck disable=SC1091
+source "$(dirname -- "${BASH_SOURCE[0]}")"/remote_execution.sh
+
 # Derive semi-unique id for rookery containing test application.
 TEST_RUN_ID=${KUBETEST2_RUN_ID:-unset-id}-${BASHPID:?}
 
@@ -54,6 +57,16 @@ function verify_cilium_overridden {
   done
 }
 
+function enable_additional_vxlans {
+  if grep -q "wora-sut-gdch-abm-gce" "${ARTIFACTS}/.kubetest2-tailorbird/tailorbird-request.yaml"; then
+    TOOL_IMAGE=us-docker.pkg.dev/anthos-networking-ci/apps/enable-additional-vxlan:latest
+    remote_execution_from_gce_bootstrapper "gcloud auth activate-service-account --key-file=bootstrapper-sa.json"
+    remote_execution_from_gce_bootstrapper "gcloud auth configure-docker us-docker.pkg.dev --quiet"
+    remote_execution_from_gce_bootstrapper "docker run --pull=always -v \${PWD}:/workspace ${TOOL_IMAGE} enable-additional-vxlan --new-vxlan-name vxlan1 --new-vxlan-ID 43 --new-vxlan-network 10.100.0.0/21"
+    remote_execution_from_gce_bootstrapper "docker run --pull=always -v \${PWD}:/workspace ${TOOL_IMAGE} enable-additional-vxlan --new-vxlan-name vxlan2 --new-vxlan-ID 44 --new-vxlan-network 10.150.0.0/21"
+  fi
+}
+
 # Revert KUBECONFIG change made by kt2-tb, to avoid control plane login to mess
 # up SUT cluster's kubeconfig.
 if [[ -n "${OLD_KUBECONFIG}" ]] && [[ -n "${ARTIFACTS}" ]] && [[ "${KUBECONFIG#"${ARTIFACTS}"}" != "${KUBECONFIG}" ]]; then
@@ -62,6 +75,10 @@ fi
 
 if [[ -n "${KUBECONFIG}" ]] && [[ -n "${CILIUM_IMAGE_WITH_TAG:-}" ]] && [[ "${DISABLE_UPGRADE_VERIFICATION}" != "true" ]]; then
   verify_cilium_overridden "${CILIUM_IMAGE_WITH_TAG}"
+fi
+
+if [ -e "${ARTIFACTS}/.kubetest2-tailorbird/tailorbird-request.yaml" ]; then
+  enable_additional_vxlans
 fi
 
 # This is used to set the cluster artifacts env var.
