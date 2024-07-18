@@ -1,0 +1,17 @@
+apiVersion: v1
+data:
+  enable-google-multi-nic-host-firewall: "true"
+  enable-host-firewall: "true"
+  google-multi-nic-host-mapping: 128=mgmt-network
+  enable-google-vpc: "true"
+  tunnel: geneve
+  auto-direct-node-routes: "false"
+  auto-direct-node-routes-ipv4: "false"
+  auto-direct-node-routes-ipv6: "false"
+  enable-flat-ipv4: "false"
+  bpf-lb-dsr-dispatch: "geneve"
+  disable-ipv6-tunnel: "false"
+kind: ConfigMap
+metadata:
+  name: cilium-config
+  namespace: kube-system

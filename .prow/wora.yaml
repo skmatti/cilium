@@ -62,6 +62,39 @@ presubmits:
       - runner.sh
       args:
       - ./google_test/wora/prow_entrypoint.sh
+- name: wora-gdch-abm-gce-lancer_cilium
+  trigger: /test wora-gdch-abm-gce-lancer$
+  rerun_command: /test wora-gdch-abm-gce-lancer
+  always_run: false
+  decorate: true
+  decoration_config:
+    timeout: 240m
+  labels:
+    preset-cookie-file: "true"
+    preset-cookie-file-env: "true"
+    preset-service-account: "true"
+    preset-dind-enabled: "true"
+    preset-k8s-ssh: "true"
+  path_alias: gke-internal.googlesource.com/third_party/cilium
+  spec:
+    containers:
+    - image: gcr.io/tailorbird/kubetest2-tailorbird:latest
+      securityContext:
+        # needed for docker-in-docker
+        privileged: true
+      env:
+      - name: CILIUM_GITREF
+        value: HEAD
+      # The path for the PATCH_CONTENT_DIR is from the script dir of
+      # prow_entrypoint.sh.
+      - name: PATCH_CONTENT_DIR
+        value: addon/patch_content/abm-1.29.100-gke.76/overlays/gdch-lancer
+      - name: TBCONFIG
+        value: sut-gdch-abm-gce.yaml
+      command:
+      - runner.sh
+      args:
+      - ./google_test/wora/prow_entrypoint.sh
 - name: wora-conformance-abm-gce_cilium
   trigger: /test wora-conformance-abm-gce$
   rerun_command: /test wora-conformance-abm-gce
