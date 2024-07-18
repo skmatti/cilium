@@ -88,7 +88,7 @@ func waitForVMRuntimePreflightcheckSuccess(ctx context.Context, client *rest.RES
 		if err != nil {
 			return false, err
 		}
-		if result.Status.PreflightCheckSummary.PreflightCheckPassed == nil || !*result.Status.PreflightCheckSummary.PreflightCheckPassed {
+		if result.Status.PreflightCheckSummary == nil || result.Status.PreflightCheckSummary.PreflightCheckPassed == nil || !*result.Status.PreflightCheckSummary.PreflightCheckPassed {
 			klog.Infoln(fmt.Sprintf("PreflightcheckSummary is: %v.", result.Status.PreflightCheckSummary))
 			return false, nil
 		}

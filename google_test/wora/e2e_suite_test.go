@@ -8,9 +8,11 @@ import (
 
 	_ "gke-internal.googlesource.com/third_party/cilium/google_test/wora/e2e/verifiers/1n-smoke"
 	_ "gke-internal.googlesource.com/third_party/cilium/google_test/wora/e2e/verifiers/kubevirt"
+	_ "gke-internal.googlesource.com/third_party/cilium/google_test/wora/e2e/verifiers/l3vm"
 	_ "gke-internal.googlesource.com/third_party/cilium/google_test/wora/e2e/verifiers/multinetwork"
 	_ "gke-internal.googlesource.com/third_party/cilium/google_test/wora/e2e/verifiers/sample"
 	_ "gke-internal.googlesource.com/third_party/cilium/google_test/wora/e2e/verifiers/tailcall"
+	_ "gke-internal.googlesource.com/third_party/cilium/google_test/wora/e2e/verifiers/vpc"
 )
 
 func TestE2E(t *testing.T) {

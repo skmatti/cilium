@@ -4,7 +4,7 @@ metadata:
   name: wora-sut-gdch-abm-gce
   namespace: tailorbird-users
 spec:
-  ttlSeconds: 86400 # 1 day
+  ttlSeconds: 7200 # 2 hr
   knests:
   - apiVersion: sut.tailorbird.io/v1alpha1
     kind: Knest

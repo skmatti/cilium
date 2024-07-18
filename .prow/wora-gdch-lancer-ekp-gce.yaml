@@ -82,7 +82,7 @@ presubmits:
 - name: wora-networking-granular-abm-gce-lancer_cilium
   trigger: /test wora-networking-granular-abm-gce-lancer$
   rerun_command: /test wora-networking-granular-abm-gce-lancer
-  always_run: false
+  # always_run: true
   decorate: true
   decoration_config:
     timeout: 240m
@@ -92,6 +92,7 @@ presubmits:
     preset-service-account: "true"
     preset-dind-enabled: "true"
     preset-k8s-ssh: "true"
+    # prow.k8s.io/gerrit-report-label: "Verified"
   path_alias: gke-internal.googlesource.com/third_party/cilium
   spec:
     containers:
@@ -113,6 +114,127 @@ presubmits:
         value: sut-gdch-abm-gce.yaml
       - name: WORA_CONFIG
         value: networking_granular-gdch-abm-gce_test.yaml
+      - name: WORA_DOCKERFILE_DIR
+        value: conformance
+      command:
+      - runner.sh
+      args:
+      - ./google_test/wora/prow_entrypoint.sh
+- name: wora-perimeter-smoke_cilium
+  trigger: /test wora-perimeter-smoke$
+  rerun_command: /test wora-perimeter-smoke
+  always_run: false
+  decorate: true
+  decoration_config:
+    timeout: 240m
+  labels:
+    preset-cookie-file: "true"
+    preset-cookie-file-env: "true"
+    preset-service-account: "true"
+    preset-dind-enabled: "true"
+    preset-k8s-ssh: "true"
+  path_alias: gke-internal.googlesource.com/third_party/cilium
+  spec:
+    containers:
+    - image: gcr.io/tailorbird/kubetest2-tailorbird:latest
+      resources:
+        requests:
+          ephemeral-storage: 70Gi
+        limits:
+          ephemeral-storage: 100Gi
+      securityContext:
+        # needed for docker-in-docker
+        privileged: true
+      env:
+      - name: CILIUM_GITREF
+        value: HEAD
+      # The path for the PATCH_CONTENT_DIR is from the script dir of
+      # prow_entrypoint.sh.
+      - name: PATCH_CONTENT_DIR
+        value: addon/patch_content/abm-1.29.100-gke.76/overlays/gdch-perimeter
+      - name: TBCONFIG
+        value: sut-gdch-abm-gce.yaml
+      - name: WORA_CONFIG
+        value: integration-gdch-perimeter_test.yaml
+      command:
+      - runner.sh
+      args:
+      - ./google_test/wora/prow_entrypoint.sh
+- name: wora-perimeter-k8s-conformance_cilium
+  trigger: /test wora-perimeter-k8s-conformance$
+  rerun_command: /test wora-perimeter-k8s-conformance
+  always_run: false
+  decorate: true
+  decoration_config:
+    timeout: 240m
+  labels:
+    preset-cookie-file: "true"
+    preset-cookie-file-env: "true"
+    preset-service-account: "true"
+    preset-dind-enabled: "true"
+    preset-k8s-ssh: "true"
+  path_alias: gke-internal.googlesource.com/third_party/cilium
+  spec:
+    containers:
+    - image: gcr.io/tailorbird/kubetest2-tailorbird:latest
+      resources:
+        requests:
+          ephemeral-storage: 70Gi
+        limits:
+          ephemeral-storage: 100Gi
+      securityContext:
+        # needed for docker-in-docker
+        privileged: true
+      env:
+      - name: CILIUM_GITREF
+        value: HEAD
+      - name: PATCH_CONTENT_DIR
+        value: addon/patch_content/abm-1.29.100-gke.76/overlays/gdch-perimeter
+      - name: TBCONFIG
+        value: sut-gdch-abm-gce.yaml
+      - name: WORA_CONFIG
+        value: perimeter_conformance_test.yaml
+      - name: WORA_DOCKERFILE_DIR
+        value: conformance
+      command:
+      - runner.sh
+      args:
+      - ./google_test/wora/prow_entrypoint.sh
+- name: wora-perimeter-k8s-networking_cilium
+  trigger: /test wora-perimeter-k8s-networking$
+  rerun_command: /test wora-perimeter-k8s-networking
+  # always_run: true
+  decorate: true
+  decoration_config:
+    timeout: 240m
+  labels:
+    preset-cookie-file: "true"
+    preset-cookie-file-env: "true"
+    preset-service-account: "true"
+    preset-dind-enabled: "true"
+    preset-k8s-ssh: "true"
+    # prow.k8s.io/gerrit-report-label: "Verified"
+  path_alias: gke-internal.googlesource.com/third_party/cilium
+  spec:
+    containers:
+    - image: gcr.io/tailorbird/kubetest2-tailorbird:latest
+      resources:
+        requests:
+          ephemeral-storage: 70Gi
+        limits:
+          ephemeral-storage: 100Gi
+      securityContext:
+        # needed for docker-in-docker
+        privileged: true
+      env:
+      - name: CILIUM_GITREF
+        value: HEAD
+      - name: PATCH_CONTENT_DIR
+        value: addon/patch_content/abm-1.29.100-gke.76/overlays/gdch-perimeter
+      - name: TBCONFIG
+        value: sut-gdch-abm-gce.yaml
+      - name: WORA_CONFIG
+        value: perimeter_networking_granular_test.yaml
       - name: WORA_DOCKERFILE_DIR
         value: conformance
       command:

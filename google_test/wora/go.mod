@@ -5,12 +5,15 @@ go 1.22.0
 require (
 	github.com/GoogleCloudPlatform/gke-networking-api v0.1.2-0.20240806213139-419c796010b0
 	github.com/google/goexpect v0.0.0-20210430020637-ab937bf7fd6f
+	github.com/google/gopacket v1.1.19
+	github.com/hashicorp/go-multierror v1.1.1
 	github.com/onsi/ginkgo/v2 v2.19.0
 	github.com/onsi/gomega v1.33.1
 	gke-internal.googlesource.com/anthos-networking/test-infra v0.0.0-00010101000000-000000000000
 	k8s.io/api v0.30.3
 	k8s.io/apimachinery v0.30.3
 	k8s.io/client-go v0.30.3
+	k8s.io/cloud-provider-gcp/crd v0.0.0-20240613212235-9400b6ea07da
 	k8s.io/kubectl v0.30.3
 	k8s.io/utils v0.0.0-20240711033017-18e509b52bc8
 	kubevirt.io/api v1.3.0
@@ -42,7 +45,6 @@ require (
 	github.com/gorilla/websocket v1.5.1 // indirect
 	github.com/grpc-ecosystem/go-grpc-middleware v1.4.0 // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
-	github.com/hashicorp/go-multierror v1.1.1 // indirect
 	github.com/k8snetworkplumbingwg/network-attachment-definition-client v0.0.0-20191119172530-79f836b90111 // indirect
 	github.com/klauspost/compress v1.17.9 // indirect
 	github.com/kubernetes-csi/external-snapshotter/client/v4 v4.2.0 // indirect
@@ -89,7 +91,7 @@ require (
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/golang/protobuf v1.5.4 // indirect
 	github.com/google/gnostic-models v0.6.9-0.20230804172637-c7be7c783f49 // indirect
-	github.com/google/go-cmp v0.6.0 // indirect
+	github.com/google/go-cmp v0.6.0
 	github.com/google/gofuzz v1.2.0 // indirect
 	github.com/google/pprof v0.0.0-20240424215950-a892ee059fd6 // indirect
 	github.com/google/uuid v1.6.0 // indirect
@@ -132,9 +134,15 @@ replace (
 	gke-internal.googlesource.com/onprem-lab-automation/lib/hercules/public => gke-internal.googlesource.com/onprem-lab-automation.git/lib/hercules/public v0.0.0-20240726064312-44402fcf3a74
 	gke-internal.googlesource.com/onprem-lab-automation/lib/shared => gke-internal.googlesource.com/onprem-lab-automation.git/lib/shared v0.0.0-20240729132814-5a038fd85a76
 	gke-internal.googlesource.com/syllogi/sanitized-klog => gke-internal.googlesource.com/syllogi/sanitized-klog.git v0.0.11
+	gke-internal.googlesource.com/third_party/cilium/google_test/wora/e2e/pkg/test/errorring => ./pkg/test/errorring
+	gke-internal.googlesource.com/third_party/cilium/google_test/wora/e2e/pkg/test/scheme => ./pkg/test/scheme
+	gke-internal.googlesource.com/third_party/cilium/google_test/wora/e2e/pkg/test/utils => ./pkg/test/utils
+	gke-internal.googlesource.com/third_party/cilium/google_test/wora/e2e/pkg/test/wait => ./pkg/test/wait
 	gke-internal.googlesource.com/third_party/cilium/google_test/wora/e2e/verifiers/1n-smoke => ./verifiers/1n-smoke
 	gke-internal.googlesource.com/third_party/cilium/google_test/wora/e2e/verifiers/kubevirt => ./verifiers/kubevirt
+	gke-internal.googlesource.com/third_party/cilium/google_test/wora/e2e/verifiers/l3vm => ./verifiers/l3vm
 	gke-internal.googlesource.com/third_party/cilium/google_test/wora/e2e/verifiers/multinetwork => ./verifiers/multinetwork
 	gke-internal.googlesource.com/third_party/cilium/google_test/wora/e2e/verifiers/sample => ./verifiers/sample
+	gke-internal.googlesource.com/third_party/cilium/google_test/wora/e2e/verifiers/vpc => ./verifiers/vpc
 	k8s.io/kube-openapi => k8s.io/kube-openapi v0.0.0-20240726031636-6f6746feab9c
 )
