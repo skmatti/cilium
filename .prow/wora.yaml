@@ -239,6 +239,41 @@ presubmits:
       - runner.sh
       args:
       - ./google_test/wora/prow_entrypoint.sh
+- name: wora-networking-granular-abm-atl_cilium
+  trigger: /test wora-networking-granular-abm-atl$
+  rerun_command: /test wora-networking-granular-abm-atl
+  always_run: false
+  decorate: true
+  decoration_config:
+    timeout: 240m
+  labels:
+    preset-cookie-file: "true"
+    preset-cookie-file-env: "true"
+    preset-service-account: "true"
+    preset-dind-enabled: "true"
+    preset-k8s-ssh: "true"
+  path_alias: gke-internal.googlesource.com/third_party/cilium
+  spec:
+    containers:
+    - image: gcr.io/tailorbird/kubetest2-tailorbird:latest
+      securityContext:
+        # needed for docker-in-docker
+        privileged: true
+      env:
+      - name: CILIUM_GITREF
+        value: HEAD
+      - name: TBCONFIG
+        value: sut-abm-atl.yaml
+      - name: WORA_CONFIG
+        value: networking_granular_test.yaml
+      - name: WORA_CONTROL_PLANE
+        value: atl
+      - name: WORA_DOCKERFILE_DIR
+        value: conformance
+      command:
+      - runner.sh
+      args:
+      - ./google_test/wora/prow_entrypoint.sh
 - name: wora-abm-mtv_cilium
   cluster: build-onprem-mtv
   trigger: /test wora-abm-mtv$
@@ -301,6 +336,41 @@ presubmits:
         value: sut-abm-mtv.yaml
       - name: WORA_CONFIG
         value: conformance_test.yaml
+      - name: WORA_CONTROL_PLANE
+        value: mtv
+      - name: WORA_DOCKERFILE_DIR
+        value: conformance
+      command:
+      - runner.sh
+      args:
+      - ./google_test/wora/prow_entrypoint.sh
+- name: wora-networking-granular-abm-mtv_cilium
+  trigger: /test wora-networking-granular-abm-mtv$
+  rerun_command: /test wora-networking-granular-abm-mtv
+  always_run: false
+  decorate: true
+  decoration_config:
+    timeout: 240m
+  labels:
+    preset-cookie-file: "true"
+    preset-cookie-file-env: "true"
+    preset-service-account: "true"
+    preset-dind-enabled: "true"
+    preset-k8s-ssh: "true"
+  path_alias: gke-internal.googlesource.com/third_party/cilium
+  spec:
+    containers:
+    - image: gcr.io/tailorbird/kubetest2-tailorbird:latest
+      securityContext:
+        # needed for docker-in-docker
+        privileged: true
+      env:
+      - name: CILIUM_GITREF
+        value: HEAD
+      - name: TBCONFIG
+        value: sut-abm-mtv.yaml
+      - name: WORA_CONFIG
+        value: networking_granular_test.yaml
       - name: WORA_CONTROL_PLANE
         value: mtv
       - name: WORA_DOCKERFILE_DIR
