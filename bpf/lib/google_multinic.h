@@ -204,7 +204,7 @@ multinic_redirect_ipv4(struct __ctx_buff *ctx)
 	// is exepcted to get tunneld to the remote host.
 	if (!ep) {
 		info = lookup_ip4_remote_endpoint(ip4->daddr);
-		if (info && info->tunnel_endpoint != 0) {
+		if (info && info->tunnel_endpoint != 0 && !identity_is_remote_node(info->sec_label)) {
 			return redirect(CILIUM_IFINDEX, 0);
 		}
 	}
