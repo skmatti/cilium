@@ -3,18 +3,22 @@ module gke-internal.googlesource.com/third_party/cilium/google_test/wora/e2e
 go 1.22.0
 
 require (
-	github.com/onsi/ginkgo/v2 v2.16.0
-	github.com/onsi/gomega v1.31.1
+	github.com/onsi/ginkgo/v2 v2.17.1
+	github.com/onsi/gomega v1.32.0
 	gke-internal.googlesource.com/anthos-networking/test-infra v0.0.0-00010101000000-000000000000
-	k8s.io/api v0.30.0
-	k8s.io/apimachinery v0.30.0
-	k8s.io/client-go v0.30.0
-	k8s.io/utils v0.0.0-20240502163921-fe8a2dddb1d0
+	k8s.io/apimachinery v0.30.3
+	kubevirt.io/api v1.3.0
+	kubevirt.io/containerized-data-importer-api v1.59.0
 )
 
 require (
 	github.com/cenkalti/backoff/v4 v4.2.1 // indirect
-	google.golang.org/appengine v1.6.8 // indirect
+	github.com/evanphx/json-patch/v5 v5.9.0 // indirect
+	github.com/openshift/api v0.0.0-20230503133300-8bbcb7ca7183 // indirect
+	github.com/openshift/custom-resource-status v1.1.2 // indirect
+	github.com/pkg/errors v0.9.1 // indirect
+	k8s.io/apiextensions-apiserver v0.30.1 // indirect
+	kubevirt.io/controller-lifecycle-operator-sdk/api v0.0.0-20220329064328-f3cc58c6ed90 // indirect
 )
 
 require (
@@ -43,28 +47,32 @@ require (
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.2 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
-	github.com/prometheus/client_golang v1.19.0 // indirect
-	github.com/prometheus/client_model v0.6.0 // indirect
-	github.com/prometheus/common v0.50.0 // indirect
-	github.com/prometheus/procfs v0.13.0 // indirect
+	github.com/prometheus/client_golang v1.19.1 // indirect
+	github.com/prometheus/client_model v0.6.1 // indirect
+	github.com/prometheus/common v0.55.0 // indirect
+	github.com/prometheus/procfs v0.15.1 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
 	gke-internal.googlesource.com/syllogi/sanitized-klog v0.0.0-00010101000000-000000000000
-	golang.org/x/net v0.23.0 // indirect
-	golang.org/x/oauth2 v0.18.0 // indirect
-	golang.org/x/sys v0.18.0 // indirect
-	golang.org/x/term v0.18.0 // indirect
-	golang.org/x/text v0.14.0 // indirect
+	golang.org/x/net v0.26.0 // indirect
+	golang.org/x/oauth2 v0.21.0 // indirect
+	golang.org/x/sys v0.21.0 // indirect
+	golang.org/x/term v0.21.0 // indirect
+	golang.org/x/text v0.16.0 // indirect
 	golang.org/x/time v0.5.0 // indirect
-	golang.org/x/tools v0.19.0 // indirect
-	google.golang.org/protobuf v1.34.1 // indirect
+	golang.org/x/tools v0.21.1-0.20240508182429-e35e4ccd0d2d // indirect
+	google.golang.org/protobuf v1.34.2 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
+	k8s.io/api v0.30.3
+	k8s.io/client-go v0.30.3
 	k8s.io/cloud-provider-gcp/crd v0.0.0-20240515211753-278a7c4c5fb6
-	k8s.io/component-base v0.29.2 // indirect
+	k8s.io/component-base v0.30.3 // indirect
 	k8s.io/klog v1.0.0 // indirect
 	k8s.io/klog/v2 v2.120.1 // indirect
 	k8s.io/kube-openapi v0.0.0-20240228011516-70dd3763d340 // indirect
+	k8s.io/utils v0.0.0-20240423183400-0849a56e8f22
+	sigs.k8s.io/controller-runtime v0.18.4
 	sigs.k8s.io/json v0.0.0-20221116044647-bc3834ca7abd // indirect
 	sigs.k8s.io/structured-merge-diff/v4 v4.4.1 // indirect
 	sigs.k8s.io/yaml v1.4.0 // indirect
@@ -73,7 +81,7 @@ require (
 replace (
 	gke-internal.googlesource.com/anthos-networking/test-infra => gke-internal.googlesource.com/anthos-networking.git/test-infra v0.0.0-20240708170551-2457224fdb4c
 	gke-internal.googlesource.com/syllogi/sanitized-klog => gke-internal.googlesource.com/syllogi/sanitized-klog.git v0.0.11
-	gke-internal.googlesource.com/third_party/cilium/google_test/wora/e2e/verifiers/1n-smoke => ./verifiers/1n-smoke
+	gke-internal.googlesource.com/third_party/cilium/google_test/wora/e2e/verifiers/kubevirt => ./verifiers/kubevirt
 	gke-internal.googlesource.com/third_party/cilium/google_test/wora/e2e/verifiers/multinetwork => ./verifiers/multinetwork
 	gke-internal.googlesource.com/third_party/cilium/google_test/wora/e2e/verifiers/sample => ./verifiers/sample
 )
