@@ -6,6 +6,7 @@ FROM "${BASE_IMAGE_REGISTRY}/${BASE_IMAGE_NAME}:${BASE_IMAGE_TAG}" as builder
 
 COPY go.mod go.sum e2e_suite_test.go /tmp/src/
 COPY verifiers/ /tmp/src/verifiers/
+COPY pkg/ /tmp/src/pkg
 
 ARG VENDOR
 
