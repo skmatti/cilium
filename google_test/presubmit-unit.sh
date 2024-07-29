@@ -45,15 +45,15 @@ function auth {
 function provision_vm {
   log "Provisioning GCE VM " $VM_NAME
   trap clean_up_vm EXIT
-  gcloud compute instances create ${VM_NAME} \
+  gcloud beta compute instances create ${VM_NAME} \
+    --max-run-duration 24h \
+    --instance-termination-action=DELETE \
     --image-project=ubuntu-os-cloud \
     --image-family=ubuntu-minimal-2004-lts \
     --machine-type=$MACHINE_TYPE \
     --boot-disk-type=pd-ssd \
     --boot-disk-size=64GB \
-    --metadata-from-file=startup-script=./google_test/countdown-and-self-destruct.sh \
-    --metadata-from-file=user-data=./google_test/unit-test-image/userdata.yaml \
-    --scopes=compute-rw || exit 1
+    --metadata-from-file=user-data=./google_test/unit-test-image/userdata.yaml || exit 1
   wait_for_vm
   wait_for_config_ssh
 }
