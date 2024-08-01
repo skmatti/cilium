@@ -22,5 +22,4 @@ spec:
           image: $(REGISTRY)/cilium/cilium:$(CILIUM_TAG)
         - name: install-cni-binaries
           image: $(REGISTRY)/cilium/cilium:$(CILIUM_TAG)
-        - name: cni-install
-          image: $(REGISTRY)/cilium/cilium:$(CILIUM_TAG)
+

@@ -25,8 +25,6 @@ presubmits:
         value: HEAD
       - name: TBCONFIG
         value: sut-abm-gce.yaml
-      - name: PATCH_CONTENT_DIR
-        value: addon/patch_content/abm-1.29.100-gke.76/overlays/v1.14
       - name: WORA_CONFIG
         value: integration-abm-multinetwork_test.yaml
       command:
@@ -59,7 +57,7 @@ presubmits:
       # The path for the PATCH_CONTENT_DIR is from the script dir of
       # prow_entrypoint.sh.
       - name: PATCH_CONTENT_DIR
-        value: addon/patch_content/abm-1.29.100-gke.76/overlays/gdch-abm
+        value: addon/patch_content/abm-1.30.0-gke.1829/overlays/gdch-abm
       - name: TBCONFIG
         value: sut-gdch-abm-gce.yaml
       command:

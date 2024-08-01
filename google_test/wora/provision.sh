@@ -6,7 +6,6 @@ set -ex
 SCRIPT_DIR=$(dirname -- "${BASH_SOURCE[0]}")
 WORKDIR=${WORKDIR:-${SCRIPT_DIR}}
 GENERATED_CONFIGS_DIR="${GENERATED_CONFIGS_DIR:-"${WORKDIR}/generated_configs"}"
-PATCH_CONTENT_DIR="${PATCH_CONTENT_DIR:-"${SCRIPT_DIR}/addon/patch_content/abm-1.29.100-gke.76/overlays/image-only"}"
 
 if [[ -z ${PROW_JOB_ID:-} ]]; then
   echo "ERROR: must specify PROW_JOB_ID." >&2
@@ -45,6 +44,11 @@ fi
 
 if [[ -z ${DOCKER_IMAGE_TAG:-} ]]; then
   echo "ERROR: must specify DOCKER_IMAGE_TAG, the image tag for docker images other than cilium." >&2
+  exit 1
+fi
+
+if [[ -z ${PATCH_CONTENT_DIR:-} ]]; then
+  echo "ERROR: must specify PATCH_CONTENT_DIR." >&2
   exit 1
 fi
 
