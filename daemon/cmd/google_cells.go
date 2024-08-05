@@ -18,6 +18,7 @@ import (
 	"github.com/cilium/cilium/pkg/gke/pip"
 	"github.com/cilium/cilium/pkg/gke/redirectservice"
 	"github.com/cilium/cilium/pkg/gke/servicesteering"
+	"github.com/cilium/cilium/pkg/gke/strictegresspolicyvalidation"
 	"github.com/cilium/cilium/pkg/gke/subnet"
 	"github.com/cilium/cilium/pkg/gke/trafficsteering"
 	"github.com/cilium/cilium/pkg/gke/trafficsteering/controller"
@@ -69,7 +70,7 @@ var googleCell = cell.Module(
 
 	pip.Cell,
 	servicesteering.Cell,
-
+	strictegresspolicyvalidation.Cell,
 	imds.Cell,
 
 	multitenancy.Cell,

@@ -670,6 +670,13 @@ enum {
 #define DROP_HOST_NOT_READY	-202
 #define DROP_EP_NOT_READY	-203
 #define DROP_NO_EGRESS_IP	-204
+/* Packet is dropped due to no egress routing policy is configured
+ * for this endpoint. This typically means a pod is trying to reach
+ * endpoint outside cluster directly, which requires egress SNAT
+ * using BM node's IP, but it doesn't have "infra-access" label
+ * configured.
+ */
+#define DROP_GOOGLE_NO_EGRESS_POLICY	-241
 
 #define NAT_PUNT_TO_STACK	DROP_NAT_NOT_NEEDED
 #define NAT_NEEDED		CTX_ACT_OK

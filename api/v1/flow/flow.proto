@@ -440,6 +440,11 @@ enum DropReason {
     // An Egress Gateway node matched a packet against an Egress Gateway policy
     // that didn't select a valid Egress IP.
     DROP_NO_EGRESS_IP = 204;
+    // A endpoint tries to access resource outside of its own cluster, while
+    // no egress policy is configured for it. The egress policy can either
+    // be a egress gateway (egressNAT) policy or a infra-access allow policy,
+    // which allows the traffic to be masqueraded using node's IP. 
+    DROP_GOOGLE_NO_EGRESS_POLICY = 241;
 }
 
 enum TrafficDirection {

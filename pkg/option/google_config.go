@@ -66,6 +66,17 @@ const (
 	// EnableTrafficSteering enables google traffic steering for the host.
 	EnableTrafficSteering = "enable-traffic-steering"
 
+	// EnableStrictEgressPolicyValidation enables egress traffic check for infra cluster.
+	EnableStrictEgressPolicyValidation = "enable-strict-egress-policy-validation"
+
+	// StrictEgressPolicyValidationAllowAccessLabels defines the "infra-access" label name,
+	// which we will use to determine if a pod has permission to egress NAT.
+	StrictEgressPolicyValidationAllowAccessLabels = "strict-egress-policy-validation-allow-access-labels"
+
+	// StrictEgressPolicyValidationReconciliationTriggerInterval defines the minimal interval of triggering
+	// strict egress policy validation reconciliation.
+	StrictEgressPolicyValidationReconciliationTriggerInterval = "strict-egress-policy-validation-reconciliation-trigger-interval"
+
 	// EnableFlatIPv4 is the name of the option to enable flat IP for IPv4
 	EnableFlatIPv4 = "enable-flat-ipv4"
 

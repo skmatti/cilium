@@ -23,6 +23,7 @@ import (
 	"github.com/cilium/cilium/pkg/datapath/linux/sysctl"
 	"github.com/cilium/cilium/pkg/datapath/tables"
 	"github.com/cilium/cilium/pkg/datapath/tunnel"
+	"github.com/cilium/cilium/pkg/gke/strictegresspolicyvalidation"
 	"github.com/cilium/cilium/pkg/identity"
 	identityCache "github.com/cilium/cilium/pkg/identity/cache"
 	cilium_api_v2 "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2"
@@ -145,6 +146,8 @@ type Manager struct {
 	reconciliationEventsCount atomic.Uint64
 
 	sysctl sysctl.Sysctl
+
+	sepManager strictegresspolicyvalidation.StrictEgressPolicyManager
 }
 
 type Params struct {
@@ -158,6 +161,8 @@ type Params struct {
 	Nodes             resource.Resource[*cilium_api_v2.CiliumNode]
 	Endpoints         resource.Resource[*k8sTypes.CiliumEndpoint]
 	Sysctl            sysctl.Sysctl
+
+	SEPManager strictegresspolicyvalidation.StrictEgressPolicyManager
 
 	Lifecycle cell.Lifecycle
 }
@@ -213,6 +218,7 @@ func newEgressGatewayManager(p Params) (*Manager, error) {
 		ciliumNodes:                   p.Nodes,
 		endpoints:                     p.Endpoints,
 		sysctl:                        p.Sysctl,
+		sepManager:                    p.SEPManager,
 	}
 
 	t, err := trigger.NewTrigger(trigger.Parameters{
@@ -680,6 +686,9 @@ func (manager *Manager) removeUnusedEgressRules() {
 			// TrafficSteering CR and thereby not aware of policies installed
 			// by it. We explicitly have to skip their deletion by identifying
 			// such policies by checking policyVal.EgressIP value.
+			continue
+		}
+		if mgr := manager.sepManager; mgr != nil && mgr.IsValidStrictEgressPolicy(&policyKey, &policyVal) {
 			continue
 		}
 		matchPolicy := func(endpointIP netip.Addr, dstCIDR netip.Prefix, excludedCIDR bool, gwc *gatewayConfig) bool {

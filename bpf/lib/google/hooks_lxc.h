@@ -9,6 +9,7 @@
 #include "lib/google/pip.h"
 #include "lib/google/geneve.h"
 #include "lib/google/vpc.h"
+#include "lib/google/strict_egress_policy.h"
 #include "lib/google/plugin.h"
 #include "lib/google_multinic.h"
 
@@ -160,6 +161,9 @@ pre_ctr_egress_fwd4(struct __ctx_buff *ctx,
 	if (ret != HOOK_ACT_CONTINUE)
 		return ret;
 	ret = goog_vpc_pre_ctr_egress_fwd4(ctx, stage_ctx);
+	if (ret != HOOK_ACT_CONTINUE)
+		return ret;
+	ret = google_strict_egress_policy_pre_ctr_egress_fwd4(stage_ctx);
 	if (ret != HOOK_ACT_CONTINUE)
 		return ret;
 	stage_ctx->skip_local_delivery = should_skip_local_delivery(ctx);
