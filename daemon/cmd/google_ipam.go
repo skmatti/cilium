@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"maps"
 	"net"
 
 	"github.com/cilium/cilium/pkg/gke/multinic/types"
@@ -102,4 +103,13 @@ func (d *Daemon) AllocateIP(ip, owner string) error {
 		return fmt.Errorf("could not find an allocator to allocate the IP %s", ip)
 	}
 	return nil
+}
+
+// GetMultiNetworkIPAMAllocators returns a copy of the current state of multi-network IPAM allocators.
+func (d *Daemon) GetMultiNetworkIPAMAllocators() map[string]ipam.Allocator {
+	d.ipam.MultiNetworkAllocatorMutex.Lock()
+	defer d.ipam.MultiNetworkAllocatorMutex.Unlock()
+
+	// Return a copy to avoid concurrent map access.
+	return maps.Clone(d.ipam.MultiNetworkAllocators)
 }

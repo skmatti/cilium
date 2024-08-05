@@ -24,6 +24,7 @@ import (
 	networkv1 "github.com/GoogleCloudPlatform/gke-networking-api/apis/network/v1"
 	"github.com/cilium/cilium/pkg/endpoint"
 	"github.com/cilium/cilium/pkg/gke/features"
+	"github.com/cilium/cilium/pkg/ipam"
 	"github.com/cilium/cilium/pkg/logging"
 	"github.com/cilium/cilium/pkg/logging/logfields"
 	"github.com/cilium/cilium/pkg/node"
@@ -66,6 +67,10 @@ func (t testIPAMMgr) ReserveGatewayIP(network *networkv1.Network) error {
 }
 
 func (t testIPAMMgr) PreAllocateIPsForRestoredMultiNICEndpoints(eps []*endpoint.Endpoint) error {
+	return nil
+}
+
+func (t testIPAMMgr) GetMultiNetworkIPAMAllocators() map[string]ipam.Allocator {
 	return nil
 }
 

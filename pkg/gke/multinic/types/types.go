@@ -10,6 +10,7 @@ import (
 	"github.com/cilium/cilium/pkg/endpoint"
 	"github.com/cilium/cilium/pkg/endpointmanager"
 	"github.com/cilium/cilium/pkg/ip"
+	"github.com/cilium/cilium/pkg/ipam"
 	"github.com/cilium/cilium/pkg/node"
 )
 
@@ -29,6 +30,9 @@ type MultiNetworkIPAMManager interface {
 	UpdateMultiNetworkIPAMAllocators(annotations map[string]string) error
 	ReserveGatewayIP(network *networkv1.Network) error
 	PreAllocateIPsForRestoredMultiNICEndpoints(eps []*endpoint.Endpoint) error
+
+	// GetMultiNetworkIPAMAllocators fetches the daemon's multi-network ipam allocators.
+	GetMultiNetworkIPAMAllocators() map[string]ipam.Allocator
 }
 
 type HighPerfDeviceManager interface {
