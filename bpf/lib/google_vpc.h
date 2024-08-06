@@ -44,10 +44,32 @@ nested_remote_endpoint_v4(__u32 *tunnel_endpoint, __u32 *dst_sec_identity, __u8 
 }
 
 // Sets correct identity when Google VPC is enabled.
-void set_gooogle_vpc_identity(__u32 *identity, struct remote_endpoint_info *info)
+static __always_inline void set_gooogle_vpc_identity(__u32 *identity, struct remote_endpoint_info *info)
 {
 	if (info)
 		*identity = info->sec_label;
+}
+
+/*
+ * google_vpc_lookup_ip4_endpoint performs a nested lookup for the local endpoint and
+ * returns the endpoint_info if found.
+ * When Google VPC is enabled, a packet coming to a VM node may not be identified correctly.
+ * Here we need to do a second lookup to find the correct endpoint.
+ */
+static __always_inline struct endpoint_info *google_vpc_lookup_ip4_endpoint(__u32 ip)
+{
+	struct endpoint_info *ep = NULL;
+
+	/* Lookup IPv4 address in list of local endpoints and host IPs */
+	ep = __lookup_ip4_endpoint(ip);
+	if (!ep) {
+		struct remote_endpoint_info *info = NULL;
+
+		info = lookup_ip4_remote_endpoint(ip);
+		if (info && info->tunnel_endpoint)
+			ep = __lookup_ip4_endpoint(info->tunnel_endpoint);
+	}
+	return ep;
 }
 
 #endif /* ENABLE_GOOGLE_VPC */

@@ -58,6 +58,7 @@
 #include "lib/google_arp.h"
 #include "lib/google_multinic.h"
 #include "lib/google_pip.h"
+#include "lib/google_vpc.h"
 
 static __always_inline bool allow_vlan(__u32 __maybe_unused ifindex, __u32 __maybe_unused vlan_id) {
 	VLAN_FILTER(ifindex, vlan_id);
@@ -572,8 +573,13 @@ handle_ipv4(struct __ctx_buff *ctx, __u32 secctx,
 			return DROP_INVALID;
 	}
 
+#ifdef ENABLE_GOOGLE_VPC
+to_endpoint:
+	ep = google_vpc_lookup_ip4_endpoint(ip4->daddr);
+#else
 	/* Lookup IPv4 address in list of local endpoints and host IPs */
 	ep = lookup_ip4_endpoint(ip4);
+#endif /* ENABLE_GOOGLE_VPC */
 	if (ep) {
 		/* Let through packets to the node-ip so they are processed by
 		 * the local ip stack.

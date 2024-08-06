@@ -331,14 +331,11 @@ skip_vtep:
 not_esp:
 #endif
 
+#ifdef ENABLE_GOOGLE_VPC
+	ep = google_vpc_lookup_ip4_endpoint(ip4->daddr);
+#else
 	/* Lookup IPv4 address in list of local endpoints */
 	ep = lookup_ip4_endpoint(ip4);
-#ifdef ENABLE_GOOGLE_VPC
-	if (!ep) {
-		info = lookup_ip4_remote_endpoint(ip4->daddr);
-		if (info && info->tunnel_endpoint)
-			ep = __lookup_ip4_endpoint(info->tunnel_endpoint);
-	}
 #endif /* ENABLE_GOOGLE_VPC */
 	if (ep) {
 		/* If identity is empty, try to look it up from ipcache. Because if the packet
