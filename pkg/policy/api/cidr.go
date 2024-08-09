@@ -8,6 +8,7 @@ import (
 	"net/netip"
 	"strings"
 
+	"github.com/cilium/cilium/pkg/gke/localnodeip"
 	"github.com/cilium/cilium/pkg/ip"
 	"github.com/cilium/cilium/pkg/labels"
 	"github.com/cilium/cilium/pkg/option"
@@ -76,6 +77,7 @@ func (s CIDRSlice) GetAsEndpointSelectors() EndpointSelectorSlice {
 	// If multiple CIDRs representing reserved:world are in this CIDRSlice,
 	// we only have to add the EndpointSelector representing reserved:world
 	// once.
+	var hasNodeBeenAdded bool
 	var hasIPv4AllBeenAdded, hasIPv6AllBeenAdded bool
 	slice := EndpointSelectorSlice{}
 	for _, cidr := range s {
@@ -85,6 +87,12 @@ func (s CIDRSlice) GetAsEndpointSelectors() EndpointSelectorSlice {
 		if cidr == ipv6All {
 			hasIPv6AllBeenAdded = true
 		}
+
+		if !hasNodeBeenAdded && localnodeip.CIDRMatchesLocalNode(string(cidr)) {
+			hasNodeBeenAdded = true
+			slice = append(slice, ReservedEndpointSelectors[labels.IDNameHost], ReservedEndpointSelectors[labels.IDNameRemoteNode])
+		}
+
 		lbl, err := labels.IPStringToLabel(string(cidr))
 		if err == nil {
 			slice = append(slice, NewESFromLabels(lbl))
