@@ -115,7 +115,7 @@ func (d *Daemon) createMultiNICEndpoints(ctx context.Context, owner regeneration
 
 	podID := primaryEp.GetK8sNamespaceAndPodName()
 
-	pod, _, _, _, annotations, err := d.fetchK8sLabelsAndAnnotations(primaryEp.K8sNamespace, primaryEp.K8sPodName)
+	pod, _, identityLabels, infoLabels, annotations, err := d.fetchK8sLabelsAndAnnotations(primaryEp.K8sNamespace, primaryEp.K8sPodName)
 	if err != nil {
 		return d.errorDuringMultiNICCreation(primaryEp, PutEndpointIDInvalidCode, fmt.Errorf("unable to fetch k8s annotations for pod %q", podID))
 	}
@@ -288,6 +288,9 @@ func (d *Daemon) createMultiNICEndpoints(ctx context.Context, owner regeneration
 
 		}
 		if intfCR != nil {
+			if identityLabels.HasKubevirtVMLabel() || infoLabels.HasKubevirtVMLabel() {
+				skipRouteInstallation = true
+			}
 			if err := connector.SetupNetworkRoutes(ref.InterfaceName, intfCR, netCR, multinicTemplate.NetworkNamespace,
 				isDefaultInterface, defaultPodNetworkMTU, skipRouteInstallation); err != nil {
 				return d.errorWithMultiNICCleanup(primaryEp, PutEndpointIDInvalidCode, fmt.Errorf("failed setting up network %q for pod %q: %v", intfCR.Spec.NetworkName, podID, err), nil)
