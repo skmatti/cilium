@@ -15,6 +15,7 @@ import (
 
 	pb "github.com/cilium/cilium/api/v1/flow"
 	"github.com/cilium/cilium/pkg/byteorder"
+	gkecorrelation "github.com/cilium/cilium/pkg/gke/policy/correlation"
 	"github.com/cilium/cilium/pkg/hubble/parser/common"
 	"github.com/cilium/cilium/pkg/hubble/parser/errors"
 	"github.com/cilium/cilium/pkg/hubble/parser/getters"
@@ -36,6 +37,7 @@ type Parser struct {
 	linkGetter     getters.LinkGetter
 
 	epResolver *common.EndpointResolver
+	correlator gkecorrelation.Correlator
 
 	// TODO: consider using a pool of these
 	packet *packet

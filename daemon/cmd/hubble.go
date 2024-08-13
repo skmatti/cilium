@@ -21,6 +21,7 @@ import (
 	cmtypes "github.com/cilium/cilium/pkg/clustermesh/types"
 	"github.com/cilium/cilium/pkg/crypto/certloader"
 	"github.com/cilium/cilium/pkg/datapath/link"
+	gkeflow "github.com/cilium/cilium/pkg/gke/flow"
 	"github.com/cilium/cilium/pkg/hubble/container"
 	"github.com/cilium/cilium/pkg/hubble/dropeventemitter"
 	"github.com/cilium/cilium/pkg/hubble/exporter"
@@ -229,6 +230,7 @@ func (d *Daemon) launchHubble() {
 	}
 
 	d.linkCache = link.NewLinkCache()
+
 	payloadParser, err := parser.New(logger, d, d, d, d.ipcache, d, d.linkCache, d.cgroupManager, parserOpts...)
 	if err != nil {
 		logger.WithError(err).Error("Failed to initialize Hubble")
@@ -240,6 +242,14 @@ func (d *Daemon) launchHubble() {
 		logger.WithError(err).Error("Specified capacity for Hubble events buffer is invalid")
 		return
 	}
+
+	// hook up GKE flow plugin
+	gkeFlowPlugin := gkeflow.GlobalFlowPlugin()
+	observerOpts = append(observerOpts,
+		observeroption.WithOnServerInit(gkeFlowPlugin),
+		observeroption.WithOnDecodedFlow(gkeFlowPlugin),
+	)
+
 	observerOpts = append(observerOpts,
 		observeroption.WithMaxFlows(maxFlows),
 		observeroption.WithMonitorBuffer(option.Config.HubbleEventQueueSize),

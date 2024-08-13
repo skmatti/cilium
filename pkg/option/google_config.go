@@ -19,4 +19,9 @@ const (
 	EnableNodeNetworkPolicyCRD = "enable-node-network-policy-crd"
 	// AnnotateK8sNodeSubnet enables annotation of kubernetes nodes with subnet information.
 	AnnotateK8sNodeSubnet = "annotate-k8s-node-subnet"
+
+	// DisablePolicyEventCountMetric  disables the policy event count metric on this host.
+	DisablePolicyEventCountMetric = "disable-policy-event-count-metric"
+	// EnableHubbleCorrelatePolicies enables policy correlation for hubble flows.
+	EnableHubbleCorrelatePolicies = "enable-hubble-correlate-policies"
 )

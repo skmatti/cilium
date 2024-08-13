@@ -5,6 +5,7 @@ import (
 
 	"github.com/cilium/cilium/pkg/gke/enhancedservices"
 	"github.com/cilium/cilium/pkg/gke/features"
+	"github.com/cilium/cilium/pkg/gke/networklogging"
 	"github.com/cilium/cilium/pkg/gke/nodefirewall/types"
 	"github.com/cilium/cilium/pkg/gke/redirectservice"
 	"github.com/cilium/cilium/pkg/gke/subnet"
@@ -37,6 +38,8 @@ var googleCell = cell.Module(
 
 	cell.Provide(newRedirectPolicyManagerPromise),
 	redirectservice.Cell,
+
+	networklogging.Cell,
 )
 
 // Converts Daemon promise into a PolicyManager promise

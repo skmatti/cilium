@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
 	"github.com/sirupsen/logrus"
@@ -28,12 +29,14 @@ import (
 	"github.com/cilium/cilium/pkg/hubble/testutils"
 	"github.com/cilium/cilium/pkg/identity"
 	"github.com/cilium/cilium/pkg/ipcache"
+	k8sConst "github.com/cilium/cilium/pkg/k8s/apis/cilium.io"
 	"github.com/cilium/cilium/pkg/k8s/apis/cilium.io/utils"
 	slim_corev1 "github.com/cilium/cilium/pkg/k8s/slim/k8s/api/core/v1"
 	slim_metav1 "github.com/cilium/cilium/pkg/k8s/slim/k8s/apis/meta/v1"
 	"github.com/cilium/cilium/pkg/labels"
 	"github.com/cilium/cilium/pkg/monitor"
 	monitorAPI "github.com/cilium/cilium/pkg/monitor/api"
+	"github.com/cilium/cilium/pkg/policy"
 	"github.com/cilium/cilium/pkg/policy/trafficdirection"
 	policyTypes "github.com/cilium/cilium/pkg/policy/types"
 	"github.com/cilium/cilium/pkg/source"
@@ -256,6 +259,7 @@ func TestL34Decode(t *testing.T) {
 
 	err = nilParser.Decode(d, f)
 	require.NoError(t, err)
+
 }
 
 func BenchmarkL34Decode(b *testing.B) {
@@ -468,6 +472,7 @@ func TestDecodePolicyVerdictNotify(t *testing.T) {
 		{
 			Name:      "web-policy",
 			Namespace: "foo-namespace",
+			Kind:      "CiliumNetworkPolicy",
 			Labels: []string{
 				"k8s:io.cilium.k8s.policy.derived-from=CiliumNetworkPolicy",
 				"k8s:io.cilium.k8s.policy.name=web-policy",
@@ -1372,4 +1377,107 @@ func TestTraceNotifyProxyPort(t *testing.T) {
 	err = parser.Decode(data, f)
 	require.NoError(t, err)
 	assert.Equal(t, f.ProxyPort, uint32(4321))
+}
+
+func TestL34Decode_Correlation(t *testing.T) {
+	sourceIP := "192.168.60.11"
+	dstIP := "10.16.236.178"
+	namespace := "default"
+	slimPod := &slim_corev1.Pod{
+		ObjectMeta: slim_metav1.ObjectMeta{
+			OwnerReferences: []slim_metav1.OwnerReference{
+				{
+					Kind: "ReplicaSet",
+					Name: "pod",
+				},
+			},
+		},
+	}
+
+	flags := monitorAPI.PolicyEgress
+	flags |= monitorAPI.PolicyMatchL3L4 << monitor.PolicyVerdictNotifyFlagMatchTypeBitOffset
+	pvn := monitor.PolicyVerdictNotify{
+		Type:        byte(monitorAPI.MessageTypePolicyVerdict),
+		SubType:     7,
+		Source:      3333,
+		Flags:       uint8(flags),
+		RemoteLabel: identity.NumericIdentity(5678),
+	}
+	eth := layers.Ethernet{
+		EthernetType: layers.EthernetTypeIPv4,
+		SrcMAC:       net.HardwareAddr{1, 2, 3, 4, 5, 6},
+		DstMAC:       net.HardwareAddr{1, 2, 3, 4, 5, 6},
+	}
+	ip := layers.IPv4{
+		SrcIP:    net.ParseIP(sourceIP),
+		DstIP:    net.ParseIP(dstIP),
+		Protocol: layers.IPProtocolTCP,
+	}
+	tcp := layers.TCP{
+		SrcPort: layers.TCPPort(6443),
+		DstPort: layers.TCPPort(54222),
+	}
+	data, err := testutils.CreateL3L4Payload(pvn, &eth, &ip, &tcp)
+	if err != nil {
+		t.Fatalf("CreateL3L4Payload(...) returned unexpected error: %v", err)
+	}
+
+	ep := &testutils.FakeEndpointInfo{
+		ID:           3333,
+		Identity:     4444,
+		PodName:      "pod-" + sourceIP,
+		PodNamespace: namespace,
+		Pod:          slimPod,
+		PolicyMap: map[policy.Key]labels.LabelArrayList{
+			// Key represents an L3L4 Policy.
+			{Identity: 5678, DestPort: 54222, Nexthdr: 6, TrafficDirection: 1}: {
+				{
+					{
+						Source: string(source.Kubernetes),
+						Key:    k8sConst.PolicyLabelName,
+						Value:  "np",
+					},
+					{
+						Source: string(source.Kubernetes),
+						Key:    k8sConst.PolicyLabelNamespace,
+						Value:  namespace,
+					},
+					{
+						Source: string(source.Kubernetes),
+						Key:    k8sConst.PolicyLabelDerivedFrom,
+						Value:  "NetworkPolicy",
+					},
+				},
+			},
+		},
+	}
+
+	endpointGetter := &testutils.FakeEndpointGetter{
+		OnGetEndpointInfo: func(ip netip.Addr) (endpoint getters.EndpointInfo, ok bool) {
+			if ip.String() == sourceIP {
+				return ep, true
+			}
+			return nil, false
+		},
+		OnGetEndpointInfoByID: func(id uint16) (endpoint getters.EndpointInfo, ok bool) {
+			if id == 3333 {
+				return ep, true
+			}
+			return nil, false
+		},
+	}
+
+	parser, err := New(log, endpointGetter, &testutils.NoopIdentityGetter, &testutils.NoopDNSGetter, &testutils.NoopIPGetter, &testutils.NoopServiceGetter, &testutils.NoopLinkGetter)
+	require.NoError(t, err)
+
+	f := &flowpb.Flow{}
+	err = parser.Decode(data, f)
+	require.NoError(t, err)
+
+	wantPolicies := []*flowpb.Policy{
+		{Kind: "NetworkPolicy", Namespace: "default", Name: "np"},
+	}
+	if diff := cmp.Diff(wantPolicies, f.EgressAllowedBy, cmpopts.IgnoreUnexported(flowpb.Policy{}), cmpopts.IgnoreFields(flowpb.Policy{}, "Labels")); diff != "" {
+		t.Errorf("Got diff for Policies (-want +got):\n%s", diff)
+	}
 }

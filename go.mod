@@ -205,7 +205,6 @@ require (
 	github.com/gobuffalo/flect v1.0.2 // indirect
 	github.com/godbus/dbus/v5 v5.1.0 // indirect
 	github.com/golang-jwt/jwt/v4 v4.5.2 // indirect
-	github.com/golang/protobuf v1.5.4 // indirect
 	github.com/google/gnostic-models v0.6.8 // indirect
 	github.com/google/gofuzz v1.2.0 // indirect
 	github.com/google/licenseclassifier/v2 v2.0.0 // indirect
@@ -288,7 +287,6 @@ require (
 	google.golang.org/genproto/googleapis/api v0.0.0-20250212204824-5a70512c5d8b // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/tomb.v1 v1.0.0-20141024135613-dd632973f1e7 // indirect
-	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gotest.tools/v3 v3.5.0 // indirect
 	k8s.io/apiserver v0.30.2 // indirect
 	k8s.io/gengo v0.0.0-20230829151522-9cce18d56c01 // indirect
@@ -301,7 +299,11 @@ require (
 // GKE specific dependencies.
 replace gke-internal.googlesource.com/kon/pkg => gke-internal.googlesource.com/kon.git/pkg v0.0.0-20240702092033-e9d7919db158
 
-require github.com/GoogleCloudPlatform/gke-networking-api v0.2.0
+require (
+	github.com/GoogleCloudPlatform/gke-networking-api v0.2.0
+	github.com/golang/protobuf v1.5.4
+	gopkg.in/yaml.v2 v2.4.0
+)
 
 replace (
 	gke-internal/gke-node-firewall => gke-internal.googlesource.com/kubernetes/gke-node-firewall.git v0.0.20
