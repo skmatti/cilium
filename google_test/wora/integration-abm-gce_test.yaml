@@ -29,7 +29,7 @@ spec:
           - /test/ginkgo
           - --keep-going
           - --timeout=2h
-          - --label-filter=sample||multinetwork
+          - --label-filter=sample||multinetwork||tailcall
           - -vv
           - --no-color
           - --output-dir={{ RuntimePath "." }}

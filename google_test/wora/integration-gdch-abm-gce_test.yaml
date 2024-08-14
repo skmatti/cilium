@@ -29,7 +29,7 @@ spec:
           - /test/ginkgo
           - --keep-going
           - --timeout=2h
-          - --label-filter=sample
+          - --label-filter=sample||tailcall
           - -vv
           - --no-color
           - --output-dir={{ RuntimePath "." }}
