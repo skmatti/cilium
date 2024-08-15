@@ -13,7 +13,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-set -e
+set -ex
 set -u
 set -o pipefail
 
@@ -45,6 +45,7 @@ gcloud container clusters get-credentials tailorbird-prod \
 
 ROOKERY_CONFIG="${ROOKERY_CONFIG:-google_test/upstream_test/tailorbird/rookery-kind.yaml}"
 kubetest2-tailorbird \
+  --verbose \
   --up --down \
   --tbconfig "${ROOKERY_CONFIG}" \
   --test exec -- \
