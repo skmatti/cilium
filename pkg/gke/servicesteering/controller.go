@@ -35,6 +35,7 @@ import (
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
+	networkv1 "github.com/GoogleCloudPlatform/gke-networking-api/apis/network/v1"
 	daemonclient "github.com/cilium/cilium/pkg/client"
 	ciliumio "github.com/cilium/cilium/pkg/k8s/apis/cilium.io"
 	"github.com/cilium/cilium/pkg/k8s/resource"
@@ -42,7 +43,6 @@ import (
 	slim_metav1 "github.com/cilium/cilium/pkg/k8s/slim/k8s/apis/meta/v1"
 	v1 "gke-internal.googlesource.com/anthos-networking/apis/v2/service-steering/v1"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
-	networkv1 "k8s.io/cloud-provider-gcp/crd/apis/network/v1"
 )
 
 var (

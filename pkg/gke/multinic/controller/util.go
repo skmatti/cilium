@@ -5,9 +5,9 @@ import (
 	"net"
 	"sort"
 
+	networkv1 "github.com/GoogleCloudPlatform/gke-networking-api/apis/network/v1"
 	"github.com/vishvananda/netlink"
 	corev1 "k8s.io/api/core/v1"
-	networkv1 "k8s.io/cloud-provider-gcp/crd/apis/network/v1"
 )
 
 func findInSlice(arr []string, s string) int {

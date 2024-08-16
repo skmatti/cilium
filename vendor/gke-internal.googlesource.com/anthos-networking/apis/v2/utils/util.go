@@ -5,7 +5,7 @@ import (
 	"net"
 	"strings"
 
-	networkv1 "k8s.io/cloud-provider-gcp/crd/apis/network/v1"
+	networkv1 "github.com/GoogleCloudPlatform/gke-networking-api/apis/network/v1"
 )
 
 // InterfaceInfo returns the name, IP address of the interface on the node that is connected to the network

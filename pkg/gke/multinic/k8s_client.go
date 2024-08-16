@@ -23,11 +23,11 @@ import (
 	"reflect"
 	"strings"
 
+	networkv1 "github.com/GoogleCloudPlatform/gke-networking-api/apis/network/v1"
 	v1 "github.com/cilium/cilium/pkg/k8s/slim/k8s/api/core/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
-	networkv1 "k8s.io/cloud-provider-gcp/crd/apis/network/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 

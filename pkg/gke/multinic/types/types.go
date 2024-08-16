@@ -5,11 +5,11 @@ import (
 	"net"
 	"strings"
 
+	networkv1 "github.com/GoogleCloudPlatform/gke-networking-api/apis/network/v1"
 	"github.com/cilium/cilium/pkg/cidr"
 	"github.com/cilium/cilium/pkg/endpoint"
 	"github.com/cilium/cilium/pkg/ip"
 	"github.com/cilium/cilium/pkg/node"
-	networkv1 "k8s.io/cloud-provider-gcp/crd/apis/network/v1"
 )
 
 // MultiNetworkIPAMManager defines methods to handle the multi-network allocators

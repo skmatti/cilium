@@ -21,6 +21,7 @@ import (
 	"math/rand"
 	"net"
 
+	networkv1 "github.com/GoogleCloudPlatform/gke-networking-api/apis/network/v1"
 	"github.com/cilium/cilium/api/v1/models"
 	"github.com/cilium/cilium/pkg/datapath/linux/safenetlink"
 	"github.com/cilium/cilium/pkg/datapath/linux/sysctl"
@@ -41,7 +42,6 @@ import (
 	anutils "gke-internal.googlesource.com/anthos-networking/apis/v2/utils"
 	"golang.org/x/sys/unix"
 	"k8s.io/apimachinery/pkg/types"
-	networkv1 "k8s.io/cloud-provider-gcp/crd/apis/network/v1"
 	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )

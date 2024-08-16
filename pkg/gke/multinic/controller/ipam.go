@@ -3,9 +3,9 @@ package controller
 import (
 	"context"
 
+	networkv1 "github.com/GoogleCloudPlatform/gke-networking-api/apis/network/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
-	networkv1 "k8s.io/cloud-provider-gcp/crd/apis/network/v1"
 )
 
 func (r *NetworkReconciler) updateMultiNetworkIPAM(ctx context.Context, network *networkv1.Network) error {

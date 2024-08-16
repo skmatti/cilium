@@ -3,10 +3,10 @@ package controller
 import (
 	"context"
 
+	networkv1 "github.com/GoogleCloudPlatform/gke-networking-api/apis/network/v1"
 	"github.com/cilium/cilium/pkg/datapath/connector"
 	"github.com/cilium/cilium/pkg/endpoint"
 	"github.com/cilium/cilium/pkg/metrics"
-	networkv1 "k8s.io/cloud-provider-gcp/crd/apis/network/v1"
 )
 
 func (r *NetworkReconciler) EndpointCreated(ep *endpoint.Endpoint) {

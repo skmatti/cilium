@@ -9,7 +9,7 @@ import (
 	"github.com/cilium/cilium/pkg/ipam/service/ipallocator"
 	"github.com/cilium/cilium/pkg/node"
 
-	networkv1 "k8s.io/cloud-provider-gcp/crd/apis/network/v1"
+	networkv1 "github.com/GoogleCloudPlatform/gke-networking-api/apis/network/v1"
 )
 
 // UpdateMultiNetworkIPAMAllocators updates the daemon's multi-network IPAM allocators.

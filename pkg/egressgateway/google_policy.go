@@ -1,8 +1,8 @@
 package egressgateway
 
 import (
+	networkv1 "github.com/GoogleCloudPlatform/gke-networking-api/apis/network/v1"
 	k8sLbls "github.com/cilium/cilium/pkg/k8s/slim/k8s/apis/labels"
-	networkv1 "k8s.io/cloud-provider-gcp/crd/apis/network/v1"
 )
 
 // isMultiNICEndpoint returns true if the endpoint has multi-network label
