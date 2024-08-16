@@ -12,16 +12,43 @@ require (
 )
 
 require (
+	cloud.google.com/go v0.110.10 // indirect
+	cloud.google.com/go/compute/metadata v0.3.0 // indirect
+	cloud.google.com/go/firestore v1.14.0 // indirect
+	cloud.google.com/go/longrunning v0.5.4 // indirect
+	github.com/alessio/shellescape v1.4.1 // indirect
 	github.com/cenkalti/backoff/v4 v4.2.1 // indirect
 	github.com/evanphx/json-patch/v5 v5.9.0 // indirect
+	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da // indirect
+	github.com/google/s2a-go v0.1.7 // indirect
+	github.com/googleapis/enterprise-certificate-proxy v0.3.2 // indirect
+	github.com/googleapis/gax-go/v2 v2.12.0 // indirect
+	github.com/grpc-ecosystem/go-grpc-middleware v1.4.0 // indirect
+	github.com/hashicorp/errwrap v1.0.0 // indirect
+	github.com/hashicorp/go-multierror v1.1.1 // indirect
 	github.com/openshift/api v0.0.0-20230503133300-8bbcb7ca7183 // indirect
 	github.com/openshift/custom-resource-status v1.1.2 // indirect
+	github.com/pkg/browser v0.0.0-20210911075715-681adbf594b8 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
+	github.com/spf13/afero v1.9.5 // indirect
+	github.com/subosito/gotenv v1.4.2 // indirect
+	gke-internal.googlesource.com/onprem-lab-automation/lib/hercules/public v0.0.0-00010101000000-000000000000 // indirect
+	gke-internal.googlesource.com/onprem-lab-automation/lib/shared v0.0.0-00010101000000-000000000000 // indirect
+	go.opencensus.io v0.24.0 // indirect
+	golang.org/x/crypto v0.24.0 // indirect
+	golang.org/x/sync v0.7.0 // indirect
+	golang.org/x/xerrors v0.0.0-20220907171357-04be3eba64a2 // indirect
+	google.golang.org/api v0.151.0 // indirect
+	google.golang.org/genproto v0.0.0-20231120223509-83a465c0220f // indirect
+	google.golang.org/genproto/googleapis/api v0.0.0-20231120223509-83a465c0220f // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20231120223509-83a465c0220f // indirect
+	google.golang.org/grpc v1.59.0 // indirect
 	k8s.io/apiextensions-apiserver v0.30.1 // indirect
 	kubevirt.io/controller-lifecycle-operator-sdk/api v0.0.0-20220329064328-f3cc58c6ed90 // indirect
 )
 
 require (
+	github.com/GoogleCloudPlatform/gke-networking-api v0.1.2-0.20240806213139-419c796010b0
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/blang/semver/v4 v4.0.0 // indirect
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect
@@ -66,7 +93,6 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	k8s.io/api v0.30.3
 	k8s.io/client-go v0.30.3
-	k8s.io/cloud-provider-gcp/crd v0.0.0-20240515211753-278a7c4c5fb6
 	k8s.io/component-base v0.30.3 // indirect
 	k8s.io/klog v1.0.0 // indirect
 	k8s.io/klog/v2 v2.120.1 // indirect
@@ -79,7 +105,9 @@ require (
 )
 
 replace (
-	gke-internal.googlesource.com/anthos-networking/test-infra => gke-internal.googlesource.com/anthos-networking.git/test-infra v0.0.0-20240708170551-2457224fdb4c
+	gke-internal.googlesource.com/anthos-networking/test-infra => gke-internal.googlesource.com/anthos-networking.git/test-infra v0.0.0-20240815232423-9e8f3bb3ddd3
+	gke-internal.googlesource.com/onprem-lab-automation/lib/hercules/public => gke-internal.googlesource.com/onprem-lab-automation.git/lib/hercules/public v0.0.0-20240726064312-44402fcf3a74
+	gke-internal.googlesource.com/onprem-lab-automation/lib/shared => gke-internal.googlesource.com/onprem-lab-automation.git/lib/shared v0.0.0-20240729132814-5a038fd85a76
 	gke-internal.googlesource.com/syllogi/sanitized-klog => gke-internal.googlesource.com/syllogi/sanitized-klog.git v0.0.11
 	gke-internal.googlesource.com/third_party/cilium/google_test/wora/e2e/verifiers/kubevirt => ./verifiers/kubevirt
 	gke-internal.googlesource.com/third_party/cilium/google_test/wora/e2e/verifiers/multinetwork => ./verifiers/multinetwork

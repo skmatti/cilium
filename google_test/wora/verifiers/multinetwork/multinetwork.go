@@ -17,8 +17,8 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 
-	networkv1 "k8s.io/cloud-provider-gcp/crd/apis/network/v1"
-	networkclientset "k8s.io/cloud-provider-gcp/crd/client/network/clientset/versioned"
+	networkv1 "github.com/GoogleCloudPlatform/gke-networking-api/apis/network/v1"
+	networkclientset "github.com/GoogleCloudPlatform/gke-networking-api/client/network/clientset/versioned"
 
 	klog "gke-internal.googlesource.com/syllogi/sanitized-klog"
 
