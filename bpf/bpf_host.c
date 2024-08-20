@@ -574,7 +574,6 @@ handle_ipv4(struct __ctx_buff *ctx, __u32 secctx,
 	}
 
 #ifdef ENABLE_GOOGLE_VPC
-to_endpoint:
 	ep = google_vpc_lookup_ip4_endpoint(ip4->daddr);
 #else
 	/* Lookup IPv4 address in list of local endpoints and host IPs */
