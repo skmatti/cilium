@@ -26,7 +26,73 @@ presubmits:
       - name: TBCONFIG
         value: sut-abm-gce.yaml
       - name: WORA_CONFIG
-        value: integration-abm-multinetwork_test.yaml
+        value: integration-abm-gce_test.yaml
+      command:
+      - runner.sh
+      args:
+      - ./google_test/wora/prow_entrypoint.sh
+- name: wora-conformance-abm-gce_cilium
+  trigger: /test wora-conformance-abm-gce$
+  rerun_command: /test wora-conformance-abm-gce
+  always_run: false
+  decorate: true
+  decoration_config:
+    timeout: 240m
+  labels:
+    preset-cookie-file: "true"
+    preset-cookie-file-env: "true"
+    preset-service-account: "true"
+    preset-dind-enabled: "true"
+    preset-k8s-ssh: "true"
+  path_alias: gke-internal.googlesource.com/third_party/cilium
+  spec:
+    containers:
+    - image: gcr.io/tailorbird/kubetest2-tailorbird:latest
+      securityContext:
+        # needed for docker-in-docker
+        privileged: true
+      env:
+      - name: CILIUM_GITREF
+        value: HEAD
+      - name: TBCONFIG
+        value: sut-abm-gce.yaml
+      - name: WORA_CONFIG
+        value: conformance_test.yaml
+      - name: WORA_DOCKERFILE_DIR
+        value: conformance
+      command:
+      - runner.sh
+      args:
+      - ./google_test/wora/prow_entrypoint.sh
+- name: wora-networking-granular-abm-gce_cilium
+  trigger: /test wora-networking-granular-abm-gce$
+  rerun_command: /test wora-networking-granular-abm-gce
+  always_run: false
+  decorate: true
+  decoration_config:
+    timeout: 240m
+  labels:
+    preset-cookie-file: "true"
+    preset-cookie-file-env: "true"
+    preset-service-account: "true"
+    preset-dind-enabled: "true"
+    preset-k8s-ssh: "true"
+  path_alias: gke-internal.googlesource.com/third_party/cilium
+  spec:
+    containers:
+    - image: gcr.io/tailorbird/kubetest2-tailorbird:latest
+      securityContext:
+        # needed for docker-in-docker
+        privileged: true
+      env:
+      - name: CILIUM_GITREF
+        value: HEAD
+      - name: TBCONFIG
+        value: sut-abm-gce.yaml
+      - name: WORA_CONFIG
+        value: networking_granular_test.yaml
+      - name: WORA_DOCKERFILE_DIR
+        value: conformance
       command:
       - runner.sh
       args:
@@ -60,6 +126,8 @@ presubmits:
         value: addon/patch_content/abm-1.30.0-gke.1829/overlays/gdch-abm
       - name: TBCONFIG
         value: sut-gdch-abm-gce.yaml
+      - name: WORA_CONFIG
+        value: integration-gdch-abm-gce_test.yaml
       command:
       - runner.sh
       args:
@@ -90,11 +158,13 @@ presubmits:
       # The path for the PATCH_CONTENT_DIR is from the script dir of
       # prow_entrypoint.sh.
       - name: PATCH_CONTENT_DIR
-        value: addon/patch_content/abm-1.29.100-gke.76/overlays/gdch-abm
+        value: addon/patch_content/abm-1.30.0-gke.1829/overlays/gdch-abm
       - name: TBCONFIG
         value: sut-gdch-abm-gce.yaml
       - name: WORA_CONFIG
         value: conformance_test.yaml
+      - name: WORA_DOCKERFILE_DIR
+        value: conformance
       command:
       - runner.sh
       args:
@@ -125,11 +195,13 @@ presubmits:
       # The path for the PATCH_CONTENT_DIR is from the script dir of
       # prow_entrypoint.sh.
       - name: PATCH_CONTENT_DIR
-        value: addon/patch_content/abm-1.29.100-gke.76/overlays/gdch-abm
+        value: addon/patch_content/abm-1.30.0-gke.1829/overlays/gdch-abm
       - name: TBCONFIG
         value: sut-gdch-abm-gce.yaml
       - name: WORA_CONFIG
         value: networking_granular_test.yaml
+      - name: WORA_DOCKERFILE_DIR
+        value: conformance
       command:
       - runner.sh
       args:
@@ -163,6 +235,8 @@ presubmits:
         value: addon/patch_content/abm-1.30.0-gke.1829/overlays/gdch-lancer
       - name: TBCONFIG
         value: sut-gdch-abm-gce.yaml
+      - name: WORA_CONFIG
+        value: integration-gdch-abm-gce_test.yaml
       command:
       - runner.sh
       args:
@@ -237,72 +311,6 @@ presubmits:
       - runner.sh
       args:
       - ./google_test/wora/prow_entrypoint.sh
-- name: wora-conformance-abm-gce_cilium
-  trigger: /test wora-conformance-abm-gce$
-  rerun_command: /test wora-conformance-abm-gce
-  always_run: false
-  decorate: true
-  decoration_config:
-    timeout: 240m
-  labels:
-    preset-cookie-file: "true"
-    preset-cookie-file-env: "true"
-    preset-service-account: "true"
-    preset-dind-enabled: "true"
-    preset-k8s-ssh: "true"
-  path_alias: gke-internal.googlesource.com/third_party/cilium
-  spec:
-    containers:
-    - image: gcr.io/tailorbird/kubetest2-tailorbird:latest
-      securityContext:
-        # needed for docker-in-docker
-        privileged: true
-      env:
-      - name: CILIUM_GITREF
-        value: HEAD
-      - name: TBCONFIG
-        value: sut-abm-gce.yaml
-      - name: WORA_CONFIG
-        value: conformance_test.yaml
-      - name: WORA_DOCKERFILE_DIR
-        value: conformance
-      command:
-      - runner.sh
-      args:
-      - ./google_test/wora/prow_entrypoint.sh
-- name: wora-networking-granular-abm-gce_cilium
-  trigger: /test wora-networking-granular-abm-gce$
-  rerun_command: /test wora-networking-granular-abm-gce
-  always_run: false
-  decorate: true
-  decoration_config:
-    timeout: 240m
-  labels:
-    preset-cookie-file: "true"
-    preset-cookie-file-env: "true"
-    preset-service-account: "true"
-    preset-dind-enabled: "true"
-    preset-k8s-ssh: "true"
-  path_alias: gke-internal.googlesource.com/third_party/cilium
-  spec:
-    containers:
-    - image: gcr.io/tailorbird/kubetest2-tailorbird:latest
-      securityContext:
-        # needed for docker-in-docker
-        privileged: true
-      env:
-      - name: CILIUM_GITREF
-        value: HEAD
-      - name: TBCONFIG
-        value: sut-abm-gce.yaml
-      - name: WORA_CONFIG
-        value: networking_granular_test.yaml
-      - name: WORA_DOCKERFILE_DIR
-        value: conformance
-      command:
-      - runner.sh
-      args:
-      - ./google_test/wora/prow_entrypoint.sh
 - name: wora-abm-atl_cilium
   cluster: build-onprem-atl
   trigger: /test wora-abm-atl$
@@ -333,7 +341,7 @@ presubmits:
       - name: WORA_CONTROL_PLANE
         value: atl
       - name: WORA_CONFIG
-        value: integration-abm-multinetwork_test.yaml
+        value: integration-abm-atl_test.yaml
       command:
       - runner.sh
       args:
@@ -976,7 +984,7 @@ presubmits:
       - name: TBCONFIG
         value: sut-abm-gce.yaml
       - name: WORA_CONFIG
-        value: integration-abm-multinetwork_test.yaml
+        value: integration-abm-gce_test.yaml
       command:
       - runner.sh
       args:
@@ -1040,7 +1048,7 @@ presubmits:
       - name: WORA_CONTROL_PLANE
         value: atl
       - name: WORA_CONFIG
-        value: integration-abm-multinetwork_test.yaml
+        value: integration-abm-atl_test.yaml
       command:
       - runner.sh
       args:

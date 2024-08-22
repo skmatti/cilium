@@ -1,3 +1,4 @@
+# Specific version of integrations tests available in gdch on abm gce.
 apiVersion: sut.tailorbird.io/v1alpha1
 kind: Rookery
 metadata:
