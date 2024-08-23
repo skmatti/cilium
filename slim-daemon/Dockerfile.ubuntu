@@ -1,4 +1,6 @@
-FROM gke.gcr.io/gke-distroless/static
+ARG BASE_IMAGE=scratch
+
+FROM ${BASE_IMAGE}
 
 ARG BIN=anet-agent__linux_amd64
 

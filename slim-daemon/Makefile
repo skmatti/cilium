@@ -58,6 +58,7 @@ windows-image:
 linux-image: $(TARGET)__linux_$(ARCH)
 	$(QUIET)docker buildx build \
 		$(DOCKER_FLAGS) \
+		--build-arg BASE_IMAGE=${BASE_IMAGE} \
 		--build-arg BIN="$<" \
 		-t $(IMAGE_REPOSITORY)/slim-daemon/anet-agent:$(DOCKER_IMAGE_TAG) \
 		-f Dockerfile.ubuntu \
