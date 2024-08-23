@@ -46,20 +46,11 @@ type K8sClient interface {
 	// PatchNetworkInterfaceStatus updates the NetworkInterface status with the provided status.
 	PatchNetworkInterfaceStatus(ctx context.Context, obj *networkv1.NetworkInterface) error
 
-	// PatchNetworkInterface updates the NetworkInterface.
-	PatchNetworkInterface(ctx context.Context, oldObj, newObj *networkv1.NetworkInterface) error
-
 	// PatchNetworkInterfaceAnnotations updates the NetworkInterface annotations.
 	PatchNetworkInterfaceAnnotations(ctx context.Context, obj *networkv1.NetworkInterface) error
 
-	// CreateNetworkInterface creates the network interface object
-	CreateNetworkInterface(ctx context.Context, obj *networkv1.NetworkInterface) error
-
-	// DeleteNetworkInterface deletes the network interface object
-	DeleteNetworkInterface(ctx context.Context, obj *networkv1.NetworkInterface) error
-
-	// SetPodIPsAnnotation sets the pod annotation for additional pod IPs assigned to the pod
-	SetPodIPsAnnotation(ctx context.Context, pod *v1.Pod, podIPs *networkv1.PodIPsAnnotation) error
+	// PatchPodAnnotation updates the pod annotation.
+	PatchPodAnnotation(ctx context.Context, obj *v1.Pod, anno map[string]string) error
 
 	// GetNetworkParamObject returns the specified Object pointed by the params ref inside the Network object.
 	GetNetworkParamObject(ctx context.Context, ref *networkv1.NetworkParametersReference) (client.Object, error)
@@ -120,10 +111,6 @@ func (c *k8sClientImpl) PatchNetworkInterfaceStatus(ctx context.Context, obj *ne
 	return c.client.Status().Patch(ctx, intf, client.MergeFrom(intfClean))
 }
 
-func (c *k8sClientImpl) PatchNetworkInterface(ctx context.Context, oldObj, newObj *networkv1.NetworkInterface) error {
-	return c.client.Patch(ctx, newObj, client.MergeFrom(oldObj))
-}
-
 func (c *k8sClientImpl) PatchNetworkInterfaceAnnotations(ctx context.Context, obj *networkv1.NetworkInterface) error {
 	intf := &networkv1.NetworkInterface{}
 	if err := c.client.Get(ctx, namespacedName(obj.Name, obj.Namespace), intf); err != nil {
@@ -137,12 +124,21 @@ func (c *k8sClientImpl) PatchNetworkInterfaceAnnotations(ctx context.Context, ob
 	return c.client.Patch(ctx, intf, client.MergeFrom(intfClean))
 }
 
-func (c *k8sClientImpl) CreateNetworkInterface(ctx context.Context, obj *networkv1.NetworkInterface) error {
-	return c.client.Create(ctx, obj)
-}
-
-func (c *k8sClientImpl) DeleteNetworkInterface(ctx context.Context, obj *networkv1.NetworkInterface) error {
-	return c.client.Delete(ctx, obj)
+func (c *k8sClientImpl) PatchPodAnnotation(ctx context.Context, obj *v1.Pod, anno map[string]string) error {
+	log.Infof("PatchPodAnnotation: %+v", anno)
+	pod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      obj.Name,
+			Namespace: obj.Namespace,
+		},
+	}
+	raw, err := json.Marshal(anno)
+	if err != nil {
+		return fmt.Errorf("failed to marshal pod annotations: %v", err)
+	}
+	patch := fmt.Sprintf(`{"metadata":{"annotations":%s}}`, raw)
+	log.Infof("applying patch %s to pod %s", patch, pod.Name)
+	return c.client.Status().Patch(ctx, pod, client.RawPatch(types.StrategicMergePatchType, []byte(patch)))
 }
 
 func (c *k8sClientImpl) SetPodIPsAnnotation(ctx context.Context, obj *v1.Pod, podIPs *networkv1.PodIPsAnnotation) error {

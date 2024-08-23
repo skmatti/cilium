@@ -408,9 +408,11 @@ func (d *Daemon) createEndpoint(ctx context.Context, owner regeneration.Owner, e
 		return invalidDataError(ep, fmt.Errorf("endpoint ID %d already exists", ep.ID))
 	}
 
-	oldEp = d.endpointManager.LookupCNIAttachmentID(ep.GetCNIAttachmentID())
-	if oldEp != nil {
-		return invalidDataError(ep, fmt.Errorf("endpoint for CNI attachment ID %s already exists", ep.GetCNIAttachmentID()))
+	if !features.GlobalConfig.EnableGoogleMultiNIC || !ep.IsMultiNIC() {
+		oldEp = d.endpointManager.LookupCNIAttachmentID(ep.GetCNIAttachmentID())
+		if oldEp != nil {
+			return invalidDataError(ep, fmt.Errorf("endpoint for CNI attachment ID %s already exists", ep.GetCNIAttachmentID()))
+		}
 	}
 
 	var checkIDs []string

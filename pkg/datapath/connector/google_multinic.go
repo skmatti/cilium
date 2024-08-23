@@ -48,7 +48,7 @@ import (
 
 const (
 	kubevirtMacvtapResourcePrefix     = "macvtap.network.kubevirt.io"
-	kubevirtDHCPServerIPAnnotationKey = "networking.gke.io/dhcp-server-ip"
+	KubevirtDHCPServerIPAnnotationKey = "networking.gke.io/dhcp-server-ip"
 	defaultGROMaxSize                 = 65536
 	defaultGSOMaxSize                 = 65536
 
@@ -606,7 +606,7 @@ func SetupL2Interface(ifNameInPod, podName string, podResources map[string][]str
 		return cleanup, errors.New("failed to get map ID")
 	}
 
-	serverIP := net.ParseIP(intf.Annotations[kubevirtDHCPServerIPAnnotationKey])
+	serverIP := net.ParseIP(intf.Annotations[KubevirtDHCPServerIPAnnotationKey])
 	var clientIP net.IP
 	if len(intf.Status.IpAddresses) != 0 {
 		clientIP, _, _ = net.ParseCIDR(intf.Status.IpAddresses[0])
@@ -691,6 +691,7 @@ func SetupL3Interface(ifNameInPod, podName string, podResources map[string][]str
 					log.WithError(err2).WithField(logfields.Veth, veth.Name).Warn("failed to clean up and delete veth")
 				}
 			}
+			releaseIP(network, cfg, ipam)
 		}
 	default:
 		return nil, fmt.Errorf("unknown interface type: %v", cfg.Type)
@@ -1243,9 +1244,9 @@ func populateInterfaceStatus(intf *networkv1.NetworkInterface, network *networkv
 
 	var setupDHCPServerAnnotations = func() {
 		if intf.Annotations != nil {
-			intf.Annotations[kubevirtDHCPServerIPAnnotationKey] = dhcpResp.ServerIP.String()
+			intf.Annotations[KubevirtDHCPServerIPAnnotationKey] = dhcpResp.ServerIP.String()
 		} else {
-			intf.SetAnnotations(map[string]string{kubevirtDHCPServerIPAnnotationKey: dhcpResp.ServerIP.String()})
+			intf.SetAnnotations(map[string]string{KubevirtDHCPServerIPAnnotationKey: dhcpResp.ServerIP.String()})
 		}
 	}
 

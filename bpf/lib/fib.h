@@ -100,7 +100,7 @@ fib_do_redirect(struct __ctx_buff *ctx, const bool needs_l2_check,
 	/* determine which oif to use before needs_l2_check determines if layer 2
 	 * header needs to be pushed.
 	 */
-	if (fib_params) {
+	if (fib_params && !mn_veth) {
 		if (*fib_ret == BPF_FIB_LKUP_RET_NO_NEIGH &&
 		    !is_defined(HAVE_FIB_IFINDEX) && *oif) {
 			/* For kernels without d1c362e1dd68 ("bpf: Always
@@ -191,12 +191,12 @@ fib_redirect(struct __ctx_buff *ctx, const bool needs_l2_check,
 #endif
 	if (!is_defined(ENABLE_SKIP_FIB) || !neigh_resolver_available()) {
 		int ret;
-		#if defined(IS_BPF_LXC) && defined(MULTI_NIC_DEVICE_TYPE) && MULTI_NIC_DEVICE_TYPE == EP_DEV_TYPE_INDEX_MULTI_NIC_VETH
-			ret = BPF_FIB_LKUP_RET_NO_NEIGH;
-			*oif = PARENT_DEV_IFINDEX;
-		#else
-			ret = fib_lookup(ctx, &fib_params->l, sizeof(fib_params->l), 0);
-		#endif
+#if defined(IS_BPF_LXC) && defined(MULTI_NIC_DEVICE_TYPE) && MULTI_NIC_DEVICE_TYPE == EP_DEV_TYPE_INDEX_MULTI_NIC_VETH
+		*oif = PARENT_DEV_IFINDEX;
+		ret = BPF_FIB_LKUP_RET_NO_NEIGH;
+#else
+		ret = fib_lookup(ctx, &fib_params->l, sizeof(fib_params->l), 0);
+#endif
 		*fib_err = (__s8)ret;
 		return fib_do_redirect(ctx, needs_l2_check, fib_params, use_neigh_map,
 				       fib_err, oif);

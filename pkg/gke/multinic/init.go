@@ -112,6 +112,11 @@ func Init(ctx context.Context, endpointManager endpointmanager.EndpointManager, 
 		}
 	}
 
+	// Optimization for scalablity.
+	// The dumb list call triggers the cache build for GKENetworkParamSet.
+	// Without this, the cache build started on the first MN pod, leading to flood of API calls with many MN pods.
+	mgr.GetClient().List(ctx, &networkv1.GKENetworkParamSetList{})
+
 	return NewK8sClient(mgr.GetClient()), kubeletClient, dhcp.NewDHCPClient(), nil
 }
 

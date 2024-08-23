@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"hash/crc32"
 	"net/netip"
+	"slices"
 	"sync"
 
 	"errors"
@@ -18,7 +19,6 @@ import (
 	"github.com/containernetworking/plugins/pkg/ns"
 	"github.com/vishvananda/netlink"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
 	networkv1 "github.com/GoogleCloudPlatform/gke-networking-api/apis/network/v1"
 	"github.com/cilium/cilium/pkg/api"
@@ -36,18 +36,17 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/pointer"
 	utilpointer "k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 
 	. "github.com/cilium/cilium/api/v1/server/restapi/endpoint"
 	"github.com/cilium/cilium/pkg/datapath/linux/safenetlink"
-	k8sErrors "k8s.io/apimachinery/pkg/api/errors"
 )
 
 const (
-	listNetworkTimeout        = time.Second * 5
-	maxNameLength             = 253
-	podNameLabel              = "podName"
-	networkLabel              = "network"
-	networkInterfaceFinalizer = "networking.gke.io/network-interface-finalizer"
+	listNetworkTimeout = time.Second * 5
+	maxNameLength      = 253
+	podNameLabel       = "podName"
+	networkLabel       = "network"
 )
 
 // CreateEndpoint implements epqueue.EndpointCreationSink.
@@ -180,6 +179,7 @@ func (d *Daemon) createMultiNICEndpoints(ctx context.Context, owner regeneration
 	defaultPodNetworkMTU := d.mtuConfig.GetRouteMTU()
 	// parentDevInUse tracks the use of parent device for the L2 interface.
 	parentDevInUse := make(map[string]string)
+	var interfaceStatusAnnotation networkv1.InterfaceStatusAnnotation
 	for _, ref := range interfaceAnnotation {
 		skipEpCreation := false
 		intfLog := log.WithFields(logrus.Fields{
@@ -298,8 +298,8 @@ func (d *Daemon) createMultiNICEndpoints(ctx context.Context, owner regeneration
 				podIP := networkv1.PodIP{IP: multinicTemplate.Addressing.IPV4, NetworkName: netCR.Name}
 				podIPs = append(podIPs, podIP)
 			}
-
 		}
+
 		if intfCR != nil {
 			if err := connector.SetupNetworkRoutes(ref.InterfaceName, intfCR, netCR, multinicTemplate.NetworkNamespace,
 				isDefaultInterface, defaultPodNetworkMTU, skipRouteInstallation); err != nil {
@@ -307,9 +307,8 @@ func (d *Daemon) createMultiNICEndpoints(ctx context.Context, owner regeneration
 			}
 			intfLog.Infof("Successfully configured network %s", intfCR.Spec.NetworkName)
 
-			// do not patch default Network NI when it was not provided
-			// TODO: remove the condition when we are going to create NI for all Pod interfaces
-			if !(networkv1.IsDefaultNetwork(netCR.Name) && isDefaultNetInfcTemp) {
+			// Only patch NetworkInterface when it's referenced in pod annotation
+			if ref.Interface != nil {
 				// Patch interface CR status via multinicClient
 				if err = d.multinicClient.PatchNetworkInterfaceStatus(ctx, intfCR); err != nil {
 					return d.errorWithMultiNICCleanup(primaryEp, PutEndpointIDInvalidCode, fmt.Errorf("failed updating status of interface CR %q for pod %q: %v", intfCR.Name, podID, err), nil)
@@ -320,11 +319,18 @@ func (d *Daemon) createMultiNICEndpoints(ctx context.Context, owner regeneration
 				}
 				intfLog.Infof("Successfully updated interface CR %+v", intfCR)
 			}
+			if !isDefaultNetInfcTemp {
+				interfaceStatusAnnotation = append(interfaceStatusAnnotation, convertNIObjToAnnotation(intfCR))
+			}
 		}
 	}
 
-	if err = d.multinicClient.SetPodIPsAnnotation(ctx, pod, &podIPs); err != nil {
-		return d.errorDuringMultiNICCreation(primaryEp, PutEndpointIDInvalidCode, fmt.Errorf("failed to set pod IPs annotation for pod %q: %v", podID, err))
+	podAnno, err := buildPodAnnotation(podIPs, interfaceStatusAnnotation)
+	if err != nil {
+		return d.errorDuringMultiNICCreation(primaryEp, PutEndpointIDInvalidCode, fmt.Errorf("failed to build annotation for pod %q: %v", podID, err))
+	}
+	if err = d.multinicClient.PatchPodAnnotation(ctx, pod, podAnno); err != nil {
+		return d.errorDuringMultiNICCreation(primaryEp, PutEndpointIDInvalidCode, fmt.Errorf("failed to patch pod annotation for pod %q: %v", podID, err))
 	}
 
 	if epTemplate.SyncBuildEndpoint {
@@ -452,34 +458,18 @@ func (d *Daemon) getInterfaceAndNetworkCR(ctx context.Context, ref *networkv1.In
 		return intfCR, netCR, nil
 	}
 
-	// Create interface CRs only for internal IPAM mode "non-default" networks.
-	log.Info("Constructing network interface CR based on Network information")
+	// Now we no longer auto-generate interface CR object, still construct it to reduce code changes
 	intfCR = constructNetworkInterfaceObject(ctx, networkName, pod)
-	err = d.multinicClient.CreateNetworkInterface(ctx, intfCR)
-	if err != nil {
-		if k8sErrors.IsAlreadyExists(err) {
-			log.Warnf("Failed creating interface CR - already exists %s/%s: %v. Re-using existing interface object.", pod.Namespace, intfCR.Name, err)
-		} else {
-			return nil, nil, fmt.Errorf("failed creating interface CR %s/%s: %v", pod.Namespace, intfCR.Name, err)
-		}
-	}
-	log.Infof("Done constructing interface CR based on network info, interfaceObjName: %s", intfCR.Name)
 	return intfCR, netCR, nil
 }
 
 // getInterfaceCRForPod fetches the NetworkInterface object for the pod and network.
 func (d *Daemon) getInterfaceCRForPod(ctx context.Context, ref networkv1.InterfaceRef, ns, podName string) (*networkv1.NetworkInterface, error) {
-	if ref.Interface == nil && ref.Network == nil {
-		return nil, fmt.Errorf("interface or network is not set for the interface %q", ref.InterfaceName)
+	if ref.Interface == nil {
+		// There is no auto generated interface object anymore
+		return nil, nil
 	}
-	var intfName string
-	if ref.Interface != nil {
-		intfName = *ref.Interface
-	} else {
-		// auto-generated NI
-		intfName = generateInterfaceObjName(podName, *ref.Network)
-	}
-
+	intfName := *ref.Interface
 	intfCR, err := d.getInterfaceCR(ctx, intfName, ns)
 	if err != nil {
 		return nil, err
@@ -505,9 +495,6 @@ func constructNetworkInterfaceObject(ctx context.Context, networkName string, po
 			Labels: map[string]string{
 				podNameLabel: pod.Name,
 				networkLabel: networkName,
-			},
-			Finalizers: []string{
-				networkInterfaceFinalizer,
 			},
 			Annotations: map[string]string{
 				networkv1.AutoGenAnnotationKey: networkv1.AutoGenAnnotationValTrue,
@@ -719,12 +706,15 @@ func (d *Daemon) DeleteEndpoints(ctx context.Context, id string) (int, error) {
 			return 0, api.Error(DeleteEndpointIDInvalidCode, err)
 		}
 		if ep.IsMultiNIC() {
-			intfCR := ifNameToInterfaceCR[ep.GetInterfaceNameInPod()]
+			intfCR, ok := ifNameToInterfaceCR[ep.GetInterfaceNameInPod()]
+			var currentPod string
+			if ok && intfCR == nil {
+				// There is no interface object and pod should never change
+				currentPod = ep.GetK8sPodName()
+			}
 			// In case we were unable to gather the interface or the podName is not set,
 			// we treat it the same as podChanged=true which will mean that the lease will expire. We rather let the lease expire if
 			// we do not know whether it is a pod shutdown or not
-
-			var currentPod string
 			if intfCR != nil && intfCR.Status.PodName != nil {
 				currentPod = *intfCR.Status.PodName
 			}
@@ -741,17 +731,6 @@ func (d *Daemon) DeleteEndpoints(ctx context.Context, id string) (int, error) {
 			nerrs += d.deleteMultiNICEndpoint(ep, podChanged)
 		} else {
 			nerrs += d.deleteEndpoint(ep)
-		}
-	}
-
-	for _, intfCR := range ifNameToInterfaceCR {
-		if controllerutil.ContainsFinalizer(intfCR, networkInterfaceFinalizer) {
-			newIntfCR := intfCR.DeepCopy()
-			controllerutil.RemoveFinalizer(newIntfCR, networkInterfaceFinalizer)
-			if err := d.multinicClient.PatchNetworkInterface(ctx, intfCR, newIntfCR); err != nil {
-				log.Errorf("Patching NetworkInterface %s/%s failed: %v", intfCR.Namespace, intfCR.Name, err)
-				nerrs++
-			}
 		}
 	}
 	return nerrs, nil
@@ -900,4 +879,37 @@ func (d *Daemon) defaultNetwork(ctx context.Context) (*networkv1.Network, error)
 		return nil, fmt.Errorf("default network %q: %v", networkv1.DefaultNetworkName, err)
 	}
 	return defaultNetwork, nil
+}
+
+func convertNIObjToAnnotation(ni *networkv1.NetworkInterface) networkv1.InterfaceStatus {
+	ret := networkv1.InterfaceStatus{
+		NetworkName: ni.Spec.NetworkName,
+		IPAddresses: slices.Clone(ni.Status.IpAddresses),
+		MACAddress:  ni.Status.MacAddress,
+		Routes:      slices.Clone(ni.Status.Routes),
+		DNSConfig:   ni.Status.DNSConfig.DeepCopy(),
+	}
+	if ni.Status.Gateway4 != nil {
+		tmp := *ni.Status.Gateway4
+		ret.Gateway4 = &tmp
+	}
+	if dhcpServerIP, ok := ni.Annotations[connector.KubevirtDHCPServerIPAnnotationKey]; ok {
+		ret.DHCPServerIP = ptr.To(dhcpServerIP)
+	}
+	return ret
+}
+
+func buildPodAnnotation(podIPs networkv1.PodIPsAnnotation, interfaceStatusAnnotation networkv1.InterfaceStatusAnnotation) (map[string]string, error) {
+	ret := make(map[string]string)
+	anno, err := networkv1.MarshalAnnotation(podIPs)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal pod IP annoation: %v", err)
+	}
+	ret[networkv1.PodIPsAnnotationKey] = anno
+	anno, err = networkv1.MarshalAnnotation(interfaceStatusAnnotation)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal interface-status annoation: %v", err)
+	}
+	ret[networkv1.InterfaceStatusAnnotationKey] = anno
+	return ret, nil
 }
