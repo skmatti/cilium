@@ -340,3 +340,9 @@ func teatDownTestVM(vmConfig VMTestConfig, restClient *rest.RESTClient, virtClie
 func generateDiskName(gvmName string) string {
 	return fmt.Sprintf("%s-disk", gvmName)
 }
+func MakePingCommand(DestinationVMIPstr string) string {
+	ipACmd := "ip a"
+	ipRCmd := "ip r"
+	pingCmd := fmt.Sprintf("ping -c 5 %s\n", DestinationVMIPstr)
+	return fmt.Sprintf("%s && %s && %s", ipACmd, ipRCmd, pingCmd)
+}

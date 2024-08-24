@@ -3,6 +3,7 @@ package kubevirt
 import (
 	"context"
 	"fmt"
+	"net"
 	"os"
 	"time"
 
@@ -18,9 +19,11 @@ import (
 
 	networkv1 "github.com/GoogleCloudPlatform/gke-networking-api/apis/network/v1"
 	networkclientset "github.com/GoogleCloudPlatform/gke-networking-api/client/network/clientset/versioned"
-	"kubevirt.io/client-go/kubecli"
 
 	"gke-internal.googlesource.com/anthos-networking/test-infra/pkg/client"
+	virtv1 "kubevirt.io/api/core/v1"
+	"kubevirt.io/client-go/kubecli"
+
 	"gke-internal.googlesource.com/anthos-networking/test-infra/pkg/network"
 	klog "gke-internal.googlesource.com/syllogi/sanitized-klog"
 	gvmv1 "gke-internal.googlesource.com/third_party/cilium/google_test/wora/e2e/pkg/kubevm/vm-controller/api/v1"
@@ -32,15 +35,16 @@ const (
 	defaultInitialInterval = 10 * time.Second
 	// defaultTimeout defines the default timeout value as 10 minutes for the
 	// entire operation.
-	defaultTimeout       = 10 * time.Minute
-	k8sNodeNameLabelKey  = "kubernetes.io/hostname"
-	networkInterfaceName = "eth1"
-	vmNetworkName        = "node-network"
+	defaultTimeout                = 10 * time.Minute
+	k8sNodeNameLabelKey           = "kubernetes.io/hostname"
+	networkInterfaceName          = "eth1"
+	vmNetworkName                 = "node-network"
+	workerNodeLabelSelectorString = "baremetal.cluster.gke.io/node-pool=np1"
 	// cmdConsoleRespDuration is the response timeout for commands run in VM console.
 	cmdConsoleRespDuration = 30 * time.Second
 	// defaultConsoleRespDuration is the default response timeout for VM console access.
 	defaultConsoleRespDuration = 10 * time.Minute
-	workerNodeLabelSelectorString = "baremetal.cluster.gke.io/node-pool=np1"
+	pingOKExpectation          = "5 received"
 )
 
 type NetworkInterfaceConfig struct {
@@ -107,6 +111,10 @@ var _ = Describe("Verifiers/Kubevirt", Label("kubevirt"), Ordered, func() {
 	var c client.Interface
 	var vc kubecli.KubevirtClient
 
+	var kubevirtVMInstance1 *virtv1.VirtualMachineInstance
+	var kubevirtVMInstance2 *virtv1.VirtualMachineInstance
+	var kubevirtVMInstance3 *virtv1.VirtualMachineInstance
+
 	BeforeAll(func() {
 		ctx = context.Background()
 		kubeconfig := os.Getenv("KUBECONFIG")
@@ -151,6 +159,7 @@ var _ = Describe("Verifiers/Kubevirt", Label("kubevirt"), Ordered, func() {
 		Expect(err).NotTo(HaveOccurred())
 
 		// prepare the kubevirt client
+		// Create kubevirt client.
 		vc, err = kubecli.GetKubevirtClientFromFlags("", kubeconfig)
 		Expect(err).ShouldNot(HaveOccurred())
 	})
@@ -174,10 +183,58 @@ var _ = Describe("Verifiers/Kubevirt", Label("kubevirt"), Ordered, func() {
 		// Create VM3 on other node for cross node connectivity testing.
 		_, err = createTestVMonNode(VMTestConfig3, nodeList.Items[1].Name, restClient, vc, ctx, defaultInitialInterval, defaultTimeout)
 		Expect(err).NotTo(HaveOccurred())
+
+	})
+	Describe("connectivity tests", func() {
+		BeforeEach(func() {
+			var err error
+			kubevirtVMInstance1, err = vc.VirtualMachineInstance(VMTestConfig1.Namespace).Get(ctx, VMTestConfig1.Name, metav1.GetOptions{})
+			Expect(err).ShouldNot(HaveOccurred())
+			kubevirtVMInstance2, err = vc.VirtualMachineInstance(VMTestConfig2.Namespace).Get(ctx, VMTestConfig2.Name, metav1.GetOptions{})
+			Expect(err).ShouldNot(HaveOccurred())
+			kubevirtVMInstance3, err = vc.VirtualMachineInstance(VMTestConfig3.Namespace).Get(ctx, VMTestConfig3.Name, metav1.GetOptions{})
+			Expect(err).ShouldNot(HaveOccurred())
+		})
+
+		It("logs in all VMs successfully", func() {
+			err := consoleLogin(vc, kubevirtVMInstance1)
+			Expect(err).ShouldNot(HaveOccurred())
+
+			err = consoleLogin(vc, kubevirtVMInstance2)
+			Expect(err).ShouldNot(HaveOccurred())
+
+			err = consoleLogin(vc, kubevirtVMInstance3)
+			Expect(err).ShouldNot(HaveOccurred())
+		})
+
+		It("validate connection of VMs on same node", func() {
+			vm2IP, _, _ := net.ParseCIDR(VMTestConfig2.NetworkInterfaces[0].IPAddress)
+			pingCmdFromVM1toVM2 := MakePingCommand(vm2IP.String())
+			err := consolePing(vc, kubevirtVMInstance1, pingCmdFromVM1toVM2, pingOKExpectation)
+			Expect(err).ShouldNot(HaveOccurred())
+
+			vm1IP, _, _ := net.ParseCIDR(VMTestConfig1.NetworkInterfaces[0].IPAddress)
+			pingCmdFromVM2toVM1 := MakePingCommand(vm1IP.String())
+			err = consolePing(vc, kubevirtVMInstance2, pingCmdFromVM2toVM1, pingOKExpectation)
+			Expect(err).ShouldNot(HaveOccurred())
+
+		})
+
+		It("validate connection of VMs on different nodes", func() {
+			vm3IP, _, _ := net.ParseCIDR(VMTestConfig3.NetworkInterfaces[0].IPAddress)
+			pingCmdFromVM1toVM3 := MakePingCommand(vm3IP.String())
+			err := consolePing(vc, kubevirtVMInstance1, pingCmdFromVM1toVM3, pingOKExpectation)
+			Expect(err).ShouldNot(HaveOccurred())
+
+			vm1IP, _, _ := net.ParseCIDR(VMTestConfig1.NetworkInterfaces[0].IPAddress)
+			pingCmdFromVM3toVM1 := MakePingCommand(vm1IP.String())
+			err = consolePing(vc, kubevirtVMInstance3, pingCmdFromVM3toVM1, pingOKExpectation)
+			Expect(err).ShouldNot(HaveOccurred())
+		})
 	})
 
 	AfterAll(func() {
-		err := teatDownTestVM(VMTestConfig1, restClient,vc, ctx)
+		err := teatDownTestVM(VMTestConfig1, restClient, vc, ctx)
 		Expect(err).NotTo(HaveOccurred())
 		err = teatDownTestVM(VMTestConfig2, restClient, vc, ctx)
 		Expect(err).NotTo(HaveOccurred())
