@@ -78,9 +78,11 @@ if [[ -z "${run_test_script}" || -z "${test_vm_machine_type}" ]]; then
   exit 1
 fi
 
-# Make test fail fast if IMAGE_PROJECT or the IMAGE_FAMILY is not specified.
-if [[ -z ${IMAGE_PROJECT} ]] || [[ -z ${IMAGE_FAMILY} ]]; then
-  log "Please specify IMAGE_PROJECT and IMAGE_FAMILY."
+# Make test fail fast if IMAGE_PROJECT or the IMAGE_FAMILY and IMAGE_REF is not specified.
+IMAGE_FAMILY="${IMAGE_FAMILY:-}"
+IMAGE_REF="${IMAGE_REF:-}"
+if [[ -z ${IMAGE_PROJECT} ]] || { [[ -z ${IMAGE_FAMILY} ]] && [[ -z ${IMAGE_REF} ]]; }; then
+  log "Please specify IMAGE_PROJECT and IMAGE_FAMILY or IMAGE_REF."
   exit 1
 fi
 
@@ -136,6 +138,7 @@ echo "PROJECT = ${PROJECT}"
 echo "ZONE = ${ZONE}"
 echo "IMAGE_PROJECT = ${IMAGE_PROJECT}"
 echo "IMAGE_FAMILY = ${IMAGE_FAMILY}"
+echo "IMAGE_REF = ${IMAGE_REF}"
 
 function auth {
   # This is set through:
@@ -154,23 +157,33 @@ function allow_ssh {
 
 # Create GCE instance with specific OS image
 function create_gce_instance_with_os {
-  log "Creating gce instance with OS image: IMAGE_PROJECT = ${IMAGE_PROJECT}, IMAGE_FAMILY = ${IMAGE_FAMILY} to run ${TEST_TYPE} test."
-  gcloud beta compute instances create "${TEST_VM_NAME}" \
-    --max-run-duration 24h \
-    --instance-termination-action=DELETE \
-    --image-project="${IMAGE_PROJECT}" \
-    --image-family="${IMAGE_FAMILY}" \
-    --machine-type="${test_vm_machine_type}" \
-    --boot-disk-size=256GB
+  log "Creating gce instance with OS image: IMAGE_PROJECT = ${IMAGE_PROJECT}, IMAGE_FAMILY = ${IMAGE_FAMILY}, IMAGE_REF = ${IMAGE_REF} to run ${TEST_TYPE} test."
+  if [[ -n "${IMAGE_REF}" ]]; then
+    gcloud beta compute instances create "${TEST_VM_NAME}" \
+      --max-run-duration 24h \
+      --instance-termination-action=DELETE \
+      --image-project="${IMAGE_PROJECT}" \
+      --image="${IMAGE_REF}" \
+      --machine-type="${test_vm_machine_type}" \
+      --boot-disk-size=256GB
+  else
+    gcloud beta compute instances create "${TEST_VM_NAME}" \
+      --max-run-duration 24h \
+      --instance-termination-action=DELETE \
+      --image-project="${IMAGE_PROJECT}" \
+      --image-family="${IMAGE_FAMILY}" \
+      --machine-type="${test_vm_machine_type}" \
+      --boot-disk-size=256GB
+  fi
   wait_for_vm
   wait_for_config_ssh
 }
 
 function wait_for_vm {
   local count=0
-  until gcloud compute ssh --quiet "${TEST_VM_NAME}" --command="echo ready" 2> /dev/null; do
-    if (( count++ >= 5 )); then
-      error "Failed to create ${TEST_VM_NAME}, reached the retry limit";
+  until gcloud compute ssh --quiet "${TEST_VM_NAME}" --command="echo ready" 2>/dev/null; do
+    if ((count++ >= 5)); then
+      error "Failed to create ${TEST_VM_NAME}, reached the retry limit"
     fi
     log "Waiting $count second(s) for ${TEST_VM_NAME} to be ready"
     sleep $count
@@ -180,9 +193,9 @@ function wait_for_vm {
 
 function wait_for_config_ssh {
   local count=0
-  until gcloud compute config-ssh 2> /dev/null; do
-    if (( count++ >= 5 )); then
-      error "Failed to configure SSH for GCP VMs, reached the retry limit";
+  until gcloud compute config-ssh 2>/dev/null; do
+    if ((count++ >= 5)); then
+      error "Failed to configure SSH for GCP VMs, reached the retry limit"
     fi
     log "Waiting $count second(s) to configure SSH for GCP VMs"
     sleep $count
@@ -228,7 +241,10 @@ create_gce_instance_with_os
 
 trap clean_up_gce_instance EXIT
 
-rexec "sudo mkdir -p ${TEST_VM_INTERNAL_SOURCE_CODE_PATH}; sudo mount -o size=8G -t tmpfs none ${TEST_VM_INTERNAL_SOURCE_CODE_PATH}"
+# For gdch-rocky, the permission for the created directory needs to be set to 777.
+rexec "sudo mkdir -p ${TEST_VM_INTERNAL_SOURCE_CODE_PATH}; sudo mount -o size=8G -t tmpfs none ${TEST_VM_INTERNAL_SOURCE_CODE_PATH}; sudo chmod -R 777 ${TEST_VM_WORKDIR}"
+# For edgeos, the docker service is shutdown by default.
+rexec "sudo systemctl start docker"
 
 # Internal source code is always copied for test scrips, taking the source code
 # path in prow as input.
@@ -240,9 +256,7 @@ copy_code_from_prow_to_test_vm "${PROW_INTERNAL_SOURCE_CODE_PATH}"
 # upstream testing.
 TEST_VM_SOURCE_CODE_PATH="${TEST_VM_INTERNAL_SOURCE_CODE_PATH}"
 if [[ -n "${UPSTREAM_CILIUM_BRANCH}" ]]; then
-
-  rexec "sudo mkdir -p ${TEST_VM_UPSTREAM_SOURCE_CODE_PATH}; sudo mount -o size=8G -t tmpfs none ${TEST_VM_UPSTREAM_SOURCE_CODE_PATH}"
-
+  rexec "sudo mkdir -p ${TEST_VM_UPSTREAM_SOURCE_CODE_PATH}; sudo mount -o size=8G -t tmpfs none ${TEST_VM_UPSTREAM_SOURCE_CODE_PATH}; sudo chmod -R 777 ${TEST_VM_WORKDIR}"
   remove_symlinks_in_repo "${PROW_UPSTREAM_SOURCE_CODE_PATH}"
   copy_code_from_prow_to_test_vm "${PROW_UPSTREAM_SOURCE_CODE_PATH}"
   TEST_VM_SOURCE_CODE_PATH="${TEST_VM_UPSTREAM_SOURCE_CODE_PATH}"
