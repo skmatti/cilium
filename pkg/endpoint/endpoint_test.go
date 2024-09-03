@@ -79,7 +79,7 @@ func setupEndpointSuite(tb testing.TB) *EndpointSuite {
 	/* Required to test endpoint CEP policy model */
 	kvstore.SetupDummy(tb, "etcd")
 	// The nils are only used by k8s CRD identities. We default to kvstore.
-	mgr := cache.NewCachingIdentityAllocator(&testidentity.IdentityAllocatorOwnerMock{})
+	mgr := cache.NewCachingIdentityAllocator(&testidentity.IdentityAllocatorOwnerMock{}, cache.AllocatorConfig{})
 	<-mgr.InitIdentityAllocator(nil)
 	s.mgr = mgr
 	node.SetTestLocalNodeStore()

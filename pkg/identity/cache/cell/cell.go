@@ -10,6 +10,7 @@ import (
 
 	"github.com/cilium/hive/cell"
 	"github.com/cilium/stream"
+	"github.com/spf13/pflag"
 
 	"github.com/cilium/cilium/pkg/clustermesh"
 	"github.com/cilium/cilium/pkg/identity"
@@ -26,6 +27,7 @@ var Cell = cell.Module(
 	"Allocating and managing security identities",
 
 	cell.Provide(newIdentityAllocator),
+	cell.Config(defaultConfig),
 )
 
 // CachingIdentityAllocator provides an abstraction over the concrete type in
@@ -59,6 +61,7 @@ type identityAllocatorParams struct {
 	PolicyUpdater    *policy.Updater
 
 	IdentityHandlers []identity.UpdateIdentities `group:"identity-handlers"`
+	Config           config
 }
 
 type identityAllocatorOut struct {
@@ -68,6 +71,19 @@ type identityAllocatorOut struct {
 	CacheIdentityAllocator cache.IdentityAllocator
 	RemoteIdentityWatcher  clustermesh.RemoteIdentityWatcher
 	IdentityObservable     stream.Observable[cache.IdentityChange]
+}
+
+type config struct {
+	EnableOperatorManageCIDs bool `mapstructure:"operator-manages-identities"`
+}
+
+func (c config) Flags(flags *pflag.FlagSet) {
+	flags.Bool("operator-manages-identities", c.EnableOperatorManageCIDs, "Enables operator to manage Cilium Identities by running a Cilium Identity controller")
+	flags.MarkHidden("operator-manages-identities") // See https://github.com/cilium/cilium/issues/34675
+}
+
+var defaultConfig = config{
+	EnableOperatorManageCIDs: false,
 }
 
 func newIdentityAllocator(params identityAllocatorParams) identityAllocatorOut {
@@ -84,12 +100,12 @@ func newIdentityAllocator(params identityAllocatorParams) identityAllocatorOut {
 
 	if option.NetworkPolicyEnabled(option.Config) {
 		// TODO(b/369864060) re-enable with operator managing CIDs.
-		// allocatorConfig := cache.AllocatorConfig{
-		// 	EnableOperatorManageCIDs: params.Config.EnableOperatorManageCIDs,
-		// }
+		allocatorConfig := cache.AllocatorConfig{
+			EnableOperatorManageCIDs: params.Config.EnableOperatorManageCIDs,
+		}
 
 		// Allocator: allocates local and cluster-wide security identities.
-		cacheIDAlloc := cache.NewCachingIdentityAllocator(iao)
+		cacheIDAlloc := cache.NewCachingIdentityAllocator(iao, allocatorConfig)
 		cacheIDAlloc.EnableCheckpointing()
 
 		idAlloc = cacheIDAlloc

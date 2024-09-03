@@ -1,6 +1,12 @@
 package cmd
 
 import (
+	"github.com/sirupsen/logrus"
+	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/fields"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/tools/cache"
+
 	"github.com/cilium/cilium/pkg/comparator"
 	idcache "github.com/cilium/cilium/pkg/identity/cache"
 	cilium_clientset "github.com/cilium/cilium/pkg/k8s/client/clientset/versioned"
@@ -12,11 +18,6 @@ import (
 	"github.com/cilium/cilium/pkg/logging/logfields"
 	nodeTypes "github.com/cilium/cilium/pkg/node/types"
 	"github.com/cilium/cilium/slim-daemon/k8s"
-	"github.com/sirupsen/logrus"
-	v1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/fields"
-	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/tools/cache"
 )
 
 type k8sWatcher struct {
@@ -30,7 +31,7 @@ func NewK8sWatcher() *k8sWatcher {
 	// well known identities have already been initialized above.
 	// Ignore the channel returned by this function, as we want the global
 	// identity allocator to run asynchronously.
-	identityAllocator := idcache.NewCachingIdentityAllocator(dummyIdentityAllocatorOwner{})
+	identityAllocator := idcache.NewCachingIdentityAllocator(dummyIdentityAllocatorOwner{}, idcache.AllocatorConfig{})
 	identityAllocator.InitIdentityAllocator(&cilium_clientset.Clientset{})
 
 	return &k8sWatcher{
