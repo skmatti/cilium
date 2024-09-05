@@ -6,26 +6,31 @@ metadata:
 spec:
   ttlSeconds: 18000 # 5 hours
   knests:
-    - apiVersion: sut.tailorbird.io/v1alpha1
-      kind: Knest
-      metadata:
-        name: wora-sut-gdch-adhoc
-        namespace: tailorbird-users
-      spec:
-        clusters:
-          - apiVersion: sut.tailorbird.io/v1alpha1
-            kind: Cluster
-            metadata:
-              name: wora-sut-gdch-adhoc
-              namespace: tailorbird-users
-            spec:
-              provider: gdch
-              distribution: gdch-gce-adhoc
-              provisionerArgs:
-                pluginSpecYaml: |
-                  username: "ci-abm-gdch"
-                  adhocOperation: "rollout"
-                  adhocArgs:
-                    pool_name: "unet"
-                    test:      "TestConnectivityMultiTenant"
-                    comment:   "AN Shift left testing"
+  - apiVersion: sut.tailorbird.io/v1alpha1
+    kind: Knest
+    metadata:
+      name: wora-sut-gdch-adhoc
+      namespace: tailorbird-users
+    spec:
+      clusters:
+      - apiVersion: sut.tailorbird.io/v1alpha1
+        kind: Cluster
+        metadata:
+          name: wora-sut-gdch-adhoc
+          namespace: tailorbird-users
+        spec:
+          provider: gdch
+          distribution: gdch-gce-adhoc
+          provisionerArgs:
+            # (b/368438754) use tb_update_sha_override as a temporary measure until gold catches up
+            pluginSpecYaml: |
+              username: "ci-abm-gdch"
+              adhocOperation: "rollout"
+              adhocArgs:
+                pool_name: "unet"
+                test:      "TestConnectivityMultiTenant|TestVMNetworkToVMInterProjectV2MT|TestVMNetworkToVMIntraProjectV2MT|TestVMEgressNATV2MT|TestGdcloudNetworkDiagnoseMT|TestClusterMeshConnectivityMultiTenant|TestClusterMeshConnectivityNewFrameworkMultiTenant|TestVMNetworkToPodIntraProjectV2MT|TestFabricTracingMultiTenant|TestILBServiceConnectivityMultiTenant|TestProjectNetworkPolicyEnforcementMultiTenant|TestEgressNATMultiTenant|TestClusterMeshHealthMultiTenant|TestUNETReadyRootAdmin|TestUNETReadyOrgAdmin"
+                plan:      "silver/unet/gce-mt"
+                comment:   "AN Shift left testing"
+                tb_update_oc: "unet"
+                tb_update_spec: "${UPDATE_SPEC_STRING}"
+                tb_update_sha_override: "8a3e4c4619c3f0b508826f15d25c0a1b84c97e34"

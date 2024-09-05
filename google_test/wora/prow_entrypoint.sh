@@ -213,7 +213,17 @@ case "${PLATFORM}" in
     fi
     ;;
   gdch-gdch-gce-adhoc)
-    # TODO(b/348496317): Integration with Cilium image with TB plugin to be implemented.
+    working_copy "${ROOT}/oc_update/cilium_update_spec.json.tmpl" "${ROOT}/${WORKDIR}"
+    ABSOLUTE_PATH_TBCONFIG="${TBCONFIG}" \
+      IMAGE_REGISTRY="${IMAGE_REGISTRY}" \
+      DOCKER_IMAGE_TAG="${DOCKER_IMAGE_TAG}" \
+      CILIUM_DOCKER_IMAGE_TAG="${CILIUM_DOCKER_IMAGE_TAG}" \
+      WORKDIR="${ROOT}/${WORKDIR}" \
+      CILIUM_GITREF="${CILIUM_GITREF:-}" \
+      "${ROOT}/provision_gdch.sh"
+    # Unset docker image after upgrade to stop failures due to image verification.
+    # Image verification is not possible in GDCH due to lack of kubeconfig support.
+    DISABLE_UPGRADE_VERIFICATION=true
     ;;
   *)
     echo "Unknown platform: ${PLATFORM}." >&2
@@ -267,6 +277,7 @@ if [[ -n "${CILIUM_DOCKER_IMAGE_TAG}" ]]; then
 fi
 
 CILIUM_IMAGE_WITH_TAG=${CILIUM_IMAGE_WITH_TAG:-} \
+  DISABLE_UPGRADE_VERIFICATION=${DISABLE_UPGRADE_VERIFICATION:-} \
   kubetest2-tailorbird \
   --verbose \
   --up \

@@ -60,7 +60,7 @@ if [[ -n "${OLD_KUBECONFIG}" ]] && [[ -n "${ARTIFACTS}" ]] && [[ "${KUBECONFIG#"
   export KUBECONFIG="${OLD_KUBECONFIG-}"
 fi
 
-if [[ -n "${KUBECONFIG}" ]] && [[ -n "${CILIUM_IMAGE_WITH_TAG:-}" ]]; then
+if [[ -n "${KUBECONFIG}" ]] && [[ -n "${CILIUM_IMAGE_WITH_TAG:-}" ]] && [[ "${DISABLE_UPGRADE_VERIFICATION}" != "true" ]]; then
   verify_cilium_overridden "${CILIUM_IMAGE_WITH_TAG}"
 fi
 

@@ -20,6 +20,37 @@ presubmits:
         # needed for docker-in-docker
         privileged: true
       env:
+      - name: CILIUM_GITREF
+        value: HEAD
+      - name: TBCONFIG
+        value: sut-gdch-adhoc.yaml
+      - name: WORA_CONFIG
+        value: no_op_test.yaml
+      command:
+      - runner.sh
+      args:
+      - ./google_test/wora/prow_entrypoint.sh
+- name: wora-gdch_cilium-nobuild
+  trigger: /test wora-gdch-adhoc-nobuild$
+  rerun_command: /test wora-gdch-adhoc-nobuild
+  always_run: false
+  decorate: true
+  decoration_config:
+    timeout: 240m
+  labels:
+    preset-cookie-file: "true"
+    preset-cookie-file-env: "true"
+    preset-service-account: "true"
+    preset-dind-enabled: "true"
+    preset-k8s-ssh: "true"
+  path_alias: gke-internal.googlesource.com/third_party/cilium
+  spec:
+    containers:
+    - image: gcr.io/tailorbird/kubetest2-tailorbird:latest
+      securityContext:
+        # needed for docker-in-docker
+        privileged: true
+      env:
       - name: TBCONFIG
         value: sut-gdch-adhoc.yaml
       - name: WORA_CONFIG
