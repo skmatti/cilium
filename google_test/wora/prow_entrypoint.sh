@@ -212,6 +212,9 @@ case "${PLATFORM}" in
         advanceddatapath-image push-advanceddatapath-image
     fi
     ;;
+  gdch-gdch-gce-adhoc)
+    # TODO(b/348496317): Integration with Cilium image with TB plugin to be implemented.
+    ;;
   *)
     echo "Unknown platform: ${PLATFORM}." >&2
     exit 1

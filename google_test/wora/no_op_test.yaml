@@ -1,0 +1,29 @@
+apiVersion: sut.tailorbird.io/v1alpha1
+kind: Rookery
+metadata:
+  name: integration-test-rookery
+  namespace: tailorbird-users
+spec:
+  applications:
+  - apiVersion: sut.tailorbird.io/v1alpha1
+    kind: Application
+    metadata:
+      name: integration-test-rookery
+      namespace: tailorbird-users
+    spec:
+      resourceTypeReference:
+        name: anthos-networking-test-workloads
+        version: latest
+      directives:
+      - apiVersion: sut.tailorbird.io/v1alpha1
+        kind: ExecutionDirective
+        metadata:
+          name: integration-test-execution
+        spec:
+          targets:
+          - namePrefix: oob # This should match prefix of cluster name in `--upload-external-clusters`
+            kind: Cluster
+            namespace: tailorbird-users
+          args: []
+          env:
+            RESULTS_DIR: '{{ RuntimePath "." }}' # Write results to root of artifacts dir.
