@@ -529,8 +529,8 @@ github.com/yuin/goldmark v1.4.0/go.mod h1:mwnBkeHKe2W/ZEtQ+71ViKU8L12m81fl3OWwC1
 github.com/yuin/goldmark v1.4.1/go.mod h1:mwnBkeHKe2W/ZEtQ+71ViKU8L12m81fl3OWwC1Zlc8k=
 github.com/yuin/goldmark v1.4.13/go.mod h1:6yULJ656Px+3vBD8DxQVa3kxgyrAnzto9xy5taEt/CY=
 github.com/ziutek/telnet v0.0.0-20180329124119-c3b780dc415b/go.mod h1:IZpXDfkJ6tWD3PhBK5YzgQT+xJWh7OsdwiG8hA2MkO4=
-gke-internal.googlesource.com/anthos-networking.git/test-infra v0.0.0-20240823203913-160be313ffc4 h1:mmUCrYv5506EBTynZlklu+8KgMoStppMYFi4X+8vnxY=
-gke-internal.googlesource.com/anthos-networking.git/test-infra v0.0.0-20240823203913-160be313ffc4/go.mod h1:X4VL3OCurs5kbW7xfFo61mqvavNXTtWM7e9APUB8OQk=
+gke-internal.googlesource.com/anthos-networking.git/test-infra v0.0.0-20240906005858-8d7cede16606 h1:FcYPa8I0K97wNa4SkezL0wyU0U2fG46O7rsiiknyrxk=
+gke-internal.googlesource.com/anthos-networking.git/test-infra v0.0.0-20240906005858-8d7cede16606/go.mod h1:X4VL3OCurs5kbW7xfFo61mqvavNXTtWM7e9APUB8OQk=
 gke-internal.googlesource.com/onprem-lab-automation.git/lib/hercules/public v0.0.0-20240726064312-44402fcf3a74 h1:kz2ql/HLh9KihHyDcgnmjZwolbcsc8CFF/+0nec7fR4=
 gke-internal.googlesource.com/onprem-lab-automation.git/lib/hercules/public v0.0.0-20240726064312-44402fcf3a74/go.mod h1:KAJsx+MYbt5YEESHuErXMUXpfNSENW59IL6kh16jc4o=
 gke-internal.googlesource.com/onprem-lab-automation.git/lib/shared v0.0.0-20240729132814-5a038fd85a76 h1:XhBo4HuQCvT3VffHl/bIFbKuzlr5vAObP5dX2Krrg8U=

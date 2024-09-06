@@ -123,7 +123,7 @@ require (
 )
 
 replace (
-	gke-internal.googlesource.com/anthos-networking/test-infra => gke-internal.googlesource.com/anthos-networking.git/test-infra v0.0.0-20240823203913-160be313ffc4
+	gke-internal.googlesource.com/anthos-networking/test-infra => gke-internal.googlesource.com/anthos-networking.git/test-infra v0.0.0-20240906005858-8d7cede16606
 	gke-internal.googlesource.com/onprem-lab-automation/lib/hercules/public => gke-internal.googlesource.com/onprem-lab-automation.git/lib/hercules/public v0.0.0-20240726064312-44402fcf3a74
 	gke-internal.googlesource.com/onprem-lab-automation/lib/shared => gke-internal.googlesource.com/onprem-lab-automation.git/lib/shared v0.0.0-20240729132814-5a038fd85a76
 	gke-internal.googlesource.com/syllogi/sanitized-klog => gke-internal.googlesource.com/syllogi/sanitized-klog.git v0.0.11
