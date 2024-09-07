@@ -34,7 +34,7 @@ run_test_script="${test_script_from_test_type["${TEST_TYPE}"]}"
 
 # Set up job variables
 SHA="$(git rev-parse --verify HEAD)"
-CILIUM_CLI_VERSION=v0.14.8
+CILIUM_CLI_VERSION=v0.16.13
 export DOCKER_BUILD_KIT=1
 export DOCKER_CLI_EXPERIMENTAL=enabled
 export PROJECT="${GCP_PROJECT:-anthos-networking-ci}"
@@ -147,8 +147,7 @@ cilium install --wait --chart-directory=install/kubernetes/cilium \
   --helm-set=sessionAffinity=true \
   --helm-set=bpf.monitorAggregation=none \
   --helm-set=disableEnvoyVersionCheck=true \
-  --disable-check=minimum-version \
-  --rollback=false
+  --disable-check=minimum-version
 
 # Run tests
 KUBECONFIG="${KUBECONFIG}" "${run_test_script}"
