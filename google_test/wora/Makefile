@@ -27,6 +27,10 @@ WORA_IMAGE_FULL_NAME = $(WORA_IMAGE_REGISTRY)/$(WORA_IMAGE_NAME):$(WORA_IMAGE_TA
 WORA_DOCKERFILE_DIR ?= $(CURDIR)
 WORA_DOCKERFILE = $(realpath $(WORA_DOCKERFILE_DIR)/Dockerfile)
 
+CILIUM_E2E_IMAGE_NAME = cilium-e2e
+CILIUM_E2E_IMAGE_FULL_NAME = $(WORA_IMAGE_REGISTRY)/$(CILIUM_E2E_IMAGE_NAME):$(WORA_IMAGE_TAG)
+CILIUM_E2E_DOCKERFILE = $(realpath $(CURDIR)/Dockerfile)
+
 ADVANCEDDATAPATH_BASE_IMAGE_REGISTRY ?= us-central1-docker.pkg.dev/anthos-networking-ci/gke-component-images
 ADVANCEDDATAPATH_BASE_IMAGE_NAME ?= advanceddatapath
 ADVANCEDDATAPATH_BASE_IMAGE_TAG = 0.0.1001
@@ -113,7 +117,7 @@ wora-image: ## Build WORA image.
 	@echo "Built image with TBENV=$(TBENV)."
 
 push-wora-image: ## Push WORA image.
-	docker push $(WORA_IMAGE_FULL_NAME)
+	docker push "$(WORA_IMAGE_FULL_NAME)"
 	@echo "Pushed image with TBENV=$(TBENV)."
 
 check-advanceddatapath-image-tag: ## Prevent overwriting component image tag.
@@ -128,9 +132,25 @@ advanceddatapath-image: check-advanceddatapath-image-tag ## Build advanceddatapa
 		--build-arg=BASE_IMAGE_TAG="$(ADVANCEDDATAPATH_BASE_IMAGE_TAG)" \
 		--build-arg=CILIUM_IMAGE_REGISTRY="$(IMAGE_REGISTRY)" \
 		--build-arg=CILIUM_IMAGE_TAG="$(CILIUM_DOCKER_IMAGE_TAG)" \
-		-t "${ADVANCEDDATAPATH_IMAGE_FULL_NAME}" \
-		-f "${ADVANCEDDATAPATH_DOCKERFILE}" \
+		-t "$(ADVANCEDDATAPATH_IMAGE_FULL_NAME)" \
+		-f "$(ADVANCEDDATAPATH_DOCKERFILE)" \
 		"$(CURDIR)"
 
 push-advanceddatapath-image: check-advanceddatapath-image-tag ## Push advanceddatapath image.
 	docker push "${ADVANCEDDATAPATH_IMAGE_FULL_NAME}"
+
+##@ WORA test images
+
+cilium-e2e-image: wora-vendor ## Build general E2E WORA test image.
+	docker build $(DOCKER_BUILD_OPTIONS) \
+		--build-arg=BASE_IMAGE_REGISTRY="$(WORA_BASE_IMAGE_REGISTRY)" \
+		--build-arg=BASE_IMAGE_NAME="$(WORA_BASE_IMAGE_NAME)" \
+		--build-arg=BASE_IMAGE_TAG="$(WORA_BASE_IMAGE_TAG)" \
+		--build-arg=VENDOR="$(VENDOR)" \
+		$(DOCKER_BUILD_EXTRA_ARGS) \
+		-t "$(CILIUM_E2E_IMAGE_FULL_NAME)" \
+		-f "$(CILIUM_E2E_DOCKERFILE)" \
+		"$(CURDIR)"
+
+push-cilium-e2e-image: ## Push general E2E wora test image.
+	docker push "$(CILIUM_E2E_IMAGE_FULL_NAME)"

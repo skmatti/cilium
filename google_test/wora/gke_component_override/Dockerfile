@@ -2,7 +2,7 @@ ARG BASE_IMAGE_REGISTRY="us-central1-docker.pkg.dev/anthos-networking-ci/gke-com
 ARG BASE_IMAGE_NAME="advanceddatapath"
 ARG BASE_IMAGE_TAG="0.0.1001"
 
-FROM "${BASE_IMAGE_REGISTRY}/${BASE_IMAGE_NAME}:${BASE_IMAGE_TAG}" as base
+FROM "${BASE_IMAGE_REGISTRY}/${BASE_IMAGE_NAME}:${BASE_IMAGE_TAG}" AS base
 # Use reproducible build debian image: go/anthos-baremetal-debian-base-image.
 FROM gcr.io/anthos-baremetal-staging/debian-cloud-rapture-base/debian-cloud-rapture-base:202403051714@sha256:406b873cf76b6be4cadc02fff80fe9a93738d2604b6e1902d01481113099cbfc as runner
 

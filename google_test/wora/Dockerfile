@@ -2,7 +2,7 @@ ARG BASE_IMAGE_REGISTRY="gcr.io/anthos-networking-ci/applications"
 ARG BASE_IMAGE_NAME="anthos-networking-test-workloads"
 ARG BASE_IMAGE_TAG="latest"
 
-FROM "${BASE_IMAGE_REGISTRY}/${BASE_IMAGE_NAME}:${BASE_IMAGE_TAG}" as builder
+FROM "${BASE_IMAGE_REGISTRY}/${BASE_IMAGE_NAME}:${BASE_IMAGE_TAG}" AS builder
 
 COPY go.mod go.sum e2e_suite_test.go /tmp/src/
 COPY verifiers/ /tmp/src/verifiers/
