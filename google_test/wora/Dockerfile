@@ -1,4 +1,4 @@
-ARG BASE_IMAGE_REGISTRY="gcr.io/anthos-networking-ci/applications"
+ARG BASE_IMAGE_REGISTRY="gcr.io/anthos-networking-ci/wora"
 ARG BASE_IMAGE_NAME="anthos-networking-test-workloads"
 ARG BASE_IMAGE_TAG="latest"
 

@@ -2,18 +2,7 @@ GCP_PROJECT ?= anthos-networking-ci
 IMAGE_REGISTRY ?= gcr.io/$(GCP_PROJECT)
 IMAGE_TAG ?= $(USER)
 
-TBENV ?= prod
-
-ifndef WORA_BASE_IMAGE_REGISTRY
-ifeq ($(TBENV), prod)
-WORA_BASE_IMAGE_REGISTRY ?= $(IMAGE_REGISTRY)/applications
-else ifeq ($(TBENV), int)
-WORA_BASE_IMAGE_REGISTRY ?= $(IMAGE_REGISTRY)/staging/applications
-else
-$(error "Found TBENV=$(TBENV). Supported values are 'prod' and 'int'.")
-endif
-endif
-
+WORA_BASE_IMAGE_REGISTRY ?= $(IMAGE_REGISTRY)/wora
 WORA_BASE_IMAGE_NAME ?= anthos-networking-test-workloads
 WORA_BASE_IMAGE_TAG ?= latest
 
@@ -114,11 +103,9 @@ wora-image: ## Build WORA image.
 		-t "$(WORA_IMAGE_FULL_NAME)" \
 		-f "$(WORA_DOCKERFILE)" \
 		"$(CURDIR)"
-	@echo "Built image with TBENV=$(TBENV)."
 
 push-wora-image: ## Push WORA image.
 	docker push "$(WORA_IMAGE_FULL_NAME)"
-	@echo "Pushed image with TBENV=$(TBENV)."
 
 check-advanceddatapath-image-tag: ## Prevent overwriting component image tag.
 ifeq ($(ADVANCEDDATAPATH_IMAGE_TAG),$(ADVANCEDDATAPATH_BASE_IMAGE_TAG))

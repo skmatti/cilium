@@ -7,7 +7,8 @@ export DOCKER_BUILDKIT=1
 export DOCKER_CLI_EXPERIMENTAL=enabled
 
 # Register gcloud as the credential helper for Google-supported Docker registries.
-gcloud auth configure-docker
+gcloud auth configure-docker --quiet
+gcloud auth configure-docker "${IMAGE_REGISTRY%%/*}" --quiet
 # Build and push cilium to google cloud registry
 echo "Making Cilium images for current HEAD and push to google cloud registry: ${IMAGE_REGISTRY:?}"
 make -B LOCKDEBUG=1 DOCKER_REGISTRY="${IMAGE_REGISTRY}" docker-operator-generic-image

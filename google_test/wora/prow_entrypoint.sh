@@ -137,7 +137,7 @@ fi
 
 # Set up building and pushing images and add-on configs.
 PROJECT=${GCP_PROJECT:-"anthos-networking-ci"}
-IMAGE_REGISTRY=${IMAGE_REGISTRY:-"gcr.io/${PROJECT}/integration-test"}
+IMAGE_REGISTRY=${IMAGE_REGISTRY:-"gcr.io/${PROJECT}"}
 DOCKER_IMAGE_TAG=${DOCKER_IMAGE_TAG:-}
 CILIUM_DOCKER_IMAGE_TAG=${CILIUM_DOCKER_IMAGE_TAG:-}
 ADDON_CONFIG_NAME=addonConfig-${PROW_JOB_ID:?}.yaml

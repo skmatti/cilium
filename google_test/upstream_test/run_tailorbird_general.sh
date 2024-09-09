@@ -38,7 +38,7 @@ CILIUM_CLI_VERSION=v0.16.13
 export DOCKER_BUILD_KIT=1
 export DOCKER_CLI_EXPERIMENTAL=enabled
 export PROJECT="${GCP_PROJECT:-anthos-networking-ci}"
-export IMAGE_REGISTRY="gcr.io/${PROJECT}/k8s-${TEST_TYPE}-kind"
+export IMAGE_REGISTRY="gcr.io/${PROJECT}"
 export CILIUM_TAG=cilium/cilium
 export CILIUM_OPERATOR_TAG=cilium/operator
 export CILIUM_OPERATOR_GENERIC_TAG=cilium/operator-generic
@@ -53,7 +53,8 @@ echo "  KUBETEST2_RUN_ID = ${KUBETEST2_RUN_ID}"
 echo "  TEST_TYPE        = ${TEST_TYPE}"
 
 # Register gcloud as the credential helper for Google-supported Docker registries.
-gcloud auth configure-docker
+gcloud auth configure-docker --quiet
+gcloud auth configure-docker "${IMAGE_REGISTRY%%/*}" --quiet
 
 # Build and push cilium to google cloud registry
 export DOCKER_IMAGE_TAG="${SHA}"
