@@ -17,6 +17,11 @@ presubmits:
   spec:
     containers:
     - image: gcr.io/tailorbird/kubetest2-tailorbird:latest
+      resources:
+        requests:
+          ephemeral-storage: 70Gi
+        limits:
+          ephemeral-storage: 100Gi
       securityContext:
         # needed for docker-in-docker
         privileged: true
@@ -48,6 +53,11 @@ presubmits:
   spec:
     containers:
     - image: gcr.io/tailorbird/kubetest2-tailorbird:latest
+      resources:
+        requests:
+          ephemeral-storage: 70Gi
+        limits:
+          ephemeral-storage: 100Gi
       securityContext:
         # needed for docker-in-docker
         privileged: true
@@ -81,6 +91,11 @@ presubmits:
   spec:
     containers:
     - image: gcr.io/tailorbird/kubetest2-tailorbird:latest
+      resources:
+        requests:
+          ephemeral-storage: 70Gi
+        limits:
+          ephemeral-storage: 100Gi
       securityContext:
         # needed for docker-in-docker
         privileged: true
@@ -114,6 +129,11 @@ presubmits:
   spec:
     containers:
     - image: gcr.io/tailorbird/kubetest2-tailorbird:latest
+      resources:
+        requests:
+          ephemeral-storage: 70Gi
+        limits:
+          ephemeral-storage: 100Gi
       securityContext:
         # needed for docker-in-docker
         privileged: true
@@ -149,6 +169,11 @@ presubmits:
   spec:
     containers:
     - image: gcr.io/tailorbird/kubetest2-tailorbird:latest
+      resources:
+        requests:
+          ephemeral-storage: 70Gi
+        limits:
+          ephemeral-storage: 100Gi
       securityContext:
         # needed for docker-in-docker
         privileged: true
@@ -186,6 +211,11 @@ presubmits:
   spec:
     containers:
     - image: gcr.io/tailorbird/kubetest2-tailorbird:latest
+      resources:
+        requests:
+          ephemeral-storage: 70Gi
+        limits:
+          ephemeral-storage: 100Gi
       securityContext:
         # needed for docker-in-docker
         privileged: true
@@ -223,6 +253,11 @@ presubmits:
   spec:
     containers:
     - image: gcr.io/tailorbird/kubetest2-tailorbird:latest
+      resources:
+        requests:
+          ephemeral-storage: 70Gi
+        limits:
+          ephemeral-storage: 100Gi
       securityContext:
         # needed for docker-in-docker
         privileged: true
@@ -258,6 +293,11 @@ presubmits:
   spec:
     containers:
     - image: gcr.io/tailorbird/kubetest2-tailorbird:latest
+      resources:
+        requests:
+          ephemeral-storage: 70Gi
+        limits:
+          ephemeral-storage: 100Gi
       securityContext:
         # needed for docker-in-docker
         privileged: true
@@ -293,6 +333,11 @@ presubmits:
   spec:
     containers:
     - image: gcr.io/tailorbird/kubetest2-tailorbird:latest
+      resources:
+        requests:
+          ephemeral-storage: 70Gi
+        limits:
+          ephemeral-storage: 100Gi
       securityContext:
         # needed for docker-in-docker
         privileged: true
@@ -359,6 +404,11 @@ presubmits:
     - name: gcr-secret
     containers:
     - image: gcr.io/tailorbird/kubetest2-tailorbird:latest
+      resources:
+        requests:
+          ephemeral-storage: 70Gi
+        limits:
+          ephemeral-storage: 100Gi
       securityContext:
         # needed for docker-in-docker
         privileged: true
@@ -394,6 +444,11 @@ presubmits:
     - name: gcr-secret
     containers:
     - image: gcr.io/tailorbird/kubetest2-tailorbird:latest
+      resources:
+        requests:
+          ephemeral-storage: 70Gi
+        limits:
+          ephemeral-storage: 100Gi
       securityContext:
         # needed for docker-in-docker
         privileged: true
@@ -429,6 +484,11 @@ presubmits:
   spec:
     containers:
     - image: gcr.io/tailorbird/kubetest2-tailorbird:latest
+      resources:
+        requests:
+          ephemeral-storage: 70Gi
+        limits:
+          ephemeral-storage: 100Gi
       securityContext:
         # needed for docker-in-docker
         privileged: true
@@ -466,6 +526,11 @@ presubmits:
     - name: gcr-secret
     containers:
     - image: gcr.io/tailorbird/kubetest2-tailorbird:latest
+      resources:
+        requests:
+          ephemeral-storage: 70Gi
+        limits:
+          ephemeral-storage: 100Gi
       securityContext:
         # needed for docker-in-docker
         privileged: true
@@ -499,6 +564,11 @@ presubmits:
     - name: gcr-secret
     containers:
     - image: gcr.io/tailorbird/kubetest2-tailorbird:latest
+      resources:
+        requests:
+          ephemeral-storage: 70Gi
+        limits:
+          ephemeral-storage: 100Gi
       securityContext:
         # needed for docker-in-docker
         privileged: true
@@ -534,6 +604,11 @@ presubmits:
   spec:
     containers:
     - image: gcr.io/tailorbird/kubetest2-tailorbird:latest
+      resources:
+        requests:
+          ephemeral-storage: 70Gi
+        limits:
+          ephemeral-storage: 100Gi
       securityContext:
         # needed for docker-in-docker
         privileged: true
@@ -569,6 +644,11 @@ presubmits:
   spec:
     containers:
     - image: gcr.io/tailorbird/kubetest2-tailorbird:latest
+      resources:
+        requests:
+          ephemeral-storage: 70Gi
+        limits:
+          ephemeral-storage: 100Gi
       securityContext:
         # needed for docker-in-docker
         privileged: true
@@ -598,6 +678,11 @@ presubmits:
   spec:
     containers:
     - image: gcr.io/tailorbird/kubetest2-tailorbird:latest
+      resources:
+        requests:
+          ephemeral-storage: 70Gi
+        limits:
+          ephemeral-storage: 100Gi
       securityContext:
         # needed for docker-in-docker
         privileged: true
@@ -634,6 +719,11 @@ presubmits:
     serviceAccountName: anthos-networking-ci-prow-sa
     containers:
     - image: gcr.io/tailorbird/kubetest2-tailorbird:latest
+      resources:
+        requests:
+          ephemeral-storage: 70Gi
+        limits:
+          ephemeral-storage: 100Gi
       securityContext:
         # needed for docker-in-docker
         privileged: true
@@ -664,6 +754,11 @@ presubmits:
     serviceAccountName: anthos-networking-ci-prow-sa
     containers:
     - image: gcr.io/tailorbird/kubetest2-tailorbird:latest
+      resources:
+        requests:
+          ephemeral-storage: 70Gi
+        limits:
+          ephemeral-storage: 100Gi
       securityContext:
         # needed for docker-in-docker
         privileged: true
@@ -698,6 +793,11 @@ presubmits:
     serviceAccountName: anthos-networking-ci-prow-sa
     containers:
     - image: gcr.io/tailorbird/kubetest2-tailorbird:latest
+      resources:
+        requests:
+          ephemeral-storage: 70Gi
+        limits:
+          ephemeral-storage: 100Gi
       securityContext:
         # needed for docker-in-docker
         privileged: true
@@ -733,6 +833,11 @@ presubmits:
   spec:
     containers:
     - image: gcr.io/tailorbird/kubetest2-tailorbird:latest
+      resources:
+        requests:
+          ephemeral-storage: 70Gi
+        limits:
+          ephemeral-storage: 100Gi
       securityContext:
         # needed for docker-in-docker
         privileged: true
@@ -762,6 +867,11 @@ presubmits:
   spec:
     containers:
     - image: gcr.io/tailorbird/kubetest2-tailorbird:latest
+      resources:
+        requests:
+          ephemeral-storage: 70Gi
+        limits:
+          ephemeral-storage: 100Gi
       securityContext:
         # needed for docker-in-docker
         privileged: true
@@ -795,6 +905,11 @@ presubmits:
     - name: gcr-secret
     containers:
     - image: gcr.io/tailorbird/kubetest2-tailorbird:latest
+      resources:
+        requests:
+          ephemeral-storage: 70Gi
+        limits:
+          ephemeral-storage: 100Gi
       securityContext:
         # needed for docker-in-docker
         privileged: true
@@ -828,6 +943,11 @@ presubmits:
     - name: gcr-secret
     containers:
     - image: gcr.io/tailorbird/kubetest2-tailorbird:latest
+      resources:
+        requests:
+          ephemeral-storage: 70Gi
+        limits:
+          ephemeral-storage: 100Gi
       securityContext:
         # needed for docker-in-docker
         privileged: true
@@ -863,6 +983,11 @@ presubmits:
     - name: gcr-secret
     containers:
     - image: gcr.io/tailorbird/kubetest2-tailorbird:latest
+      resources:
+        requests:
+          ephemeral-storage: 70Gi
+        limits:
+          ephemeral-storage: 100Gi
       securityContext:
         # needed for docker-in-docker
         privileged: true
@@ -894,6 +1019,11 @@ presubmits:
     - name: gcr-secret
     containers:
     - image: gcr.io/tailorbird/kubetest2-tailorbird:latest
+      resources:
+        requests:
+          ephemeral-storage: 70Gi
+        limits:
+          ephemeral-storage: 100Gi
       securityContext:
         # needed for docker-in-docker
         privileged: true
@@ -928,6 +1058,11 @@ presubmits:
     serviceAccountName: anthos-networking-ci-prow-sa
     containers:
     - image: gcr.io/tailorbird/kubetest2-tailorbird:latest
+      resources:
+        requests:
+          ephemeral-storage: 70Gi
+        limits:
+          ephemeral-storage: 100Gi
       securityContext:
         # needed for docker-in-docker
         privileged: true
@@ -956,6 +1091,11 @@ presubmits:
     serviceAccountName: anthos-networking-ci-prow-sa
     containers:
     - image: gcr.io/tailorbird/kubetest2-tailorbird:latest
+      resources:
+        requests:
+          ephemeral-storage: 70Gi
+        limits:
+          ephemeral-storage: 100Gi
       securityContext:
         # needed for docker-in-docker
         privileged: true
