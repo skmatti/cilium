@@ -85,7 +85,7 @@ ARTIFACTS="${WORA_ARTIFACTS}" \
   --tbenv="${TBENV:?}" \
   --tbconfig "${WORA_CONFIG:?}" \
   --upload-external-clusters "oob=${CLUSTER_ARTIFACTS}" \
-  --status-check-interval=90 \
+  --client-polling-interval=90s \
   --up \
   --down
 
