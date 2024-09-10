@@ -24,7 +24,7 @@ spec:
             machineType: n2-standard-16
             dockerVersion: 5:24.0.4-1~ubuntu.20.04~focal
             numNodes: "3"
-            version: v0.23.0 # This is what is used in https://github.com/cilium/cilium/blob/e6291578f4104127b932365f5bf0fd61ff772f40/.github/actions/set-env-variables/action.yml#L21
+            version: v0.24.0 # This is used because google:cilium v1.15 is released to GKE 1.31, we need kind v0.24.0 to support node image with v1.31
             username: prowuser
             transport: proxy
             gcpOptionsProject: anthos-networking-ci

@@ -20,7 +20,7 @@ set -o pipefail
 
 echo "---------------- Running k8s conformance test ---------------------------"
 
-K8S_VERSION=v1.27.3
+K8S_VERSION=v1.31.0
 echo "KUBECONFIG = ${KUBECONFIG}"
 # Run Kubernetes sig-network conformance test
 # Kubernetes e2e tests use ginkgo and tags to select the tests that should run based on two regex, focus and skip:
@@ -55,10 +55,7 @@ export KUBERNETES_CONFORMANCE_TEST='y'
   --focus="\[Conformance\]|\[sig-network\]" \
   --skip="Feature|Federation|PerformanceDNS|DualStack|Disruptive|Serial|KubeProxy|kube-proxy|ExternalIP|LoadBalancer|GCE|Netpol|NetworkPolicy|rejected|externalTrafficPolicy|HostPort|same.port.number.but.different.protocols|should.serve.endpoints.on.same.port.and.different.protocols" \
   --skip="should.support.remote.command.execution.over.websockets" \
-  --skip="should.support.a.Service.with.multiple.ports.specified.in.multiple.EndpointSlices" \
   --skip="should.support.retrieving.logs.from.the.container.over.websockets" \
-  --skip="should.be.able.to.connect.to.terminating.and.unready.endpoints.if.PublishNotReadyAddresses.is.true" \
-  --skip="should.create.endpoints.for.unready.pods" \
   /usr/local/bin/e2e.test \
   -- \
   --kubeconfig="${KUBECONFIG}" \
