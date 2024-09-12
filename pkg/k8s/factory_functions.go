@@ -352,7 +352,7 @@ func ConvertCEPToCoreCEP(cep *cilium_v2.CiliumEndpoint) *cilium_v2alpha1.CoreCil
 func ConvertCoreCiliumEndpointToTypesCiliumEndpoint(ccep *cilium_v2alpha1.CoreCiliumEndpoint, ns string) *types.CiliumEndpoint {
 	return &types.CiliumEndpoint{
 		ObjectMeta: slim_metav1.ObjectMeta{
-			Name:      GetCEPIndexKeyFrom(ccep, "").Name,
+			Name:      CEPKey(ccep, ns).Name,
 			Namespace: ns,
 			OwnerReferences: []slim_metav1.OwnerReference{
 				{

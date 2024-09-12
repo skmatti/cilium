@@ -68,8 +68,8 @@ func TestReconcileCreateWithMultiNIC(t *testing.T) {
 	cep2 := createStoreMultiNICEndpoint("cep-mn-eth1", "ns", 2, "cep-mn", "1.1.1.2")
 	cepStore.CacheStore().Add(cep2)
 	m.mapping.insertCES(NewCESName("ces1"), "ns")
-	m.mapping.insertCEP(CEPName(pkgk8s.GetCEPIndexKeyFrom(cep1, "ns")), NewCESName("ces1"))
-	m.mapping.insertCEP(CEPName(pkgk8s.GetCEPIndexKeyFrom(cep2, "ns")), NewCESName("ces1"))
+	m.mapping.insertCEP(CEPName(pkgk8s.CEPKey(cep1, "ns")), NewCESName("ces1"))
+	m.mapping.insertCEP(CEPName(pkgk8s.CEPKey(cep2, "ns")), NewCESName("ces1"))
 	r.reconcileCES(NewCESName("ces1"))
 
 	assert.Equal(t, "ces1", createdSlice.Name)

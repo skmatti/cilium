@@ -173,5 +173,5 @@ func NewCEPName(name, ns string) CEPName {
 }
 
 func GetCEPNameFromCCEP(cep *capi_v2a1.CoreCiliumEndpoint, namespace string) CEPName {
-	return CEPName(k8s.GetCEPIndexKeyFrom(cep, namespace))
+	return CEPName(k8s.CEPKey(cep, namespace))
 }
