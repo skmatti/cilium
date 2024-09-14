@@ -599,7 +599,7 @@ func (d *Daemon) deleteMultiNICEndpointQuiet(ep *endpoint.Endpoint, conf endpoin
 func (d *Daemon) releaseMultiNICIP(ep *endpoint.Endpoint) error {
 	d.ipam.MultiNetworkAllocatorMutex.Lock()
 	defer d.ipam.MultiNetworkAllocatorMutex.Unlock()
-
+	log.Infof("releasing multi-nic IP %s", ep.IPv4)
 	for _, allocator := range d.ipam.MultiNetworkAllocators {
 		err := allocator.Release(ep.IPv4.AsSlice(), ipam.PoolDefault())
 		if err != nil {
@@ -629,9 +629,9 @@ func (d *Daemon) restoreInterfaceIfDeviceNetwork(ctx context.Context, ref networ
 	return nil
 }
 
-// DeleteEndpoints deletes all the endpoints for the given id.
+// DeleteEndpointsByID deletes all the endpoints for the given id.
 // Only called when EnableGoogleMultiNIC is enabled.
-func (d *Daemon) DeleteEndpoints(ctx context.Context, id string) (int, error) {
+func (d *Daemon) DeleteEndpointsByID(ctx context.Context, id string) (int, error) {
 	prefix, eid, err := endpointid.Parse(id)
 	if err != nil {
 		return 0, api.Error(DeleteEndpointIDInvalidCode, err)
@@ -646,11 +646,27 @@ func (d *Daemon) DeleteEndpoints(ctx context.Context, id string) (int, error) {
 	default:
 		return d.DeleteEndpoint(id)
 	}
-
 	if len(eps) == 0 {
 		return 0, api.New(DeleteEndpointIDNotFoundCode, "endpoints %q not found", id)
 	}
+	return d.deleteEndpoints(ctx, eps)
+}
 
+// DeleteEndpointsByContainerID deletes all the endpoints for the container id.
+// Only called when EnableGoogleMultiNIC is enabled.
+func (d *Daemon) DeleteEndpointsByContainerID(ctx context.Context, id string) (int, error) {
+	eps := d.endpointManager.LookupEndpointsByContainerID(id)
+	if len(eps) == 0 {
+		return 0, api.New(DeleteEndpointNotFoundCode, "endpoints for container %q not found", id)
+	}
+	return d.deleteEndpoints(ctx, eps)
+}
+
+func (d *Daemon) deleteEndpoints(ctx context.Context, eps []*endpoint.Endpoint) (int, error) {
+	log.Infof("Deleting %d endpoints in multinic path", len(eps))
+	if len(eps) == 0 {
+		return 0, errors.New("no endpoints passed")
+	}
 	podName := eps[0].K8sPodName
 	podNS := eps[0].K8sNamespace
 
@@ -695,7 +711,6 @@ func (d *Daemon) DeleteEndpoints(ctx context.Context, id string) (int, error) {
 		}
 	}
 
-	log.Infof("Deleting %d endpoints for id %s", len(eps), id)
 	for _, ep := range eps {
 		log.WithFields(logrus.Fields{
 			logfields.IPv4:        ep.GetIPv4Address(),

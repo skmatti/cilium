@@ -30,6 +30,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
 	networkv1 "github.com/GoogleCloudPlatform/gke-networking-api/apis/network/v1"
 	"github.com/cilium/cilium/pkg/datapath/linux/safenetlink"
@@ -63,6 +64,9 @@ func Init(ctx context.Context, endpointManager endpointmanager.EndpointManager, 
 	mgr, err := ctrl.NewManager(restConfig, ctrl.Options{
 		Scheme:   scheme,
 		NewCache: filteredCache(restConfig, scheme),
+		Metrics: metricsserver.Options{
+			BindAddress: "0",
+		},
 	})
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("create manager: %v", err)

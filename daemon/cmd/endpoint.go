@@ -855,6 +855,10 @@ func (d *Daemon) deleteEndpointByContainerID(containerID string) (nErrors int, e
 		return 0, api.New(DeleteEndpointInvalidCode, "invalid container id")
 	}
 
+	if features.GlobalConfig.EnableGoogleMultiNIC {
+		return d.DeleteEndpointsByContainerID(context.Background(), containerID)
+	}
+
 	eps := d.endpointManager.GetEndpointsByContainerID(containerID)
 	if len(eps) == 0 {
 		return 0, api.New(DeleteEndpointNotFoundCode, "endpoints not found")
@@ -941,7 +945,7 @@ func deleteEndpointIDHandler(d *Daemon, params DeleteEndpointIDParams) middlewar
 
 	var nerr int
 	if features.GlobalConfig.EnableGoogleMultiNIC {
-		nerr, err = d.DeleteEndpoints(params.HTTPRequest.Context(), params.ID)
+		nerr, err = d.DeleteEndpointsByID(params.HTTPRequest.Context(), params.ID)
 		if err != nil {
 			if apierr, ok := err.(*api.APIError); ok {
 				r.Error(err, apierr.GetCode())

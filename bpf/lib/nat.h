@@ -653,7 +653,7 @@ skip_egress_gateway:
 
 	/* If ENDPOINT_F_MULTI_NIC_L2 flag is set, no SNAT is needed */
 	if (local_ep && (local_ep->flags & ENDPOINT_F_MULTI_NIC_L2))
-		return false;
+		return NAT_PUNT_TO_STACK;
 
 	if (remote_ep) {
 #ifdef ENABLE_IP_MASQ_AGENT_IPV4

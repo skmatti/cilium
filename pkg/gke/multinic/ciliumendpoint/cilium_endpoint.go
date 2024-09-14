@@ -69,9 +69,9 @@ func IsMultiNICCEP(obj interface{}) bool {
 func IsL2MultiNICCEP(obj interface{}) bool {
 	switch cep := obj.(type) {
 	case *cilium_v2.CiliumEndpoint:
-		return cep.GetObjectMeta().GetAnnotations()[cepAnnotationKey] == layer2
+		return cep.GetObjectMeta().GetAnnotations()[cepAnnotationKey] == layer2 || cep.GetObjectMeta().GetAnnotations()[cepAnnotationKey] == enabledMultiNIC
 	case *types.CiliumEndpoint:
-		return cep.GetObjectMeta().GetAnnotations()[cepAnnotationKey] == layer2
+		return cep.GetObjectMeta().GetAnnotations()[cepAnnotationKey] == layer2 || cep.GetObjectMeta().GetAnnotations()[cepAnnotationKey] == enabledMultiNIC
 	}
 	return false
 }

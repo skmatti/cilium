@@ -269,7 +269,7 @@ func TestIsL2MultiNICCEP(t *testing.T) {
 			desc: "v2 cep with annotation, layer3",
 			cep: &cilium_v2.CiliumEndpoint{
 				ObjectMeta: metav1.ObjectMeta{
-					Annotations: map[string]string{layer3: layer3},
+					Annotations: map[string]string{cepAnnotationKey: layer3},
 				},
 			},
 			want: false,
@@ -292,10 +292,28 @@ func TestIsL2MultiNICCEP(t *testing.T) {
 			desc: "v1 cep with annotation, layer3",
 			cepv1: &types.CiliumEndpoint{
 				ObjectMeta: slim_metav1.ObjectMeta{
-					Annotations: map[string]string{layer3: layer3},
+					Annotations: map[string]string{cepAnnotationKey: layer3},
 				},
 			},
 			want: false,
+		},
+		{
+			desc: "v2 cep with legacy annotation",
+			cep: &cilium_v2.CiliumEndpoint{
+				ObjectMeta: metav1.ObjectMeta{
+					Annotations: map[string]string{cepAnnotationKey: enabledMultiNIC},
+				},
+			},
+			want: true,
+		},
+		{
+			desc: "v1 cep with legacy annotation",
+			cepv1: &types.CiliumEndpoint{
+				ObjectMeta: slim_metav1.ObjectMeta{
+					Annotations: map[string]string{cepAnnotationKey: enabledMultiNIC},
+				},
+			},
+			want: true,
 		},
 	}
 	for _, tc := range testcases {
