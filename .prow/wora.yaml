@@ -468,6 +468,7 @@ presubmits:
       args:
       - ./google_test/wora/prow_entrypoint.sh
 - name: wora-networking-granular-abm-atl_cilium
+  cluster: build-onprem-atl
   trigger: /test wora-networking-granular-abm-atl$
   rerun_command: /test wora-networking-granular-abm-atl
   always_run: false
@@ -477,11 +478,12 @@ presubmits:
   labels:
     preset-cookie-file: "true"
     preset-cookie-file-env: "true"
-    preset-service-account: "true"
+    preset-service-account-onprem: "true"
     preset-dind-enabled: "true"
-    preset-k8s-ssh: "true"
   path_alias: gke-internal.googlesource.com/third_party/cilium
   spec:
+    imagePullSecrets:
+    - name: gcr-secret
     containers:
     - image: gcr.io/tailorbird/kubetest2-tailorbird:latest
       resources:
@@ -588,6 +590,7 @@ presubmits:
       args:
       - ./google_test/wora/prow_entrypoint.sh
 - name: wora-networking-granular-abm-mtv_cilium
+  cluster: build-onprem-mtv
   trigger: /test wora-networking-granular-abm-mtv$
   rerun_command: /test wora-networking-granular-abm-mtv
   always_run: false
@@ -597,11 +600,12 @@ presubmits:
   labels:
     preset-cookie-file: "true"
     preset-cookie-file-env: "true"
-    preset-service-account: "true"
+    preset-service-account-onprem: "true"
     preset-dind-enabled: "true"
-    preset-k8s-ssh: "true"
   path_alias: gke-internal.googlesource.com/third_party/cilium
   spec:
+    imagePullSecrets:
+    - name: gcr-secret
     containers:
     - image: gcr.io/tailorbird/kubetest2-tailorbird:latest
       resources:
