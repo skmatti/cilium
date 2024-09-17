@@ -31,9 +31,13 @@ spec:
             passthroughEnv: |
               {
                 "MANIFEST_PROFILE_ENV": "staging",
+                "CLUSTER_SIZE": "variable",
+                "NUM_CONTROL": "1",
+                "NUM_WORKER": "2",
+                "NUM_LB": "0",
                 "USE_EMULATION": "false",
                 "NODE_IMAGE_SIZE": "n2-standard-4",
-                "BOOTSTRAP_IMAGE_SIZE": "n2-standard-4"
+                "NODE_DISK_SIZE": "150"
               }
             proxyPort: "8222"
             username: prowuser
