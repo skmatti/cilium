@@ -3,6 +3,7 @@ module gke-internal.googlesource.com/third_party/cilium/google_test/wora/e2e
 go 1.22.0
 
 require (
+	github.com/GoogleCloudPlatform/gke-networking-api v0.1.2-0.20240806213139-419c796010b0
 	github.com/google/goexpect v0.0.0-20210430020637-ab937bf7fd6f
 	github.com/onsi/ginkgo/v2 v2.19.0
 	github.com/onsi/gomega v1.33.1
@@ -69,7 +70,6 @@ require (
 )
 
 require (
-	github.com/GoogleCloudPlatform/gke-networking-api v0.1.2-0.20240806213139-419c796010b0
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/blang/semver/v4 v4.0.0 // indirect
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect
@@ -123,7 +123,7 @@ require (
 )
 
 replace (
-	gke-internal.googlesource.com/anthos-networking/test-infra => gke-internal.googlesource.com/anthos-networking.git/test-infra v0.0.0-20240906005858-8d7cede16606
+	gke-internal.googlesource.com/anthos-networking/test-infra => gke-internal.googlesource.com/anthos-networking.git/test-infra v0.0.0-20240919183635-70af1aeb1bb6
 	gke-internal.googlesource.com/onprem-lab-automation/lib/hercules/public => gke-internal.googlesource.com/onprem-lab-automation.git/lib/hercules/public v0.0.0-20240726064312-44402fcf3a74
 	gke-internal.googlesource.com/onprem-lab-automation/lib/shared => gke-internal.googlesource.com/onprem-lab-automation.git/lib/shared v0.0.0-20240729132814-5a038fd85a76
 	gke-internal.googlesource.com/syllogi/sanitized-klog => gke-internal.googlesource.com/syllogi/sanitized-klog.git v0.0.11
