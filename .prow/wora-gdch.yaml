@@ -5,7 +5,7 @@ presubmits:
   always_run: false
   decorate: true
   decoration_config:
-    timeout: 240m
+    timeout: 12h
   labels:
     preset-cookie-file: "true"
     preset-cookie-file-env: "true"
@@ -29,6 +29,10 @@ presubmits:
         value: HEAD
       - name: TBCONFIG
         value: sut-gdch-adhoc.yaml
+      - name: OC_UPDATE_TEMPLATE
+        value: cilium_129_update_spec.json.tmpl
+      - name: ENV_TEMPLATE_ID
+        value: c97a9292-975e-47f3-a290-a70df10edc4f
       - name: WORA_CONFIG
         value: no_op_test.yaml
       command:
@@ -41,7 +45,7 @@ presubmits:
   always_run: false
   decorate: true
   decoration_config:
-    timeout: 240m
+    timeout: 12h
   labels:
     preset-cookie-file: "true"
     preset-cookie-file-env: "true"
@@ -63,6 +67,10 @@ presubmits:
       env:
       - name: TBCONFIG
         value: sut-gdch-adhoc.yaml
+      - name: OC_UPDATE_TEMPLATE
+        value: cilium_129_update_spec.json.tmpl
+      - name: ENV_TEMPLATE_ID
+        value: c97a9292-975e-47f3-a290-a70df10edc4f
       - name: WORA_CONFIG
         value: no_op_test.yaml
       command:

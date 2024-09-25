@@ -104,6 +104,7 @@ function build_and_push_cilium_image {
 
   DOCKER_IMAGE_TAG=${docker_image_tag}
   CILIUM_DOCKER_IMAGE_TAG=${cilium_docker_image_tag}
+  CILIUM_BRANCH=${current_branch}
 }
 
 # Function to remove given ENV from WORA config.
@@ -213,17 +214,23 @@ case "${PLATFORM}" in
     fi
     ;;
   gdch-gdch-gce-adhoc)
-    working_copy "${ROOT}/oc_update/cilium_update_spec.json.tmpl" "${ROOT}/${WORKDIR}"
+    OC_UPDATE_TEMPLATE="${OC_UPDATE_TEMPLATE:-"cilium_129_update_spec.json.tmpl"}"
+    ENV_TEMPLATE_ID="${ENV_TEMPLATE_ID:-"c97a9292-975e-47f3-a290-a70df10edc4f"}"
+    working_copy "${ROOT}/oc_update/${OC_UPDATE_TEMPLATE}" "${ROOT}/${WORKDIR}"
     ABSOLUTE_PATH_TBCONFIG="${TBCONFIG}" \
       IMAGE_REGISTRY="${IMAGE_REGISTRY}" \
       DOCKER_IMAGE_TAG="${DOCKER_IMAGE_TAG}" \
       CILIUM_DOCKER_IMAGE_TAG="${CILIUM_DOCKER_IMAGE_TAG}" \
       WORKDIR="${ROOT}/${WORKDIR}" \
       CILIUM_GITREF="${CILIUM_GITREF:-}" \
+      CILIUM_BRANCH="${CILIUM_BRANCH:-}" \
+      OC_UPDATE_TEMPLATE="${OC_UPDATE_TEMPLATE}" \
+      ENV_TEMPLATE_ID="${ENV_TEMPLATE_ID}" \
       "${ROOT}/provision_gdch.sh"
     # Unset docker image after upgrade to stop failures due to image verification.
     # Image verification is not possible in GDCH due to lack of kubeconfig support.
     DISABLE_UPGRADE_VERIFICATION=true
+    TB_STATUS_CHECK=1200 # set timeout to 10 hours (1200*30s)
     ;;
   *)
     echo "Unknown platform: ${PLATFORM}." >&2
@@ -284,6 +291,7 @@ CILIUM_IMAGE_WITH_TAG=${CILIUM_IMAGE_WITH_TAG:-} \
   --down="${RUN_DOWN:-true}" \
   --tbconfig="${TBCONFIG}" \
   --tbenv="${TBENV}" \
+  --status-check-retry="${TB_STATUS_CHECK:-140}" \
   --test=exec \
   -- \
   "${ROOT}/run.sh"
