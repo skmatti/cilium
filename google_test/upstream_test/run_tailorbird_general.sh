@@ -143,7 +143,7 @@ cilium install --wait --chart-directory=install/kubernetes/cilium \
   --helm-set=hubble.relay.image.repository="${IMAGE_REGISTRY}/${HUBBLE_RELAY_TAG}" \
   --helm-set=hubble.relay.image.tag="${DOCKER_IMAGE_TAG}" \
   --helm-set=cni.chainingMode=portmap \
-  --helm-set-string=kubeProxyReplacement=strict \
+  --helm-set-string=kubeProxyReplacement=true \
   --helm-set=sessionAffinity=true \
   --helm-set=bpf.monitorAggregation=none \
   --helm-set=disableEnvoyVersionCheck=true \
