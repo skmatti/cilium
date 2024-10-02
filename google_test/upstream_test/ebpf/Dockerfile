@@ -42,16 +42,18 @@ RUN apt-get -qq update && apt-get install -qq --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Install LLVM
-RUN echo "deb https://apt.llvm.org/buster llvm-toolchain-buster-10 main" \
+ENV CLANG_VERSION=10
+ENV DEBIAN_VERSION=buster
+RUN echo "deb https://apt.llvm.org/${DEBIAN_VERSION}/ llvm-toolchain-${DEBIAN_VERSION}-${CLANG_VERSION} main" \
     > /etc/apt/sources.list.d/llvm.list \
     && wget -qO /etc/apt/trusted.gpg.d/llvm.asc \
     https://apt.llvm.org/llvm-snapshot.gpg.key \
     && apt-get -qq update && apt-get install -qq \
-    -t llvm-toolchain-buster-10 \
-    clang-10 \
-    clang-format-10 \
-    clang-tidy-10 \
-    && for f in /usr/lib/llvm-10/bin/*; do ln -sf "$f" /usr/bin; done \
+    -t llvm-toolchain-${DEBIAN_VERSION}-${CLANG_VERSION} \
+    clang-${CLANG_VERSION} \
+    clang-format-${CLANG_VERSION} \
+    clang-tidy-${CLANG_VERSION} \
+    && for f in /usr/lib/llvm-${CLANG_VERSION}/bin/*; do ln -sf "$f" /usr/bin; done \
     && rm -rf /var/lib/apt/lists/*
 
 # Install golang
