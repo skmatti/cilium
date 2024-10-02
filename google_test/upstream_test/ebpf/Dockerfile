@@ -18,7 +18,7 @@
 ARG GOLANG_IMAGE
 FROM $GOLANG_IMAGE as golang-dist
 
-FROM gke.gcr.io/debian-base:buster-v1.2.0
+FROM gke.gcr.io/debian-base:bookworm-v1.0.4-gke.2
 
 # Install dependencies
 RUN apt-get -qq update && apt-get install -qq --no-install-recommends \
@@ -42,8 +42,8 @@ RUN apt-get -qq update && apt-get install -qq --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Install LLVM
-ENV CLANG_VERSION=10
-ENV DEBIAN_VERSION=buster
+ENV CLANG_VERSION=17
+ENV DEBIAN_VERSION=bookworm
 RUN echo "deb https://apt.llvm.org/${DEBIAN_VERSION}/ llvm-toolchain-${DEBIAN_VERSION}-${CLANG_VERSION} main" \
     > /etc/apt/sources.list.d/llvm.list \
     && wget -qO /etc/apt/trusted.gpg.d/llvm.asc \

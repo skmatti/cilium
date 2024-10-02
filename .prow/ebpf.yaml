@@ -61,7 +61,7 @@ presubmits:
 - name: gke-advanced-datapath-presubmit-ebpf-ubuntu2004
   trigger: /test ebpf-ubuntu2004
   rerun_command: /test ebpf-ubuntu2004
-  always_run: true
+  always_run: false
   decorate: true
   decoration_config:
     timeout: 240m
@@ -120,7 +120,7 @@ presubmits:
 - name: gke-advanced-datapath-presubmit-ebpf-cos101
   trigger: /test ebpf-cos101
   rerun_command: /test ebpf-cos101
-  always_run: true
+  always_run: false
   decorate: true
   decoration_config:
     timeout: 240m
@@ -237,7 +237,7 @@ presubmits:
 - name: gke-advanced-datapath-presubmit-ebpf-cos105
   trigger: /test ebpf-cos105
   rerun_command: /test ebpf-cos105
-  always_run: true
+  always_run: false
   decorate: true
   decoration_config:
     timeout: 240m
@@ -266,7 +266,7 @@ presubmits:
 - name: gke-advanced-datapath-presubmit-ebpf-rhel8-10
   trigger: /test ebpf-rhel810
   rerun_command: /test ebpf-rhel810
-  always_run: true
+  always_run: false
   decorate: true
   decoration_config:
     timeout: 240m
@@ -295,7 +295,7 @@ presubmits:
 - name: gke-advanced-datapath-presubmit-ebpf-rhel8-8
   trigger: /test ebpf-rhel88
   rerun_command: /test ebpf-rhel88
-  always_run: true
+  always_run: false
   decorate: true
   decoration_config:
     timeout: 240m
@@ -324,7 +324,7 @@ presubmits:
 - name: gke-advanced-datapath-presubmit-ebpf-rhel8-9
   trigger: /test ebpf-rhel89
   rerun_command: /test ebpf-rhel89
-  always_run: true
+  always_run: false
   decorate: true
   decoration_config:
     timeout: 240m
@@ -353,7 +353,7 @@ presubmits:
 - name: gke-advanced-datapath-presubmit-ebpf-rhel9-2
   trigger: /test ebpf-rhel92
   rerun_command: /test ebpf-rhel92
-  always_run: true
+  always_run: false
   decorate: true
   decoration_config:
     timeout: 240m
@@ -411,7 +411,7 @@ presubmits:
 - name: gke-advanced-datapath-presubmit-ebpf-edgeos
   trigger: /test ebpf-edgeos
   rerun_command: /test ebpf-edgeos
-  always_run: true
+  always_run: false
   decorate: true
   decoration_config:
     timeout: 240m
