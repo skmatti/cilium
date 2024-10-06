@@ -9,6 +9,7 @@
 #include "common.h"
 #include "neigh.h"
 #include "l3.h"
+#include "stubs.h"
 #include "google_multinic.h"
 
 static __always_inline int
@@ -87,9 +88,12 @@ fib_do_redirect(struct __ctx_buff *ctx, const bool needs_l2_check,
 		const struct bpf_fib_lookup_padded *fib_params,
 		bool allow_neigh_map, __s8 *fib_ret, int *oif)
 {
-	bool mn_veth = false;
-#if defined(IS_BPF_LXC) && defined(MULTI_NIC_DEVICE_TYPE) && MULTI_NIC_DEVICE_TYPE == EP_DEV_TYPE_INDEX_MULTI_NIC_VETH
-	mn_veth = true;
+#if defined(MULTI_NIC_DEVICE_TYPE) || defined(ENABLE_GOOGLE_MULTI_NIC)
+	int r;
+	r = google_fib_do_redirect(ctx, fib_params, fib_ret, oif);
+	if(r != CTX_ACT_OK) {
+		return r;
+	}
 #endif
 	/* sanity check, we only enter this function with these two fib lookup
 	 * return codes.
@@ -100,7 +104,7 @@ fib_do_redirect(struct __ctx_buff *ctx, const bool needs_l2_check,
 	/* determine which oif to use before needs_l2_check determines if layer 2
 	 * header needs to be pushed.
 	 */
-	if (fib_params && !mn_veth) {
+	if (fib_params) {
 		if (*fib_ret == BPF_FIB_LKUP_RET_NO_NEIGH &&
 		    !is_defined(HAVE_FIB_IFINDEX) && *oif) {
 			/* For kernels without d1c362e1dd68 ("bpf: Always
@@ -139,7 +143,7 @@ fib_do_redirect(struct __ctx_buff *ctx, const bool needs_l2_check,
 		 * prefer that over the BPF neighbor map since the latter
 		 * might be less accurate in some asymmetric corner cases.
 		 */
-		if (neigh_resolver_available() && !mn_veth) {
+		if (neigh_resolver_available()) {
 			if (fib_params) {
 				struct bpf_redir_neigh nh_params;
 

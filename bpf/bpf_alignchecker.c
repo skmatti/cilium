@@ -104,3 +104,5 @@ add_type(struct sfc_path_key);
 add_type(struct sfc_path_entry);
 add_type(struct sfc_ipv4_flow_key);
 add_type(struct sfc_ipv4_flow_entry);
+add_type(struct host_dev_routing_key);
+add_type(struct host_dev_routing_entry);

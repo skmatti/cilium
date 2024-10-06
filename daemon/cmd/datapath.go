@@ -29,6 +29,7 @@ import (
 	"github.com/cilium/cilium/pkg/maps/lbmap"
 	"github.com/cilium/cilium/pkg/maps/lxcmap"
 	"github.com/cilium/cilium/pkg/maps/metricsmap"
+	"github.com/cilium/cilium/pkg/maps/multinet"
 	"github.com/cilium/cilium/pkg/maps/multinicdev"
 	"github.com/cilium/cilium/pkg/maps/nat"
 	"github.com/cilium/cilium/pkg/maps/neighborsmap"
@@ -168,6 +169,9 @@ func (d *Daemon) initMaps() error {
 
 	if features.GlobalConfig.EnableGoogleMultiNIC {
 		if err := multinicdev.Map.OpenOrCreate(); err != nil {
+			return err
+		}
+		if err := multinet.HostDevRoutingMap.OpenOrCreate(); err != nil {
 			return err
 		}
 	}

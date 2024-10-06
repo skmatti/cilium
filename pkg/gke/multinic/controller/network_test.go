@@ -431,17 +431,19 @@ func runTestInNetNS(t *testing.T, test func()) {
 
 // setup a dummy link with the provided parentName
 func setupParentLink(t *testing.T, parentName string) netlink.Link {
-	parent := &netlink.Dummy{LinkAttrs: netlink.LinkAttrs{Name: parentName}}
+	return setupParentLinkWithAttrs(t, netlink.LinkAttrs{Name: parentName})
+}
+
+func setupParentLinkWithAttrs(t *testing.T, attrs netlink.LinkAttrs) netlink.Link {
+	parent := &netlink.Dummy{LinkAttrs: attrs}
 	err := netlink.LinkAdd(parent)
 	if err != nil {
 		t.Fatalf("unable to add parent interface: %s", err)
 	}
-
 	err = netlink.LinkSetUp(parent)
 	if err != nil {
 		t.Fatalf("unable to bring up parent interface: %s", err)
 	}
-
 	return parent
 }
 

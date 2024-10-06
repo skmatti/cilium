@@ -70,6 +70,8 @@ lookup_multi_nic_dev(const union macaddr *mac)
 	return map_lookup_elem(&MULTI_NIC_DEV_MAP, key);
 }
 
+#endif /* ENABLE_GOOGLE_MULTI_NIC */
+
 #ifndef HOST_DEV_ROUTING_MAP_SIZE
 #define HOST_DEV_ROUTING_MAP_SIZE 16384
 #endif
@@ -88,4 +90,3 @@ struct {
 	(8 * (sizeof(struct host_dev_routing_key) - sizeof(struct bpf_lpm_trie_key)	\
 	      - sizeof(union v6addr)))
 
-#endif /* ENABLE_GOOGLE_MULTI_NIC */

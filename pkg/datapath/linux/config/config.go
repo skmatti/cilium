@@ -53,6 +53,7 @@ import (
 	"github.com/cilium/cilium/pkg/maps/lbmap"
 	"github.com/cilium/cilium/pkg/maps/lxcmap"
 	"github.com/cilium/cilium/pkg/maps/metricsmap"
+	"github.com/cilium/cilium/pkg/maps/multinet"
 	"github.com/cilium/cilium/pkg/maps/multinicdev"
 	"github.com/cilium/cilium/pkg/maps/nat"
 	"github.com/cilium/cilium/pkg/maps/neighborsmap"
@@ -748,6 +749,8 @@ func (h *HeaderfileWriter) WriteNodeConfig(w io.Writer, cfg *datapath.LocalNodeC
 			return err
 		}
 		cDefinesMap["NODEPORT_IPV4_BY_IFINDEX(IFINDEX)"] = nodePortIPv4ByIfIndex
+		cDefinesMap["HOST_DEV_ROUTING_MAP"] = multinet.HostDevRoutingMapName
+		cDefinesMap["HOST_DEV_ROUTING_MAP_SIZE"] = fmt.Sprintf("%d", multinet.HostDevRoutingMapMaxEntries)
 	}
 
 	if sfcconfig.Enabled() {

@@ -413,6 +413,11 @@ func (r *NetworkReconciler) reconcileNetwork(ctx context.Context, node *corev1.N
 		r.Log.WithError(err).Error("Failed to reserve gateway IP")
 		return ctrl.Result{}, err
 	}
+	if err := r.updateHostDeviceRouting(ctx); err != nil {
+		r.Log.WithError(err).Error("Failed to update host device routing map entries")
+		return ctrl.Result{}, err
+	}
+	r.Log.Info("Reconciled successfully")
 	return ctrl.Result{}, nil
 }
 
@@ -431,6 +436,10 @@ func (r *NetworkReconciler) reconcileNetworkDelete(ctx context.Context, node *co
 	}
 	if err := deleteVlanID(network, node, r.Log); err != nil {
 		r.Log.WithError(err).Errorf("Unable to delete tagged interface")
+		return ctrl.Result{}, err
+	}
+	if err := r.updateHostDeviceRouting(ctx); err != nil {
+		r.Log.WithError(err).Error("Failed to update host device routing map entries")
 		return ctrl.Result{}, err
 	}
 	if err := deleteFromNetworkStatus(ctx, node, network.Name, "", "", r.Log); err != nil {

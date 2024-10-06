@@ -6,6 +6,9 @@
 #include "trace.h"
 #include "stubs.h"
 
+#include <bpf/ctx/ctx.h>
+#include <bpf/api.h>
+
 DEFINE_U32(POD_STACK_REDIRECT_IFINDEX, 0xdeadbeef);
 #define POD_STACK_REDIRECT_IFINDEX fetch_u32(POD_STACK_REDIRECT_IFINDEX)
 
@@ -37,6 +40,8 @@ DEFINE_MAC(PARENT_DEV_MAC, 0xde, 0xad, 0xbe, 0xef, 0xc0, 0xde);
 #define EP_DEV_TYPE_INDEX_MACVLAN 3
 #define EP_DEV_TYPE_INDEX_IPVLAN 4
 
+#define V4_ADDR_LEN (sizeof(__u32)*8)  // 32
+
 /**
  * Drop dhcp client packets whose destination port is 67 on UDP.
  * @arg ctx:      packet
@@ -57,6 +62,84 @@ static __always_inline __maybe_unused int drop_if_dhcp(struct __ctx_buff *ctx,
         }
     }
     return CTX_ACT_OK;
+}
+
+static __always_inline __maybe_unused struct host_dev_routing_entry *
+lookup_host_dev_routes4(__u32 ifindex, __be32 addr)
+{
+	struct host_dev_routing_key key = {
+		.lpm_key = { HOST_DEV_ROUTING_STATIC_PREFIX4 + V4_ADDR_LEN, {} },
+		.family = ENDPOINT_KEY_IPV4,
+		.if_index = ifindex,
+		.ip4 = addr,
+	};
+	return map_lookup_elem(&HOST_DEV_ROUTING_MAP, &key);
+}
+
+// fib_redirect_google_multinic will redirect packets by identifying the neighbour to redirect to,
+// by looking up the destination IP and ifindex passed in the parameters.
+/**
+ * @param fib_params - pre-populated fiblookup parameters with IP family and destination IP information.
+ * @param ifindex - index of the interface to exit the traffic through.
+ * @returns A positive code returned by bpf_redirect* or CTX_ACT_OK next hop cannot be determined	.
+ */
+static __always_inline int fib_redirect_google_multinic(struct __ctx_buff *ctx __maybe_unused, const struct bpf_fib_lookup_padded *fib_params, int *ifindex, __s8 *ext_err __maybe_unused) {
+
+	struct bpf_redir_neigh nh_params;
+	struct host_dev_routing_entry *entry;
+
+	nh_params.nh_family = fib_params->l.family;
+	entry = lookup_host_dev_routes4(*ifindex, fib_params->l.ipv4_dst);
+	if(entry == NULL) {
+		return CTX_ACT_OK;
+	}
+	// destination is within host subnet, next hop is same as destination IP in fib_params
+	if(entry->ip4 == 0) {
+		__bpf_memcpy_builtin(&nh_params.ipv6_nh,
+					     &fib_params->l.ipv6_dst,
+					     sizeof(nh_params.ipv6_nh));
+	} else {
+		// next hop is gateway IP
+		__bpf_memcpy_builtin(&nh_params.ipv6_nh,
+					     &entry->ip4,
+					     sizeof(nh_params.ipv6_nh));
+	}
+	if (neigh_resolver_available()) {
+	    return redirect_neigh(*ifindex, &nh_params,
+	                        sizeof(nh_params), 0);
+	}
+	return CTX_ACT_OK;
+}
+
+static __always_inline int google_fib_do_redirect(struct __ctx_buff *ctx __maybe_unused,
+	const struct bpf_fib_lookup_padded __maybe_unused *fib_params,
+    __s8 __maybe_unused *fib_ret,
+	int __maybe_unused *oif) {
+
+#if defined(IS_BPF_LXC) && defined(MULTI_NIC_DEVICE_TYPE)
+#if MULTI_NIC_DEVICE_TYPE != EP_DEV_TYPE_INDEX_MULTI_NIC_VETH
+	// L2 + ETP:Local :- For L2 connected LXC, kernel does the routing and sets the L2 addresses
+	// accordingly.
+	return CTX_ACT_TX;
+#else
+	int ret;
+	// L3 + ETP:Local :- redirect to right parent device which will exit the packet
+	// with the hostdevrouting bpf map.
+	*oif = PARENT_DEV_IFINDEX;
+	ret = fib_redirect_google_multinic(ctx, fib_params, oif, fib_ret);
+	if(ret != CTX_ACT_OK) {
+		return ret;
+	}
+#endif
+#elif defined(IS_BPF_HOST) && defined(ENABLE_GOOGLE_MULTI_NIC)
+	// L2/L3 + ETP:Cluster (LB-Node): reply path of packets on the LB node for ETP:Cluster MN services.
+	// redirect reply packets to the interface corresponding to the network using the hostdevrouting bpf map.
+	if (DIRECT_ROUTING_DEV_IFINDEX != NATIVE_DEV_IFINDEX) {
+		*oif = NATIVE_DEV_IFINDEX;
+		return fib_redirect_google_multinic(ctx, fib_params, oif, fib_ret);
+	}
+#endif
+	return CTX_ACT_OK;
 }
 
 /* To test compilation with ENABLE_GOOGLE_MULTI_NIC:
