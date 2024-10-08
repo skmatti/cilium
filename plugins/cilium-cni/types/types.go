@@ -34,6 +34,9 @@ type NetConf struct {
 	ChainingMode   string                 `json:"chaining-mode"`
 	// FastStartNamespaces is a comma-separated list of namespaces that are compatible with fast start.
 	FastStartNamespaces string `json:"dpv2-fast-start-namespaces"`
+	// RuntimeConfig is dynamic configurations provided at runtime.
+	// Defined in https://github.com/containernetworking/cni/blob/main/SPEC.md#deriving-runtimeconfig
+	RuntimeConfig RuntimeConfig `json:"runtimeConfig"`
 }
 
 // IPAM is the Cilium specific CNI IPAM configuration
@@ -45,6 +48,12 @@ type IPAM struct {
 // NetConfList is a CNI chaining configuration
 type NetConfList struct {
 	Plugins []*NetConf `json:"plugins,omitempty"`
+}
+
+// RuntimeConfig allows passing information about the pod such as annotations
+// at runtime when CNI requests (like ADD or DEL) are made.
+type RuntimeConfig struct {
+	PodAnnotations map[string]string `json:"io.kubernetes.cri.pod-annotations,omitempty"`
 }
 
 func parsePrevResult(n *NetConf) (*NetConf, error) {
