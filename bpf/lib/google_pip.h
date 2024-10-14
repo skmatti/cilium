@@ -68,7 +68,7 @@ static __always_inline int google_try_pip_ingress_redirect4(struct __ctx_buff *c
 			// Recieved traffic intended for default network on additional network interface. Drop it.
 			return DROP_UNROUTABLE;
 		}
-		return __redirect_google_ep(ctx, ETH_HLEN, seclabel, ip4, ep, false);
+		return redirect_google_ep(ctx, seclabel, ip4, ep);
 	}
 
 	if (DIRECT_ROUTING_DEV_IFINDEX != NATIVE_DEV_IFINDEX) {
@@ -97,7 +97,7 @@ static __always_inline int google_try_pip_ingress_redirect4(struct __ctx_buff *c
 				return DROP_UNROUTABLE;
 			}
 
-			return __redirect_google_ep(ctx, ETH_HLEN, seclabel, ip4, ep, false);
+			return redirect_google_ep(ctx, seclabel, ip4, ep);
 		}
 	}
 

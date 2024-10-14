@@ -69,9 +69,6 @@ type EndpointChangeRequest struct {
 	// Name of network device in host netns
 	InterfaceName string `json:"interface-name,omitempty"`
 
-	// Name of the interface inside the pod namespace
-	InterfaceNameInPod string `json:"interface-name-in-pod,omitempty"`
-
 	// Kubernetes namespace name
 	K8sNamespace string `json:"k8s-namespace,omitempty"`
 

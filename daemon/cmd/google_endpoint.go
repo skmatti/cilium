@@ -97,14 +97,40 @@ func (d *Daemon) errorDuringMultiNICCreation(primaryEp *endpoint.Endpoint, code 
 // throughout the createMultiNICEndpoints.
 func (d *Daemon) errorWithMultiNICCleanup(primaryEp *endpoint.Endpoint, code int, err error, cleanup func()) ([]*endpoint.Endpoint, int, error) {
 	if cleanup != nil {
+		log.Infof("executing cleanup for %s", primaryEp.K8sPodName)
 		cleanup()
 	}
 	return d.errorDuringMultiNICCreation(primaryEp, code, err)
 }
 
+// releaseMultiNICIPByTemplate releases IPv4 addresses associated with the multi-nic template to
+// be reserved for the endpoint.
+func (d *Daemon) releaseMultiNICIPByTemplate(multinicTemplate *models.EndpointChangeRequest) {
+	d.ipam.MultiNetworkAllocatorMutex.Lock()
+	defer d.ipam.MultiNetworkAllocatorMutex.Unlock()
+
+	if multinicTemplate.Addressing.IPV4 == "" {
+		log.Warning("no IPV4 address to release")
+		return
+	}
+	ipAddr, err := netip.ParseAddr(multinicTemplate.Addressing.IPV4)
+	if err != nil {
+		log.Warningf("failed to parse IP addresses: %s", multinicTemplate.Addressing.IPV4)
+		return
+	}
+
+	for _, allocator := range d.ipam.MultiNetworkAllocators {
+		if ipAddr.Is4() {
+			if err := allocator.Release(ipAddr.AsSlice(), ipam.PoolDefault()); err != nil {
+				log.WithError(err).Errorf("unable to release IP %s", ipAddr.String())
+			}
+		}
+	}
+}
+
 // createMultiNICEndpoints attempts to create the multinic endpoints corresponding to
 // the provided endpoint change request and primary endpoint (assume it's already created).
-func (d *Daemon) createMultiNICEndpoints(ctx context.Context, owner regeneration.Owner, primaryEpTemplate *models.EndpointChangeRequest, primaryEp *endpoint.Endpoint) ([]*endpoint.Endpoint, int, error) {
+func (d *Daemon) createMultiNICEndpoints(ctx context.Context, multiNICWaitCh chan struct{}, owner regeneration.Owner, primaryEpTemplate *models.EndpointChangeRequest, primaryEp *endpoint.Endpoint) ([]*endpoint.Endpoint, int, error) {
 	epTemplate := primaryEpTemplate.DeepCopy()
 	// Reset parameters from the primary endpoint template.
 	epTemplate.ID = 0
@@ -112,7 +138,6 @@ func (d *Daemon) createMultiNICEndpoints(ctx context.Context, owner regeneration
 	epTemplate.Addressing.IPV6 = ""
 	epTemplate.Addressing.IPV4ExpirationUUID = ""
 	epTemplate.Addressing.IPV6ExpirationUUID = ""
-	epTemplate.InterfaceNameInPod = ""
 	epTemplate.DatapathConfiguration = &models.EndpointDatapathConfiguration{
 		// Set ExternalIpam to true will skip the IP releasing when deleting the endpoint.
 		ExternalIpam: true,
@@ -127,6 +152,10 @@ func (d *Daemon) createMultiNICEndpoints(ctx context.Context, owner regeneration
 	}
 
 	podID := primaryEp.GetK8sNamespaceAndPodName()
+
+	var cleanup = func() {
+		log.Infof("No resources to cleanup for primary endpoint %s", podID)
+	}
 
 	pod, metadata, err := d.fetchK8sMetadataForEndpoint(primaryEp.K8sNamespace, primaryEp.K8sPodName)
 	annotations := metadata.Annotations
@@ -153,6 +182,22 @@ func (d *Daemon) createMultiNICEndpoints(ctx context.Context, owner regeneration
 	if option.Config.AllowDisableSourceIPValidation {
 		disableSourceIPValidation = (annotations[networkv1.DisableSourceIPValidationAnnotationKey] == networkv1.DisableSourceIPValidationAnnotationValTrue)
 	}
+
+	multinicTemplate := epTemplate.DeepCopy()
+	// Start a goroutine to monitor context cancellation and trigger cleanup for endpoints.
+	// NOTE: an ideal (future) solution will include passing the ctx down into every function and check ctx.Done along the way.
+	go func() {
+		select {
+		case <-ctx.Done():
+			err := fmt.Errorf("context cancelled or timed out, triggering cleanup for primary endpoint %s", podID)
+			d.errorWithMultiNICCleanup(primaryEp, PutEndpointIDInvalidCode, err, cleanup)
+			d.releaseMultiNICIPByTemplate(multinicTemplate)
+		case <-multiNICWaitCh:
+			// multiNICWaitCh will close when multi-NIC endpoint is successfully created.
+			// this signals the go routine to exit at the synced time.
+			return
+		}
+	}()
 
 	enableMulticast := (annotations[networkv1.EnableMulticastAnnotationKey] == networkv1.EnableMulticastAnnotationValTrue)
 
@@ -190,7 +235,7 @@ func (d *Daemon) createMultiNICEndpoints(ctx context.Context, owner regeneration
 		})
 		intfLog.Info("Multinic endpoint request")
 
-		multinicTemplate := epTemplate.DeepCopy()
+		multinicTemplate = epTemplate.DeepCopy()
 		multinicTemplate.DatapathConfiguration.DisableSipVerification = disableSourceIPValidation
 		multinicTemplate.DatapathConfiguration.EnableMulticast = enableMulticast
 		isDefaultInterface := defaultInterface == ref.InterfaceName
@@ -203,7 +248,6 @@ func (d *Daemon) createMultiNICEndpoints(ctx context.Context, owner regeneration
 			return d.errorDuringMultiNICCreation(primaryEp, PutEndpointIDInvalidCode, fmt.Errorf("failed getting interface and network CR for pod %q: %v", podID, err))
 		}
 
-		var cleanup func()
 		var netParamsRef client.Object
 		var isDefaultNetInfcTemp bool
 		var skipRouteInstallation bool
@@ -247,7 +291,11 @@ func (d *Daemon) createMultiNICEndpoints(ctx context.Context, owner regeneration
 				}
 			}
 			if netCR.Spec.Type == networkv1.L2NetworkType {
-				if cleanup, err = connector.SetupL2Interface(ref.InterfaceName, pod.Name, podResources, netCR, intfCR, multinicTemplate, d.dhcpClient, d.ipam); err != nil {
+				// Construct the cleanup function before the interface setup to ensure it can be executed in case of
+				// context cancellation or time out. This allows the calling function to handle any necessary
+				// cleanup, even if the setup process fails or times out.
+				cleanup = connector.ConstructCleanupFunc(ref.InterfaceName, multinicTemplate.NetworkNamespace, podResources, netCR)
+				if err = connector.SetupL2Interface(ref.InterfaceName, pod.Name, podResources, netCR, intfCR, multinicTemplate, d.dhcpClient, d.ipam); err != nil {
 					return d.errorWithMultiNICCleanup(primaryEp, PutEndpointIDInvalidCode, fmt.Errorf("failed setting up layer2 interface %q for pod %q: %v", intfCR.Name, podID, err), cleanup)
 				}
 				// We don't allow different L2 interfaces share the same parent device.
@@ -682,7 +730,7 @@ func (d *Daemon) deleteEndpoints(ctx context.Context, eps []*endpoint.Endpoint) 
 	var nerrs int
 	var interfaceAnnotation networkv1.InterfaceAnnotation
 	ifNameToInterfaceCR := map[string]*networkv1.NetworkInterface{}
-	if len(metadata.Annotations) > 0 {
+	if metadata != nil && len(metadata.Annotations) > 0 {
 		_, interfaceAnnotation, err = fetchMultiNICAnnotation(metadata.Annotations)
 		if err == nil && interfaceAnnotation == nil {
 			log.Debugf("Multinic annotation is not found for pod %s/%s, expect this is not a multinic pod", podNS, podName)

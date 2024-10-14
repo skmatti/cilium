@@ -201,7 +201,7 @@ static __always_inline int try_google_L3_fast_redirect(struct __ctx_buff *ctx, _
 		return DROP_UNROUTABLE;
 	}
 
-	return __redirect_google_ep(ctx, ETH_HLEN, seclabel, ip4, ep, false);
+	return redirect_google_ep(ctx, seclabel, ip4, ep);
 }
 
 static __always_inline void
@@ -382,10 +382,19 @@ static __always_inline __maybe_unused int redirect_if_dhcp(struct __ctx_buff *ct
                         __u8 nexthdr, int l4_off, __be32 saddr)
 {
     __be16 dport;
+	__be16 sport;
     if (nexthdr == IPPROTO_UDP) {
-        if (l4_load_port(ctx, l4_off + UDP_DPORT_OFF, &dport) < 0)
-            return DROP_INVALID;
-        if (unlikely(dport == bpf_htons(DHCP_REQUEST_UDP_DPORT))) {
+		if (l4_load_port(ctx, l4_off + UDP_SPORT_OFF, &sport) < 0)
+			return DROP_INVALID;
+		if (l4_load_port(ctx, l4_off + UDP_DPORT_OFF, &dport) < 0)
+			return DROP_INVALID;
+		if (unlikely(dport == bpf_htons(DHCP_REQUEST_UDP_DPORT))) {
+			if (unlikely(sport == bpf_htons(DHCP_REQUEST_UDP_DPORT))) {
+				// sport and dport are both equal to 67 when a DHCP server VM is unicast
+				// replying to a DHCP request from a DHCP relay server. In those cases,
+				// just let packet passthrough. Ref. b/375039839
+				return CTX_ACT_OK;
+			}
             // Redirect to an interface that will release the packet to the pod-namespace stack
             send_trace_notify(ctx, TRACE_TO_STACK, 0, 0,
                               0, ctx->ifindex,

@@ -2,12 +2,16 @@ package cmd
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	networkv1 "github.com/GoogleCloudPlatform/gke-networking-api/apis/network/v1"
 	apiEndpoint "github.com/cilium/cilium/api/v1/server/restapi/endpoint"
+	"github.com/cilium/cilium/pkg/endpoint"
 	"github.com/cilium/cilium/pkg/gke/features"
+	slim_corev1 "github.com/cilium/cilium/pkg/k8s/slim/k8s/api/core/v1"
 	v1 "github.com/cilium/cilium/pkg/k8s/slim/k8s/api/core/v1"
+	"github.com/cilium/cilium/pkg/k8s/watchers"
 	"github.com/cilium/cilium/pkg/testutils"
 	"github.com/stretchr/testify/require"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -40,7 +44,10 @@ func (ds *DaemonSuite) TestCreateMultiNICEndpointsNoK8sEnabled(t *testing.T) {
 	require.NoError(t, err)
 	eps := ds.d.endpointManager.LookupEndpointsByContainerID(epTemplate.ContainerID)
 	require.Len(t, eps, 1)
-	_, code, err := ds.d.createMultiNICEndpoints(context.TODO(), ds, epTemplate, ep)
+
+	multiNICCleanupWaitCh := make(chan struct{})
+	defer close(multiNICCleanupWaitCh)
+	_, code, err := ds.d.createMultiNICEndpoints(context.TODO(), multiNICCleanupWaitCh, ds, epTemplate, ep)
 	require.Equal(t, code, apiEndpoint.PutEndpointIDInvalidCode)
 	// Make sure the primary endpoint is also deleted
 	require.ErrorContains(t, err, "k8s needs to be enabled for multinic endpoint creation")
@@ -63,7 +70,9 @@ func (ds *DaemonSuite) TestCreateMultiNICEndpointsNoK8sPodName(t *testing.T) {
 	eps := ds.d.endpointManager.LookupEndpointsByContainerID(epTemplate.ContainerID)
 	require.Len(t, eps, 1)
 
-	_, code, err := ds.d.createMultiNICEndpoints(context.TODO(), ds, epTemplate, ep)
+	multiNICCleanupWaitCh := make(chan struct{})
+	defer close(multiNICCleanupWaitCh)
+	_, code, err := ds.d.createMultiNICEndpoints(context.TODO(), multiNICCleanupWaitCh, ds, epTemplate, ep)
 	require.Equal(t, code, apiEndpoint.PutEndpointIDInvalidCode)
 	// Make sure the primary endpoint is also deleted
 	require.ErrorContains(t, err, "k8s namespace and pod name are required to create multinic endpoints")
@@ -105,6 +114,34 @@ func (ds *DaemonSuite) TestConvertNetworkSpec(t *testing.T) {
 
 	intf = convertNetworkSpecToInterface(network)
 	require.Equal(t, intf, expectedIntf)
+}
+
+type fakeEndpointMetadataFetcher struct {
+	k8sWatcher *watchers.K8sWatcher
+}
+
+func (f *fakeEndpointMetadataFetcher) Fetch(nsName, podName string) (*slim_corev1.Namespace, *slim_corev1.Pod, error) {
+	return nil, nil, errors.New("pod not found")
+}
+
+func (ds *DaemonSuite) TestDeleteEndpointsMissingPod(t *testing.T) {
+	epTemplate := getEPTemplate(t, ds.d)
+	epTemplate.K8sPodName = "foo-pod"
+	epTemplate.K8sNamespace = "foo-ns"
+	features.GlobalConfig.EnableGoogleMultiNIC = true
+	defer func() {
+		features.GlobalConfig.EnableGoogleMultiNIC = false
+	}()
+	ep, _, err := ds.d.createEndpoint(context.TODO(), ds, epTemplate)
+	require.NoError(t, err)
+	eps := ds.d.endpointManager.LookupEndpointsByContainerID(epTemplate.ContainerID)
+	require.Len(t, eps, 1)
+	ds.d.endpointMetadataFetcher = &fakeEndpointMetadataFetcher{&watchers.K8sWatcher{}}
+	_, err = ds.d.deleteEndpoints(context.TODO(), []*endpoint.Endpoint{ep})
+	require.NoError(t, err)
+	// Make sure the primary endpoint is also deleted
+	eps = ds.d.endpointManager.LookupEndpointsByContainerID(epTemplate.ContainerID)
+	require.Len(t, eps, 0)
 }
 
 func (ds *DaemonSuite) TestDefaultNetwork(t *testing.T) {

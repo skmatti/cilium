@@ -85,12 +85,11 @@ func NewEndpointFromChangeModel(ctx context.Context, owner regeneration.Owner, p
 	ep.disableLegacyIdentifiers = base.DisableLegacyIdentifiers
 	ep.datapathMapID = int(base.DatapathMapID)
 	ep.deviceType = multinicep.EndpointDeviceType(base.DeviceType)
+	ep.netNs = base.NetworkNamespace
 
 	if features.GlobalConfig.EnableGoogleMultiNIC && base.DeviceType != multinicep.EndpointDeviceVETH {
 		ep.parentDevIndex = int(base.ParentDeviceIndex)
 		ep.parentDevName = base.ParentDeviceName
-		ep.netNs = base.NetworkNamespace
-		ep.ifNameInPod = base.InterfaceNameInPod
 		ep.podStackRedirectIfindex = int(base.PodStackRedirectIfindex)
 		ep.externalDHCP4 = base.ExternalDHCP4
 

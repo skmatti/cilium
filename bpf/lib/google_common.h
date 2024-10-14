@@ -5,21 +5,15 @@
 #include "common.h"
 #include "l3.h"
 
-/** A trimmed version of ipv4_local_delivery that forces bpf_redirect. */
-static __always_inline int __redirect_google_ep(struct __ctx_buff *ctx, int l3_off,
-					       __u32 seclabel, struct iphdr *ip4,
-					       const struct endpoint_info *ep, bool from_tunnel)
+// redirect_google_ep is a wrapper around ipv4_local_delivery to preset some
+// input arguments
+static __always_inline int redirect_google_ep(
+	struct __ctx_buff *ctx, __u32 seclabel, struct iphdr *ip4,
+	const struct endpoint_info *ep)
 {
-	mac_t router_mac = ep->node_mac;
-	mac_t lxc_mac = ep->mac;
-	int ret;
-
-	ret = ipv4_l3(ctx, l3_off, (__u8 *) &router_mac, (__u8 *) &lxc_mac, ip4);
-	if (ret != CTX_ACT_OK)
-		return ret;
-
-	set_identity_mark(ctx, seclabel, MARK_MAGIC_IDENTITY);
-	return redirect_ep(ctx, ep->ifindex, false, from_tunnel);
+	return ipv4_local_delivery(
+		ctx, ETH_HLEN, seclabel, MARK_MAGIC_IDENTITY, ip4, ep,
+		METRIC_INGRESS, false, false, 0);
 }
 
 #endif

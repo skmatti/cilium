@@ -4,6 +4,8 @@
 package cmd
 
 import (
+	"path/filepath"
+
 	"github.com/containernetworking/cni/pkg/skel"
 	"github.com/sirupsen/logrus"
 
@@ -81,6 +83,9 @@ func (c *defaultEndpointConfiguration) PrepareEndpoint(ipam *models.IPAMResponse
 		K8sUID:                 string(c.CniArgs.K8S_POD_UID),
 		ContainerInterfaceName: c.Args.IfName,
 		DatapathConfiguration:  &models.EndpointDatapathConfiguration{},
+		// Constructs the full path of network namespace on the anetd pod.
+		// /host is the mounted volume of the host's directory
+		NetworkNamespace: filepath.Join("/host", c.Args.Netns),
 	}
 
 	if c.Conf.IpamMode == ipamOption.IPAMDelegatedPlugin {

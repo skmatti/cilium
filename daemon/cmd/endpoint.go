@@ -670,7 +670,10 @@ func putEndpointIDHandler(d *Daemon, params PutEndpointIDParams) (resp middlewar
 
 	ep.Logger(daemonSubsys).Info("Successful endpoint creation")
 	if features.GlobalConfig.EnableGoogleMultiNIC {
-		eps, code, err := d.createMultiNICEndpoints(params.HTTPRequest.Context(), d, epTemplate, ep)
+		multiNICCleanupWaitCh := make(chan struct{})
+		defer close(multiNICCleanupWaitCh)
+
+		eps, code, err := d.createMultiNICEndpoints(params.HTTPRequest.Context(), multiNICCleanupWaitCh, d, epTemplate, ep)
 		if err != nil {
 			r.Error(err, code)
 			return api.Error(code, err)
