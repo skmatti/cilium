@@ -16,12 +16,13 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	"gke-internal.googlesource.com/anthos-networking/test-infra/pkg/client"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/utils/ptr"
+
+	"gke-internal.googlesource.com/anthos-networking/test-infra/pkg/client"
 )
 
 const defaultTimeout time.Duration = 30 * time.Minute
@@ -48,7 +49,7 @@ var c client.Interface
 
 var zones []string
 
-var _ = BeforeSuite(func(ctx context.Context) {
+var _ = BeforeSuite(Label("1n"), func(ctx context.Context) {
 	Expect(config.mesh).ToNot(BeEmpty(), "mesh name must be provided")
 
 	var err error
@@ -141,7 +142,7 @@ var _ = BeforeSuite(func(ctx context.Context) {
 	}).WithTimeout(10 * time.Minute).WithPolling(defaultPolling).Should(Succeed())
 }, NodeTimeout(defaultTimeout))
 
-var _ = AfterSuite(func(ctx context.Context) {
+var _ = AfterSuite(Label("1n"), func(ctx context.Context) {
 	deleteTestService(ctx, c)
 
 	By("deleting firewall")
@@ -178,7 +179,7 @@ var _ = AfterSuite(func(ctx context.Context) {
 
 }, NodeTimeout(defaultTimeout))
 
-var _ = Describe("Verifiers/1N", func() {
+var _ = Describe("Verifiers/1N", Label("1n"), func() {
 	It("observes events of related services", func(ctx context.Context) {
 		By("ensuring the environment is clean")
 		err := deleteTestService(ctx, c)
