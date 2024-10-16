@@ -9,9 +9,10 @@ IMAGE_REGISTRY="${IMAGE_REGISTRY:-}"
 DOCKER_IMAGE_TAG="${DOCKER_IMAGE_TAG:-}"
 CILIUM_DOCKER_IMAGE_TAG="${CILIUM_DOCKER_IMAGE_TAG:-}"
 CILIUM_GITREF="${CILIUM_GITREF?variable must be set, even when set to empty.}"
-CILIUM_BRANCH="${CILIUM_BRANCH:-}"
 OC_UPDATE_TEMPLATE="${OC_UPDATE_TEMPLATE:-}"
 ENV_TEMPLATE_ID="${ENV_TEMPLATE_ID:-}"
+GDCH_E2E_TESTS="${GDCH_E2E_TESTS:-}"
+GDCH_E2E_TEST_PLAN="${GDCH_E2E_TEST_PLAN:-}"
 
 # Insert the cluster name.
 function insert_cluster_name {
@@ -55,6 +56,14 @@ function insert_env_template_id {
   echo "${updated_tbconfig}" >${tbconfig_path}
 }
 
+function insert_gdch_e2e_tests {
+  local tbconfig_path="${1:?}"
+  export GDCH_E2E_TESTS="${2:-}"
+  export GDCH_E2E_TEST_PLAN="${3:-}"
+  updated_tbconfig=$(envsubst '${GDCH_E2E_TESTS},${GDCH_E2E_TEST_PLAN}' <"${tbconfig_path}")
+  echo "${updated_tbconfig}" >${tbconfig_path}
+}
+
 # only build and push images if CILIUM_GITREF, IMAGE_REGISTRY, DOCKER_IMAGE_TAG and CILIUM_DOCKER_IMAGE_TAG are set
 if [[ -z "${CILIUM_GITREF}" ]]; then
   echo "CILIUM_GITREF is empty, skipping Cilium build." >&2
@@ -65,7 +74,7 @@ if [[ -z "${CILIUM_GITREF}" ]]; then
 fi
 
 # GDCH OCLCM relies on images having the same docker tag
-TAG="${CILIUM_BRANCH}-an-shift-left-${CILIUM_GITREF}"
+TAG="an-shift-left-${DOCKER_IMAGE_TAG}"
 retag_docker_image "${IMAGE_REGISTRY}/cilium/cilium" "${CILIUM_DOCKER_IMAGE_TAG}" "${TAG}"
 retag_docker_image "${IMAGE_REGISTRY}/cilium/operator-generic" "${DOCKER_IMAGE_TAG}" "${TAG}"
 
@@ -75,3 +84,4 @@ UPDATE_SPEC_TEMPLATE="${WORKDIR}/${OC_UPDATE_TEMPLATE}"
 
 insert_update_image_map "${ABSOLUTE_PATH_TBCONFIG}" "${IMAGE_REGISTRY}" "${TAG}" "${UPDATE_SPEC_TEMPLATE}"
 insert_env_template_id "${ABSOLUTE_PATH_TBCONFIG}" "${ENV_TEMPLATE_ID}"
+insert_gdch_e2e_tests "${ABSOLUTE_PATH_TBCONFIG}" "${GDCH_E2E_TESTS}" "${GDCH_E2E_TEST_PLAN}"

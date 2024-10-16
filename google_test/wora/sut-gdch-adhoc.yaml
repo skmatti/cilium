@@ -28,8 +28,9 @@ spec:
               adhocArgs:
                 pool_name: "unet"
                 env_template_id: "${ENV_TEMPLATE_ID}"
-                test:      "TestConnectivityMultiTenant|TestClusterMeshConnectivityMultiTenant|TestClusterMeshConnectivityNewFrameworkMultiTenant|TestVMNetworkToPodIntraProjectV2MT|TestFabricTracingMultiTenant|TestILBServiceConnectivityMultiTenant|TestProjectNetworkPolicyEnforcementMultiTenant|TestEgressNATMultiTenant|TestClusterMeshHealthMultiTenant"
-                plan:      "silver/unet/gce-mt"
+                test:      "${GDCH_E2E_TESTS}"
+                plan:      "${GDCH_E2E_TEST_PLAN}"
+                use_stored_entities: "true"
                 comment:   "AN Shift left testing"
                 tb_update_oc: "unet"
                 tb_update_spec: "${UPDATE_SPEC_STRING}"
