@@ -3,7 +3,7 @@ package util
 import (
 	"context"
 	"fmt"
-	"time"
+	"github.com/cilium/cilium/pkg/time"
 
 	"gke-internal.googlesource.com/third_party/cilium/google_test/wora/e2e/pkg/kubevm/util/pkg/errors"
 	vmv1 "gke-internal.googlesource.com/third_party/cilium/google_test/wora/e2e/pkg/kubevm/vm-controller/api/v1"

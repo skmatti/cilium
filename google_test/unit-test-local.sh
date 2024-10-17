@@ -1,4 +1,4 @@
-#!/bin/sh -ex
+#!/bin/bash -ex
 
 set +u
 
@@ -32,6 +32,9 @@ run_tests_and_report() {
   fi
   return "${retval}"
 }
+
+make precheck
+make postcheck
 
 run_tests_and_report integration-tests "${HOST_TEST_REPORT_DIR}/junit_integration_tests_result.xml"
 integration_tests_status=$?

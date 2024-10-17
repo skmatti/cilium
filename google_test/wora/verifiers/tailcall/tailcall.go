@@ -3,9 +3,9 @@ package tailcall
 import (
 	"context"
 	"fmt"
+	"github.com/cilium/cilium/pkg/time"
 	"os"
 	"strings"
-	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -15,14 +15,14 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/utils/ptr"
 
+	networkv1 "github.com/GoogleCloudPlatform/gke-networking-api/apis/network/v1"
 	k8sv1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	networkv1 "github.com/GoogleCloudPlatform/gke-networking-api/apis/network/v1"
 
 	"k8s.io/client-go/tools/remotecommand"
 
-	"gke-internal.googlesource.com/anthos-networking/test-infra/pkg/client"
 	networkclientset "github.com/GoogleCloudPlatform/gke-networking-api/client/network/clientset/versioned"
+	"gke-internal.googlesource.com/anthos-networking/test-infra/pkg/client"
 )
 
 const (

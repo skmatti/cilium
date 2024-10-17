@@ -3,9 +3,9 @@ package kubevirt
 import (
 	"context"
 	"fmt"
+	"github.com/cilium/cilium/pkg/time"
 	"net"
 	"os"
-	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"

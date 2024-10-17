@@ -2,12 +2,11 @@ package kubevirt
 
 import (
 	"fmt"
+	"github.com/cilium/cilium/pkg/time"
+	. "github.com/onsi/ginkgo/v2"
 	"io"
 	"regexp"
 	"strings"
-	"time"
-
-	. "github.com/onsi/ginkgo/v2"
 
 	expect "github.com/google/goexpect"
 	virtv1 "kubevirt.io/api/core/v1"

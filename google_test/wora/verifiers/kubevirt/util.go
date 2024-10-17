@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"time"
+	"github.com/cilium/cilium/pkg/time"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -290,7 +290,7 @@ func createAndWaitDataVolumeOnNodeToSucceedByName(diskName string, nodeName stri
 // pulling interval up to the maximum time. Will return the context time exceed
 // error if the test VM failed to achieve running phase.
 func waitForGVMRunning(gvm *gvmv1.VirtualMachine, ctx context.Context, restClient *rest.RESTClient, interval, timeout time.Duration) (*gvmv1.VirtualMachine, error) {
-	klog.Infoln(fmt.Sprintf("GVM to be created:\n%s", prettyPrint(gvm)))
+	klog.Infoln(fmt.Sprintf("GVM to be created:%s", prettyPrint(gvm)))
 
 	creationResult := gvmv1.VirtualMachine{}
 	if err := restClient.Post().Namespace(gvm.Namespace).Resource("virtualmachines").Body(gvm).Do(ctx).Into(&creationResult); err != nil {
