@@ -50,7 +50,7 @@ declare -A test_script_from_test_type=(
 # by TEST_TYPE. For TEST_TYPE=experiment, there is no default, and the type
 # must be set explicitly.
 declare -A test_vm_machine_type_from_test_type=(
-  [ebpf]="${TEST_VM_MACHINE_TYPE:-n2-standard-4}"
+  [ebpf]="${TEST_VM_MACHINE_TYPE:-e2-standard-4}"
   [experiment]="${TEST_VM_MACHINE_TYPE:-}"
 )
 
