@@ -1,6 +1,7 @@
 package features
 
 import (
+	"github.com/cilium/cilium/pkg/option"
 	"github.com/cilium/hive/cell"
 	"github.com/spf13/pflag"
 )
@@ -28,12 +29,17 @@ var Cell = cell.Module(
 // Config struct used to gate OSS features that otherwise have no means to be disabled
 type Config struct {
 	// Add fields here. Do not delete this comment.
+	// EnableGoogleMultiNIC enables multi-nic support
+	EnableGoogleMultiNIC bool `mapstructure:"enable-google-multi-nic"`
 }
 
 var defaultConfig = Config{
 	// Add fields here. Do not delete this comment.
+	EnableGoogleMultiNIC: false,
 }
 
 func (cfg Config) Flags(flags *pflag.FlagSet) {
 	// Add flags here. Do not delete this comment.
+	flags.Bool(option.EnableGoogleMultiNIC, defaultConfig.EnableGoogleMultiNIC, "Enable google multi NIC support")
+	flags.MarkHidden(option.EnableGoogleMultiNIC)
 }

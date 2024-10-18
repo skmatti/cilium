@@ -142,4 +142,6 @@ func init() {
 		},
 		"__be32": {neighborsmap.Key4{}},
 	})
+
+	registerToCheckGoogleMaps()
 }

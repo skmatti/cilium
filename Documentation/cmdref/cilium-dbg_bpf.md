@@ -28,11 +28,13 @@ Direct access to local BPF maps
 * [cilium-dbg bpf egress](cilium-dbg_bpf_egress.md)	 - Manage the egress routing rules
 * [cilium-dbg bpf endpoint](cilium-dbg_bpf_endpoint.md)	 - Local endpoint map
 * [cilium-dbg bpf fs](cilium-dbg_bpf_fs.md)	 - BPF filesystem mount
+* [cilium-dbg bpf hostdevrouting](cilium-dbg_bpf_hostdevrouting.md)	 - Manage host device bpf based routing
 * [cilium-dbg bpf ipcache](cilium-dbg_bpf_ipcache.md)	 - Manage the IPCache mappings for IP/CIDR <-> Identity
 * [cilium-dbg bpf ipmasq](cilium-dbg_bpf_ipmasq.md)	 - ip-masq-agent CIDRs
 * [cilium-dbg bpf lb](cilium-dbg_bpf_lb.md)	 - Load-balancing configuration
 * [cilium-dbg bpf metrics](cilium-dbg_bpf_metrics.md)	 - BPF datapath traffic metrics
 * [cilium-dbg bpf multicast](cilium-dbg_bpf_multicast.md)	 - Manage multicast BPF programs
+* [cilium-dbg bpf multinicdev](cilium-dbg_bpf_multinicdev.md)	 - Manage the devices of L2 multinic endpoints
 * [cilium-dbg bpf nat](cilium-dbg_bpf_nat.md)	 - NAT mapping tables
 * [cilium-dbg bpf nodeid](cilium-dbg_bpf_nodeid.md)	 - Manage the node IDs
 * [cilium-dbg bpf policy](cilium-dbg_bpf_policy.md)	 - Manage policy related BPF maps

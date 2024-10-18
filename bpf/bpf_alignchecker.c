@@ -19,6 +19,7 @@
 #include "lib/pcap.h"
 #include "lib/trace_sock.h"
 #include "lib/mcast.h"
+#include "lib/google_maps.h"
 
 /*
  * The __COUNTER__ macro expands to an integer value which is increasing every
@@ -92,3 +93,7 @@ add_type(struct mcast_subscriber_v4);
 add_type(struct node_key);
 add_type(struct skip_lb4_key);
 add_type(struct skip_lb6_key);
+add_type(struct multi_nic_dev_key);
+add_type(struct multi_nic_dev_info);
+add_type(struct host_dev_routing_key);
+add_type(struct host_dev_routing_entry);

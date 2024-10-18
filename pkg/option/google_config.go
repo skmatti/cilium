@@ -11,4 +11,7 @@ const (
 
 	// TrafficDirectorMesh is the name of the Traffic Director mesh used for Advanced Service Routing.
 	TrafficDirectorMesh = "traffic-director-mesh"
+
+	// EnableGoogleMultiNIC is the name of the option to enable gogole multi nic support.
+	EnableGoogleMultiNIC = "enable-google-multi-nic"
 )
