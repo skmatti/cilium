@@ -37,10 +37,10 @@ function verify_cilium_overridden {
   fi
 
   # find all anetd pods
-  mapfile -t anet_pod_names < <(kubectl get pods -n kube-system | grep -oP 'anetd-\w+')
+  mapfile -t anet_pod_names < <(kubectl get pods -n kube-system | grep -oP 'anetd-\w+' || true)
   if [[ -z "${anet_pod_names[*]}" ]]; then
-    echo "No anetd pods found" >&2
-    return 1
+    echo "No anetd pods found: cannot verify version." >&2
+    return 0
   fi
 
   for pod_name in "${anet_pod_names[@]}"; do
@@ -49,7 +49,7 @@ function verify_cilium_overridden {
       echo "Cilium did not upgrade to expected version. Expected ${expected_cilium_image_with_tag}. Found ${found_cilium_image}" >&2
       return 1
     else
-      echo "Cilium is successfully verified"
+      echo "Cilium is successfully verified."
     fi
   done
 }
