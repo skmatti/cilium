@@ -23,7 +23,7 @@ spec:
           provider: vsphere
           provisionerArgs:
             # Exact version of ABM is required to generate addon configurations.
-            bmctlVersion: 1.30.0-gke.1829
+            bmctlVersion: 1.31.0-gke.590
             passthroughEnv: |
               {
                 "MANIFEST_PROFILE_ENV": "staging",
