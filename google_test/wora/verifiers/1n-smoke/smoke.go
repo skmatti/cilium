@@ -49,7 +49,10 @@ var c client.Interface
 
 var zones []string
 
-var _ = BeforeSuite(Label("1n"), func(ctx context.Context) {
+var _ = BeforeSuite(func(ctx context.Context) {
+	if !Label("1n").MatchesLabelFilter(GinkgoLabelFilter()) {
+		Skip("label 1n not matched")
+	}
 	Expect(config.mesh).ToNot(BeEmpty(), "mesh name must be provided")
 
 	var err error
@@ -142,7 +145,10 @@ var _ = BeforeSuite(Label("1n"), func(ctx context.Context) {
 	}).WithTimeout(10 * time.Minute).WithPolling(defaultPolling).Should(Succeed())
 }, NodeTimeout(defaultTimeout))
 
-var _ = AfterSuite(Label("1n"), func(ctx context.Context) {
+var _ = AfterSuite(func(ctx context.Context) {
+	if !Label("1n").MatchesLabelFilter(GinkgoLabelFilter()) {
+		Skip("label 1n not matched")
+	}
 	deleteTestService(ctx, c)
 
 	By("deleting firewall")
@@ -176,7 +182,6 @@ var _ = AfterSuite(Label("1n"), func(ctx context.Context) {
 
 		deletePod(ctx, c, testNS, deleteMeshPod)
 	}).WithTimeout(5 * time.Minute).WithPolling(defaultPolling).Should(Succeed())
-
 }, NodeTimeout(defaultTimeout))
 
 var _ = Describe("Verifiers/1N", Label("1n"), func() {
