@@ -6,7 +6,9 @@ package k8s
 import (
 	"fmt"
 
+	networkv1 "github.com/GoogleCloudPlatform/gke-networking-api/apis/network/v1"
 	"github.com/cilium/cilium/pkg/annotation"
+	"github.com/cilium/cilium/pkg/gke/features"
 	k8sConst "github.com/cilium/cilium/pkg/k8s/apis/cilium.io"
 	k8sCiliumUtils "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/utils"
 	slim_networkingv1 "github.com/cilium/cilium/pkg/k8s/slim/k8s/api/networking/v1"
@@ -53,7 +55,7 @@ func GetPolicyLabelsv1(np *slim_networkingv1.NetworkPolicy) labels.LabelArray {
 	return k8sCiliumUtils.GetPolicyLabels(ns, policyName, policyUID, resourceTypeNetworkPolicy)
 }
 
-func parseNetworkPolicyPeer(namespace string, peer *slim_networkingv1.NetworkPolicyPeer) *api.EndpointSelector {
+func parseNetworkPolicyPeer(namespace string, peer *slim_networkingv1.NetworkPolicyPeer, networkSelector *slim_metav1.LabelSelector) *api.EndpointSelector {
 	if peer == nil {
 		return nil
 	}
@@ -91,11 +93,11 @@ func parseNetworkPolicyPeer(namespace string, peer *slim_networkingv1.NetworkPol
 			namespaceSelector.MatchExpressions = []slim_metav1.LabelSelectorRequirement{allowAllNamespacesRequirement}
 		}
 
-		selector := api.NewESFromK8sLabelSelector(labels.LabelSourceK8sKeyPrefix, namespaceSelector, peer.PodSelector)
+		selector := api.NewESFromK8sLabelSelector(labels.LabelSourceK8sKeyPrefix, namespaceSelector, peer.PodSelector, networkSelector)
 		retSel = &selector
 	} else if peer.PodSelector != nil {
 		podSelector := parsePodSelector(peer.PodSelector, namespace)
-		selector := api.NewESFromK8sLabelSelector(labels.LabelSourceK8sKeyPrefix, podSelector)
+		selector := api.NewESFromK8sLabelSelector(labels.LabelSourceK8sKeyPrefix, podSelector, networkSelector)
 		retSel = &selector
 	}
 
@@ -120,6 +122,17 @@ func ParseNetworkPolicy(np *slim_networkingv1.NetworkPolicy) (api.Rules, error) 
 		return nil, fmt.Errorf("cannot parse NetworkPolicy because it is nil")
 	}
 
+	networkAnnotationValue, networkAnnotationPresent := np.ObjectMeta.Annotations[networkv1.NetworkAnnotationKey]
+	var networkSelector *slim_metav1.LabelSelector
+
+	if features.GlobalConfig.EnableGoogleMultiNIC && networkAnnotationPresent {
+		networkSelector = &slim_metav1.LabelSelector{
+			MatchLabels: map[string]string{
+				labels.MultinicNetwork: networkAnnotationValue,
+			},
+		}
+	}
+
 	ingresses := []api.IngressRule{}
 	egresses := []api.EgressRule{}
 
@@ -132,7 +145,7 @@ func ParseNetworkPolicy(np *slim_networkingv1.NetworkPolicy) (api.Rules, error) 
 		if len(iRule.From) > 0 {
 			for _, rule := range iRule.From {
 				ingress := api.IngressRule{}
-				endpointSelector := parseNetworkPolicyPeer(namespace, &rule)
+				endpointSelector := parseNetworkPolicyPeer(namespace, &rule, networkSelector)
 
 				if endpointSelector != nil {
 					ingress.FromEndpoints = append(ingress.FromEndpoints, *endpointSelector)
@@ -156,6 +169,11 @@ func ParseNetworkPolicy(np *slim_networkingv1.NetworkPolicy) (api.Rules, error) 
 			ingress := api.IngressRule{}
 			ingress.FromEndpoints = append(ingress.FromEndpoints, api.WildcardEndpointSelector)
 
+			// For MultiNic, we select all endpoints on the network if network is specified
+			if networkSelector != nil {
+				ingress.FromEndpoints[len(ingress.FromEndpoints)-1] = api.NewESFromK8sLabelSelector(labels.LabelSourceK8sKeyPrefix, networkSelector)
+			}
+
 			fromRules = append(fromRules, ingress)
 		}
 
@@ -177,7 +195,7 @@ func ParseNetworkPolicy(np *slim_networkingv1.NetworkPolicy) (api.Rules, error) 
 			for _, rule := range eRule.To {
 				egress := api.EgressRule{}
 				if rule.NamespaceSelector != nil || rule.PodSelector != nil {
-					endpointSelector := parseNetworkPolicyPeer(namespace, &rule)
+					endpointSelector := parseNetworkPolicyPeer(namespace, &rule, networkSelector)
 
 					if endpointSelector != nil {
 						egress.ToEndpoints = append(egress.ToEndpoints, *endpointSelector)
@@ -198,6 +216,11 @@ func ParseNetworkPolicy(np *slim_networkingv1.NetworkPolicy) (api.Rules, error) 
 			//   destinations (traffic not restricted by destination)
 			egress := api.EgressRule{}
 			egress.ToEndpoints = append(egress.ToEndpoints, api.WildcardEndpointSelector)
+
+			// For MultiNic, we select all endpoints on the network if network is specified
+			if networkSelector != nil {
+				egress.ToEndpoints[len(egress.ToEndpoints)-1] = api.NewESFromK8sLabelSelector(labels.LabelSourceK8sKeyPrefix, networkSelector)
+			}
 
 			toRules = append(toRules, egress)
 		}
@@ -239,7 +262,7 @@ func ParseNetworkPolicy(np *slim_networkingv1.NetworkPolicy) (api.Rules, error) 
 
 	// The next patch will pass the UID.
 	rule := api.NewRule().
-		WithEndpointSelector(api.NewESFromK8sLabelSelector(labels.LabelSourceK8sKeyPrefix, podSelector)).
+		WithEndpointSelector(api.NewESFromK8sLabelSelector(labels.LabelSourceK8sKeyPrefix, podSelector, networkSelector)).
 		WithLabels(GetPolicyLabelsv1(np)).
 		WithIngressRules(ingresses).
 		WithEgressRules(egresses)

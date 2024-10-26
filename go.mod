@@ -3,6 +3,16 @@ module github.com/cilium/cilium
 // renovate: datasource=golang-version depName=go
 go 1.24.0
 
+replace (
+	k8s.io/api => k8s.io/api v0.30.2
+	k8s.io/apiextensions-apiserver => k8s.io/apiextensions-apiserver v0.30.2
+	k8s.io/apimachinery => k8s.io/apimachinery v0.30.2
+	k8s.io/client-go => k8s.io/client-go v0.30.2
+	k8s.io/code-generator => k8s.io/code-generator v0.30.2
+	k8s.io/component-base => k8s.io/component-base v0.30.2
+	k8s.io/endpointslice => k8s.io/endpointslice v0.30.2
+)
+
 require (
 	cloud.google.com/go/compute/metadata v0.5.2
 	github.com/AdaLogics/go-fuzz-headers v0.0.0-20230811130428-ced1acdcaa24
@@ -75,7 +85,7 @@ require (
 	github.com/mdlayher/arp v0.0.0-20220221190821-c37aaafac7f9
 	github.com/mdlayher/ethernet v0.0.0-20220221185849-529eae5b6118
 	github.com/onsi/ginkgo v1.16.5
-	github.com/onsi/gomega v1.33.1
+	github.com/onsi/gomega v1.34.2
 	github.com/osrg/gobgp/v3 v3.35.0
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2
 	github.com/prometheus/client_golang v1.19.1
@@ -122,17 +132,17 @@ require (
 	google.golang.org/protobuf v1.36.5
 	gopkg.in/ini.v1 v1.67.0
 	gopkg.in/yaml.v3 v3.0.1
-	k8s.io/api v0.30.2
+	k8s.io/api v0.31.1
 	k8s.io/apiextensions-apiserver v0.30.2
-	k8s.io/apimachinery v0.30.2
-	k8s.io/client-go v0.30.2
+	k8s.io/apimachinery v0.31.1
+	k8s.io/client-go v0.31.1
 	k8s.io/code-generator v0.30.2
 	k8s.io/component-base v0.30.2
 	k8s.io/endpointslice v0.30.2
 	k8s.io/klog/v2 v2.130.1
-	k8s.io/utils v0.0.0-20240502163921-fe8a2dddb1d0
+	k8s.io/utils v0.0.0-20240711033017-18e509b52bc8
 	sigs.k8s.io/controller-runtime v0.18.4
-	sigs.k8s.io/controller-tools v0.15.0
+	sigs.k8s.io/controller-tools v0.16.3
 	sigs.k8s.io/gateway-api v1.1.0
 	sigs.k8s.io/mcs-api v0.1.1-0.20240529200349-2833f83cfbdc
 	sigs.k8s.io/yaml v1.4.0
@@ -289,6 +299,8 @@ require (
 
 // GKE specific dependencies.
 replace gke-internal.googlesource.com/kon/pkg => gke-internal.googlesource.com/kon.git/pkg v0.0.0-20240702092033-e9d7919db158
+
+require github.com/GoogleCloudPlatform/gke-networking-api v0.2.0
 
 replace (
 	go.universe.tf/metallb => github.com/cilium/metallb v0.1.1-0.20220829170633-5d7dfb1129f7
