@@ -51,7 +51,8 @@ var zones []string
 
 var _ = BeforeSuite(func(ctx context.Context) {
 	if !Label("1n").MatchesLabelFilter(GinkgoLabelFilter()) {
-		Skip("label 1n not matched")
+		GinkgoWriter.Println("skipping: label 1n not matched")
+		return
 	}
 	Expect(config.mesh).ToNot(BeEmpty(), "mesh name must be provided")
 
@@ -147,7 +148,8 @@ var _ = BeforeSuite(func(ctx context.Context) {
 
 var _ = AfterSuite(func(ctx context.Context) {
 	if !Label("1n").MatchesLabelFilter(GinkgoLabelFilter()) {
-		Skip("label 1n not matched")
+		GinkgoWriter.Println("skipping: label 1n not matched")
+		return
 	}
 	deleteTestService(ctx, c)
 
