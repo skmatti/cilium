@@ -57,7 +57,7 @@ presubmits:
       command:
       - runner.sh
       - ./google_test/upstream_test/prow_entrypoint.sh
-- name: gke-advanced-datapath-presubmit-ebpf-gdch-rocky86-v1-14-r41
+- name: gke-advanced-datapath-presubmit-ebpf-gdch-rocky86-v1-14-r208
   trigger: /test ebpf-gdch-rocky86-v1-14-r41
   rerun_command: /test ebpf-gdch-rocky86-v1-14-r41
   always_run: false
@@ -82,7 +82,7 @@ presubmits:
       - name: IMAGE_PROJECT
         value: anthos-baremetal-ci
       - name: IMAGE_REF
-        value: projects/anthos-baremetal-ci/global/images/gdch-abm-image-rocky-86-1-14-devel-v20240506-1-14-r41
+        value: projects/anthos-baremetal-ci/global/images/gdch-abm-image-rocky-86-1-14-v20240821-1-14-r208
       command:
       - runner.sh
       - ./google_test/upstream_test/prow_entrypoint.sh
