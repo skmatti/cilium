@@ -463,6 +463,8 @@ presubmits:
         value: HEAD
       - name: TBCONFIG
         value: sut-gke.yaml
+      - name: WORA_CONFIG
+        value: integration-gke_test.yaml
       command:
       - runner.sh
       args:
