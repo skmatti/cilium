@@ -14,7 +14,6 @@ import (
 	"github.com/cilium/cilium/pkg/labels"
 	"github.com/cilium/cilium/pkg/policy"
 	"github.com/cilium/cilium/pkg/policy/api"
-	"github.com/cilium/cilium/pkg/testutils"
 	"github.com/stretchr/testify/require"
 )
 
@@ -291,7 +290,6 @@ var (
 )
 
 func Test_parseNetworkPolicyIngressForNetworkSelectorWithMultiNicEnabled(t *testing.T) {
-	testutils.PrivilegedTest(t)
 
 	features.GlobalConfig.EnableGoogleMultiNIC = true
 	defer func() { features.GlobalConfig.EnableGoogleMultiNIC = false }()
@@ -319,6 +317,31 @@ func Test_parseNetworkPolicyIngressForNetworkSelectorWithMultiNicEnabled(t *test
 			networkPolicy: &ingressNetworkPolicyWithNetworkAnnotation,
 			ctx:           &podNetworkIngressCtx,
 			want:          api.Allowed, // valid ctx, should be allowed by this networkpolicy
+		},
+		{
+			name: "test-pod-network-np-for-ingress-on-pod-network-from-all-sources",
+			networkPolicy: func() *slim_networkingv1.NetworkPolicy {
+				newNP := (&ingressNetworkPolicyWithNetworkAnnotation).DeepCopy()
+				newNP.Spec.Ingress[0].From = nil
+				return newNP
+			}(),
+			ctx: &policy.SearchContext{
+				From: labels.LabelArray{},
+				To: labels.LabelArray{
+					labels.NewLabel(k8sConst.PodNamespaceLabel, slim_metav1.NamespaceDefault, labels.LabelSourceK8s),
+					labels.NewLabel("foo1", "bar1", labels.LabelSourceK8s),
+					labels.NewLabel("foo2", "bar2", labels.LabelSourceK8s),
+					labels.NewLabel(networkv1.NetworkAnnotationKey, "pod-network", labels.LabelSourceK8s),
+				},
+				DPorts: []*models.Port{
+					{
+						Port:     443,
+						Protocol: models.PortProtocolTCP,
+					},
+				},
+				Trace: policy.TRACE_VERBOSE,
+			},
+			want: api.Allowed, // Allowed from all sources on port 443.
 		},
 		{
 			name:          "test-empty-network-np-for-ingress-on-pod-network-from-vlan-network",
@@ -349,7 +372,7 @@ func Test_parseNetworkPolicyIngressForNetworkSelectorWithMultiNicEnabled(t *test
 			repo := testNewPolicyRepository()
 			repo.MustAddList(rules)
 			if got := repo.AllowsIngressRLocked(tt.ctx); got != tt.want {
-				t.Fatalf("Policy verdict mismatch, got %s, want %s", got.String(), tt.want.String())
+				t.Fatalf("Unexpected policy verdict %s, want %s; rules:\n%+v", got.String(), tt.want.String(), rules)
 			}
 		})
 	}
@@ -382,6 +405,32 @@ func Test_parseNetworkPolicyEgressForNetworkSelectorWithMultiNicEnabled(t *testi
 			networkPolicy: &egressNetworkPolicyWithNetworkAnnotation,
 			ctx:           &podNetworkEgressCtx,
 			want:          api.Allowed, // valid ctx, should be allowed by this networkpolicy
+		},
+
+		{
+			name: "test-pod-network-np-for-egress-on-pod-network-from-all-sources",
+			networkPolicy: func() *slim_networkingv1.NetworkPolicy {
+				newNP := (&egressNetworkPolicyWithNetworkAnnotation).DeepCopy()
+				newNP.Spec.Egress[0].To = nil
+				return newNP
+			}(),
+			ctx: &policy.SearchContext{
+				From: labels.LabelArray{
+					labels.NewLabel(k8sConst.PodNamespaceLabel, slim_metav1.NamespaceDefault, labels.LabelSourceK8s),
+					labels.NewLabel("foo1", "bar1", labels.LabelSourceK8s),
+					labels.NewLabel("foo2", "bar2", labels.LabelSourceK8s),
+					labels.NewLabel(networkv1.NetworkAnnotationKey, "pod-network", labels.LabelSourceK8s),
+				},
+				To: labels.LabelArray{},
+				DPorts: []*models.Port{
+					{
+						Port:     443,
+						Protocol: models.PortProtocolTCP,
+					},
+				},
+				Trace: policy.TRACE_VERBOSE,
+			},
+			want: api.Allowed, // Allowed from all sources on port 443.
 		},
 		{
 			name:          "test-empty-network-np-for-egress-on-pod-network-from-vlan-network",
@@ -419,8 +468,6 @@ func Test_parseNetworkPolicyEgressForNetworkSelectorWithMultiNicEnabled(t *testi
 }
 
 func Test_parseNetworkPolicyIngressForNetworkSelectorWithMultiNicDisabled(t *testing.T) {
-	testutils.PrivilegedTest(t)
-
 	tests := []struct {
 		name          string
 		networkPolicy *slim_networkingv1.NetworkPolicy
@@ -463,8 +510,6 @@ func Test_parseNetworkPolicyIngressForNetworkSelectorWithMultiNicDisabled(t *tes
 }
 
 func Test_parseNetworkPolicyEgressForNetworkSelectorWithMultiNicDisabled(t *testing.T) {
-	testutils.PrivilegedTest(t)
-
 	tests := []struct {
 		name          string
 		networkPolicy *slim_networkingv1.NetworkPolicy
@@ -598,8 +643,6 @@ func Test_parseNetworkPolicyIngressAllowAllForNetworkSelector(t *testing.T) {
 }
 
 func Test_parseNetworkPolicyEgressAllowAllForNetworkSelector(t *testing.T) {
-	testutils.PrivilegedTest(t)
-
 	features.GlobalConfig.EnableGoogleMultiNIC = true
 	defer func() { features.GlobalConfig.EnableGoogleMultiNIC = false }()
 
@@ -691,8 +734,6 @@ func Test_parseNetworkPolicyEgressAllowAllForNetworkSelector(t *testing.T) {
 }
 
 func Test_parseNetworkPolicyIngressDenyAllForNetworkSelector(t *testing.T) {
-	testutils.PrivilegedTest(t)
-
 	features.GlobalConfig.EnableGoogleMultiNIC = true
 	defer func() { features.GlobalConfig.EnableGoogleMultiNIC = false }()
 
@@ -855,8 +896,6 @@ func Test_parseNetworkPolicyEgressDenyAllForNetworkSelector(t *testing.T) {
 }
 
 func Test_parseNetworkPolicyPeerForNetworkSelector(t *testing.T) {
-	testutils.PrivilegedTest(t)
-
 	tests := []struct {
 		name            string
 		namespace       string
@@ -1025,6 +1064,27 @@ func Test_parseNetworkPolicyPeerForNetworkSelector(t *testing.T) {
 							Operator: slim_metav1.LabelSelectorOpExists,
 						},
 					},
+				),
+			),
+		},
+		{
+			name:      "peer-with-allow-all-pod-selector-and-network-selector",
+			namespace: "foo-namespace",
+			peer: &slim_networkingv1.NetworkPolicyPeer{
+				PodSelector: &slim_metav1.LabelSelector{},
+			},
+			networkSelector: &slim_metav1.LabelSelector{
+				MatchLabels: map[string]string{
+					"network-annotation-key": "pod-network",
+				},
+			},
+			want: getSelectorPointer(
+				api.NewESFromMatchRequirements(
+					map[string]string{
+						"k8s.io.kubernetes.pod.namespace": "foo-namespace",
+						"k8s.network-annotation-key":      "pod-network",
+					},
+					nil,
 				),
 			),
 		},

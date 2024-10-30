@@ -169,11 +169,6 @@ func ParseNetworkPolicy(np *slim_networkingv1.NetworkPolicy) (api.Rules, error) 
 			ingress := api.IngressRule{}
 			ingress.FromEndpoints = append(ingress.FromEndpoints, api.WildcardEndpointSelector)
 
-			// For MultiNic, we select all endpoints on the network if network is specified
-			if networkSelector != nil {
-				ingress.FromEndpoints[len(ingress.FromEndpoints)-1] = api.NewESFromK8sLabelSelector(labels.LabelSourceK8sKeyPrefix, networkSelector)
-			}
-
 			fromRules = append(fromRules, ingress)
 		}
 
@@ -216,11 +211,6 @@ func ParseNetworkPolicy(np *slim_networkingv1.NetworkPolicy) (api.Rules, error) 
 			//   destinations (traffic not restricted by destination)
 			egress := api.EgressRule{}
 			egress.ToEndpoints = append(egress.ToEndpoints, api.WildcardEndpointSelector)
-
-			// For MultiNic, we select all endpoints on the network if network is specified
-			if networkSelector != nil {
-				egress.ToEndpoints[len(egress.ToEndpoints)-1] = api.NewESFromK8sLabelSelector(labels.LabelSourceK8sKeyPrefix, networkSelector)
-			}
 
 			toRules = append(toRules, egress)
 		}
