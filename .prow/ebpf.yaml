@@ -117,35 +117,6 @@ presubmits:
       command:
       - runner.sh
       - ./google_test/upstream_test/prow_entrypoint.sh
-- name: gke-advanced-datapath-presubmit-ebpf-cos101
-  trigger: /test ebpf-cos101
-  rerun_command: /test ebpf-cos101
-  always_run: false
-  decorate: true
-  decoration_config:
-    timeout: 240m
-  labels:
-    preset-cookie-file: "true"
-    preset-cookie-file-env: "true"
-    preset-service-account: "true"
-    preset-k8s-ssh: "true"
-    prow.k8s.io/gerrit-report-label: Unit-Verified
-  path_alias: gke-internal.googlesource.com/third_party/cilium
-  spec:
-    containers:
-    - image: gcr.io/gke-test-infra/kubekins-e2e:v20240104-dc2c09a68a-1.29
-      env:
-      - name: GCP_PROJECT
-        value: anthos-networking-ci
-      - name: TEST_TYPE
-        value: ebpf
-      - name: IMAGE_PROJECT
-        value: cos-cloud
-      - name: IMAGE_FAMILY
-        value: cos-101-lts
-      command:
-      - runner.sh
-      - ./google_test/upstream_test/prow_entrypoint.sh
 - name: gke-advanced-datapath-presubmit-ebpf-cos101-upstream
   trigger: /test ebpf-cos101
   rerun_command: /test ebpf-cos101
