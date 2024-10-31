@@ -325,6 +325,7 @@ func TestCorrelatePolicy(t *testing.T) {
 	policyKey = policy.Key{
 		Identity:         uint32(remoteIdentity),
 		Nexthdr:          uint8(u8proto.TCP),
+		InvertedPortMask: 0xffff, // this is a wildcard
 		TrafficDirection: trafficdirection.Egress.Uint8(),
 	}
 	ep = &testutils.FakeEndpointInfo{
