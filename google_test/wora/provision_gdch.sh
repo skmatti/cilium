@@ -13,6 +13,7 @@ OC_UPDATE_TEMPLATE="${OC_UPDATE_TEMPLATE:-}"
 ENV_TEMPLATE_ID="${ENV_TEMPLATE_ID:-}"
 GDCH_E2E_TESTS="${GDCH_E2E_TESTS:-}"
 GDCH_E2E_TEST_PLAN="${GDCH_E2E_TEST_PLAN:-}"
+ADHOC_USERNAME="${ADHOC_USERNAME:-}"
 
 # Insert the cluster name.
 function insert_cluster_name {
@@ -56,6 +57,13 @@ function insert_env_template_id {
   echo "${updated_tbconfig}" >${tbconfig_path}
 }
 
+function insert_adhoc_username {
+  local tbconfig_path="${1:?}"
+  export ADHOC_USERNAME="${2:?}"
+  updated_tbconfig=$(envsubst '${ADHOC_USERNAME}' <"${tbconfig_path}")
+  echo "${updated_tbconfig}" >${tbconfig_path}
+}
+
 function insert_gdch_e2e_tests {
   local tbconfig_path="${1:?}"
   export GDCH_E2E_TESTS="${2:-}"
@@ -63,6 +71,11 @@ function insert_gdch_e2e_tests {
   updated_tbconfig=$(envsubst '${GDCH_E2E_TESTS},${GDCH_E2E_TEST_PLAN}' <"${tbconfig_path}")
   echo "${updated_tbconfig}" >${tbconfig_path}
 }
+
+insert_adhoc_username "${ABSOLUTE_PATH_TBCONFIG}" "${ADHOC_USERNAME}"
+insert_cluster_name "${ABSOLUTE_PATH_TBCONFIG}"
+insert_env_template_id "${ABSOLUTE_PATH_TBCONFIG}" "${ENV_TEMPLATE_ID}"
+insert_gdch_e2e_tests "${ABSOLUTE_PATH_TBCONFIG}" "${GDCH_E2E_TESTS}" "${GDCH_E2E_TEST_PLAN}"
 
 # only build and push images if CILIUM_GITREF, IMAGE_REGISTRY, DOCKER_IMAGE_TAG and CILIUM_DOCKER_IMAGE_TAG are set
 if [[ -z "${CILIUM_GITREF}" ]]; then
@@ -78,10 +91,4 @@ TAG="an-shift-left-${DOCKER_IMAGE_TAG}"
 retag_docker_image "${IMAGE_REGISTRY}/cilium/cilium" "${CILIUM_DOCKER_IMAGE_TAG}" "${TAG}"
 retag_docker_image "${IMAGE_REGISTRY}/cilium/operator-generic" "${DOCKER_IMAGE_TAG}" "${TAG}"
 
-insert_cluster_name "${ABSOLUTE_PATH_TBCONFIG}"
-
-UPDATE_SPEC_TEMPLATE="${WORKDIR}/${OC_UPDATE_TEMPLATE}"
-
-insert_update_image_map "${ABSOLUTE_PATH_TBCONFIG}" "${IMAGE_REGISTRY}" "${TAG}" "${UPDATE_SPEC_TEMPLATE}"
-insert_env_template_id "${ABSOLUTE_PATH_TBCONFIG}" "${ENV_TEMPLATE_ID}"
-insert_gdch_e2e_tests "${ABSOLUTE_PATH_TBCONFIG}" "${GDCH_E2E_TESTS}" "${GDCH_E2E_TEST_PLAN}"
+insert_update_image_map "${ABSOLUTE_PATH_TBCONFIG}" "${IMAGE_REGISTRY}" "${TAG}" "${WORKDIR}/${OC_UPDATE_TEMPLATE}"

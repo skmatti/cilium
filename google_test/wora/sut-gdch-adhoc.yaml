@@ -23,7 +23,7 @@ spec:
           distribution: gdch-gce-adhoc
           provisionerArgs:
             pluginSpecYaml: |
-              username: "ci-abm-gdch"
+              username: "${ADHOC_USERNAME}"
               adhocOperation: "rollout"
               adhocArgs:
                 pool_name: "unet"
@@ -31,6 +31,8 @@ spec:
                 test:      "${GDCH_E2E_TESTS}"
                 plan:      "${GDCH_E2E_TEST_PLAN}"
                 use_stored_entities: "true"
+                run_post_diagnose: "true"
+                run_per_diagnose: "true"
                 comment:   "AN Shift left testing"
                 tb_update_oc: "unet"
                 tb_update_spec: "${UPDATE_SPEC_STRING}"

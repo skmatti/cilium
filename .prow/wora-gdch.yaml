@@ -33,8 +33,10 @@ presubmits:
         value: cilium_129_update_spec.json.tmpl
       - name: ENV_TEMPLATE_ID
         value: c97a9292-975e-47f3-a290-a70df10edc4f
+      - name: ADHOC_USERNAME
+        value: an-shift-left-legacy-presubmit
       - name: GDCH_E2E_TESTS
-        value: TestConnectivityMultiTenant|TestVMNetworkToVMInterProjectV2MT|TestVMNetworkToVMIntraProjectV2MT|TestVMEgressNATV2MT|TestGdcloudNetworkDiagnoseMT|TestClusterMeshConnectivityMultiTenant|TestClusterMeshConnectivityNewFrameworkMultiTenant|TestVMNetworkToPodIntraProjectV2MT|TestFabricTracingMultiTenant|TestILBServiceConnectivityMultiTenant|TestProjectNetworkPolicyEnforcementMultiTenant|TestEgressNATMultiTenant|TestExternalLBMultiTenant|TestClusterMeshHealthMultiTenant|TestUNETReadyRootAdmin|TestUNETReadyOrgAdmin|TestUNETVMSetup
+        value: TestVMSetupV2MT|TestVMCreateUbuntuVMV2MT|TestUNETVMSetup|TestConnectivityMultiTenant|TestVMNetworkToVMInterProjectV2MT|TestVMNetworkToVMIntraProjectV2MT|TestVMEgressNATV2MT|TestGdcloudNetworkDiagnoseMT|TestClusterMeshConnectivityMultiTenant|TestClusterMeshConnectivityNewFrameworkMultiTenant|TestVMNetworkToPodIntraProjectV2MT|TestFabricTracingMultiTenant|TestILBServiceConnectivityMultiTenant|TestProjectNetworkPolicyEnforcementMultiTenant|TestEgressNATMultiTenant|TestExternalLBMultiTenant|TestClusterMeshHealthMultiTenant|TestUNETReadyRootAdmin|TestUNETReadyOrgAdmin
       - name: GDCH_E2E_TEST_PLAN
         value: dynamic
       - name: WORA_CONFIG
@@ -77,10 +79,12 @@ presubmits:
         value: cilium_lancer_update_spec.json.tmpl
       - name: ENV_TEMPLATE_ID
         value: b82f9f61-ccbd-4871-9154-085eddc40012
+      - name: ADHOC_USERNAME
+        value: an-shift-left-lancer-presubmit
       - name: GDCH_E2E_TESTS
         value: TestUNETReadyOrgInfra|TestUNETReadyOrgMgmt
       - name: GDCH_E2E_TEST_PLAN
-        value: dynamic
+        value: silver/unet/gce-mt-arch-v2
       - name: WORA_CONFIG
         value: no_op_test.yaml
       command:
@@ -117,8 +121,12 @@ presubmits:
         value: sut-gdch-adhoc.yaml
       - name: ENV_TEMPLATE_ID
         value: c97a9292-975e-47f3-a290-a70df10edc4f
+      - name: ADHOC_USERNAME
+        value: an-shift-left-legacy-nobuild-presubmit
       - name: GDCH_E2E_TESTS
-        value: TestUNETReadyRootAdmin|TestUNETReadyOrgAdmin
+        value: TestVMSetupV2MT|TestVMCreateUbuntuVMV2MT|TestUNETVMSetup|TestConnectivityMultiTenant|TestVMNetworkToVMInterProjectV2MT|TestVMNetworkToVMIntraProjectV2MT|TestVMEgressNATV2MT|TestGdcloudNetworkDiagnoseMT|TestClusterMeshConnectivityMultiTenant|TestClusterMeshConnectivityNewFrameworkMultiTenant|TestVMNetworkToPodIntraProjectV2MT|TestFabricTracingMultiTenant|TestILBServiceConnectivityMultiTenant|TestProjectNetworkPolicyEnforcementMultiTenant|TestEgressNATMultiTenant|TestExternalLBMultiTenant|TestClusterMeshHealthMultiTenant|TestUNETReadyRootAdmin|TestUNETReadyOrgAdmin
+      - name: GDCH_E2E_TEST_PLAN
+        value: dynamic
       - name: WORA_CONFIG
         value: no_op_test.yaml
       command:
@@ -155,10 +163,12 @@ presubmits:
         value: sut-gdch-adhoc.yaml
       - name: ENV_TEMPLATE_ID
         value: b82f9f61-ccbd-4871-9154-085eddc40012
+      - name: ADHOC_USERNAME
+        value: an-shift-left-lancer-nobuild-presubmit
       - name: GDCH_E2E_TESTS
         value: TestUNETReadyOrgInfra|TestUNETReadyOrgMgmt
       - name: GDCH_E2E_TEST_PLAN
-        value: silver/unet/gce-mt-arch-v2
+        value: dynamic
       - name: WORA_CONFIG
         value: no_op_test.yaml
       command:

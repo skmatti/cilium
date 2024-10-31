@@ -218,6 +218,7 @@ case "${PLATFORM}" in
     ENV_TEMPLATE_ID="${ENV_TEMPLATE_ID:-"c97a9292-975e-47f3-a290-a70df10edc4f"}"
     GDCH_E2E_TESTS="${GDCH_E2E_TESTS:-}"
     GDCH_E2E_TEST_PLAN="${GDCH_E2E_TEST_PLAN:-}"
+    ADHOC_USERNAME=${ADHOC_USERNAME:-"ci-an-shift-left"}
     working_copy "${ROOT}/oc_update/${OC_UPDATE_TEMPLATE}" "${ROOT}/${WORKDIR}"
     ABSOLUTE_PATH_TBCONFIG="${TBCONFIG}" \
       IMAGE_REGISTRY="${IMAGE_REGISTRY}" \
@@ -229,6 +230,7 @@ case "${PLATFORM}" in
       ENV_TEMPLATE_ID="${ENV_TEMPLATE_ID}" \
       GDCH_E2E_TESTS="${GDCH_E2E_TESTS}" \
       GDCH_E2E_TEST_PLAN="${GDCH_E2E_TEST_PLAN}" \
+      ADHOC_USERNAME="${ADHOC_USERNAME:-}" \
       "${ROOT}/provision_gdch.sh"
     # Unset docker image after upgrade to stop failures due to image verification.
     # Image verification is not possible in GDCH due to lack of kubeconfig support.
