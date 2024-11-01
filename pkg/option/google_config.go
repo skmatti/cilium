@@ -14,4 +14,7 @@ const (
 
 	// EnableGoogleMultiNIC is the name of the option to enable gogole multi nic support.
 	EnableGoogleMultiNIC = "enable-google-multi-nic"
+
+	// EnableNodeNetworkPolicyCRD enables google node network policy CRD.
+	EnableNodeNetworkPolicyCRD = "enable-node-network-policy-crd"
 )

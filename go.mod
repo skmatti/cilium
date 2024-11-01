@@ -108,6 +108,7 @@ require (
 	github.com/vishvananda/netlink v1.3.1-0.20241022031324-976bd8de7d81
 	github.com/vishvananda/netns v0.0.4
 	gke-internal.googlesource.com/kon/pkg v0.0.0-00010101000000-000000000000
+	gke-internal/gke-node-firewall v0.0.0-00010101000000-000000000000
 	go.etcd.io/etcd/api/v3 v3.5.14
 	go.etcd.io/etcd/client/pkg/v3 v3.5.14
 	go.etcd.io/etcd/client/v3 v3.5.14
@@ -303,6 +304,7 @@ replace gke-internal.googlesource.com/kon/pkg => gke-internal.googlesource.com/k
 require github.com/GoogleCloudPlatform/gke-networking-api v0.2.0
 
 replace (
+	gke-internal/gke-node-firewall => gke-internal.googlesource.com/kubernetes/gke-node-firewall.git v0.0.20
 	go.universe.tf/metallb => github.com/cilium/metallb v0.1.1-0.20220829170633-5d7dfb1129f7
 
 	// Using private fork of controller-tools. See commit msg for more context
