@@ -82,9 +82,9 @@ presubmits:
       - name: ADHOC_USERNAME
         value: an-shift-left-lancer-presubmit
       - name: GDCH_E2E_TESTS
-        value: TestUNETReadyOrgInfra|TestUNETReadyOrgMgmt
+        value: TestUNETReadyOrgInfra|TestUNETReadyOrgMgmt|TestUNETReadyOrgService|TestUNETReadyVMUser|TestOrgNetworkPolicyLancer
       - name: GDCH_E2E_TEST_PLAN
-        value: silver/unet/gce-mt-arch-v2
+        value: dynamic
       - name: WORA_CONFIG
         value: no_op_test.yaml
       command:
@@ -166,7 +166,7 @@ presubmits:
       - name: ADHOC_USERNAME
         value: an-shift-left-lancer-nobuild-presubmit
       - name: GDCH_E2E_TESTS
-        value: TestUNETReadyOrgInfra|TestUNETReadyOrgMgmt
+        value: TestUNETReadyOrgInfra|TestUNETReadyOrgMgmt|TestUNETReadyOrgService|TestUNETReadyVMUser|TestOrgNetworkPolicyLancer
       - name: GDCH_E2E_TEST_PLAN
         value: dynamic
       - name: WORA_CONFIG
