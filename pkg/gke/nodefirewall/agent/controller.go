@@ -20,7 +20,6 @@ import (
 	"fmt"
 	"reflect"
 	"sync"
-	"time"
 
 	"gke-internal/gke-node-firewall/pkg/apis/nodenetworkpolicy/v1alpha1"
 	nnpclient "gke-internal/gke-node-firewall/pkg/client/nodenetworkpolicy/clientset/versioned"
@@ -43,6 +42,7 @@ import (
 	"github.com/cilium/cilium/pkg/logging/logfields"
 	"github.com/cilium/cilium/pkg/metrics"
 	ciliumpolicy "github.com/cilium/cilium/pkg/policy"
+	"github.com/cilium/cilium/pkg/time"
 )
 
 const (

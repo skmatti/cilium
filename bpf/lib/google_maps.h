@@ -1,5 +1,4 @@
-#ifndef __GOOGLE_MAPS_H_
-#define __GOOGLE_MAPS_H_
+#pragma once
 
 #include <bpf/api.h>
 
@@ -90,4 +89,3 @@ struct {
 	      - sizeof(union v6addr)))
 
 #endif /* ENABLE_GOOGLE_MULTI_NIC */
-#endif // __GOOGLE_MAPS_H_

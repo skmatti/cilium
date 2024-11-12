@@ -4,12 +4,12 @@ package eventcache
 
 import (
 	"math"
-	"time"
 
 	eventcachetypes "github.com/cilium/cilium/pkg/gke/eventcache/types"
 	"github.com/cilium/cilium/pkg/k8s"
 	"github.com/cilium/cilium/pkg/loadbalancer"
 	"github.com/cilium/cilium/pkg/lock"
+	"github.com/cilium/cilium/pkg/time"
 )
 
 type kubeAPITimes struct {

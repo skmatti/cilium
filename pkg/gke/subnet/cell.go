@@ -6,10 +6,10 @@ import (
 	"net"
 
 	"github.com/cilium/cilium/pkg/controller"
-	"github.com/cilium/hive/cell"
 	k8sClient "github.com/cilium/cilium/pkg/k8s/client"
 	"github.com/cilium/cilium/pkg/option"
 	"github.com/cilium/cilium/pkg/promise"
+	"github.com/cilium/hive/cell"
 	"github.com/spf13/pflag"
 )
 

@@ -9,14 +9,13 @@
 package eventcache
 
 import (
-	"time"
-
 	eventcachetypes "github.com/cilium/cilium/pkg/gke/eventcache/types"
 	"github.com/cilium/cilium/pkg/k8s"
 	"github.com/cilium/cilium/pkg/loadbalancer"
 	"github.com/cilium/cilium/pkg/lock"
 	"github.com/cilium/cilium/pkg/logging"
 	"github.com/cilium/cilium/pkg/logging/logfields"
+	"github.com/cilium/cilium/pkg/time"
 )
 
 var log = logging.DefaultLogger.WithField(logfields.LogSubsys, "eventcache")

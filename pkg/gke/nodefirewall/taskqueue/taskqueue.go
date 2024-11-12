@@ -17,12 +17,11 @@ limitations under the License.
 package taskqueue
 
 import (
-	"time"
-
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
 
 	"github.com/cilium/cilium/pkg/gke/nodefirewall/logging"
+	"github.com/cilium/cilium/pkg/time"
 )
 
 var (
