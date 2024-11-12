@@ -17,6 +17,7 @@ var Cell = cell.Module("metrics", "Metrics",
 	// Provide registry to hive, but also invoke if case no cells decide to use as dependency
 	cell.Provide(NewRegistry),
 	Metric(NewLegacyMetrics),
+	Metric(NewGoogleMetrics),
 	cell.Config(defaultRegistryConfig),
 	cell.Invoke(func(_ *Registry) {
 		// This is a hack to ensure that errors/warnings collected in the pre hive initialization
@@ -52,14 +53,6 @@ func Metric[S any](ctor func() S) cell.Cell {
 			"metrics.Metric must be invoked with a constructor function that returns a struct or pointer to a struct, "+
 				"a constructor which returns a %s was supplied",
 			outTyp.Kind(),
-		))
-	}
-
-	// Let's be strict for now, could lift this in the future if we ever need to
-	if outTyp.NumField() == 0 {
-		panic(fmt.Errorf(
-			"metrics.Metric must be invoked with a constructor function that returns exactly a struct with at least 1 " +
-				"metric, a constructor which returns a struct with zero fields was supplied",
 		))
 	}
 
