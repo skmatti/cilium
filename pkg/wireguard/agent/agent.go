@@ -16,6 +16,8 @@ import (
 	"os"
 	"strconv"
 
+	"github.com/cilium/cilium/pkg/metrics"
+	cnode "github.com/cilium/cilium/pkg/node/types"
 	"github.com/go-openapi/strfmt"
 	"github.com/sirupsen/logrus"
 	"github.com/vishvananda/netlink"
@@ -43,6 +45,7 @@ import (
 	"github.com/cilium/cilium/pkg/mtu"
 	"github.com/cilium/cilium/pkg/node"
 	"github.com/cilium/cilium/pkg/option"
+	"github.com/cilium/cilium/pkg/time"
 	"github.com/cilium/cilium/pkg/wireguard/types"
 )
 
@@ -346,6 +349,12 @@ func (a *Agent) RestoreFinished(cm *clustermesh.ClusterMesh) error {
 }
 
 func (a *Agent) UpdatePeer(nodeName, pubKeyHex string, nodeIPv4, nodeIPv6 net.IP) error {
+	u := time.Now()
+	defer func() {
+		metrics.WireguardAgentTimeStats.WithLabelValues(
+			cnode.GetName(), "updatePeer").Observe(time.Since(u).Seconds())
+	}()
+
 	// To avoid running into a deadlock, we need to lock the IPCache before
 	// calling a.Lock(), because IPCache might try to call into
 	// OnIPIdentityCacheChange concurrently
@@ -701,6 +710,16 @@ func (a *Agent) Status(withPeers bool) (*models.WireguardStatus, error) {
 			peers = append(peers, peer)
 		}
 	}
+
+	sourceNodeName := cnode.GetName()
+	for _, p := range dev.Peers {
+		targetNodeName := a.nodeNameByPubKey[p.PublicKey]
+		metrics.WireguardTransferBytesTotal.WithLabelValues(
+			sourceNodeName, targetNodeName, "transmitted").Set(float64(p.TransmitBytes))
+		metrics.WireguardTransferBytesTotal.WithLabelValues(
+			sourceNodeName, targetNodeName, "received").Set(float64(p.ReceiveBytes))
+	}
+	metrics.WireguardPeersTotal.WithLabelValues(sourceNodeName).Set(float64(len(dev.Peers)))
 
 	var nodeEncryptionStatus = "Disabled"
 	if option.Config.EncryptNode {

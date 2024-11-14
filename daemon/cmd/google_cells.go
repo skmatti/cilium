@@ -9,6 +9,10 @@ import (
 	"github.com/cilium/cilium/pkg/gke/redirectservice"
 	"github.com/cilium/cilium/pkg/gke/subnet"
 	"github.com/cilium/cilium/pkg/node"
+	"github.com/cilium/cilium/pkg/option"
+
+	"github.com/cilium/cilium/pkg/gke/remotenode"
+	rncontroller "github.com/cilium/cilium/pkg/gke/remotenode/controller"
 	"github.com/cilium/cilium/pkg/promise"
 	"github.com/cilium/cilium/pkg/redirectpolicy"
 	"github.com/cilium/hive/cell"
@@ -23,6 +27,8 @@ var googleCell = cell.Module(
 
 	features.Cell,
 	enhancedservices.Cell,
+	cell.Provide(newIPCachePromise),
+	remotenode.Cell,
 
 	cell.Provide(newPolicyManagerPromise),
 
@@ -87,4 +93,25 @@ func newRedirectPolicyManagerPromise(rdm *redirectpolicy.Manager, lc cell.Lifecy
 		},
 	})
 	return pmPromise
+}
+func newIPCachePromise(dp promise.Promise[*Daemon], lc cell.Lifecycle, config *option.DaemonConfig) promise.Promise[rncontroller.IPCache] {
+	rnResolver, rnPromise := promise.New[rncontroller.IPCache]()
+	if config.EnableWireguard {
+		lc.Append(cell.Hook{
+			OnStart: func(hc cell.HookContext) error {
+				daemon, err := dp.Await(hc)
+				if err != nil {
+					return err
+				}
+				rnResolver.Resolve(daemon.ipcache)
+				return nil
+			},
+			OnStop: func(_ cell.HookContext) error {
+				rnResolver.Reject(fmt.Errorf("failed to initialize ipcache"))
+				return nil
+			},
+		})
+	}
+
+	return rnPromise
 }
