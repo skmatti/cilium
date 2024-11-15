@@ -1,0 +1,5 @@
+FROM gke.gcr.io/gke-distroless/static
+
+ARG BIN=anet-agent__linux_amd64
+
+COPY ${BIN} /anet-agent
