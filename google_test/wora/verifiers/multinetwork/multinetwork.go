@@ -5,10 +5,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/cilium/cilium/pkg/time"
 	"net"
 	"os"
 	"path/filepath"
+	"time" // Do not use pkg/time in test code.
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"

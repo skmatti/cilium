@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/cilium/cilium/pkg/time"
+	"time" // Do not use pkg/time in test code.
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -17,11 +17,12 @@ import (
 	networkclientset "github.com/GoogleCloudPlatform/gke-networking-api/client/network/clientset/versioned"
 	"k8s.io/kubectl/pkg/scheme"
 
+	"kubevirt.io/client-go/kubecli"
+	cdiv1beta1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
+
 	klog "gke-internal.googlesource.com/syllogi/sanitized-klog"
 	gvmv1 "gke-internal.googlesource.com/third_party/cilium/google_test/wora/e2e/pkg/kubevm/vm-controller/api/v1"
 	vmruntimev1 "gke-internal.googlesource.com/third_party/cilium/google_test/wora/e2e/pkg/kubevm/vm-runtime-operator/api/v1"
-	"kubevirt.io/client-go/kubecli"
-	cdiv1beta1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 )

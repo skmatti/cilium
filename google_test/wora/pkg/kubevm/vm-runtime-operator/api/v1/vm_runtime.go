@@ -1,7 +1,7 @@
 package v1
 
 import (
-	"time"
+	"time" // Do not use pkg/time in test code.
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )

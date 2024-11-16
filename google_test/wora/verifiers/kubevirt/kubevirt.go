@@ -3,9 +3,9 @@ package kubevirt
 import (
 	"context"
 	"fmt"
-	"github.com/cilium/cilium/pkg/time"
 	"net"
 	"os"
+	"time" // Do not use pkg/time in test code.
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -20,10 +20,10 @@ import (
 	networkv1 "github.com/GoogleCloudPlatform/gke-networking-api/apis/network/v1"
 	networkclientset "github.com/GoogleCloudPlatform/gke-networking-api/client/network/clientset/versioned"
 
-	"gke-internal.googlesource.com/anthos-networking/test-infra/pkg/client"
 	virtv1 "kubevirt.io/api/core/v1"
 	"kubevirt.io/client-go/kubecli"
 
+	"gke-internal.googlesource.com/anthos-networking/test-infra/pkg/client"
 	"gke-internal.googlesource.com/anthos-networking/test-infra/pkg/network"
 	klog "gke-internal.googlesource.com/syllogi/sanitized-klog"
 	gvmv1 "gke-internal.googlesource.com/third_party/cilium/google_test/wora/e2e/pkg/kubevm/vm-controller/api/v1"

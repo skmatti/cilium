@@ -3,14 +3,15 @@ package util
 import (
 	"context"
 	"fmt"
-	"github.com/cilium/cilium/pkg/time"
+	"time" // Do not use pkg/time in test code.
 
-	"gke-internal.googlesource.com/third_party/cilium/google_test/wora/e2e/pkg/kubevm/util/pkg/errors"
-	vmv1 "gke-internal.googlesource.com/third_party/cilium/google_test/wora/e2e/pkg/kubevm/vm-controller/api/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
 	virtv1 "kubevirt.io/api/core/v1"
 	cdiv1beta1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	"gke-internal.googlesource.com/third_party/cilium/google_test/wora/e2e/pkg/kubevm/util/pkg/errors"
+	vmv1 "gke-internal.googlesource.com/third_party/cilium/google_test/wora/e2e/pkg/kubevm/vm-controller/api/v1"
 )
 
 // VMResources defines vm resources.

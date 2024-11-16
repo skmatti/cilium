@@ -3,17 +3,18 @@ package tailcall
 import (
 	"context"
 	"fmt"
-	"github.com/cilium/cilium/pkg/time"
 	"os"
 	"strings"
+	"time" // Do not use pkg/time in test code.
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	"gke-internal.googlesource.com/anthos-networking/test-infra/pkg/network"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/utils/ptr"
+
+	"gke-internal.googlesource.com/anthos-networking/test-infra/pkg/network"
 
 	networkv1 "github.com/GoogleCloudPlatform/gke-networking-api/apis/network/v1"
 	k8sv1 "k8s.io/api/core/v1"
@@ -22,6 +23,7 @@ import (
 	"k8s.io/client-go/tools/remotecommand"
 
 	networkclientset "github.com/GoogleCloudPlatform/gke-networking-api/client/network/clientset/versioned"
+
 	"gke-internal.googlesource.com/anthos-networking/test-infra/pkg/client"
 )
 

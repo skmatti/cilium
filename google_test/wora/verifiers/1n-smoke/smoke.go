@@ -6,12 +6,12 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"github.com/cilium/cilium/pkg/time"
 	"math/rand"
 	"net"
 	"os"
 	"regexp"
 	"strings"
+	"time" // Do not use pkg/time in test code.
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
