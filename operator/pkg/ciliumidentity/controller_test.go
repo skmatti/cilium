@@ -10,6 +10,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/cilium/cilium/operator/pkg/ciliumconfig"
+	"github.com/cilium/cilium/pkg/gke/features"
 	"github.com/cilium/hive/cell"
 	"github.com/cilium/hive/hivetest"
 	"github.com/cilium/hive/job"
@@ -17,8 +19,11 @@ import (
 	prometheustestutil "github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	k8sTesting "k8s.io/client-go/testing"
 
 	"github.com/cilium/cilium/operator/k8s"
 	cestest "github.com/cilium/cilium/operator/pkg/ciliumendpointslice/testutils"
@@ -123,6 +128,9 @@ func initHiveTest(operatorManagingCID bool) (*resource.Resource[*capi_v2.CiliumI
 				EnableCiliumEndpointSlice: true,
 			}
 		}),
+		cell.Provide(func() features.Config {
+			return features.Config{}
+		}),
 		cell.Provide(func(lc cell.Lifecycle, p types.Provider, jr job.Registry) job.Group {
 			h := p.ForModule(cell.FullModuleID{"test"})
 			jg := jr.NewGroup(h)
@@ -143,6 +151,23 @@ func initHiveTest(operatorManagingCID bool) (*resource.Resource[*capi_v2.CiliumI
 			cidResource = cid
 			cesResource = ces
 			cidMetrics = *m
+
+			// This is required for CID controller startup.
+			fakeClient.KubernetesFakeClientset.PrependReactor("get", "configmaps", func(action k8sTesting.Action) (handled bool, ret runtime.Object, err error) {
+				pa := action.(k8sTesting.GetAction)
+				if pa.GetName() == ciliumconfig.CiliumConfigMapName {
+					cm := &corev1.ConfigMap{
+						ObjectMeta: metav1.ObjectMeta{
+							Name:      ciliumconfig.CiliumConfigMapName,
+							Namespace: "kube-system",
+						},
+						Data: map[string]string{},
+					}
+					return true, cm, nil
+				}
+				return true, nil, nil
+			})
+
 			return nil
 		}),
 	)

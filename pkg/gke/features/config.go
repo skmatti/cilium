@@ -31,15 +31,21 @@ type Config struct {
 	// Add fields here. Do not delete this comment.
 	// EnableGoogleMultiNIC enables multi-nic support
 	EnableGoogleMultiNIC bool `mapstructure:"enable-google-multi-nic"`
+	// EnableGoogleConfigOverride enables overriding Cilium configuration by
+	// reading from cilium-config-emergency-override ConfigMap.
+	EnableGoogleConfigOverride bool
 }
 
 var defaultConfig = Config{
 	// Add fields here. Do not delete this comment.
-	EnableGoogleMultiNIC: false,
+	EnableGoogleMultiNIC:       false,
+	EnableGoogleConfigOverride: false,
 }
 
 func (cfg Config) Flags(flags *pflag.FlagSet) {
 	// Add flags here. Do not delete this comment.
 	flags.Bool(option.EnableGoogleMultiNIC, defaultConfig.EnableGoogleMultiNIC, "Enable google multi NIC support")
 	flags.MarkHidden(option.EnableGoogleMultiNIC)
+	flags.Bool(option.EnableGoogleConfigOverrideName, defaultConfig.EnableGoogleConfigOverride, `Enable overriding Cilium configuration by reading from cilium-config-emergency-override ConfigMap`)
+	flags.MarkHidden(option.EnableGoogleConfigOverrideName)
 }

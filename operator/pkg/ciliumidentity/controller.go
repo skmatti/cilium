@@ -10,6 +10,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/cilium/cilium/operator/pkg/ciliumconfig"
+	"github.com/cilium/cilium/pkg/gke/features"
 	"github.com/cilium/hive/cell"
 	"github.com/cilium/hive/job"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
@@ -59,6 +61,8 @@ type params struct {
 	CiliumIdentity      resource.Resource[*cilium_api_v2.CiliumIdentity]
 	CiliumEndpoint      resource.Resource[*cilium_api_v2.CiliumEndpoint]
 	CiliumEndpointSlice resource.Resource[*v2alpha1.CiliumEndpointSlice]
+
+	GoogleConfig features.Config
 }
 
 type Controller struct {
@@ -86,6 +90,8 @@ type Controller struct {
 	oldNSSecurityLabels map[string]labels.Labels
 
 	enqueueTimeTracker *EnqueueTimeTracker
+
+	googleMultiNICEnabled bool
 }
 
 func registerController(p params) {
@@ -94,18 +100,19 @@ func registerController(p params) {
 	}
 
 	cidController := &Controller{
-		logger:              p.Logger,
-		clientset:           p.Clientset,
-		namespace:           p.Namespace,
-		pod:                 p.Pod,
-		jobGroup:            p.JobGroup,
-		metrics:             p.Metrics,
-		ciliumIdentity:      p.CiliumIdentity,
-		ciliumEndpoint:      p.CiliumEndpoint,
-		ciliumEndpointSlice: p.CiliumEndpointSlice,
-		oldNSSecurityLabels: make(map[string]labels.Labels),
-		cesEnabled:          p.SharedCfg.EnableCiliumEndpointSlice,
-		enqueueTimeTracker:  &EnqueueTimeTracker{clock: clock.RealClock{}, enqueuedAt: make(map[string]time.Time)},
+		logger:                p.Logger,
+		clientset:             p.Clientset,
+		namespace:             p.Namespace,
+		pod:                   p.Pod,
+		jobGroup:              p.JobGroup,
+		metrics:               p.Metrics,
+		ciliumIdentity:        p.CiliumIdentity,
+		ciliumEndpoint:        p.CiliumEndpoint,
+		ciliumEndpointSlice:   p.CiliumEndpointSlice,
+		oldNSSecurityLabels:   make(map[string]labels.Labels),
+		cesEnabled:            p.SharedCfg.EnableCiliumEndpointSlice,
+		enqueueTimeTracker:    &EnqueueTimeTracker{clock: clock.RealClock{}, enqueuedAt: make(map[string]time.Time)},
+		googleMultiNICEnabled: p.GoogleConfig.EnableGoogleMultiNIC,
 	}
 
 	cidController.initializeQueues()
@@ -113,9 +120,15 @@ func registerController(p params) {
 	p.Lifecycle.Append(cidController)
 }
 
-func (c *Controller) Start(_ cell.HookContext) error {
-	c.logger.Info("Starting CID controller Operator")
+func (c *Controller) Start(ctx cell.HookContext) error {
+	c.logger.Info("Starting CID controller Operator",
+		"cesEnabled", c.cesEnabled,
+		"googleMultiNICEnabled", c.googleMultiNICEnabled)
 	defer utilruntime.HandleCrash()
+
+	if err := ciliumconfig.InitLabelsFilter(ctx, c.logger, c.clientset); err != nil {
+		return err
+	}
 
 	// The Cilium Identity (CID) controller running in cilium-operator is
 	// responsible only for managing CID API objects.

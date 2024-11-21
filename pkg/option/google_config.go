@@ -15,6 +15,11 @@ const (
 	// EnableGoogleMultiNIC is the name of the option to enable gogole multi nic support.
 	EnableGoogleMultiNIC = "enable-google-multi-nic"
 
+	// EnableGoogleConfigOverrideName is the name for the option to enable
+	// overriding Cilium configuration by reading from
+	// cilium-config-emergency-override ConfigMap.
+	EnableGoogleConfigOverrideName = "enable-google-config-override"
+
 	// EnableNodeNetworkPolicyCRD enables google node network policy CRD.
 	EnableNodeNetworkPolicyCRD = "enable-node-network-policy-crd"
 
