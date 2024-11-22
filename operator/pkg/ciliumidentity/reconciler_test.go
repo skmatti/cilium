@@ -45,7 +45,7 @@ func (t testQueueOps) enqueueReconciliation(item QueuedItem, delay time.Duration
 	t.fakeWorkQueue[item.Key().String()] = true
 }
 
-func testNewReconciler(t *testing.T, ctx context.Context, enableCES bool) (*reconciler, *testQueueOps, k8sClient.FakeClientset, func()) {
+func testNewReconciler(t *testing.T, ctx context.Context, enableCES bool, enableGoogleMultiNIC bool) (*reconciler, *testQueueOps, k8sClient.FakeClientset, func()) {
 	var namespace resource.Resource[*slim_corev1.Namespace]
 	var pod resource.Resource[*slim_corev1.Pod]
 	var ciliumIdentity resource.Resource[*capi_v2.CiliumIdentity]
@@ -80,18 +80,7 @@ func testNewReconciler(t *testing.T, ctx context.Context, enableCES bool) (*reco
 	}
 
 	queueOps := &testQueueOps{fakeWorkQueue: make(map[string]bool)}
-	reconciler, _ := newReconciler(
-		ctx,
-		tlog,
-		fakeClient.Clientset,
-		namespace,
-		pod,
-		ciliumIdentity,
-		ciliumEndpoint,
-		ciliumEndpointSlice,
-		enableCES,
-		queueOps,
-	)
+	reconciler, _ := newReconciler(ctx, tlog, fakeClient.Clientset, namespace, pod, ciliumIdentity, ciliumEndpoint, ciliumEndpointSlice, enableCES, queueOps, enableGoogleMultiNIC)
 	return reconciler, queueOps, fakeClient, cleanupFunc
 }
 
@@ -246,7 +235,7 @@ func TestReconcileCID(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			ctx := context.Background()
-			reconciler, queueOps, _, cleanupFunc := testNewReconciler(t, ctx, false)
+			reconciler, queueOps, _, cleanupFunc := testNewReconciler(t, ctx, false, false)
 			defer cleanupFunc()
 
 			cs := reconciler.clientset.(*k8sClient.FakeClientset)
@@ -425,7 +414,7 @@ func TestReconcilePod(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			ctx := context.Background()
-			reconciler, queueOps, _, cleanupFunc := testNewReconciler(t, ctx, false)
+			reconciler, queueOps, _, cleanupFunc := testNewReconciler(t, ctx, false, false)
 			defer cleanupFunc()
 
 			for _, pod := range tc.existingPods {
@@ -516,7 +505,7 @@ func TestReconcileNS(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			ctx := context.Background()
-			reconciler, queueOps, _, cleanupFunc := testNewReconciler(t, ctx, false)
+			reconciler, queueOps, _, cleanupFunc := testNewReconciler(t, ctx, false, false)
 			defer cleanupFunc()
 
 			if err := reconciler.nsStore.CacheStore().Add(testCreateNSObj(tc.nsName, nil)); err != nil {
@@ -567,7 +556,7 @@ func TestHandleStoreCIDMatch(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			ctx := context.Background()
-			reconciler, _, _, cleanupFunc := testNewReconciler(t, ctx, false)
+			reconciler, _, _, cleanupFunc := testNewReconciler(t, ctx, false, false)
 			defer cleanupFunc()
 
 			cid, err := reconciler.handleStoreCIDMatch(tc.cidList)

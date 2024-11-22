@@ -50,20 +50,12 @@ type reconciler struct {
 	cidStore resource.Store[*cilium_api_v2.CiliumIdentity]
 	cepStore resource.Store[*cilium_api_v2.CiliumEndpoint]
 	cesStore resource.Store[*v2alpha1.CiliumEndpointSlice]
+
+	googleMultiNICEnabled bool
+	multiNICPods          *multiNICPods
 }
 
-func newReconciler(
-	ctx context.Context,
-	logger *slog.Logger,
-	clientset k8sClient.Clientset,
-	namespace resource.Resource[*slim_corev1.Namespace],
-	pod resource.Resource[*slim_corev1.Pod],
-	ciliumIdentity resource.Resource[*cilium_api_v2.CiliumIdentity],
-	ciliumEndpoint resource.Resource[*cilium_api_v2.CiliumEndpoint],
-	ciliumEndpointSlice resource.Resource[*v2alpha1.CiliumEndpointSlice],
-	cesEnabled bool,
-	queueOps queueOperation,
-) (*reconciler, error) {
+func newReconciler(ctx context.Context, logger *slog.Logger, clientset k8sClient.Clientset, namespace resource.Resource[*slim_corev1.Namespace], pod resource.Resource[*slim_corev1.Pod], ciliumIdentity resource.Resource[*cilium_api_v2.CiliumIdentity], ciliumEndpoint resource.Resource[*cilium_api_v2.CiliumEndpoint], ciliumEndpointSlice resource.Resource[*v2alpha1.CiliumEndpointSlice], cesEnabled bool, queueOps queueOperation, googleMultiNICEnabled bool) (*reconciler, error) {
 	logger.Info("Creating CID controller Operator reconciler")
 
 	minIDValue := idpool.ID(identity.GetMinimalAllocationIdentity(option.Config.ClusterID))
@@ -92,20 +84,25 @@ func newReconciler(
 	}
 
 	r := &reconciler{
-		logger:          logger,
-		ctx:             ctx,
-		clientset:       clientset,
-		idAllocator:     idAllocator,
-		desiredCIDState: NewCIDState(logger),
-		cidUsageInPods:  NewCIDUsageInPods(),
-		cidUsageInCES:   NewCIDUsageInCES(),
-		queueOps:        queueOps,
-		nsStore:         nsStore,
-		podStore:        podStore,
-		cidStore:        cidStore,
-		cepStore:        cepStore,
-		cesStore:        cesStore,
-		cesEnabled:      cesEnabled,
+		logger:                logger,
+		ctx:                   ctx,
+		clientset:             clientset,
+		idAllocator:           idAllocator,
+		desiredCIDState:       NewCIDState(logger),
+		cidUsageInPods:        NewCIDUsageInPods(),
+		cidUsageInCES:         NewCIDUsageInCES(),
+		queueOps:              queueOps,
+		nsStore:               nsStore,
+		podStore:              podStore,
+		cidStore:              cidStore,
+		cepStore:              cepStore,
+		cesStore:              cesStore,
+		cesEnabled:            cesEnabled,
+		googleMultiNICEnabled: googleMultiNICEnabled,
+	}
+
+	if r.googleMultiNICEnabled {
+		r.multiNICPods = NewMultiNICPods()
 	}
 
 	return r, nil
@@ -240,6 +237,10 @@ func (r *reconciler) upsertDesiredState(cidName string, cidKey *key.GlobalIdenti
 // reconcilePod ensures that there is a CID that matches the pod. CIDs are
 // created for new unique label sets.
 func (r *reconciler) reconcilePod(podKey resource.Key) error {
+	if r.googleMultiNICEnabled {
+		return r.reconcileMultiNICPod(podKey)
+	}
+
 	pod, exists, err := r.podStore.GetByKey(podKey)
 	if err != nil && !k8serrors.IsNotFound(err) {
 		return err

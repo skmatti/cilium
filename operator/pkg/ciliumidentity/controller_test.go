@@ -42,7 +42,7 @@ const (
 )
 
 func TestRegisterControllerWithOperatorManagingCIDs(t *testing.T) {
-	cidResource, cesResource, fakeClient, m, h := initHiveTest(true)
+	cidResource, cesResource, fakeClient, m, h := initHiveTest(true, false)
 
 	ctx := context.Background()
 	tlog := hivetest.Logger(t)
@@ -78,7 +78,7 @@ func TestRegisterControllerWithOperatorManagingCIDs(t *testing.T) {
 }
 
 func TestRegisterController(t *testing.T) {
-	cidResource, _, fakeClient, m, h := initHiveTest(false)
+	cidResource, _, fakeClient, m, h := initHiveTest(false, false)
 
 	ctx := context.Background()
 	tlog := hivetest.Logger(t)
@@ -108,7 +108,7 @@ func TestRegisterController(t *testing.T) {
 	}
 }
 
-func initHiveTest(operatorManagingCID bool) (*resource.Resource[*capi_v2.CiliumIdentity], *resource.Resource[*capi_v2a1.CiliumEndpointSlice], *k8sClient.FakeClientset, *Metrics, *hive.Hive) {
+func initHiveTest(operatorManagingCID bool, enableGoogleMultiNIC bool) (*resource.Resource[*capi_v2.CiliumIdentity], *resource.Resource[*capi_v2a1.CiliumEndpointSlice], *k8sClient.FakeClientset, *Metrics, *hive.Hive) {
 	var cidResource resource.Resource[*capi_v2.CiliumIdentity]
 	var cesResource resource.Resource[*capi_v2a1.CiliumEndpointSlice]
 	var fakeClient k8sClient.FakeClientset
@@ -129,7 +129,9 @@ func initHiveTest(operatorManagingCID bool) (*resource.Resource[*capi_v2.CiliumI
 			}
 		}),
 		cell.Provide(func() features.Config {
-			return features.Config{}
+			return features.Config{
+				EnableGoogleMultiNIC: enableGoogleMultiNIC,
+			}
 		}),
 		cell.Provide(func(lc cell.Lifecycle, p types.Provider, jr job.Registry) job.Group {
 			h := p.ForModule(cell.FullModuleID{"test"})
@@ -238,7 +240,7 @@ func TestCreateTwoPodsWithSameLabels(t *testing.T) {
 	cid2 := testCreateCIDObjNs("2000", pod3, ns1)
 
 	// Start test hive.
-	cidResource, _, fakeClient, _, h := initHiveTest(true)
+	cidResource, _, fakeClient, _, h := initHiveTest(true, false)
 	ctx, cancelCtxFunc := context.WithCancel(context.Background())
 	tlog := hivetest.Logger(t)
 	if err := h.Start(tlog, ctx); err != nil {
@@ -311,7 +313,7 @@ func TestUpdatePodLabels(t *testing.T) {
 	cid2 := testCreateCIDObjNs("2000", pod1b, ns1)
 
 	// Start test hive.
-	cidResource, _, fakeClient, _, h := initHiveTest(true)
+	cidResource, _, fakeClient, _, h := initHiveTest(true, false)
 	ctx, cancelCtxFunc := context.WithCancel(context.Background())
 	tlog := hivetest.Logger(t)
 	if err := h.Start(tlog, ctx); err != nil {
@@ -378,7 +380,7 @@ func TestUpdateUsedCIDIsReverted(t *testing.T) {
 	cid2 := testCreateCIDObjNs("2000", pod2, ns1)
 
 	// Start test hive.
-	cidResource, _, fakeClient, _, h := initHiveTest(true)
+	cidResource, _, fakeClient, _, h := initHiveTest(true, false)
 	ctx, cancelCtxFunc := context.WithCancel(context.Background())
 	tlog := hivetest.Logger(t)
 	if err := h.Start(tlog, ctx); err != nil {
@@ -471,7 +473,7 @@ func TestDeleteUsedCIDIsRecreated(t *testing.T) {
 	cid1 := testCreateCIDObjNs("1000", pod1, ns1)
 
 	// Start test hive.
-	cidResource, _, fakeClient, _, h := initHiveTest(true)
+	cidResource, _, fakeClient, _, h := initHiveTest(true, false)
 	ctx, cancelCtxFunc := context.WithCancel(context.Background())
 	tlog := hivetest.Logger(t)
 	if err := h.Start(tlog, ctx); err != nil {

@@ -212,7 +212,7 @@ func (c *Controller) startEventProcessing() {
 
 func (c *Controller) initReconciler(ctx context.Context) error {
 	var err error
-	c.reconciler, err = newReconciler(ctx, c.logger, c.clientset, c.namespace, c.pod, c.ciliumIdentity, c.ciliumEndpoint, c.ciliumEndpointSlice, c.cesEnabled, c)
+	c.reconciler, err = newReconciler(ctx, c.logger, c.clientset, c.namespace, c.pod, c.ciliumIdentity, c.ciliumEndpoint, c.ciliumEndpointSlice, c.cesEnabled, c, c.googleMultiNICEnabled)
 	if err != nil {
 		return fmt.Errorf("cid reconciler failed to init: %w", err)
 	}
