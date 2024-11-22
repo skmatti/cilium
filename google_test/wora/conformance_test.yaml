@@ -29,6 +29,7 @@ spec:
           - --procs=10
           - --focus=\[Conformance\]|\[sig-network\]
           - --skip=Feature|Federation|PerformanceDNS|DualStack|Disruptive|Serial|KubeProxy|kube-proxy|ExternalIP|LoadBalancer|GCE|Netpol|NetworkPolicy|rejected|externalTrafficPolicy|HostPort|same.port.number.but.different.protocols|should.serve.endpoints.on.same.port.and.different.protocols
+          - --skip=Networking.Granular.Checks:.Services # b/380485765: covered in a separate Prow job.
           - --skip=should.support.remote.command.execution.over.websockets
           - --skip=should.support.retrieving.logs.from.the.container.over.websockets
           - --keep-going
