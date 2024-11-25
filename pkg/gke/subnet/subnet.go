@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"net"
 
+	"github.com/cilium/cilium/pkg/datapath/linux/safenetlink"
 	"github.com/sirupsen/logrus"
 	"github.com/vishvananda/netlink"
 	"golang.org/x/sys/unix"
@@ -114,12 +115,12 @@ func subnetFor(ip net.IP) (*net.IPNet, error) {
 	if ip == nil {
 		return nil, nil
 	}
-	links, err := netlink.LinkList()
+	links, err := safenetlink.LinkList()
 	if err != nil {
 		return nil, err
 	}
 	for _, link := range links {
-		addrs, err := netlink.AddrList(link, netlink.FAMILY_ALL)
+		addrs, err := safenetlink.AddrList(link, netlink.FAMILY_ALL)
 		if err != nil {
 			return nil, err
 		}
