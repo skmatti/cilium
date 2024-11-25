@@ -111,7 +111,7 @@ function error {
 }
 
 function clone_upstream_cilium_code_to_prow {
-  log 'Cloneing upstream source code to prow.'
+  log 'Cloning upstream source code to prow.'
   mkdir -p "${PROW_UPSTREAM_SOURCE_CODE_PATH}"
   pushd "${PROW_UPSTREAM_SOURCE_CODE_PATH}" || exit 1
   git clone --recursive https://github.com/cilium/cilium.git .
@@ -270,5 +270,11 @@ TEST_VM_RESULTS_DIR="${TEST_VM_RESULTS_DIR:-${TEST_VM_SOURCE_CODE_PATH}/test_res
 echo "TEST_VM_SOURCE_CODE_PATH = ${TEST_VM_SOURCE_CODE_PATH}"
 echo "TEST_VM_RESULTS_DIR=${TEST_VM_RESULTS_DIR}"
 
+function copy_back_report_and_clean_up_gce_instance {
+  copy_back_report "${TEST_VM_RESULTS_DIR}" || true
+  clean_up_gce_instance
+}
+
+trap copy_back_report_and_clean_up_gce_instance EXIT
+
 rexec "${TEST_VM_INTERNAL_SOURCE_CODE_PATH}/${run_test_script} ${TEST_VM_SOURCE_CODE_PATH}" "${TEST_VM_RESULTS_DIR}"
-copy_back_report "${TEST_VM_RESULTS_DIR}"
