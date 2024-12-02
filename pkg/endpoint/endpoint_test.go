@@ -22,6 +22,7 @@ import (
 	"github.com/cilium/cilium/pkg/endpoint/regeneration"
 	"github.com/cilium/cilium/pkg/eventqueue"
 	"github.com/cilium/cilium/pkg/fqdn/restore"
+	"github.com/cilium/cilium/pkg/identity"
 	"github.com/cilium/cilium/pkg/identity/cache"
 	"github.com/cilium/cilium/pkg/identity/identitymanager"
 	ciliumio "github.com/cilium/cilium/pkg/k8s/apis/cilium.io"
@@ -127,6 +128,12 @@ func (s *EndpointSuite) GetDNSRules(epID uint16) restore.DNSRules {
 
 func (s *EndpointSuite) RemoveRestoredDNSRules(epID uint16) {
 }
+
+func (s *EndpointSuite) AddIdentity(*identity.Identity) {}
+
+func (s *EndpointSuite) RemoveIdentity(*identity.Identity) {}
+
+func (s *EndpointSuite) RemoveOldAddNewIdentity(*identity.Identity, *identity.Identity) {}
 
 func TestEndpointStatus(t *testing.T) {
 	setupEndpointSuite(t)
