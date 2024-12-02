@@ -72,7 +72,7 @@ presubmits:
       - name: TBCONFIG
         value: sut-gdch-abm-gce.yaml
       - name: WORA_CONFIG
-        value: conformance_test.yaml
+        value: conformance-gdch-abm-gce_test.yaml
       - name: WORA_DOCKERFILE_DIR
         value: conformance
       command:
@@ -112,7 +112,7 @@ presubmits:
       - name: TBCONFIG
         value: sut-gdch-abm-gce.yaml
       - name: WORA_CONFIG
-        value: networking_granular_test.yaml
+        value: networking_granular-gdch-abm-gce_test.yaml
       - name: WORA_DOCKERFILE_DIR
         value: conformance
       command:
