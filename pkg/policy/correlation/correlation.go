@@ -6,6 +6,7 @@ package correlation
 import (
 	"github.com/sirupsen/logrus"
 
+	"github.com/cilium/cilium/api/v1/flow"
 	flowpb "github.com/cilium/cilium/api/v1/flow"
 	"github.com/cilium/cilium/pkg/hubble/parser/getters"
 	"github.com/cilium/cilium/pkg/identity"
@@ -55,7 +56,7 @@ func CorrelatePolicy(endpointGetter getters.EndpointGetter, f *flowpb.Flow) {
 		return
 	}
 
-	derivedFrom, rev, ok := lookupPolicyForKey(epInfo, policy.Key{
+	rules, ok := lookupPolicyForKey(epInfo, policy.Key{
 		Identity:         uint32(remoteIdentity),
 		DestPort:         dport,
 		Nexthdr:          uint8(proto),
@@ -71,7 +72,6 @@ func CorrelatePolicy(endpointGetter getters.EndpointGetter, f *flowpb.Flow) {
 		return
 	}
 
-	rules := toProto(derivedFrom, rev)
 	switch {
 	case direction == trafficdirection.Egress && allowed:
 		f.EgressAllowedBy = rules
@@ -130,9 +130,9 @@ func extractFlowKey(f *flowpb.Flow) (
 	return
 }
 
-func lookupPolicyForKey(ep getters.EndpointInfo, key policy.Key, matchType uint32) (derivedFrom labels.LabelArrayList, rev uint64, ok bool) {
-	switch matchType {
-	case monitorAPI.PolicyMatchL3L4:
+func lookupPolicyForKey(ep getters.EndpointInfo, key policy.Key, matchType uint32) (rules []*flow.Policy, ok bool) {
+	// This redundant scope is a hack to reduce the rebase surface due to indentation.
+	{
 		// Check for L4 policy rules.
 		//
 		// Consider the network policy:
@@ -146,8 +146,10 @@ func lookupPolicyForKey(ep getters.EndpointInfo, key policy.Key, matchType uint3
 		//    ports:
 		//    - port: 80
 		//      protocol: TCP
-		derivedFrom, rev, ok = ep.GetRealizedPolicyRuleLabelsForKey(key)
-	case monitorAPI.PolicyMatchL4Only:
+		if derivedFrom, rev, ok := ep.GetRealizedPolicyRuleLabelsForKey(key); ok {
+			rules = append(rules, toProto(derivedFrom, rev)...)
+		}
+
 		// Check for port-specific rules.
 		// This covers the case where one or more identities are allowed by network policy.
 		//
@@ -159,13 +161,15 @@ func lookupPolicyForKey(ep getters.EndpointInfo, key policy.Key, matchType uint3
 		//  - ports:
 		//    - port: 80
 		//      protocol: TCP // protocol is optional for this match.
-		derivedFrom, rev, ok = ep.GetRealizedPolicyRuleLabelsForKey(policy.Key{
+		if derivedFrom, rev, ok := ep.GetRealizedPolicyRuleLabelsForKey(policy.Key{
 			Identity:         0,
 			DestPort:         key.DestPort,
 			Nexthdr:          key.Nexthdr,
 			TrafficDirection: key.TrafficDirection,
-		})
-	case monitorAPI.PolicyMatchL3Proto:
+		}); ok {
+			rules = append(rules, toProto(derivedFrom, rev)...)
+		}
+
 		// Check for L3 policy rules with protocol (but no port).
 		//
 		// Consider the network policy:
@@ -178,14 +182,16 @@ func lookupPolicyForKey(ep getters.EndpointInfo, key policy.Key, matchType uint3
 		//        app: client
 		//    ports:
 		//    - protocol: TCP
-		derivedFrom, rev, ok = ep.GetRealizedPolicyRuleLabelsForKey(policy.Key{
+		if derivedFrom, rev, ok := ep.GetRealizedPolicyRuleLabelsForKey(policy.Key{
 			Identity:         key.Identity,
 			DestPort:         0,
 			InvertedPortMask: 0xffff, // this is a wildcard
 			Nexthdr:          key.Nexthdr,
 			TrafficDirection: key.TrafficDirection,
-		})
-	case monitorAPI.PolicyMatchProtoOnly:
+		}); ok {
+			rules = append(rules, toProto(derivedFrom, rev)...)
+		}
+
 		// Check for protocol-only policies.
 		//
 		// Consider the network policy:
@@ -195,14 +201,16 @@ func lookupPolicyForKey(ep getters.EndpointInfo, key policy.Key, matchType uint3
 		//  ingress:
 		//  - ports:
 		//    - protocol: TCP
-		derivedFrom, rev, ok = ep.GetRealizedPolicyRuleLabelsForKey(policy.Key{
+		if derivedFrom, rev, ok := ep.GetRealizedPolicyRuleLabelsForKey(policy.Key{
 			Identity:         0,
 			DestPort:         0,
 			InvertedPortMask: 0xffff, // this is a wildcard
 			Nexthdr:          key.Nexthdr,
 			TrafficDirection: key.TrafficDirection,
-		})
-	case monitorAPI.PolicyMatchL3Only:
+		}); ok {
+			rules = append(rules, toProto(derivedFrom, rev)...)
+		}
+
 		// Check for L3 policy rules.
 		//
 		// Consider the network policy:
@@ -213,14 +221,16 @@ func lookupPolicyForKey(ep getters.EndpointInfo, key policy.Key, matchType uint3
 		//  - podSelector:
 		//      matchLabels:
 		//        app: client
-		derivedFrom, rev, ok = ep.GetRealizedPolicyRuleLabelsForKey(policy.Key{
+		if derivedFrom, rev, ok := ep.GetRealizedPolicyRuleLabelsForKey(policy.Key{
 			Identity:         key.Identity,
 			DestPort:         0,
 			InvertedPortMask: 0xffff, // this is a wildcard
 			Nexthdr:          0,
 			TrafficDirection: key.TrafficDirection,
-		})
-	case monitorAPI.PolicyMatchAll:
+		}); ok {
+			rules = append(rules, toProto(derivedFrom, rev)...)
+		}
+
 		// Check for allow-all policy rules.
 		//
 		// Consider the network policy:
@@ -229,16 +239,18 @@ func lookupPolicyForKey(ep getters.EndpointInfo, key policy.Key, matchType uint3
 		//  podSelector: {}
 		//  ingress:
 		//  - {}
-		derivedFrom, rev, ok = ep.GetRealizedPolicyRuleLabelsForKey(policy.Key{
+		if derivedFrom, rev, ok := ep.GetRealizedPolicyRuleLabelsForKey(policy.Key{
 			Identity:         0,
 			DestPort:         0,
 			InvertedPortMask: 0xffff, // this is a wildcard
 			Nexthdr:          0,
 			TrafficDirection: key.TrafficDirection,
-		})
-	}
+		}); ok {
+			rules = append(rules, toProto(derivedFrom, rev)...)
+		}
 
-	return derivedFrom, rev, ok
+		return rules, len(rules) > 0
+	}
 }
 
 func toProto(derivedFrom labels.LabelArrayList, rev uint64) (policies []*flowpb.Policy) {
