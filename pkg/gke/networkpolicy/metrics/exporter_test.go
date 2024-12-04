@@ -16,12 +16,10 @@ package metrics
 
 import (
 	"reflect"
-	"strings"
 	"testing"
 
 	"github.com/cilium/cilium/api/v1/flow"
 	"github.com/cilium/cilium/pkg/gke/dispatcher"
-	"github.com/cilium/cilium/pkg/testutils"
 	"github.com/google/go-cmp/cmp"
 )
 
@@ -38,7 +36,6 @@ const (
 )
 
 func TestIsFlowValid(t *testing.T) {
-	testutils.PrivilegedTest(t)
 	e := &exporter{
 		dispatcher: dispatcher.NewDispatcher(),
 	}
@@ -171,8 +168,8 @@ func TestIsFlowValid(t *testing.T) {
 				TrafficDirection: flow.TrafficDirection_TRAFFIC_DIRECTION_UNKNOWN,
 			},
 			labels: metricLabels{
-				verdict:   verdictLabel(flow.Verdict_FORWARDED.String()),
-				direction: strings.ToLower(flow.TrafficDirection_TRAFFIC_DIRECTION_UNKNOWN.String()),
+				verdict:   "allow",
+				direction: "traffic_direction_unknown",
 			},
 			ready: false,
 		},
@@ -202,10 +199,10 @@ func TestIsFlowValid(t *testing.T) {
 			labels: metricLabels{
 				podNamespace: destPodNamespace,
 				podName:      destPodName,
-				verdict:      verdictLabel(flow.Verdict_FORWARDED.String()),
+				verdict:      "allow",
 				workloadName: "",
 				workloadKind: "",
-				direction:    strings.ToLower(flow.TrafficDirection_INGRESS.String()),
+				direction:    "ingress",
 			},
 			ready: true,
 		},
@@ -244,10 +241,10 @@ func TestIsFlowValid(t *testing.T) {
 			labels: metricLabels{
 				podNamespace: destPodNamespace,
 				podName:      destPodName,
-				verdict:      verdictLabel(flow.Verdict_FORWARDED.String()),
+				verdict:      "allow",
 				workloadName: "dest1-workload-name",
 				workloadKind: "dest1-workload-kind",
-				direction:    strings.ToLower(flow.TrafficDirection_INGRESS.String()),
+				direction:    "ingress",
 			},
 			ready: true,
 		},
@@ -277,8 +274,8 @@ func TestIsFlowValid(t *testing.T) {
 			labels: metricLabels{
 				podNamespace: srcPodNamespace,
 				podName:      srcPodName,
-				verdict:      verdictLabel(flow.Verdict_FORWARDED.String()),
-				direction:    strings.ToLower(flow.TrafficDirection_EGRESS.String()),
+				verdict:      "allow",
+				direction:    "egress",
 			},
 			ready: true,
 		},
@@ -317,10 +314,10 @@ func TestIsFlowValid(t *testing.T) {
 			labels: metricLabels{
 				podNamespace: srcPodNamespace,
 				podName:      srcPodName,
-				verdict:      verdictLabel(flow.Verdict_FORWARDED.String()),
+				verdict:      "allow",
 				workloadName: "src1-workload-name",
 				workloadKind: "src1-workload-kind",
-				direction:    strings.ToLower(flow.TrafficDirection_EGRESS.String()),
+				direction:    "egress",
 			},
 			ready: true,
 		},
@@ -355,10 +352,10 @@ func TestIsFlowValid(t *testing.T) {
 			labels: metricLabels{
 				podNamespace: srcPodNamespace,
 				podName:      srcPodName,
-				verdict:      verdictLabel(flow.Verdict_FORWARDED.String()),
+				verdict:      "allow",
 				workloadName: srcWorkloadName,
 				workloadKind: srcWorkloadKind,
-				direction:    strings.ToLower(flow.TrafficDirection_EGRESS.String()),
+				direction:    "egress",
 			},
 			ready: true,
 		},
@@ -393,10 +390,10 @@ func TestIsFlowValid(t *testing.T) {
 			labels: metricLabels{
 				podNamespace: srcPodNamespace,
 				podName:      srcPodName,
-				verdict:      verdictLabel(flow.Verdict_DROPPED.String()),
+				verdict:      "deny",
 				workloadName: srcWorkloadName,
 				workloadKind: srcWorkloadKind,
-				direction:    strings.ToLower(flow.TrafficDirection_EGRESS.String()),
+				direction:    "egress",
 			},
 			ready: true,
 		},
@@ -431,10 +428,10 @@ func TestIsFlowValid(t *testing.T) {
 			labels: metricLabels{
 				podNamespace: destPodNamespace,
 				podName:      destPodName,
-				verdict:      verdictLabel(flow.Verdict_FORWARDED.String()),
+				verdict:      "allow",
 				workloadName: destWorkloadName,
 				workloadKind: destWorkloadKind,
-				direction:    strings.ToLower(flow.TrafficDirection_INGRESS.String()),
+				direction:    "ingress",
 			},
 			ready: true,
 		},
@@ -469,10 +466,48 @@ func TestIsFlowValid(t *testing.T) {
 			labels: metricLabels{
 				podNamespace: destPodNamespace,
 				podName:      destPodName,
-				verdict:      verdictLabel(flow.Verdict_DROPPED.String()),
+				verdict:      "deny",
 				workloadName: destWorkloadName,
 				workloadKind: destWorkloadKind,
-				direction:    strings.ToLower(flow.TrafficDirection_INGRESS.String()),
+				direction:    "ingress",
+			},
+			ready: true,
+		},
+		{
+			desc: "Valid Flow 9: Verdict_REDIRECTED from Source with EGRESS flow",
+			flow: &flow.Flow{
+				Verdict: flow.Verdict_REDIRECTED,
+				Source: &flow.Endpoint{
+					ID:        1,
+					Namespace: srcPodNamespace,
+					PodName:   srcPodName,
+					Workloads: []*flow.Workload{
+						{
+							Name: srcWorkloadName,
+							Kind: srcWorkloadKind,
+						},
+					},
+				},
+				Destination: &flow.Endpoint{
+					ID:        2,
+					Namespace: destPodNamespace,
+					PodName:   destPodName,
+					Workloads: []*flow.Workload{
+						{
+							Name: destWorkloadName,
+							Kind: destWorkloadKind,
+						},
+					},
+				},
+				TrafficDirection: flow.TrafficDirection_EGRESS,
+			},
+			labels: metricLabels{
+				podNamespace: srcPodNamespace,
+				podName:      srcPodName,
+				verdict:      "allow",
+				workloadName: srcWorkloadName,
+				workloadKind: srcWorkloadKind,
+				direction:    "egress",
 			},
 			ready: true,
 		},
@@ -491,11 +526,4 @@ func TestIsFlowValid(t *testing.T) {
 			}
 		})
 	}
-}
-
-func verdictLabel(verdict string) string {
-	if verdict == flow.Verdict_FORWARDED.String() {
-		return "allow"
-	}
-	return "deny"
 }

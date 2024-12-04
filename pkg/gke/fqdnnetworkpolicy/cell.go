@@ -1,0 +1,97 @@
+package fqdnnetworkpolicy
+
+import (
+	"fmt"
+	"log"
+
+	"github.com/cilium/cilium/pkg/gke/client/fqdnnetworkpolicy/clientset/versioned"
+	"github.com/cilium/cilium/pkg/gke/fqdnnetworkpolicy/controller"
+	"github.com/cilium/cilium/pkg/gke/nodefirewall/types"
+	k8sClient "github.com/cilium/cilium/pkg/k8s/client"
+	"github.com/cilium/cilium/pkg/logging"
+	"github.com/cilium/cilium/pkg/logging/logfields"
+	"github.com/cilium/cilium/pkg/option"
+	"github.com/cilium/cilium/pkg/promise"
+	"github.com/cilium/hive/cell"
+	"github.com/spf13/pflag"
+)
+
+var Cell = cell.Module(
+	"fqdn-network-policy",
+	"FQDN Network Policy",
+
+	cell.Provide(fqdnClient),
+	cell.Config(defaultConfig),
+	cell.Provide(fqdnNetPolController),
+	cell.Invoke(func(_ promise.Promise[*controller.Controller]) {}), // Force instantiation.
+)
+
+type fqdnNetPolParams struct {
+	cell.In
+
+	Lifecycle    cell.Lifecycle
+	Config       Config
+	DaemonConfig *option.DaemonConfig
+	FQDNClient   versioned.Interface
+	PmPromise    promise.Promise[types.PolicyManager]
+}
+
+type Config struct {
+	EnableFQDNNetworkPolicy bool
+}
+
+var defaultConfig = Config{
+	EnableFQDNNetworkPolicy: false,
+}
+
+func (cfg Config) Flags(flags *pflag.FlagSet) {
+	flags.Bool(option.EnableFQDNNetworkPolicy, defaultConfig.EnableFQDNNetworkPolicy, "Enable FQDN network policy")
+	flags.MarkHidden(option.EnableFQDNNetworkPolicy)
+}
+
+func fqdnClient(clientset k8sClient.Clientset) (versioned.Interface, error) {
+	if !clientset.IsEnabled() {
+		return nil, nil
+	}
+	fqdnClient, err := versioned.NewForConfig(clientset.RestConfig())
+	if err != nil {
+		return nil, fmt.Errorf("create FQDN client: %v", err)
+	}
+	return fqdnClient, nil
+}
+
+func fqdnNetPolController(params fqdnNetPolParams) promise.Promise[*controller.Controller] {
+	fqdnCtrlResolver, fqdnCtrlPromise := promise.New[*controller.Controller]()
+
+	// Do not enable FQDN if wireguard is enabled
+	if !params.Config.EnableFQDNNetworkPolicy || option.Config.EnableWireguard {
+		logging.DefaultLogger.WithField(logfields.LogSubsys, "fqdnnetworkpolicy").Info("cannot register FQDN Network Policy since it is not enabled or wireguard is enabled")
+		fqdnCtrlResolver.Resolve(nil)
+		return fqdnCtrlPromise
+	}
+	if !params.DaemonConfig.EnableL7Proxy {
+		log.Fatalf(`FQDN Network Policy requires --%s=true`, option.EnableL7Proxy)
+	}
+
+	var c *controller.Controller
+	params.Lifecycle.Append(cell.Hook{
+		OnStart: func(ctx cell.HookContext) error {
+			policyManager, err := params.PmPromise.Await(ctx)
+			if err != nil {
+				fqdnCtrlResolver.Reject(err)
+				return fmt.Errorf("get policy manager: %v", err)
+			}
+
+			c = controller.NewController(params.FQDNClient, policyManager)
+			fqdnCtrlResolver.Resolve(c)
+			return c.Start(ctx)
+		},
+		OnStop: func(_ cell.HookContext) error {
+			if c != nil {
+				c.Stop()
+			}
+			return nil
+		},
+	})
+	return fqdnCtrlPromise
+}

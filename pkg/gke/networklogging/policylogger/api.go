@@ -16,6 +16,7 @@
 package policylogger
 
 import (
+	fqdnv1alpha1 "github.com/cilium/cilium/pkg/gke/apis/fqdnnetworkpolicy/v1alpha1"
 	"github.com/cilium/cilium/pkg/gke/apis/networklogging/v1alpha1"
 	"github.com/cilium/cilium/pkg/gke/dispatcher"
 	"github.com/cilium/cilium/pkg/hubble/parser/getters"
@@ -36,6 +37,7 @@ var (
 type Stores struct {
 	NamespaceStore                      resource.Store[*slim_corev1.Namespace]
 	NetworkPolicyStore                  resource.Store[*slim_networkingv1.NetworkPolicy]
+	FQDNNetworkPolicyStore              resource.Store[*fqdnv1alpha1.FQDNNetworkPolicy]
 	CiliumNetworkPolicyStore            resource.Store[*cilium_api_v2.CiliumNetworkPolicy]
 	CiliumClusterwideNetworkPolicyStore resource.Store[*cilium_api_v2.CiliumClusterwideNetworkPolicy]
 }

@@ -17,6 +17,7 @@ const (
 
 	// EnableNodeNetworkPolicyCRD enables google node network policy CRD.
 	EnableNodeNetworkPolicyCRD = "enable-node-network-policy-crd"
+
 	// AnnotateK8sNodeSubnet enables annotation of kubernetes nodes with subnet information.
 	AnnotateK8sNodeSubnet = "annotate-k8s-node-subnet"
 
@@ -24,4 +25,7 @@ const (
 	DisablePolicyEventCountMetric = "disable-policy-event-count-metric"
 	// EnableHubbleCorrelatePolicies enables policy correlation for hubble flows.
 	EnableHubbleCorrelatePolicies = "enable-hubble-correlate-policies"
+
+	// EnableFQDNNetworkPolicy enables google fqdn network policy
+	EnableFQDNNetworkPolicy = "enable-fqdn-network-policy"
 )

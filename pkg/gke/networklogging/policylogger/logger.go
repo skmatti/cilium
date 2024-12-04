@@ -23,6 +23,7 @@ import (
 	"github.com/cilium/cilium/api/v1/flow"
 	"github.com/cilium/cilium/pkg/gke/apis/networklogging/v1alpha1"
 	"github.com/cilium/cilium/pkg/gke/dispatcher"
+	fqdnconvert "github.com/cilium/cilium/pkg/gke/fqdnnetworkpolicy/convert"
 	"github.com/cilium/cilium/pkg/gke/util/aggregator"
 	"github.com/cilium/cilium/pkg/gke/util/ratelimiter"
 	"github.com/cilium/cilium/pkg/gke/util/writer"
@@ -236,6 +237,8 @@ func (n *networkPolicyLogger) allowedPoliciesForDelegate(policies []*flow.Policy
 			annotated = objAnnotationTrue(n.stores.CiliumNetworkPolicyStore, key, AnnotationEnableAllowLogging)
 		case "CiliumClusterwideNetworkPolicy":
 			annotated = objAnnotationTrue(n.stores.CiliumClusterwideNetworkPolicyStore, key, AnnotationEnableAllowLogging)
+		case "fqdnnetworkpolicy", fqdnconvert.ResourceTypeFQDNNetworkPolicy:
+			annotated = objAnnotationTrue(n.stores.FQDNNetworkPolicyStore, key, AnnotationEnableAllowLogging)
 		default:
 			log.
 				WithField("policy", logfields.Repr(p)).
@@ -339,7 +342,7 @@ func (n *networkPolicyLogger) processFlow(f *flow.Flow) {
 				return
 			}
 			policyLoggingLogCount.WithLabelValues(enforcementLabel(isNode), verdictLabel(allow)).Inc()
-			delay := float64(time.Now().Sub(e.Timestamp).Microseconds())
+			delay := float64(time.Since(e.Timestamp).Microseconds())
 			policyLoggingAllowLatencies.Observe(delay)
 		}
 	} else {
@@ -400,7 +403,7 @@ func (n *networkPolicyLogger) processAggregatedEntry(ae *aggregator.AggregatorEn
 				return
 			}
 			policyLoggingLogCount.WithLabelValues(enforcementLabel(isNode), verdictLabel(false)).Inc()
-			delay := time.Now().Sub(e.Timestamp).Seconds()
+			delay := time.Since(e.Timestamp).Seconds()
 			policyLoggingDenyLatencies.Observe(delay)
 		}
 	} else {

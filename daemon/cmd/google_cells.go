@@ -6,6 +6,7 @@ import (
 	"github.com/cilium/cilium/pkg/gke/endpointqueue"
 	"github.com/cilium/cilium/pkg/gke/enhancedservices"
 	"github.com/cilium/cilium/pkg/gke/features"
+	"github.com/cilium/cilium/pkg/gke/fqdnnetworkpolicy"
 	"github.com/cilium/cilium/pkg/gke/networklogging"
 	"github.com/cilium/cilium/pkg/gke/nodefirewall/types"
 	"github.com/cilium/cilium/pkg/gke/redirectservice"
@@ -44,6 +45,7 @@ var googleCell = cell.Module(
 	redirectservice.Cell,
 
 	networklogging.Cell,
+	fqdnnetworkpolicy.Cell,
 )
 
 // Converts Daemon promise into a PolicyManager promise

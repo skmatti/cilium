@@ -3,8 +3,11 @@ package networklogging
 import (
 	"fmt"
 
+	fqdnv1alpha1 "github.com/cilium/cilium/pkg/gke/apis/fqdnnetworkpolicy/v1alpha1"
+	fqdnversioned "github.com/cilium/cilium/pkg/gke/client/fqdnnetworkpolicy/clientset/versioned"
 	"github.com/cilium/cilium/pkg/gke/client/networklogging/clientset/versioned"
 	gkeflow "github.com/cilium/cilium/pkg/gke/flow"
+	"github.com/cilium/cilium/pkg/gke/fqdnnetworkpolicy"
 	"github.com/cilium/cilium/pkg/gke/networklogging/controller"
 	"github.com/cilium/cilium/pkg/gke/networklogging/policylogger"
 	"github.com/cilium/cilium/pkg/gke/networkpolicy/metrics"
@@ -13,21 +16,37 @@ import (
 	"github.com/cilium/cilium/pkg/k8s/resource"
 	slim_corev1 "github.com/cilium/cilium/pkg/k8s/slim/k8s/api/core/v1"
 	slim_networkingv1 "github.com/cilium/cilium/pkg/k8s/slim/k8s/api/networking/v1"
+	"github.com/cilium/cilium/pkg/k8s/utils"
 	metric "github.com/cilium/cilium/pkg/metrics"
 	"github.com/cilium/cilium/pkg/option"
 	"github.com/cilium/hive/cell"
+	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 var Cell = cell.Module(
 	"network-policy-logging",
 	"Network Policy Logging",
 
+	cell.Provide(fqdnNetworkPolicyResources),
 	cell.Provide(netpolLoggingClient),
 	cell.Invoke(registerNetpolLogging),
 
 	gkeflow.Cell,
 	metrics.Cell,
 )
+
+func fqdnNetworkPolicyResources(lc cell.Lifecycle, fqdnClient fqdnversioned.Interface) (resource.Resource[*fqdnv1alpha1.FQDNNetworkPolicy], error) {
+	// This cascades the `!clientset.IsEnabled()` result from the client provier.
+	if fqdnClient == nil {
+		return nil, nil
+	}
+	return resource.New[*fqdnv1alpha1.FQDNNetworkPolicy](
+		lc,
+		utils.ListerWatcherWithModifier(
+			utils.ListerWatcherFromTyped[*fqdnv1alpha1.FQDNNetworkPolicyList](fqdnClient.NetworkingV1alpha1().FQDNNetworkPolicies("")),
+			func(lo *v1.ListOptions) {}),
+	), nil
+}
 
 type netpolLoggingParams struct {
 	cell.In
@@ -37,9 +56,12 @@ type netpolLoggingParams struct {
 	Clientset    k8sClient.Clientset
 	NLClient     *versioned.Clientset
 	FlowPlugin   gkeflow.FlowPlugin
+	FQDNClient   fqdnversioned.Interface
+	FQDNConfig   fqdnnetworkpolicy.Config
 
 	Namespace                        resource.Resource[*slim_corev1.Namespace]
 	NetworkPolicies                  resource.Resource[*slim_networkingv1.NetworkPolicy]
+	FQDNNetworkPolicies              resource.Resource[*fqdnv1alpha1.FQDNNetworkPolicy]
 	CiliumNetworkPolicies            resource.Resource[*cilium_api_v2.CiliumNetworkPolicy]
 	CiliumClusterwideNetworkPolicies resource.Resource[*cilium_api_v2.CiliumClusterwideNetworkPolicy]
 	MetricsRegistry                  *metric.Registry
@@ -92,6 +114,14 @@ func registerNetpolLogging(params netpolLoggingParams) {
 					return fmt.Errorf("get CiliumClusterwideNetworkPolicies store: %v", err)
 				}
 				sg.CiliumClusterwideNetworkPolicyStore = ccnpStore
+			}
+
+			if params.FQDNConfig.EnableFQDNNetworkPolicy {
+				fqdnStore, err := params.FQDNNetworkPolicies.Store(ctx)
+				if err != nil {
+					return fmt.Errorf("get FQDNNetworkPolicies store: %v", err)
+				}
+				sg.FQDNNetworkPolicyStore = fqdnStore
 			}
 
 			c = controller.NewController(params.Clientset, params.NLClient, params.FlowPlugin.Dispatcher, nil, sg, params.MetricsRegistry)

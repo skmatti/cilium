@@ -16,6 +16,7 @@ package policylogger
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path"
@@ -24,8 +25,10 @@ import (
 	"time"
 
 	"github.com/cilium/cilium/api/v1/flow"
+	fqdnv1alpha1 "github.com/cilium/cilium/pkg/gke/apis/fqdnnetworkpolicy/v1alpha1"
 	"github.com/cilium/cilium/pkg/gke/apis/networklogging/v1alpha1"
 	"github.com/cilium/cilium/pkg/gke/dispatcher"
+	"github.com/cilium/cilium/pkg/gke/fqdnnetworkpolicy/convert"
 	v2 "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2"
 	"github.com/cilium/cilium/pkg/k8s/informer"
 	"github.com/cilium/cilium/pkg/k8s/resource"
@@ -369,6 +372,9 @@ var (
 				"reserved:world",
 			},
 		},
+		EgressAllowedBy: []*flow.Policy{
+			{Kind: "FQDNNetworkPolicy", Name: "client-allow", Namespace: "default"},
+		},
 		Type:             flow.FlowType_L3_L4,
 		NodeName:         "gke-demo-default-pool-e8df3298-412p",
 		EventType:        &flow.CiliumEventType{Type: int32(api.MessageTypePolicyVerdict)},
@@ -507,6 +513,11 @@ func CCNPTransformer(obj any) *v2.CiliumClusterwideNetworkPolicy {
 	return nil
 }
 
+func FQDNTransformer(obj any) *fqdnv1alpha1.FQDNNetworkPolicy {
+	item, _ := convert.ObjToFQDNNetworkPolicy(obj)
+	return item
+}
+
 type FakeStore[T runtime.Object] struct {
 	transform func(obj any) T
 	store     cache.Store
@@ -553,6 +564,12 @@ func WithNetworkPolicyStore(store resource.Store[*slim_networkingv1.NetworkPolic
 	}
 }
 
+func WithFQDNNetworkPolicyStore(store resource.Store[*fqdnv1alpha1.FQDNNetworkPolicy]) StoreOption {
+	return func(s *Stores) {
+		s.FQDNNetworkPolicyStore = store
+	}
+}
+
 func WithCiliumNetworkPolicyStore(store resource.Store[*v2.CiliumNetworkPolicy]) StoreOption {
 	return func(s *Stores) {
 		s.CiliumNetworkPolicyStore = store
@@ -569,6 +586,7 @@ func NewFakeStores(opts ...StoreOption) *Stores {
 	s := &Stores{
 		NamespaceStore:                      NewFakeStore[*slim_corev1.Namespace](informer.CastInformerEvent[slim_corev1.Namespace]),
 		NetworkPolicyStore:                  NewFakeStore[*slim_networkingv1.NetworkPolicy](informer.CastInformerEvent[slim_networkingv1.NetworkPolicy]),
+		FQDNNetworkPolicyStore:              NewFakeStore[*fqdnv1alpha1.FQDNNetworkPolicy](FQDNTransformer),
 		CiliumNetworkPolicyStore:            NewFakeStore[*v2.CiliumNetworkPolicy](CNPTransformer),
 		CiliumClusterwideNetworkPolicyStore: NewFakeStore[*v2.CiliumClusterwideNetworkPolicy](CCNPTransformer),
 	}
@@ -576,6 +594,24 @@ func NewFakeStores(opts ...StoreOption) *Stores {
 		opt(s)
 	}
 	return s
+}
+
+func newFakeFQDNStore() *FakeStore[*fqdnv1alpha1.FQDNNetworkPolicy] {
+	fqdnStore := NewFakeStore[*fqdnv1alpha1.FQDNNetworkPolicy](FQDNTransformer)
+	fqdnStore.store.Add(&fqdnv1alpha1.FQDNNetworkPolicy{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:        fqdnPolicy.Name,
+			Namespace:   fqdnPolicy.Namespace,
+			Annotations: map[string]string{AnnotationEnableAllowLogging: "true"},
+		},
+	})
+	fqdnStore.store.Add(&fqdnv1alpha1.FQDNNetworkPolicy{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "not-annotated",
+			Namespace: "default",
+		},
+	})
+	return fqdnStore
 }
 
 func createConfigFile(t *testing.T, fp string, cfg []byte) {
@@ -596,7 +632,7 @@ func createConfigFile(t *testing.T, fp string, cfg []byte) {
 }
 
 func setupConfig(t *testing.T, loggerConfig *PolicyLoggerConfiguration) string {
-	testutils.PrivilegedTest(t)
+	t.Helper()
 	tmpDir, err := os.MkdirTemp(os.TempDir(), "test-")
 	if err != nil {
 		t.Fatalf("Cannot create temp dir %v", err)
@@ -623,7 +659,6 @@ func setupConfig(t *testing.T, loggerConfig *PolicyLoggerConfiguration) string {
 
 // TestLogger tests the quick state changes of logging spec when flow keeps coming in.
 func TestLoggerQuickStateChange(t *testing.T) {
-	testutils.PrivilegedTest(t)
 	t.Parallel()
 	cfg := testCfg
 	configFilePath := setupConfig(t, &cfg)
@@ -667,7 +702,6 @@ func TestLoggerQuickStateChange(t *testing.T) {
 
 // TestLogger tests the logging configuration change flow.
 func TestLogger(t *testing.T) {
-	testutils.PrivilegedTest(t)
 	t.Parallel()
 	cfg := testCfg
 	configFilePath := setupConfig(t, &cfg)
@@ -689,7 +723,7 @@ func TestLogger(t *testing.T) {
 	defer logger.Stop()
 	fp := path.Join(logger.cfg.logFilePath, logger.cfg.logFileName)
 
-	// Start from log disabled with should be the default state.
+	// Start with logging disabled which should be the default state.
 	spec := v1alpha1.NetworkLoggingSpec{}
 	if update := logger.UpdateLoggingSpec(&spec); update {
 		t.Fatalf("UpdateLoggingSpec(%v) = (%v), want false", spec, update)
@@ -736,7 +770,6 @@ func TestLogger(t *testing.T) {
 
 // TestDenyLogAggregation tests the deny logs are correctly aggregated.
 func TestDenyLogAggregation(t *testing.T) {
-	testutils.PrivilegedTest(t)
 	t.Parallel()
 	cfg := testCfg
 	configFilePath := setupConfig(t, &cfg)
@@ -774,7 +807,6 @@ func TestDenyLogAggregation(t *testing.T) {
 
 // TestLogDelegate tests the log delegate mode.
 func TestLogDelegate(t *testing.T) {
-	testutils.PrivilegedTest(t)
 	t.Parallel()
 	cfg := testCfg
 	configFilePath := setupConfig(t, &cfg)
@@ -839,7 +871,6 @@ func TestLogDelegate(t *testing.T) {
 }
 
 func TestNetworkPolicyLogger_allowedPoliciesForDelegate(t *testing.T) {
-	testutils.PrivilegedTest(t)
 	t.Parallel()
 	cfg := testCfg
 	configFilePath := setupConfig(t, &cfg)
@@ -849,6 +880,7 @@ func TestNetworkPolicyLogger_allowedPoliciesForDelegate(t *testing.T) {
 	ciliumClusterwideNetworkPolicyStore := NewFakeStore[*v2.CiliumClusterwideNetworkPolicy](CCNPTransformer)
 	getter := NewFakeStores(
 		WithNetworkPolicyStore(networkPolicyStore),
+		WithFQDNNetworkPolicyStore(newFakeFQDNStore()),
 		WithCiliumNetworkPolicyStore(ciliumNetworkPolicyStore),
 		WithCiliumClusterwideNetworkPolicyStore(ciliumClusterwideNetworkPolicyStore),
 	)
@@ -878,6 +910,11 @@ func TestNetworkPolicyLogger_allowedPoliciesForDelegate(t *testing.T) {
 		Name: "not-annotated",
 		Kind: "CiliumClusterwideNetworkPolicy",
 	}
+	fqdnNotAnnotated := &flow.Policy{
+		Kind:      "FQDNNetworkPolicy",
+		Name:      "not-annotated",
+		Namespace: "default",
+	}
 
 	testCases := []struct {
 		name     string
@@ -903,6 +940,11 @@ func TestNetworkPolicyLogger_allowedPoliciesForDelegate(t *testing.T) {
 			want:     []*flow.Policy{ccnpPolicy},
 		},
 		{
+			name:     "fqdnnp",
+			policies: []*flow.Policy{fqdnPolicy, fqdnNotAnnotated},
+			want:     []*flow.Policy{fqdnPolicy},
+		},
+		{
 			name:     "all",
 			policies: []*flow.Policy{npPolicy, npNotAnnotated, cnpPolicy, cnpNotAnnotated, ccnpPolicy, ccnpNotAnnotated},
 			want:     []*flow.Policy{npPolicy, cnpPolicy, ccnpPolicy},
@@ -920,7 +962,6 @@ func TestNetworkPolicyLogger_allowedPoliciesForDelegate(t *testing.T) {
 }
 
 func TestNetworkPolicyLogger_NodeTraffic(t *testing.T) {
-	testutils.PrivilegedTest(t)
 	t.Parallel()
 	cfg := testCfg
 	configFilePath := setupConfig(t, &cfg)
@@ -984,7 +1025,6 @@ func TestNetworkPolicyLogger_NodeTraffic(t *testing.T) {
 }
 
 func TestNetworkPolicyLogger_DontLogDisabledTraffic(t *testing.T) {
-	testutils.PrivilegedTest(t)
 	t.Parallel()
 	cfg := testCfg
 	configFilePath := setupConfig(t, &cfg)
@@ -1081,13 +1121,27 @@ func retryCheckFileContent(t *testing.T, path string, want string, maxRetry int)
 		if _, err := os.Stat(path); err != nil {
 			return fmt.Errorf("fail to stat file: %v", err)
 		}
-		b, err := os.ReadFile(path)
+		f, err := os.Open(path)
 		if err != nil {
-			return fmt.Errorf("Readfile() returned err=%v, want nil", err)
+			return fmt.Errorf("os.Open(%s) returned err=%v, want nil", path, err)
 		}
 
-		if diff := cmp.Diff(want, string(b)); diff != "" {
-			return fmt.Errorf("ReadFile() string diff (-want +got):\n%s", diff)
+		var gotJSON []interface{}
+		for d := json.NewDecoder(f); d.More(); {
+			var t any
+			d.Decode(&t)
+			gotJSON = append(gotJSON, t)
+		}
+
+		var wantJSON []interface{}
+		for d := json.NewDecoder(strings.NewReader(want)); d.More(); {
+			var t any
+			d.Decode(&t)
+			wantJSON = append(wantJSON, t)
+		}
+
+		if diff := cmp.Diff(wantJSON, gotJSON); diff != "" {
+			return fmt.Errorf("ReadFile() had a diff (-want +got):\n%v", diff)
 		}
 		return nil
 	}
@@ -1171,7 +1225,6 @@ func seedCiliumClusterwideNetworkPolicyStore(t testing.TB, store cache.Store) {
 }
 
 func TestLogger_LogUncorrelatedEntries(t *testing.T) {
-	testutils.PrivilegedTest(t)
 	t.Parallel()
 
 	cfg := testCfg
@@ -1195,7 +1248,7 @@ func TestLogger_LogUncorrelatedEntries(t *testing.T) {
 	defer logger.Stop()
 	fp := path.Join(logger.cfg.logFilePath, logger.cfg.logFileName)
 
-	// Start from log disabled with should be the default state.
+	// Start with logging disabled which should be the default state.
 	spec := v1alpha1.NetworkLoggingSpec{
 		Cluster: v1alpha1.ClusterLogSpec{Allow: v1alpha1.LogAction{Log: true}},
 		Node:    v1alpha1.NodeLogSpec{Allow: v1alpha1.LogAction{Log: true}},
@@ -1238,4 +1291,155 @@ func TestLogger_DontLogUncorrelatedEntries(t *testing.T) {
 
 	observer.OnDecodedFlow(context.Background(), uncorrelatedFlow)
 	retryCheckFileContent(t, fp, "", maxRetry)
+}
+
+func TestFQDNNetworkPolicyLogs(t *testing.T) {
+	t.Parallel()
+	cfg := testCfg
+	configFilePath := setupConfig(t, &cfg)
+
+	dpatcher := dispatcher.NewDispatcher()
+	observer := dpatcher.(dispatcher.Observer)
+	logger := &networkPolicyLogger{
+		dispatcher:     dpatcher,
+		stores:         NewFakeStores(),
+		spec:           getLogSpec(nil),
+		configFilePath: configFilePath,
+	}
+	cb, err := logger.Start()
+	if err != nil {
+		t.Fatalf("Unexpected error returned by logger.Start(): %v", err)
+	}
+	cb()
+
+	defer logger.Stop()
+	fp := path.Join(logger.cfg.logFilePath, logger.cfg.logFileName)
+
+	// Start with logging disabled which should be the default state.
+	spec := v1alpha1.NetworkLoggingSpec{}
+	if update := logger.UpdateLoggingSpec(&spec); update {
+		t.Fatalf("UpdateLoggingSpec(%v) = (%v), want false", spec, update)
+	}
+
+	// Test updating configuration to log allow traffic.
+	spec.Cluster.Allow.Log = true
+	if update := logger.UpdateLoggingSpec(&spec); !update {
+		t.Fatalf("UpdateLoggingSpec(%v) = %v, want true", spec, update)
+	}
+	observer.OnDecodedFlow(context.Background(), redirectedFlow)
+	want := redirectedLog
+	retryCheckFileContent(t, fp, want, maxRetry)
+
+	// Test updating configuration to log both allowed and denied traffic. Just
+	// logs allow twice.
+	spec.Cluster.Deny.Log = true
+	if update := logger.UpdateLoggingSpec(&spec); !update {
+		t.Fatalf("UpdateLoggingSpec(%v) = %v, want true", spec, update)
+	}
+	observer.OnDecodedFlow(context.Background(), redirectedFlow)
+	want = want + redirectedLog
+	retryCheckFileContent(t, fp, want, maxRetry)
+
+	// Disable allow logging and now nothing new is logged.
+	spec.Cluster.Allow.Log = false
+	if update := logger.UpdateLoggingSpec(&spec); !update {
+		t.Fatalf("UpdateLoggingSpec(%v) = %v, want true", spec, update)
+	}
+	observer.OnDecodedFlow(context.Background(), redirectedFlow)
+	retryCheckFileContent(t, fp, want, maxRetry)
+
+	// Disable all logging and still nothing is logged.
+	if update := logger.UpdateLoggingSpec(nil); !update {
+		t.Fatalf("UpdateLoggingSpec(nil) = %v, want true", update)
+	}
+	observer.OnDecodedFlow(context.Background(), redirectedFlow)
+	retryCheckFileContent(t, fp, want, maxRetry)
+}
+
+func TestFQDNNetworkPolicy_NilStore(t *testing.T) {
+	t.Parallel()
+	cfg := testCfg
+	configFilePath := setupConfig(t, &cfg)
+
+	dpatcher := dispatcher.NewDispatcher()
+	observer := dpatcher.(dispatcher.Observer)
+	logger := &networkPolicyLogger{
+		dispatcher:     dpatcher,
+		stores:         NewFakeStores(),
+		spec:           getLogSpec(nil),
+		configFilePath: configFilePath,
+	}
+	cb, err := logger.Start()
+	if err != nil {
+		t.Fatalf("Unexpected error returned by logger.Start(): %v", err)
+	}
+	cb()
+
+	defer logger.Stop()
+	fp := path.Join(logger.cfg.logFilePath, logger.cfg.logFileName)
+
+	// Start with logging disabled which should be the default state.
+	spec := v1alpha1.NetworkLoggingSpec{}
+	if update := logger.UpdateLoggingSpec(&spec); update {
+		t.Fatalf("UpdateLoggingSpec(%v) = (%v), want false", spec, update)
+	}
+
+	// Test updating configuration to log allow traffic.
+	spec.Cluster.Allow.Log = true
+	if update := logger.UpdateLoggingSpec(&spec); !update {
+		t.Fatalf("UpdateLoggingSpec(%v) = %v, want true", spec, update)
+	}
+	observer.OnDecodedFlow(context.Background(), redirectedFlow)
+	want := redirectedLog
+	retryCheckFileContent(t, fp, want, maxRetry)
+
+	// Test updating configuration to delegate allow traffic, nothing new should
+	// be logged since we can't fetch the policy to verify its annotations.
+	spec.Cluster.Allow.Delegate = true
+	if update := logger.UpdateLoggingSpec(&spec); !update {
+		t.Fatalf("UpdateLoggingSpec(%v) = %v, want true", spec, update)
+	}
+	observer.OnDecodedFlow(context.Background(), redirectedFlow)
+	retryCheckFileContent(t, fp, want, maxRetry)
+}
+
+func TestFQDNNetworkPolicy_Delegate(t *testing.T) {
+	t.Parallel()
+	cfg := testCfg
+	configFilePath := setupConfig(t, &cfg)
+
+	dpatcher := dispatcher.NewDispatcher()
+	observer := dpatcher.(dispatcher.Observer)
+	logger := &networkPolicyLogger{
+		dispatcher:     dpatcher,
+		stores:         NewFakeStores(WithFQDNNetworkPolicyStore(newFakeFQDNStore())),
+		spec:           getLogSpec(nil),
+		configFilePath: configFilePath,
+	}
+	logger.UpdateLoggingSpec(&v1alpha1.NetworkLoggingSpec{})
+
+	cb, err := logger.Start()
+	if err != nil {
+		t.Fatalf("Unexpected error returned by logger.Start(): %v", err)
+	}
+	cb()
+
+	defer logger.Stop()
+	fp := path.Join(logger.cfg.logFilePath, logger.cfg.logFileName)
+
+	// Start with logging disabled which should be the default state.
+	spec := v1alpha1.NetworkLoggingSpec{}
+	if update := logger.UpdateLoggingSpec(&spec); update {
+		t.Fatalf("UpdateLoggingSpec(%v) = (%v), want false", spec, update)
+	}
+
+	// Test updating configuration to log allow traffic.
+	spec.Cluster.Allow.Log = true
+	spec.Cluster.Allow.Delegate = true
+	if update := logger.UpdateLoggingSpec(&spec); !update {
+		t.Fatalf("UpdateLoggingSpec(%v) = %v, want true", spec, update)
+	}
+	observer.OnDecodedFlow(context.Background(), redirectedFlow)
+	want := redirectedLog
+	retryCheckFileContent(t, fp, want, maxRetry)
 }
