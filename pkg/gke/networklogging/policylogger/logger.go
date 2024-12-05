@@ -27,7 +27,6 @@ import (
 	"github.com/cilium/cilium/pkg/gke/util/aggregator"
 	"github.com/cilium/cilium/pkg/gke/util/ratelimiter"
 	"github.com/cilium/cilium/pkg/gke/util/writer"
-	"github.com/cilium/cilium/pkg/hubble/parser/getters"
 	"github.com/cilium/cilium/pkg/k8s/resource"
 	"github.com/cilium/cilium/pkg/lock"
 	"github.com/cilium/cilium/pkg/logging/logfields"
@@ -73,7 +72,6 @@ type logSpec struct {
 type networkPolicyLogger struct {
 	dispatcher     dispatcher.Dispatcher
 	stores         *Stores
-	endpointGetter getters.EndpointGetter
 	flowCh         chan *flow.Flow
 	stopCh         chan struct{}
 	doneCh         chan struct{}

@@ -124,7 +124,7 @@ func registerNetpolLogging(params netpolLoggingParams) {
 				sg.FQDNNetworkPolicyStore = fqdnStore
 			}
 
-			c = controller.NewController(params.Clientset, params.NLClient, params.FlowPlugin.Dispatcher, nil, sg, params.MetricsRegistry)
+			c = controller.NewController(params.Clientset, params.NLClient, params.FlowPlugin.Dispatcher, sg, params.MetricsRegistry)
 			c.Start(ctx)
 			return nil
 		},

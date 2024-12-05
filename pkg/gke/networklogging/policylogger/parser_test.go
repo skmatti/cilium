@@ -18,7 +18,6 @@ import (
 	"testing"
 
 	"github.com/cilium/cilium/api/v1/flow"
-	"github.com/cilium/cilium/pkg/gke/policy/correlation"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 )
@@ -85,19 +84,14 @@ func TestIsNodeTraffic(t *testing.T) {
 }
 
 func TestNetworkPolicyLogger_flowToPolicyActionLogEntry(t *testing.T) {
-	correlator := correlation.NewFakePolicyCorrelator(
-		correlation.WithEntry("flow", correlation.NewFakePolicyCorrelatorResult()),
-	)
 	tests := []struct {
-		name       string
-		correlator correlation.Correlator
-		flow       *flow.Flow
-		want       *PolicyActionLogEntry
-		wantErr    bool
+		name    string
+		flow    *flow.Flow
+		want    *PolicyActionLogEntry
+		wantErr bool
 	}{
 		{
-			name:       "pod-to-pod allow tcp ingress",
-			correlator: correlator,
+			name: "pod-to-pod allow tcp ingress",
 			flow: &flow.Flow{
 				Uuid:             "flow",
 				Verdict:          flow.Verdict_FORWARDED,
@@ -159,8 +153,7 @@ func TestNetworkPolicyLogger_flowToPolicyActionLogEntry(t *testing.T) {
 			},
 		},
 		{
-			name:       "node-to-pod allow icmp egress",
-			correlator: correlator,
+			name: "node-to-pod allow icmp egress",
 			flow: &flow.Flow{
 				Uuid:             "flow",
 				Verdict:          flow.Verdict_FORWARDED,
@@ -208,8 +201,7 @@ func TestNetworkPolicyLogger_flowToPolicyActionLogEntry(t *testing.T) {
 			},
 		},
 		{
-			name:       "node-to-node deny udp ingress",
-			correlator: correlator,
+			name: "node-to-node deny udp ingress",
 			flow: &flow.Flow{
 				Uuid:             "flow",
 				Verdict:          flow.Verdict_DROPPED,

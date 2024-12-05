@@ -19,7 +19,6 @@ import (
 	fqdnv1alpha1 "github.com/cilium/cilium/pkg/gke/apis/fqdnnetworkpolicy/v1alpha1"
 	"github.com/cilium/cilium/pkg/gke/apis/networklogging/v1alpha1"
 	"github.com/cilium/cilium/pkg/gke/dispatcher"
-	"github.com/cilium/cilium/pkg/hubble/parser/getters"
 	cilium_api_v2 "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2"
 	"github.com/cilium/cilium/pkg/k8s/resource"
 	slim_corev1 "github.com/cilium/cilium/pkg/k8s/slim/k8s/api/core/v1"
@@ -54,11 +53,10 @@ type Logger interface {
 }
 
 // NewLogger create a new network policy logger.
-func NewLogger(dispatcher dispatcher.Dispatcher, endpointGetter getters.EndpointGetter, stores *Stores, registry *metrics.Registry, opts ...func(*networkPolicyLogger)) Logger {
+func NewLogger(dispatcher dispatcher.Dispatcher, stores *Stores, registry *metrics.Registry, opts ...func(*networkPolicyLogger)) Logger {
 	log.Infof("New policy logger")
 	n := &networkPolicyLogger{
 		dispatcher:     dispatcher,
-		endpointGetter: endpointGetter,
 		stores:         stores,
 		cfg:            &defaultConfig,
 		spec:           getLogSpec(nil),

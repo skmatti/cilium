@@ -28,8 +28,6 @@ const (
 
 	// DisablePolicyEventCountMetric  disables the policy event count metric on this host.
 	DisablePolicyEventCountMetric = "disable-policy-event-count-metric"
-	// EnableHubbleCorrelatePolicies enables policy correlation for hubble flows.
-	EnableHubbleCorrelatePolicies = "enable-hubble-correlate-policies"
 
 	// EnableFQDNNetworkPolicy enables google fqdn network policy
 	EnableFQDNNetworkPolicy = "enable-fqdn-network-policy"
