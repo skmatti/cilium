@@ -3096,10 +3096,13 @@ skip_service_lookup:
 
 			if (*dsr) {
 #ifdef REMOVE_DSR_IP_OPTION
-				// This cannot occur within nodeport_extract_dsr_v4 because that function is used in other contexts.
-				ret = remove_dsr_ip_opt_v4(ctx, ip4);
-				if (IS_ERR(ret))
-					return ret;
+				// This cannot occur within nodeport_extract_dsr_v4
+				// because that function is used in other contexts.
+				if (__lookup_ip4_endpoint(ip4->daddr)) {
+					ret = remove_dsr_ip_opt_v4(ctx, ip4);
+					if (IS_ERR(ret))
+						return ret;
+				}
 #endif /* REMOVE_DSR_IP_OPTION */
 				/* Packet continues on its way to local backend: */
 				return nodeport_dsr_ingress_ipv4(ctx, &tuple, ip4,
