@@ -16,21 +16,24 @@ package controller
 
 import (
 	"context"
+	"net"
 	"runtime"
 	"testing"
 	"time"
 
+	"github.com/cilium/cilium/pkg/gke/features"
 	"github.com/cilium/cilium/pkg/logging"
 	"github.com/cilium/cilium/pkg/logging/logfields"
+	"github.com/cilium/cilium/pkg/node"
 	"github.com/cilium/cilium/pkg/testutils"
 	"github.com/google/go-cmp/cmp"
 	"github.com/vishvananda/netlink"
 	"github.com/vishvananda/netns"
-	networkv1alpha1 "gke-internal.googlesource.com/anthos-networking/apis/network/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	k8sruntime "k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	networkv1 "k8s.io/cloud-provider-gcp/crd/apis/network/v1"
 	utilpointer "k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 )
@@ -45,19 +48,30 @@ const (
 
 var log = logging.DefaultLogger.WithField(logfields.LogSubsys, "test")
 
+type testIPAMMgr struct{}
+
+func (t testIPAMMgr) UpdateMultiNetworkIPAMAllocators(annotations map[string]string) error {
+	_, ok := annotations[networkv1.MultiNetworkAnnotationKey]
+	if !ok {
+		return nil
+	}
+	node.SetAnnotations(annotations)
+	return nil
+}
+
 func TestEnsureInterface(t *testing.T) {
 	testutils.PrivilegedTest(t)
 
-	cr := &networkv1alpha1.Network{
+	cr := &networkv1.Network{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      networkName,
 			Namespace: testNamespace,
 		},
-		Spec: networkv1alpha1.NetworkSpec{
-			NodeInterfaceMatcher: networkv1alpha1.NodeInterfaceMatcher{
+		Spec: networkv1.NetworkSpec{
+			NodeInterfaceMatcher: networkv1.NodeInterfaceMatcher{
 				InterfaceName: utilpointer.String(parentLinkName),
 			},
-			L2NetworkConfig: &networkv1alpha1.L2NetworkConfig{
+			L2NetworkConfig: &networkv1.L2NetworkConfig{
 				VlanID: utilpointer.Int32(100),
 			},
 		},
@@ -66,7 +80,7 @@ func TestEnsureInterface(t *testing.T) {
 	noVlanIDCR := cr.DeepCopy()
 	noVlanIDCR.Spec.L2NetworkConfig.VlanID = nil
 
-	userManaged := networkv1alpha1.UserManagedLifecycle
+	userManaged := networkv1.UserManagedLifecycle
 	userManagedCR := cr.DeepCopy()
 	userManagedCR.Spec.NetworkLifecycle = &userManaged
 
@@ -74,7 +88,7 @@ func TestEnsureInterface(t *testing.T) {
 
 	testcases := []struct {
 		desc      string
-		networkCR *networkv1alpha1.Network
+		networkCR *networkv1.Network
 		// Specify whether the tagged interface exists before ensureInterface
 		intExists bool
 		// Specify whether a tagged interface should exist after ensureInterface
@@ -181,16 +195,16 @@ func TestEnsureInterface(t *testing.T) {
 func TestEnsureInterfaceErrors(t *testing.T) {
 	testutils.PrivilegedTest(t)
 
-	cr := &networkv1alpha1.Network{
+	cr := &networkv1.Network{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      networkName,
 			Namespace: testNamespace,
 		},
-		Spec: networkv1alpha1.NetworkSpec{
-			NodeInterfaceMatcher: networkv1alpha1.NodeInterfaceMatcher{
+		Spec: networkv1.NetworkSpec{
+			NodeInterfaceMatcher: networkv1.NodeInterfaceMatcher{
 				InterfaceName: utilpointer.String(parentLinkName),
 			},
-			L2NetworkConfig: &networkv1alpha1.L2NetworkConfig{
+			L2NetworkConfig: &networkv1.L2NetworkConfig{
 				VlanID: utilpointer.Int32(100),
 			},
 		},
@@ -205,7 +219,7 @@ func TestEnsureInterfaceErrors(t *testing.T) {
 
 	testcases := []struct {
 		desc         string
-		networkCR    *networkv1alpha1.Network
+		networkCR    *networkv1.Network
 		existingVlan *vlanDef
 	}{
 		{
@@ -267,22 +281,22 @@ func TestEnsureInterfaceErrors(t *testing.T) {
 func TestDeleteVlanID(t *testing.T) {
 	testutils.PrivilegedTest(t)
 
-	cr := &networkv1alpha1.Network{
+	cr := &networkv1.Network{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      networkName,
 			Namespace: testNamespace,
 		},
-		Spec: networkv1alpha1.NetworkSpec{
-			NodeInterfaceMatcher: networkv1alpha1.NodeInterfaceMatcher{
+		Spec: networkv1.NetworkSpec{
+			NodeInterfaceMatcher: networkv1.NodeInterfaceMatcher{
 				InterfaceName: utilpointer.String(parentLinkName),
 			},
-			L2NetworkConfig: &networkv1alpha1.L2NetworkConfig{
+			L2NetworkConfig: &networkv1.L2NetworkConfig{
 				VlanID: utilpointer.Int32(100),
 			},
 		},
 	}
 
-	userManaged := networkv1alpha1.UserManagedLifecycle
+	userManaged := networkv1.UserManagedLifecycle
 	userManagedCR := cr.DeepCopy()
 	userManagedCR.Spec.NetworkLifecycle = &userManaged
 
@@ -293,7 +307,7 @@ func TestDeleteVlanID(t *testing.T) {
 
 	testcases := []struct {
 		desc      string
-		networkCR *networkv1alpha1.Network
+		networkCR *networkv1.Network
 		// Specify whether the tagged interface was already deleted
 		intAlreadyDeleted bool
 		// Specify whether a tagged interface should be deleted
@@ -434,6 +448,8 @@ func TestUpdateNodeNetworkAnnotation(t *testing.T) {
 		existingAnnotations map[string]string
 		nodeName            string
 		network             string
+		ipv4Subnet          string
+		ipv6Subnet          string
 		isAdd               bool
 		wantErr             string
 		wantAnnotations     map[string]string
@@ -441,13 +457,13 @@ func TestUpdateNodeNetworkAnnotation(t *testing.T) {
 		{
 			desc: "add new network to existing annotation",
 			existingAnnotations: map[string]string{
-				networkv1alpha1.NodeNetworkAnnotationKey: `[{"name":"foo"}]`,
+				networkv1.NodeNetworkAnnotationKey: `[{"name":"foo"}]`,
 			},
 			nodeName: nodeName,
 			network:  "bar",
 			isAdd:    true,
 			wantAnnotations: map[string]string{
-				networkv1alpha1.NodeNetworkAnnotationKey: `[{"name":"bar"},{"name":"foo"}]`,
+				networkv1.NodeNetworkAnnotationKey: `[{"name":"bar"},{"name":"foo"}]`,
 			},
 		},
 		{
@@ -457,7 +473,7 @@ func TestUpdateNodeNetworkAnnotation(t *testing.T) {
 			network:             "bar",
 			isAdd:               true,
 			wantAnnotations: map[string]string{
-				networkv1alpha1.NodeNetworkAnnotationKey: `[{"name":"bar"}]`,
+				networkv1.NodeNetworkAnnotationKey: `[{"name":"bar"}]`,
 			},
 		},
 		{
@@ -467,73 +483,110 @@ func TestUpdateNodeNetworkAnnotation(t *testing.T) {
 			network:             "bar",
 			isAdd:               true,
 			wantAnnotations: map[string]string{
-				networkv1alpha1.NodeNetworkAnnotationKey: `[{"name":"bar"}]`,
+				networkv1.NodeNetworkAnnotationKey: `[{"name":"bar"}]`,
 			},
 		},
 		{
 			desc: "add new network to null annotation value",
 			existingAnnotations: map[string]string{
-				networkv1alpha1.NodeNetworkAnnotationKey: "null",
+				networkv1.NodeNetworkAnnotationKey: "null",
 			},
 			nodeName: nodeName,
 			network:  "bar",
 			isAdd:    true,
 			wantAnnotations: map[string]string{
-				networkv1alpha1.NodeNetworkAnnotationKey: `[{"name":"bar"}]`,
+				networkv1.NodeNetworkAnnotationKey: `[{"name":"bar"}]`,
+			},
+		},
+		{
+			desc:                "add new network with ipv4 subnet",
+			existingAnnotations: map[string]string{},
+			nodeName:            nodeName,
+			network:             "bar",
+			ipv4Subnet:          "10.0.0.1/21",
+			isAdd:               true,
+			wantAnnotations: map[string]string{
+				networkv1.NodeNetworkAnnotationKey: `[{"name":"bar","ipv4-subnet":"10.0.0.1/21"}]`,
+			},
+		},
+		{
+			desc:                "add new network with ipv4/v6 subnets",
+			existingAnnotations: map[string]string{},
+			nodeName:            nodeName,
+			network:             "bar",
+			ipv4Subnet:          "10.0.0.1/21",
+			ipv6Subnet:          "2001:db8:a0b:12f0::1/64",
+			isAdd:               true,
+			wantAnnotations: map[string]string{
+				networkv1.NodeNetworkAnnotationKey: `[{"name":"bar","ipv4-subnet":"10.0.0.1/21","ipv6-subnet":"2001:db8:a0b:12f0::1/64"}]`,
+			},
+		},
+		{
+			desc: "add subnets to existing network",
+			existingAnnotations: map[string]string{
+				networkv1.NodeNetworkAnnotationKey: `[{"name":"bar"}]`,
+			},
+			nodeName:   nodeName,
+			network:    "bar",
+			ipv4Subnet: "10.0.0.1/21",
+			ipv6Subnet: "2001:db8:a0b:12f0::1/64",
+			isAdd:      true,
+			wantAnnotations: map[string]string{
+				networkv1.NodeNetworkAnnotationKey: `[{"name":"bar","ipv4-subnet":"10.0.0.1/21","ipv6-subnet":"2001:db8:a0b:12f0::1/64"}]`,
 			},
 		},
 		{
 			desc: "add existing network",
 			existingAnnotations: map[string]string{
-				networkv1alpha1.NodeNetworkAnnotationKey: `[{"name":"foo"}]`,
+				networkv1.NodeNetworkAnnotationKey: `[{"name":"foo"}]`,
 			},
 			nodeName: nodeName,
 			network:  parentLinkName,
 			isAdd:    true,
 			wantAnnotations: map[string]string{
-				networkv1alpha1.NodeNetworkAnnotationKey: `[{"name":"foo"}]`,
+				networkv1.NodeNetworkAnnotationKey: `[{"name":"foo"}]`,
 			},
 		},
 		{
 			desc: "delete last network in existing annotation",
 			existingAnnotations: map[string]string{
-				networkv1alpha1.NodeNetworkAnnotationKey: `[{"name":"foo"}]`,
+				networkv1.NodeNetworkAnnotationKey: `[{"name":"foo"}]`,
 			},
 			nodeName: nodeName,
 			network:  parentLinkName,
 			isAdd:    false,
 			wantAnnotations: map[string]string{
-				networkv1alpha1.NodeNetworkAnnotationKey: "[]",
+				networkv1.NodeNetworkAnnotationKey: "[]",
 			},
 		},
 		{
 			desc: "delete network in existing annotation",
 			existingAnnotations: map[string]string{
-				networkv1alpha1.NodeNetworkAnnotationKey: `[{"name":"foo"},{"name":"bar"}]`,
+				networkv1.NodeNetworkAnnotationKey: `[{"name":"foo"},{"name":"bar"}]`,
 			},
 			nodeName: nodeName,
 			network:  "bar",
 			isAdd:    false,
 			wantAnnotations: map[string]string{
-				networkv1alpha1.NodeNetworkAnnotationKey: `[{"name":"foo"}]`,
+				networkv1.NodeNetworkAnnotationKey: `[{"name":"foo"}]`,
 			},
 		},
 		{
 			desc: "delete network not in existing annotation",
 			existingAnnotations: map[string]string{
-				networkv1alpha1.NodeNetworkAnnotationKey: `[{"name":"foo"}]`,
+				networkv1.NodeNetworkAnnotationKey: `[{"name":"foo"}]`,
 			},
 			nodeName: nodeName,
 			network:  "bar",
 			isAdd:    false,
 			wantAnnotations: map[string]string{
-				networkv1alpha1.NodeNetworkAnnotationKey: `[{"name":"foo"}]`,
+				networkv1.NodeNetworkAnnotationKey: `[{"name":"foo"}]`,
 			},
 		},
 		{
 			desc: "node network annotation parse failure",
 			existingAnnotations: map[string]string{
-				networkv1alpha1.NodeNetworkAnnotationKey: `invalid_annotation`,
+				networkv1.NodeNetworkAnnotationKey: `invalid_annotation`,
 			},
 			nodeName: nodeName,
 			wantErr:  "failed to get network status map from node \"test-node\": invalid character 'i' looking for beginning of value",
@@ -541,7 +594,7 @@ func TestUpdateNodeNetworkAnnotation(t *testing.T) {
 		{
 			desc: "not found node",
 			existingAnnotations: map[string]string{
-				networkv1alpha1.NodeNetworkAnnotationKey: `[{"name":"foo"}]`,
+				networkv1.NodeNetworkAnnotationKey: `[{"name":"foo"}]`,
 			},
 			nodeName: "foo-node",
 			network:  parentLinkName,
@@ -556,12 +609,13 @@ func TestUpdateNodeNetworkAnnotation(t *testing.T) {
 					Annotations: tc.existingAnnotations,
 				},
 			}
-			k8sClient := fake.NewClientBuilder().WithObjects(&testNode).Build()
+			k8sClient := fake.NewClientBuilder().WithScheme(scheme).WithObjects(&testNode).Build()
 			testReconciler := NetworkReconciler{
 				Client:   k8sClient,
 				NodeName: nodeName,
+				IPAMMgr:  testIPAMMgr{},
 			}
-			gotErr := testReconciler.updateNodeNetworkAnnotation(ctx, tc.network, logger, tc.isAdd)
+			gotErr := testReconciler.updateNodeNetworkAnnotation(ctx, tc.network, tc.ipv4Subnet, tc.ipv6Subnet, logger, tc.isAdd)
 			if gotErr != nil {
 				if tc.wantErr == "" {
 					t.Fatalf("updateNodeNetworkAnnotation() return error %v but want nil", gotErr)
@@ -579,6 +633,155 @@ func TestUpdateNodeNetworkAnnotation(t *testing.T) {
 
 			if diff := cmp.Diff(gotNode.Annotations, tc.wantAnnotations); diff != "" {
 				t.Fatalf("updateNodeNetworkAnnotation() return unexpected output (-got, +want):\n%s", diff)
+			}
+		})
+	}
+}
+
+func ipNetUnsafe(ipStr string) *net.IPNet {
+	ip, netIP, _ := net.ParseCIDR(ipStr)
+	netIP.IP = ip
+	return netIP
+}
+
+func TestBestAddrMatch(t *testing.T) {
+	testcases := []struct {
+		desc     string
+		addrs    []netlink.Addr
+		wantAddr *net.IPNet
+	}{
+		{
+			desc:     "with one IP",
+			addrs:    []netlink.Addr{{IPNet: ipNetUnsafe("10.0.0.1/28"), Scope: int(netlink.SCOPE_UNIVERSE)}},
+			wantAddr: ipNetUnsafe("10.0.0.1/28"),
+		},
+		{
+			desc: "with multiple IPs and subnet sizes",
+			addrs: []netlink.Addr{
+				{IPNet: ipNetUnsafe("10.0.0.1/28"), Scope: int(netlink.SCOPE_UNIVERSE)},
+				{IPNet: ipNetUnsafe("10.0.0.2/27"), Scope: int(netlink.SCOPE_UNIVERSE)},
+				{IPNet: ipNetUnsafe("10.0.0.3/24"), Scope: int(netlink.SCOPE_UNIVERSE)},
+				{IPNet: ipNetUnsafe("10.0.0.4/26"), Scope: int(netlink.SCOPE_UNIVERSE)},
+			},
+			wantAddr: ipNetUnsafe("10.0.0.3/24"),
+		},
+		{
+			desc: "with different scopes",
+			addrs: []netlink.Addr{
+				{IPNet: ipNetUnsafe("10.0.0.1/16"), Scope: int(netlink.SCOPE_NOWHERE)},
+				{IPNet: ipNetUnsafe("10.0.0.2/24"), Scope: int(netlink.SCOPE_LINK)},
+				{IPNet: ipNetUnsafe("10.0.0.3/26"), Scope: int(netlink.SCOPE_HOST)},
+				{IPNet: ipNetUnsafe("10.0.0.4/28"), Scope: int(netlink.SCOPE_UNIVERSE)},
+			},
+			wantAddr: ipNetUnsafe("10.0.0.4/28"),
+		},
+		{
+			desc:     "with no IPs",
+			addrs:    []netlink.Addr{},
+			wantAddr: nil,
+		},
+		{
+			desc: "with no valid IP",
+			addrs: []netlink.Addr{
+				{IPNet: ipNetUnsafe("10.0.0.1/28"), Scope: int(netlink.SCOPE_NOWHERE)},
+				{IPNet: ipNetUnsafe("10.0.0.2/28"), Scope: int(netlink.SCOPE_LINK)},
+				{IPNet: ipNetUnsafe("10.0.0.3/28"), Scope: int(netlink.SCOPE_HOST)},
+			},
+			wantAddr: nil,
+		},
+	}
+
+	for _, tc := range testcases {
+		t.Run(tc.desc, func(t *testing.T) {
+			got := bestAddrMatch(tc.addrs)
+			if got == nil {
+				if tc.wantAddr != nil {
+					t.Fatalf("Didn't get correct IP net, got nil when %s was expected", tc.wantAddr.String())
+				}
+				return
+			}
+			if got.IP.String() != tc.wantAddr.IP.String() {
+				t.Fatalf("Didn't get the correct IP, got: %s, wanted: %s", got.IP.String(), tc.wantAddr.IP.String())
+			}
+			if got.Mask.String() != tc.wantAddr.Mask.String() {
+				t.Fatalf("Didn't get the correct IP Mask, got: %s, wanted: %s", got.Mask.String(), tc.wantAddr.Mask.String())
+			}
+		})
+	}
+}
+
+func TestUpdateNodeMultiNetworkIPAM(t *testing.T) {
+	scheme := k8sruntime.NewScheme()
+	corev1.AddToScheme(scheme)
+	ctx := context.Background()
+	features.GlobalConfig.EnableGoogleMultiNIC = true
+	testNw := networkv1.Network{ObjectMeta: metav1.ObjectMeta{Name: networkName}, Spec: networkv1.NetworkSpec{Type: networkv1.L2NetworkType}}
+	testcases := []struct {
+		desc                string
+		existingAnnotations map[string]string
+		nodeName            string
+		wantErr             string
+		network             *networkv1.Network
+	}{
+		{
+			desc: "node not found",
+			existingAnnotations: map[string]string{
+				networkv1.MultiNetworkAnnotationKey: `[{"name":"foo", "cidrs":["10.0.0.0/21"],"scope":"host-local"}]`,
+			},
+			nodeName: "foo-node",
+			wantErr:  "nodes \"test-node\" not found",
+			network:  &testNw,
+		},
+		{
+			desc: "single network IPAM - add",
+			existingAnnotations: map[string]string{
+				networkv1.MultiNetworkAnnotationKey: `[{"name":"my-network", "cidrs":["10.0.0.0/21"],"scope":"host-local"}]`,
+			},
+			nodeName: nodeName,
+			network:  &testNw,
+		},
+		{
+			desc: "multi network IPAM - add",
+			existingAnnotations: map[string]string{
+				networkv1.MultiNetworkAnnotationKey: `[{"name":"my-network", "cidrs":["10.0.0.0/21"],"scope":"host-local"}, {"name":"bar", "cidrs":["20.0.0.0/21"],"scope":"host-local"}]`,
+			},
+			nodeName: nodeName,
+			network:  &testNw,
+		},
+		{
+			desc:     "externalDHCP enabled network - no IPAM",
+			nodeName: nodeName,
+			network:  &networkv1.Network{ObjectMeta: metav1.ObjectMeta{Name: networkName}, Spec: networkv1.NetworkSpec{Type: networkv1.L2NetworkType, ExternalDHCP4: utilpointer.Bool(true)}},
+		},
+	}
+	for _, tc := range testcases {
+		t.Run(tc.desc, func(t *testing.T) {
+			node.SetAnnotations(nil)
+			testNode := corev1.Node{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:        tc.nodeName,
+					Annotations: tc.existingAnnotations,
+				},
+			}
+			k8sClient := fake.NewClientBuilder().WithObjects(&testNode).Build()
+			testReconciler := NetworkReconciler{
+				Client:   k8sClient,
+				NodeName: nodeName,
+				IPAMMgr:  testIPAMMgr{},
+			}
+			gotErr := testReconciler.updateMultiNetworkIPAM(ctx, tc.network, log)
+			if gotErr != nil {
+				if tc.wantErr == "" {
+					t.Fatalf("updateMultiNetworkIPAM() returns error %v but want nil", gotErr)
+				}
+				if gotErr.Error() != tc.wantErr {
+					t.Fatalf("updateMultiNetworkIPAM() returns error %v but want %v", gotErr, tc.wantErr)
+				}
+				return
+			}
+			gotAnnotations := node.GetAnnotations()
+			if diff := cmp.Diff(gotAnnotations, tc.existingAnnotations); diff != "" {
+				t.Fatalf("updateMultiNetworkIPAM() returns unexpected output (-got, +want):\n%s", diff)
 			}
 		})
 	}

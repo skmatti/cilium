@@ -3014,10 +3014,15 @@ static __always_inline int nodeport_lb4(struct __ctx_buff *ctx,
 					bool __maybe_unused *dsr)
 {
 	bool has_l4_header = ipv4_has_l4_header(ip4);
+	bool is_fragment = ipv4_is_fragment(ip4);
 	struct ipv4_ct_tuple tuple = {};
 	bool is_svc_proto = true;
 	struct lb4_service *svc;
 	struct lb4_key key = {};
+	struct ct_state ct_state_new = {};
+	// __u32 cluster_id = 0;
+	const struct endpoint_info *backend_local;
+	__u32 monitor = 0;
 	int ret, l4_off;
 
 	cilium_capture_in(ctx);
@@ -3119,6 +3124,97 @@ skip_service_lookup:
 		}
 
 		return tail_call_internal(ctx, CILIUM_CALL_IPV4_NODEPORT_NAT_INGRESS, ext_err);
+	}
+
+	backend_local = __lookup_ip4_endpoint(tuple.daddr);
+	if (!backend_local && lb4_svc_is_hostport(svc))
+		return DROP_INVALID;
+	/* Reply from DSR packet is never seen on this node again
+	 * hence no need to track in here.
+	 */
+	if (backend_local || !nodeport_uses_dsr4(&tuple)) {
+		struct ct_state ct_state = {};
+
+		/* lookup with SCOPE_FORWARD: */
+		__ipv4_ct_tuple_reverse(&tuple);
+
+		/* Cache is_fragment in advance, lb4_local may invalidate ip4. */
+		ret = ct_lazy_lookup4(get_ct_map4(&tuple), &tuple, ctx, is_fragment,
+				      l4_off, has_l4_header, CT_EGRESS, SCOPE_FORWARD,
+				      CT_ENTRY_NODEPORT, &ct_state, &monitor);
+		switch (ret) {
+		case CT_NEW:
+redo:
+			ct_state_new.src_sec_id = WORLD_IPV4_ID;
+			ct_state_new.node_port = 1;
+#ifndef HAVE_FIB_IFINDEX
+			ct_state_new.ifindex = (__u16)NATIVE_DEV_IFINDEX;
+#endif
+			ret = ct_create4(get_ct_map4(&tuple), NULL, &tuple, ctx,
+					 CT_EGRESS, &ct_state_new, ext_err);
+			if (IS_ERR(ret))
+				return ret;
+			break;
+		case CT_REOPENED:
+		case CT_ESTABLISHED:
+			/* Recreate CT entries, as the existing one is stale and
+			 * belongs to a flow which target a different svc.
+			 */
+			if (unlikely(ct_state.rev_nat_index !=
+				     ct_state_new.rev_nat_index))
+				goto redo;
+			break;
+		default:
+			return DROP_UNKNOWN_CT;
+		}
+
+		/* NODEPORT_LOCAL_REDIRECT_MAC
+		*
+		* For MACVLAN interfaces, when a frame enters the lower device, if the
+		* destination MAC is not one of the sub-interfaces, the frame is processed
+		* by the host [1]. This breaks isolation, and leads to a strange datapath
+		* where the kernel routes the packet back to the lower device where it's
+		* captured and redirected back to the ingress-side (by
+		* `multinic_redirect_ipv4`) for another attempt at reaching the pod.
+		*
+		* To avoid this, we can set the correct destination MAC after xlating the
+		* destination addr.
+		*
+		* [1]: https://vincent.bernat.ch/en/blog/2017-linux-bridge-isolation#about-macvlan-interfaces
+		*/
+		if (backend_local && backend_local->flags & ENDPOINT_F_MULTI_NIC) {
+			mac_t dmac = backend_local->mac;
+			if (eth_store_daddr(ctx, (__u8 *) &dmac, 0) < 0)
+				return DROP_WRITE_ERROR;
+		}
+
+		if (backend_local) {
+			ctx_set_xfer(ctx, XFER_PKT_NO_SVC);
+			return CTX_ACT_OK;
+		}
+
+		ret = neigh_record_ip4(ctx);
+		if (ret < 0)
+			return ret;
+	}
+
+	/* TX request to remote backend: */
+	edt_set_aggregate(ctx, 0);
+	if (nodeport_uses_dsr4(&tuple)) {
+#if DSR_ENCAP_MODE == DSR_ENCAP_IPIP
+		ctx_store_meta(ctx, CB_HINT,
+			       ((__u32)tuple.sport << 16) | tuple.dport);
+		ctx_store_meta(ctx, CB_ADDR_V4, tuple.daddr);
+#elif DSR_ENCAP_MODE == DSR_ENCAP_GENEVE || DSR_ENCAP_MODE == DSR_ENCAP_NONE
+		ctx_store_meta(ctx, CB_PORT, key.dport);
+		ctx_store_meta(ctx, CB_ADDR_V4, key.address);
+		ctx_store_meta(ctx, CB_DSR_SRC_LABEL, src_sec_identity);
+		ctx_store_meta(ctx, CB_DSR_L3_OFF, l3_off);
+#endif /* DSR_ENCAP_MODE */
+		return tail_call_internal(ctx, CILIUM_CALL_IPV4_NODEPORT_DSR, ext_err);
+	} else {
+		return tail_call_internal(ctx, CILIUM_CALL_IPV4_NODEPORT_NAT_EGRESS,
+					  ext_err);
 	}
 }
 

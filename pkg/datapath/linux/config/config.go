@@ -1090,6 +1090,10 @@ func (h *HeaderfileWriter) writeTemplateConfig(fw *bufio.Writer, devices []strin
 		fmt.Fprintf(fw, "#define ENABLE_ROUTING 1\n")
 	}
 
+	if e.EnableMulticast() {
+		fmt.Fprintf(fw, "#define ENABLE_MULTICAST 1\n")
+	}
+
 	if !option.Config.EnableHostLegacyRouting && option.Config.DirectRoutingDevice != "" {
 		directRoutingIface := option.Config.DirectRoutingDevice
 		directRoutingIfIndex, err := link.GetIfIndex(directRoutingIface)

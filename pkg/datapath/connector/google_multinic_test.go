@@ -23,14 +23,16 @@ import (
 	"testing"
 
 	"github.com/cilium/cilium/pkg/gke/multinic/dhcp"
+	multinictypes "github.com/cilium/cilium/pkg/gke/multinic/types"
+	"github.com/cilium/cilium/pkg/ipam"
 	"github.com/cilium/cilium/pkg/testutils"
 	"github.com/containernetworking/plugins/pkg/ns"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/vishvananda/netlink"
 	"github.com/vishvananda/netns"
-	networkv1alpha1 "gke-internal.googlesource.com/anthos-networking/apis/network/v1alpha1"
 	"golang.org/x/sys/unix"
+	networkv1 "k8s.io/cloud-provider-gcp/crd/apis/network/v1"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/pointer"
@@ -42,40 +44,41 @@ const (
 	badIPv4Str        = "1"
 	goodIPv6Str       = "a:b::/32"
 	goodIPv6StrNoMask = "a:b::"
-	dummyLinkName     = "dummy"
-	dummyLinkIP       = "172.168.10.1"
-	dummyLinkMask     = 24
+	macvtapLinkName   = "macvtap1"
+	macvtapLinkIP     = "172.168.10.1"
+	macvtapLinkMask   = 24
 	remoteNSName      = "test"
 )
 
-func getTestInterfaceCR(ipStrs []string, macStr *string) *networkv1alpha1.NetworkInterface {
-	return &networkv1alpha1.NetworkInterface{
+func getTestInterfaceCR(ipStrs []string, macStr *string) *networkv1.NetworkInterface {
+	return &networkv1.NetworkInterface{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "test-eth0",
 			Namespace: "test-ns",
 		},
-		Spec: networkv1alpha1.NetworkInterfaceSpec{
+		Spec: networkv1.NetworkInterfaceSpec{
 			IpAddresses: ipStrs,
 			MacAddress:  macStr,
 		},
 	}
 }
 
-func getTestInterfaceCRWithStatus(ipStrs []string, macStr *string, statusMacStr string) *networkv1alpha1.NetworkInterface {
+func getTestInterfaceCRWithStatus(ipStrs []string, macStr *string, statusMacStr string) *networkv1.NetworkInterface {
 	intfCR := getTestInterfaceCR(ipStrs, macStr)
 	intfCR.Status.MacAddress = statusMacStr
 	return intfCR
 }
 
-func getTestNetworkCR(parentDevName *string) *networkv1alpha1.Network {
-	return &networkv1alpha1.Network{
+func getTestNetworkCR(parentDevName *string, provider *networkv1.ProviderType) *networkv1.Network {
+	return &networkv1.Network{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "test-network",
 		},
-		Spec: networkv1alpha1.NetworkSpec{
-			NodeInterfaceMatcher: networkv1alpha1.NodeInterfaceMatcher{
+		Spec: networkv1.NetworkSpec{
+			NodeInterfaceMatcher: networkv1.NodeInterfaceMatcher{
 				InterfaceName: parentDevName,
 			},
+			Provider: provider,
 		},
 	}
 }
@@ -87,10 +90,10 @@ func errorContains(got error, want string) bool {
 	return strings.Contains(got.Error(), want)
 }
 
-// setupDummyInterfaceInRemoteNS creates a new remote network namespace
-// and a dummy interface in the remote ns.
+// setupMacvtapInRemoteNS creates a new remote network namespace
+// and a macvtap interface in the remote ns.
 // The function switches the current ns and reverts afterwards.
-func setupDummyInterfaceInRemoteNS(t *testing.T) (netlink.Link, string, func() error) {
+func setupMacvtapInRemoteNS(t *testing.T, addIP bool) (netlink.Link, string, func() error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 
@@ -106,27 +109,45 @@ func setupDummyInterfaceInRemoteNS(t *testing.T) (netlink.Link, string, func() e
 	}
 	defer remoteNS.Close()
 
-	dummy := &netlink.Dummy{LinkAttrs: netlink.LinkAttrs{Name: dummyLinkName}}
+	dummy := &netlink.Dummy{LinkAttrs: netlink.LinkAttrs{Name: "dummy"}}
 	err = netlink.LinkAdd(dummy)
 	if err != nil {
 		t.Fatalf("unable to add parent interface: %v", err)
 	}
 
-	if err := applyIPToLink(&net.IPNet{
-		IP:   net.ParseIP(dummyLinkIP),
-		Mask: net.CIDRMask(dummyLinkMask, 32),
-	}, dummy); err != nil {
-		t.Fatalf("unable to apply IP address: %v", err)
+	mv := &netlink.Macvtap{
+		Macvlan: netlink.Macvlan{
+			LinkAttrs: netlink.LinkAttrs{
+				Name:        macvtapLinkName,
+				ParentIndex: dummy.Index,
+			},
+			Mode: netlink.MACVLAN_MODE_BRIDGE,
+		},
 	}
 
-	return dummy, fmt.Sprint("/var/run/netns/", remoteNSName), func() error {
+	err = netlink.LinkAdd(mv)
+	if err != nil {
+		t.Fatalf("unable to add macvtap interface: %v", err)
+	}
+
+	if addIP {
+		// In order to add routes to the link, the link must have an assigned IP address.
+		if err := applyIPToLink(&net.IPNet{
+			IP:   net.ParseIP(macvtapLinkIP),
+			Mask: net.CIDRMask(macvtapLinkMask, 32),
+		}, mv); err != nil {
+			t.Fatalf("unable to apply IP address: %v", err)
+		}
+	}
+
+	return mv, fmt.Sprint("/var/run/netns/", remoteNSName), func() error {
 		return netns.DeleteNamed(remoteNSName)
 	}
 }
 
 func v4Route(ip, gw string, mask, mtu int, scope netlink.Scope) netlink.Route {
 	route := netlink.Route{
-		LinkIndex: 2,
+		LinkIndex: 3,
 		Scope:     scope,
 		Dst: &net.IPNet{
 			IP:   net.ParseIP(ip).To4(),
@@ -149,9 +170,9 @@ func v4DefaultRoute(gw string) netlink.Route {
 	return dr
 }
 
-func dummyLinkRoute() netlink.Route {
-	route := v4Route("172.168.10.0", "", dummyLinkMask, 0, netlink.SCOPE_LINK)
-	route.Src = net.ParseIP(dummyLinkIP)
+func macvtapLinkRoute() netlink.Route {
+	route := v4Route("172.168.10.0", "", macvtapLinkMask, 0, netlink.SCOPE_LINK)
+	route.Src = net.ParseIP(macvtapLinkIP)
 	route.Protocol = 2
 	return route
 }
@@ -163,66 +184,103 @@ func TestGetInterfaceConfiguration(t *testing.T) {
 	parentDevNameEmpty := ""
 	goodMACStr := "01:02:03:04:05:06"
 	badMACStr := "ff"
+	networkProviderGKE := networkv1.ProviderType("GKE")
 	testcases := []struct {
-		desc    string
-		wantErr string
-		intf    *networkv1alpha1.NetworkInterface
-		net     *networkv1alpha1.Network
-		want    *interfaceConfiguration
+		desc         string
+		wantErr      string
+		intf         *networkv1.NetworkInterface
+		net          *networkv1.Network
+		podResources map[string][]string
+		want         *interfaceConfiguration
 	}{
 		{
 			desc: "parse successfully",
 			intf: getTestInterfaceCR([]string{goodIPv4Str}, &goodMACStr),
-			net:  getTestNetworkCR(&parentDevName),
+			net:  getTestNetworkCR(&parentDevName, nil),
 			want: &interfaceConfiguration{
 				ParentInterfaceName: parentDevName,
 				IPV4Address: &net.IPNet{
 					IP:   net.IPv4(1, 2, 3, 4),
 					Mask: net.IPv4Mask(255, 255, 255, 0),
 				},
+				Type:       "macvlan",
+				MacAddress: net.HardwareAddr([]byte{1, 2, 3, 4, 5, 6}),
+			},
+		},
+		{
+			desc: "parse successfully ipvlan",
+			intf: getTestInterfaceCR([]string{goodIPv4Str}, &goodMACStr),
+			net:  getTestNetworkCR(&parentDevName, &networkProviderGKE),
+			want: &interfaceConfiguration{
+				ParentInterfaceName: parentDevName,
+				IPV4Address: &net.IPNet{
+					IP:   net.IPv4(1, 2, 3, 4),
+					Mask: net.IPv4Mask(255, 255, 255, 0),
+				},
+				Type:       "ipvlan",
+				MacAddress: net.HardwareAddr([]byte{1, 2, 3, 4, 5, 6}),
+			},
+		},
+		{
+			desc: "parse successfully macvtap",
+			intf: getTestInterfaceCR([]string{goodIPv4Str}, &goodMACStr),
+			net:  getTestNetworkCR(&parentDevName, nil),
+			podResources: map[string][]string{
+				macvtapResourceName(parentDevName): {"dummyMacvtapIntf"},
+			},
+			want: &interfaceConfiguration{
+				ParentInterfaceName: parentDevName,
+				IPV4Address: &net.IPNet{
+					IP:   net.IPv4(1, 2, 3, 4),
+					Mask: net.IPv4Mask(255, 255, 255, 0),
+				},
+				Type:       "macvtap",
 				MacAddress: net.HardwareAddr([]byte{1, 2, 3, 4, 5, 6}),
 			},
 		},
 		{
 			desc:    "two ipv4 address",
 			intf:    getTestInterfaceCR([]string{goodIPv4Str, goodIPv4Str}, &goodMACStr),
-			net:     getTestNetworkCR(&parentDevName),
-			wantErr: "Only single IPv4 address is supported for macvlan/macvtap interface",
+			net:     getTestNetworkCR(&parentDevName, nil),
+			wantErr: "Only single IPv4 address is supported for L2 interface",
 		},
 		{
 			desc: "empty ipv4 address list",
 			intf: getTestInterfaceCR([]string{}, &goodMACStr),
-			net:  getTestNetworkCR(&parentDevName),
+			net:  getTestNetworkCR(&parentDevName, nil),
 			want: &interfaceConfiguration{
 				ParentInterfaceName: parentDevName,
 				MacAddress:          net.HardwareAddr([]byte{1, 2, 3, 4, 5, 6}),
+				Type:                "macvlan",
 			},
 		},
 		{
 			desc: "nil ipv4 address list",
 			intf: getTestInterfaceCR(nil, &goodMACStr),
-			net:  getTestNetworkCR(&parentDevName),
+			net:  getTestNetworkCR(&parentDevName, nil),
 			want: &interfaceConfiguration{
 				ParentInterfaceName: parentDevName,
 				MacAddress:          net.HardwareAddr([]byte{1, 2, 3, 4, 5, 6}),
+				Type:                "macvlan",
 			},
 		},
 		{
 			desc: "no mac address in spec and status",
 			intf: getTestInterfaceCR([]string{goodIPv4Str}, nil),
-			net:  getTestNetworkCR(&parentDevName),
+			net:  getTestNetworkCR(&parentDevName, nil),
 			want: &interfaceConfiguration{
 				ParentInterfaceName: parentDevName,
 				IPV4Address: &net.IPNet{
 					IP:   net.IPv4(1, 2, 3, 4),
 					Mask: net.IPv4Mask(255, 255, 255, 0),
 				},
+				Type: "macvlan",
 			},
 		},
 		{
 			desc: "no mac address in spec but in status",
 			intf: getTestInterfaceCRWithStatus([]string{goodIPv4Str}, nil, goodMACStr),
-			net:  getTestNetworkCR(&parentDevName),
+			net:  getTestNetworkCR(&parentDevName, nil),
 			want: &interfaceConfiguration{
 				ParentInterfaceName: parentDevName,
 				IPV4Address: &net.IPNet{
@@ -230,36 +288,37 @@ func TestGetInterfaceConfiguration(t *testing.T) {
 					Mask: net.IPv4Mask(255, 255, 255, 0),
 				},
 				MacAddress: net.HardwareAddr([]byte{1, 2, 3, 4, 5, 6}),
+				Type:       "macvlan",
 			},
 		},
 		{
 			desc:    "invalid ip address",
 			intf:    getTestInterfaceCR([]string{badIPv4Str}, &goodMACStr),
-			net:     getTestNetworkCR(&parentDevName),
+			net:     getTestNetworkCR(&parentDevName, nil),
 			wantErr: "failed to get a valid IP in the interface CR",
 		},
 		{
 			desc:    "unsupported ipv6 address",
 			intf:    getTestInterfaceCR([]string{goodIPv6Str}, &goodMACStr),
-			net:     getTestNetworkCR(&parentDevName),
+			net:     getTestNetworkCR(&parentDevName, nil),
 			wantErr: "failed to get a valid IP in the interface CR",
 		},
 		{
 			desc:    "invalid mac address",
 			intf:    getTestInterfaceCR([]string{goodIPv4Str}, &badMACStr),
-			net:     getTestNetworkCR(&parentDevName),
+			net:     getTestNetworkCR(&parentDevName, nil),
 			wantErr: "unable to parse MAC in the interface CR",
 		},
 		{
 			desc:    "empty parent interface name",
 			intf:    getTestInterfaceCR([]string{goodIPv4Str}, &goodMACStr),
-			net:     getTestNetworkCR(&parentDevNameEmpty),
+			net:     getTestNetworkCR(&parentDevNameEmpty, nil),
 			wantErr: "parent interface name is empty in the network CR",
 		},
 	}
 	for _, tc := range testcases {
 		t.Run(tc.desc, func(t *testing.T) {
-			got, gotErr := getInterfaceConfiguration(tc.intf, tc.net)
+			got, gotErr := getInterfaceConfiguration(tc.intf, tc.net, tc.podResources)
 			if gotErr != nil {
 				if len(tc.wantErr) == 0 {
 					t.Fatalf("getInterfaceConfiguration() returns error %v but want nil", gotErr)
@@ -348,13 +407,13 @@ func TestParseIPRoutes(t *testing.T) {
 
 	testcases := []struct {
 		desc    string
-		routes  []networkv1alpha1.Route
+		routes  []networkv1.Route
 		want    []*net.IPNet
 		wantErr string
 	}{
 		{
 			desc: "good routes",
-			routes: []networkv1alpha1.Route{
+			routes: []networkv1.Route{
 				{To: goodIPv4Str},
 				{To: "10.10.10.1/32"},
 			},
@@ -365,28 +424,28 @@ func TestParseIPRoutes(t *testing.T) {
 		},
 		{
 			desc: "parse cidr fail",
-			routes: []networkv1alpha1.Route{
+			routes: []networkv1.Route{
 				{To: "192.168.0.10.10"},
 			},
 			wantErr: "failed to parse CIDR: invalid CIDR address: 192.168.0.10.10",
 		},
 		{
 			desc: "reject default route",
-			routes: []networkv1alpha1.Route{
+			routes: []networkv1.Route{
 				{To: "0.0.0.0/0"},
 			},
 			wantErr: "CIDR length must be over 0: 0.0.0.0/0",
 		},
 		{
 			desc: "reject route with 0 prefix length",
-			routes: []networkv1alpha1.Route{
+			routes: []networkv1.Route{
 				{To: "10.10.0.0/0"},
 			},
 			wantErr: "CIDR length must be over 0: 10.10.0.0/0",
 		},
 		{
 			desc: "reject ipv6 route",
-			routes: []networkv1alpha1.Route{
+			routes: []networkv1.Route{
 				{To: goodIPv6Str},
 			},
 			wantErr: "ipv6 route \"a:b::/32\" is not supported",
@@ -420,7 +479,7 @@ func TestSetupNetworkRoutes(t *testing.T) {
 	testcases := []struct {
 		desc               string
 		interfaceName      string
-		intf               *networkv1alpha1.NetworkInterface
+		intf               *networkv1.NetworkInterface
 		isDefaultInterface bool
 		routeMTU           int
 		wantRoutes         []netlink.Route
@@ -428,9 +487,9 @@ func TestSetupNetworkRoutes(t *testing.T) {
 	}{
 		{
 			desc: "apply routes with gw to multinic-network",
-			intf: &networkv1alpha1.NetworkInterface{
-				Status: networkv1alpha1.NetworkInterfaceStatus{
-					Routes: []networkv1alpha1.Route{
+			intf: &networkv1.NetworkInterface{
+				Status: networkv1.NetworkInterfaceStatus{
+					Routes: []networkv1.Route{
 						{
 							To: "10.10.10.0/24",
 						},
@@ -448,9 +507,9 @@ func TestSetupNetworkRoutes(t *testing.T) {
 		},
 		{
 			desc: "apply routes without gw to multinic-network",
-			intf: &networkv1alpha1.NetworkInterface{
-				Status: networkv1alpha1.NetworkInterfaceStatus{
-					Routes: []networkv1alpha1.Route{
+			intf: &networkv1.NetworkInterface{
+				Status: networkv1.NetworkInterfaceStatus{
+					Routes: []networkv1.Route{
 						{
 							To: "10.10.10.0/24",
 						},
@@ -467,9 +526,9 @@ func TestSetupNetworkRoutes(t *testing.T) {
 		},
 		{
 			desc: "apply default route with gw to multinic-network",
-			intf: &networkv1alpha1.NetworkInterface{
-				Status: networkv1alpha1.NetworkInterfaceStatus{
-					Routes: []networkv1alpha1.Route{
+			intf: &networkv1.NetworkInterface{
+				Status: networkv1.NetworkInterfaceStatus{
+					Routes: []networkv1.Route{
 						{
 							To: "10.10.10.0/24",
 						},
@@ -489,12 +548,12 @@ func TestSetupNetworkRoutes(t *testing.T) {
 		},
 		{
 			desc: "apply default route with gw to pod-network",
-			intf: &networkv1alpha1.NetworkInterface{
-				Spec: networkv1alpha1.NetworkInterfaceSpec{
-					NetworkName: networkv1alpha1.DefaultNetworkName,
+			intf: &networkv1.NetworkInterface{
+				Spec: networkv1.NetworkInterfaceSpec{
+					NetworkName: networkv1.DefaultNetworkName,
 				},
-				Status: networkv1alpha1.NetworkInterfaceStatus{
-					Routes: []networkv1alpha1.Route{
+				Status: networkv1.NetworkInterfaceStatus{
+					Routes: []networkv1.Route{
 						{
 							To: "10.10.10.0/24",
 						},
@@ -513,9 +572,9 @@ func TestSetupNetworkRoutes(t *testing.T) {
 		},
 		{
 			desc: "apply routes with mtu to multinic-network",
-			intf: &networkv1alpha1.NetworkInterface{
-				Status: networkv1alpha1.NetworkInterfaceStatus{
-					Routes: []networkv1alpha1.Route{
+			intf: &networkv1.NetworkInterface{
+				Status: networkv1.NetworkInterfaceStatus{
+					Routes: []networkv1.Route{
 						{
 							To: "10.10.10.0/24",
 						},
@@ -533,12 +592,12 @@ func TestSetupNetworkRoutes(t *testing.T) {
 		},
 		{
 			desc: "apply routes with mtu to pod-network",
-			intf: &networkv1alpha1.NetworkInterface{
-				Spec: networkv1alpha1.NetworkInterfaceSpec{
-					NetworkName: networkv1alpha1.DefaultNetworkName,
+			intf: &networkv1.NetworkInterface{
+				Spec: networkv1.NetworkInterfaceSpec{
+					NetworkName: networkv1.DefaultNetworkName,
 				},
-				Status: networkv1alpha1.NetworkInterfaceStatus{
-					Routes: []networkv1alpha1.Route{
+				Status: networkv1.NetworkInterfaceStatus{
+					Routes: []networkv1.Route{
 						{
 							To: "10.10.10.0/24",
 						},
@@ -556,14 +615,14 @@ func TestSetupNetworkRoutes(t *testing.T) {
 		},
 		{
 			desc:       "no routes to apply",
-			intf:       &networkv1alpha1.NetworkInterface{Status: networkv1alpha1.NetworkInterfaceStatus{}},
+			intf:       &networkv1.NetworkInterface{Status: networkv1.NetworkInterfaceStatus{}},
 			wantRoutes: []netlink.Route{},
 		},
 		{
 			desc: "invalid routes",
-			intf: &networkv1alpha1.NetworkInterface{
-				Status: networkv1alpha1.NetworkInterfaceStatus{
-					Routes: []networkv1alpha1.Route{
+			intf: &networkv1.NetworkInterface{
+				Status: networkv1.NetworkInterfaceStatus{
+					Routes: []networkv1.Route{
 						{
 							To: "invalid_route",
 						},
@@ -574,8 +633,8 @@ func TestSetupNetworkRoutes(t *testing.T) {
 		},
 		{
 			desc: "invalid gw",
-			intf: &networkv1alpha1.NetworkInterface{
-				Status: networkv1alpha1.NetworkInterfaceStatus{
+			intf: &networkv1.NetworkInterface{
+				Status: networkv1.NetworkInterfaceStatus{
 					Gateway4: &invalidGW,
 				},
 			},
@@ -583,8 +642,8 @@ func TestSetupNetworkRoutes(t *testing.T) {
 		},
 		{
 			desc: "v6 gw",
-			intf: &networkv1alpha1.NetworkInterface{
-				Status: networkv1alpha1.NetworkInterfaceStatus{
+			intf: &networkv1.NetworkInterface{
+				Status: networkv1.NetworkInterfaceStatus{
 					Gateway4: &v6GW,
 				},
 			},
@@ -593,13 +652,13 @@ func TestSetupNetworkRoutes(t *testing.T) {
 		{
 			desc:          "interface not found",
 			interfaceName: "net1",
-			intf:          &networkv1alpha1.NetworkInterface{},
+			intf:          &networkv1.NetworkInterface{},
 			wantErr:       "failed to lookup interface \"net1\": Link not found",
 		},
 		{
 			desc: "default route but without gw address",
-			intf: &networkv1alpha1.NetworkInterface{
-				Status: networkv1alpha1.NetworkInterfaceStatus{
+			intf: &networkv1.NetworkInterface{
+				Status: networkv1.NetworkInterfaceStatus{
 					Gateway4: nil,
 				},
 			},
@@ -611,7 +670,7 @@ func TestSetupNetworkRoutes(t *testing.T) {
 	for _, tc := range testcases {
 		t.Run(tc.desc, func(t *testing.T) {
 			var err error
-			dummyLink, testNSPath, deleteNSFunc := setupDummyInterfaceInRemoteNS(t)
+			dummyLink, testNSPath, deleteNSFunc := setupMacvtapInRemoteNS(t, true)
 			defer func() {
 				if err := deleteNSFunc(); err != nil {
 					t.Fatalf("deleting test network namespace failed %v", err)
@@ -624,7 +683,7 @@ func TestSetupNetworkRoutes(t *testing.T) {
 			}
 			defer testNS.Close()
 
-			interfaceNameInPod := dummyLinkName
+			interfaceNameInPod := macvtapLinkName
 			if tc.interfaceName != "" {
 				interfaceNameInPod = tc.interfaceName
 			}
@@ -652,7 +711,7 @@ func TestSetupNetworkRoutes(t *testing.T) {
 				t.Fatalf("failed to list routes: %v", err)
 			}
 
-			tc.wantRoutes = append(tc.wantRoutes, dummyLinkRoute())
+			tc.wantRoutes = append(tc.wantRoutes, macvtapLinkRoute())
 			if diff := cmp.Diff(gotRoutes, tc.wantRoutes, cmpopts.SortSlices(func(r1, r2 netlink.Route) bool {
 				return r1.String() < r2.String()
 			})); diff != "" {
@@ -667,66 +726,66 @@ func TestConfigureDHCPInfo(t *testing.T) {
 
 	trueVal := true
 	parentInt := "vlan100"
-	dhcpNetwork := &networkv1alpha1.Network{
-		Spec: networkv1alpha1.NetworkSpec{
-			NodeInterfaceMatcher: networkv1alpha1.NodeInterfaceMatcher{
+	dhcpNetwork := &networkv1.Network{
+		Spec: networkv1.NetworkSpec{
+			NodeInterfaceMatcher: networkv1.NodeInterfaceMatcher{
 				InterfaceName: &parentInt,
 			},
 			ExternalDHCP4: &trueVal,
 		},
 	}
-	routesNetwork := &networkv1alpha1.Network{
-		Spec: networkv1alpha1.NetworkSpec{
-			NodeInterfaceMatcher: networkv1alpha1.NodeInterfaceMatcher{
+	routesNetwork := &networkv1.Network{
+		Spec: networkv1.NetworkSpec{
+			NodeInterfaceMatcher: networkv1.NodeInterfaceMatcher{
 				InterfaceName: &parentInt,
 			},
 			ExternalDHCP4: &trueVal,
-			Routes:        []networkv1alpha1.Route{{To: "route1"}},
+			Routes:        []networkv1.Route{{To: "route1"}},
 		},
 	}
-	nameServersNetwork := &networkv1alpha1.Network{
-		Spec: networkv1alpha1.NetworkSpec{
-			NodeInterfaceMatcher: networkv1alpha1.NodeInterfaceMatcher{
+	nameServersNetwork := &networkv1.Network{
+		Spec: networkv1.NetworkSpec{
+			NodeInterfaceMatcher: networkv1.NodeInterfaceMatcher{
 				InterfaceName: &parentInt,
 			},
 			ExternalDHCP4: &trueVal,
-			DNSConfig: &networkv1alpha1.DNSConfig{
+			DNSConfig: &networkv1.DNSConfig{
 				Nameservers: []string{"1.1.1.1", "2.2.2.2"},
 			},
 		},
 	}
-	searchesNetwork := &networkv1alpha1.Network{
-		Spec: networkv1alpha1.NetworkSpec{
-			NodeInterfaceMatcher: networkv1alpha1.NodeInterfaceMatcher{
+	searchesNetwork := &networkv1.Network{
+		Spec: networkv1.NetworkSpec{
+			NodeInterfaceMatcher: networkv1.NodeInterfaceMatcher{
 				InterfaceName: &parentInt,
 			},
 			ExternalDHCP4: &trueVal,
-			DNSConfig: &networkv1alpha1.DNSConfig{
+			DNSConfig: &networkv1.DNSConfig{
 				Searches: []string{"example.com", "example.org"},
 			},
 		},
 	}
-	gatewayNetwork := &networkv1alpha1.Network{
-		Spec: networkv1alpha1.NetworkSpec{
-			NodeInterfaceMatcher: networkv1alpha1.NodeInterfaceMatcher{
+	gatewayNetwork := &networkv1.Network{
+		Spec: networkv1.NetworkSpec{
+			NodeInterfaceMatcher: networkv1.NodeInterfaceMatcher{
 				InterfaceName: &parentInt,
 			},
 			ExternalDHCP4: &trueVal,
 			Gateway4:      pointer.StringPtr("3.3.3.3"),
 		},
 	}
-	staticNetwork := &networkv1alpha1.Network{}
-	missingIntNetwork := &networkv1alpha1.Network{
-		Spec: networkv1alpha1.NetworkSpec{
+	staticNetwork := &networkv1.Network{}
+	missingIntNetwork := &networkv1.Network{
+		Spec: networkv1.NetworkSpec{
 			ExternalDHCP4: &trueVal,
 		},
 	}
-	l2Network := &networkv1alpha1.Network{
-		Spec: networkv1alpha1.NetworkSpec{
-			NodeInterfaceMatcher: networkv1alpha1.NodeInterfaceMatcher{
+	l2Network := &networkv1.Network{
+		Spec: networkv1.NetworkSpec{
+			NodeInterfaceMatcher: networkv1.NodeInterfaceMatcher{
 				InterfaceName: &parentInt,
 			},
-			L2NetworkConfig: &networkv1alpha1.L2NetworkConfig{
+			L2NetworkConfig: &networkv1.L2NetworkConfig{
 				VlanID: pointer.Int32(100),
 			},
 			ExternalDHCP4: &trueVal,
@@ -765,10 +824,10 @@ func TestConfigureDHCPInfo(t *testing.T) {
 
 	dhcpResp := dhcp.DHCPResponse{
 		IPAddresses: []*net.IPNet{ipNet2},
-		Routes: []networkv1alpha1.Route{
+		Routes: []networkv1.Route{
 			{To: "route2"},
 		},
-		DNSConfig: &networkv1alpha1.DNSConfig{
+		DNSConfig: &networkv1.DNSConfig{
 			Nameservers: []string{"10.10.10.10"},
 			Searches:    []string{"searchdomain"},
 		},
@@ -776,10 +835,10 @@ func TestConfigureDHCPInfo(t *testing.T) {
 	}
 	emptyMacResponse := dhcp.DHCPResponse{
 		IPAddresses: []*net.IPNet{ipNet2},
-		Routes: []networkv1alpha1.Route{
+		Routes: []networkv1.Route{
 			{To: "route3"},
 		},
-		DNSConfig: &networkv1alpha1.DNSConfig{
+		DNSConfig: &networkv1.DNSConfig{
 			Nameservers: []string{"10.10.10.10"},
 			Searches:    []string{"searchdomain"},
 		},
@@ -793,7 +852,7 @@ func TestConfigureDHCPInfo(t *testing.T) {
 
 	testcases := []struct {
 		desc     string
-		network  *networkv1alpha1.Network
+		network  *networkv1.Network
 		cfg      interfaceConfiguration
 		wantResp *dhcp.DHCPResponse
 		wantErr  string
@@ -940,11 +999,122 @@ func TestConfigureDHCPInfo(t *testing.T) {
 	}
 }
 
+func TestConfigureIPAMInfo(t *testing.T) {
+	testNw := "test-nw"
+	l3NwInfo := networkv1.Network{
+		ObjectMeta: metav1.ObjectMeta{Name: testNw},
+		Spec: networkv1.NetworkSpec{
+			Type:   networkv1.L3NetworkType,
+			Routes: []networkv1.Route{{To: "10.0.0.0/21"}},
+		},
+	}
+	l2NwInfo := networkv1.Network{
+		ObjectMeta: metav1.ObjectMeta{Name: testNw},
+		Spec: networkv1.NetworkSpec{
+			Type:   networkv1.L2NetworkType,
+			Routes: []networkv1.Route{{To: "10.0.0.0/21"}},
+		},
+	}
+	staticInfCfg := interfaceConfiguration{
+		IPV4Address: &net.IPNet{
+			IP:   net.ParseIP("10.0.0.2"),
+			Mask: net.IPv4Mask(255, 255, 248, 0),
+		},
+	}
+	ipamCidr := net.IPNet{
+		IP:   net.ParseIP("20.0.0.2"),
+		Mask: net.IPv4Mask(255, 255, 248, 0),
+	}
+	allocator := ipam.NewHostScopeAllocator(&ipamCidr)
+	ipa := &ipam.IPAM{
+		MultiNetworkAllocators: map[string]ipam.Allocator{testNw: allocator},
+	}
+	testcases := []struct {
+		desc     string
+		network  *networkv1.Network
+		infCfg   interfaceConfiguration
+		wantErr  string
+		wantMask int
+	}{
+		{
+			desc: "static IP without static network information",
+			network: &networkv1.Network{
+				ObjectMeta: metav1.ObjectMeta{Name: testNw},
+				Spec:       networkv1.NetworkSpec{},
+			},
+			infCfg:  staticInfCfg,
+			wantErr: "static IP requested when static information is not provided in network",
+		},
+		{
+			desc: "l3 network dynamic IP but missing allocator",
+			network: &networkv1.Network{
+				ObjectMeta: metav1.ObjectMeta{Name: "missing-allocator-nw"},
+			},
+			wantErr: "ipam allocator not found for network missing-allocator-nw",
+		},
+		{
+			desc:    "l3 network static IP",
+			network: &l3NwInfo,
+			infCfg:  staticInfCfg,
+		},
+		{
+			desc:     "l3 network dynamic IP",
+			network:  &l3NwInfo,
+			wantMask: 32,
+		},
+		{
+			desc:    "l2 network without netmask",
+			network: &l2NwInfo,
+			wantErr: "prefixLengthV4 field not set for L2 network test-nw",
+		},
+		{
+			desc: "l2 network dynamic IP",
+			network: &networkv1.Network{
+				ObjectMeta: metav1.ObjectMeta{Name: testNw},
+				Spec: networkv1.NetworkSpec{
+					Type:            networkv1.L2NetworkType,
+					L2NetworkConfig: &networkv1.L2NetworkConfig{PrefixLength4: pointer.Int32(24)},
+				},
+			},
+			wantMask: 24,
+		},
+	}
+
+	for _, tc := range testcases {
+		t.Run(tc.desc, func(t *testing.T) {
+			infCfg := tc.infCfg
+			gotErr := configureIPAMInfo(tc.network, &infCfg, "podIface", ipa)
+			if tc.wantErr != "" {
+				if gotErr == nil {
+					t.Fatalf("configureIPAMInfo() should have returned an error")
+					return
+				}
+				if gotErr.Error() != tc.wantErr {
+					t.Fatalf("configureIPAMInfo() returned incorrect error, got: %s but want: %s", gotErr.Error(), tc.wantErr)
+					return
+				}
+				return
+			}
+			if tc.infCfg.IPV4Address != nil && tc.infCfg.IPV4Address != infCfg.IPV4Address {
+				t.Fatalf("configureIPAMInfo() returned interface configuration with ipv4 address different from provided static IP")
+			} else if infCfg.IPV4Address == nil {
+				t.Fatalf("configureIPAMInfo() returned interface configuration with nil ipv4 address")
+			}
+			if tc.infCfg.IPV4Address == nil {
+				ones, _ := infCfg.IPV4Address.Mask.Size()
+				if ones != tc.wantMask {
+					t.Fatalf("configureIPAMInfo() returned interface configuration with ipv4 address with incorrect netmask, got %d, want %d", ones, tc.wantMask)
+				}
+			}
+		})
+	}
+}
+
 type fakeDHCPClient struct {
 	emptyMacResponse dhcp.DHCPResponse
 	resp             dhcp.DHCPResponse
 	clientErr        error
-	network          *networkv1alpha1.Network
+	network          *networkv1.Network
 	t                *testing.T
 }
 
@@ -953,7 +1123,7 @@ func (dc *fakeDHCPClient) GetDHCPResponse(containerID, podNS, podIface, parentIf
 		return nil, dc.clientErr
 	}
 
-	expectedParentIface, err := dc.network.InterfaceName()
+	expectedParentIface, err := multinictypes.InterfaceName(dc.network)
 	if err != nil {
 		dc.t.Fatalf("errored getting parent interface from network %+v: %s", dc.network, err)
 	}
@@ -970,4 +1140,131 @@ func (dc *fakeDHCPClient) GetDHCPResponse(containerID, podNS, podIface, parentIf
 
 func (dc *fakeDHCPClient) Release(containerID, podNS, podIface string, letLeaseExpire bool) error {
 	return dc.clientErr
+}
+
+func TestConfigureInterface(t *testing.T) {
+	testcases := []struct {
+		desc    string
+		infCfg  interfaceConfiguration
+		wantErr string
+	}{
+		{
+			desc: "configure interface with multicast disabled",
+			infCfg: interfaceConfiguration{
+				IPV4Address: &net.IPNet{
+					IP:   net.ParseIP("10.0.0.2"),
+					Mask: net.IPv4Mask(255, 255, 255, 0),
+				},
+				MTU:        1500,
+				MacAddress: net.HardwareAddr([]byte{0x96, 0x90, 0xbc, 0xa2, 0x41, 0x8a}),
+			},
+		},
+		{
+			desc: "configure interface with multicast enabled",
+			infCfg: interfaceConfiguration{
+				IPV4Address: &net.IPNet{
+					IP:   net.ParseIP("10.0.0.2"),
+					Mask: net.IPv4Mask(255, 255, 255, 0),
+				},
+				MTU:             1500,
+				MacAddress:      net.HardwareAddr([]byte{0x96, 0x90, 0xbc, 0xa2, 0x41, 0x8a}),
+				EnableMulticast: true,
+			},
+		},
+		{
+			desc: "configure interface with invalid mac",
+			infCfg: interfaceConfiguration{
+				IPV4Address: &net.IPNet{
+					IP:   net.ParseIP("10.0.0.2"),
+					Mask: net.IPv4Mask(255, 255, 255, 0),
+				},
+				MacAddress: net.HardwareAddr([]byte{0xff, 0xff, 0xff, 0xff, 0xff, 0xff}),
+				MTU:        1500,
+			},
+			wantErr: "unable to configure interface \"macvtap1\" in container namespace: failed to apply mac address to \"macvtap1\": failed to add MAC addr \"ff:ff:ff:ff:ff:ff\" to \"macvtap1\": cannot assign requested address",
+		},
+		{
+			desc: "configure interface without mtu",
+			infCfg: interfaceConfiguration{
+				IPV4Address: &net.IPNet{
+					IP:   net.ParseIP("10.0.0.2"),
+					Mask: net.IPv4Mask(255, 255, 255, 0),
+				},
+			},
+			wantErr: "unable to configure interface \"macvtap1\" in container namespace: unable to set MTU 0 to \"macvtap1\": invalid argument",
+		},
+		{
+			desc: "configure interface with invalid IP",
+			infCfg: interfaceConfiguration{
+				IPV4Address: &net.IPNet{
+					IP: nil,
+				},
+				MTU: 1500,
+			},
+			wantErr: "unable to configure interface \"macvtap1\" in container namespace: failed to apply IP configuration: failed to add addr <nil> to \"macvtap1\": numerical result out of range",
+		},
+	}
+	for _, tc := range testcases {
+		t.Run(tc.desc, func(t *testing.T) {
+			var err error
+			_, testNSPath, deleteNSFunc := setupMacvtapInRemoteNS(t, false)
+			defer func() {
+				if err := deleteNSFunc(); err != nil {
+					t.Fatalf("deleting test network namespace failed %v", err)
+				}
+			}()
+
+			testNS, err := ns.GetNS(testNSPath)
+			if err != nil {
+				t.Fatalf("failed to open test network namespace: %v", err)
+			}
+			defer testNS.Close()
+
+			gotErr := configureInterface(&tc.infCfg, testNS, macvtapLinkName)
+			if gotErr != nil {
+				if tc.wantErr == "" {
+					t.Fatalf("configureInterface() returned error %v but want nil", gotErr)
+				}
+				if gotErr.Error() != tc.wantErr {
+					t.Fatalf("configureInterface() returned incorrect error, got: %s but want: %s", gotErr.Error(), tc.wantErr)
+				}
+				return
+			}
+
+			var mv netlink.Link
+			var ip4Addr []netlink.Addr
+			if err := testNS.Do(func(_ ns.NetNS) error {
+				mv, err = netlink.LinkByName(macvtapLinkName)
+				if err != nil {
+					return err
+				}
+				ip4Addr, err = netlink.AddrList(mv, netlink.FAMILY_V4)
+				if err != nil {
+					return fmt.Errorf("failed to list IPv4 address on macvtap link: %v", err)
+				}
+				return nil
+			}); err != nil {
+				t.Fatalf("unable to find link in ns: %v", err)
+			}
+
+			if mv.Attrs() == nil {
+				t.Fatal("macvtap link attributes are nil")
+			}
+			if len(ip4Addr) != 1 {
+				t.Fatalf("got %d IPv4 addresses on macvtap link, want 1", len(ip4Addr))
+			}
+			if tc.infCfg.IPV4Address.String() != ip4Addr[0].IPNet.String() {
+				t.Fatalf("unexpected IPv4 address configuration, got %s\n, want %s", ip4Addr[0].String(), tc.infCfg.IPV4Address.String())
+			}
+			if tc.infCfg.MTU != mv.Attrs().MTU {
+				t.Fatalf("unexpected MTU configuration, got %d, want %d", mv.Attrs().MTU, tc.infCfg.MTU)
+			}
+			if tc.infCfg.MacAddress.String() != mv.Attrs().HardwareAddr.String() {
+				t.Fatalf("unexpected MAC address configuration, got %s\n, want %s", mv.Attrs().HardwareAddr.String(), tc.infCfg.MacAddress.String())
+			}
+			if tc.infCfg.EnableMulticast != (mv.Attrs().Allmulti == 1) {
+				t.Fatalf("unexpected multicast configuration, got %v\n, want %v", mv.Attrs().Allmulti == 1, tc.infCfg.EnableMulticast)
+			}
+		})
+	}
 }

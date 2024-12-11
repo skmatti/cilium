@@ -69,19 +69,19 @@ type Metadata interface {
 // NewIPAM returns a new IP address manager
 func NewIPAM(nodeAddressing types.NodeAddressing, c *option.DaemonConfig, nodeDiscovery Owner, localNodeStore *node.LocalNodeStore, k8sEventReg K8sEventRegister, node agentK8s.LocalCiliumNodeResource, mtuConfig MtuConfiguration, clientset client.Clientset, metadata Metadata) *IPAM {
 	return &IPAM{
-		nodeAddressing:   nodeAddressing,
-		config:           c,
-		owner:            map[Pool]map[string]string{},
-		expirationTimers: map[timerKey]expirationTimer{},
-		excludedIPs:      map[string]string{},
-
-		k8sEventReg:    k8sEventReg,
-		localNodeStore: localNodeStore,
-		nodeResource:   node,
-		mtuConfig:      mtuConfig,
-		clientset:      clientset,
-		nodeDiscovery:  nodeDiscovery,
-		metadata:       metadata,
+		nodeAddressing:         nodeAddressing,
+		config:                 c,
+		owner:                  map[Pool]map[string]string{},
+		expirationTimers:       map[timerKey]expirationTimer{},
+		excludedIPs:            map[string]string{},
+		MultiNetworkAllocators: map[string]Allocator{},
+		k8sEventReg:            k8sEventReg,
+		localNodeStore:         localNodeStore,
+		nodeResource:           node,
+		mtuConfig:              mtuConfig,
+		clientset:              clientset,
+		nodeDiscovery:          nodeDiscovery,
+		metadata:               metadata,
 	}
 }
 

@@ -56,6 +56,10 @@ type NetworkInterfaceStatus struct {
 	// +optional
 	DNSConfig *DNSConfig `json:"dnsConfig,omitempty"`
 
+	// PodName specifies the current pod name this interface is connected to
+	// +optional
+	PodName *string `json:"podName,omitempty"`
+
 	//// Conditions include the the conditions associated with this Interface
 	// Conditions []metav1.Condition `json:"conditions,omitempty"`
 }

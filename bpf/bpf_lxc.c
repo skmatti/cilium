@@ -1091,7 +1091,7 @@ ct_recreate4:
 		return ctx_redirect_to_proxy4(ctx, tuple, proxy_port, false);
 	}
 
-#if defined(ENABLE_HOST_FIREWALL) && !defined(ENABLE_ROUTING)
+#if defined(ENABLE_HOST_FIREWALL) && !defined(ENABLE_ROUTING) && !defined(IS_MULTI_NIC_DEVICE)
 	/* If the destination is the local host and per-endpoint routes are
 	 * enabled, jump to the bpf_host program to enforce ingress host policies.
 	 * Note that bpf_lxc can be loaded before bpf_host, so bpf_host's policy
@@ -1104,7 +1104,7 @@ ct_recreate4:
 		/* report fine-grained error: */
 		return DROP_HOST_NOT_READY;
 	}
-#endif /* ENABLE_HOST_FIREWALL && !ENABLE_ROUTING */
+#endif /* ENABLE_HOST_FIREWALL && !ENABLE_ROUTING && !IS_MULTI_NIC_DEVICE */
 
 	/* Allow a hairpin packet to be redirected even if ENABLE_ROUTING is
 	 * disabled (for example, with per-endpoint routes). Otherwise, the

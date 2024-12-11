@@ -792,6 +792,21 @@ ct_extract_ports4(struct __ctx_buff *ctx, struct iphdr *ip4, int off,
 			return err;
 
 		break;
+
+#if defined(IS_MULTI_NIC_DEVICE) && defined(ENABLE_MULTICAST)
+    case IPPROTO_IGMP:
+		tuple->sport = 0;
+		tuple->dport = 0;
+		return ACTION_CREATE;
+#endif /* IS_MULTI_NIC_DEVICE || ENABLE_MULTICAST */
+
+#if defined(ENABLE_HOST_FIREWALL) || defined(IS_MULTI_NIC_DEVICE)
+	case IPPROTO_VRRP:
+		tuple->dport = 0;
+		tuple->sport = 0;
+		return ACTION_CREATE;
+#endif /* ENABLE_HOST_FIREWALL || IS_MULTI_NIC_DEVICE */
+
 	default:
 		/* Can't handle extension headers yet */
 		return DROP_CT_UNKNOWN_PROTO;

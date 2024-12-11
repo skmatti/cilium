@@ -58,7 +58,7 @@ type NetworkSpec struct {
 	Type NetworkType `json:"type"`
 
 	// NodeInterfaceMatcher defines the matcher to discover the corresponding node interface associated with the network.
-	// If unspecified, default to the host network interface with Node IP.
+	// This field is required for L2 network.
 	// +optional
 	NodeInterfaceMatcher NodeInterfaceMatcher `json:"nodeInterfaceMatcher,omitempty"`
 
@@ -77,10 +77,12 @@ type NetworkSpec struct {
 	Routes []Route `json:"routes,omitempty"`
 
 	// Gateway4 defines the gateway IPv4 address for the network.
+	// Required if ExternalDHCP4 is false or not set on L2 type network.
 	// +optional
 	Gateway4 *string `json:"gateway4,omitempty"`
 
 	// Specifies the DNS configuration of the network.
+	// Required if ExternalDHCP4 is false or not set on L2 type network.
 	// +optional
 	DNSConfig *DNSConfig `json:"dnsConfig,omitempty"`
 
@@ -112,7 +114,7 @@ type Route struct {
 	To string `json:"to"`
 }
 
-// NetworkStatus containers the status information related to the network.
+// NetworkStatus contains the status information related to the network.
 type NetworkStatus struct{}
 
 // NodeInterfaceMatcher defines criteria to find the matching interface on host networking.

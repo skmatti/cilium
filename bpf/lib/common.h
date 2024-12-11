@@ -913,6 +913,7 @@ enum ct_status {
 	CT_ESTABLISHED,
 	CT_REPLY,
 	CT_RELATED,
+	CT_REOPENED,
 } __packed;
 
 /* Service flags (lb{4,6}_service->flags) */
@@ -1301,5 +1302,7 @@ struct skip_lb6_key {
  * need it since we only want to retrieve the tunnel ID anyway.
  */
 #define TUNNEL_KEY_WITHOUT_SRC_IP offsetof(struct bpf_tunnel_key, local_ipv4)
+
+#define IPPROTO_VRRP 112
 
 #include "overloadable.h"

@@ -9,9 +9,8 @@ import (
 	"github.com/cilium/cilium/pkg/testutils"
 	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	networkv1 "k8s.io/cloud-provider-gcp/crd/apis/network/v1"
 	"k8s.io/utils/pointer"
-
-	networkv1alpha1 "gke-internal.googlesource.com/anthos-networking/apis/network/v1alpha1"
 )
 
 func (ds *DaemonSuite) TestCreateEndpointQueue(t *testing.T) {
@@ -73,12 +72,12 @@ func (ds *DaemonSuite) TestConvertNetworkSpec(t *testing.T) {
 	intf := convertNetworkSpecToInterface(nil)
 	require.Nil(t, intf)
 
-	network := &networkv1alpha1.Network{
+	network := &networkv1.Network{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "network-1",
 		},
-		Spec: networkv1alpha1.NetworkSpec{
-			Routes: []networkv1alpha1.Route{
+		Spec: networkv1.NetworkSpec{
+			Routes: []networkv1.Route{
 				{To: "1.1.1.1/20"},
 				{To: "2.2.2.2/20"},
 			},
@@ -86,12 +85,12 @@ func (ds *DaemonSuite) TestConvertNetworkSpec(t *testing.T) {
 		},
 	}
 
-	expectedIntf := &networkv1alpha1.NetworkInterface{
-		Spec: networkv1alpha1.NetworkInterfaceSpec{
+	expectedIntf := &networkv1.NetworkInterface{
+		Spec: networkv1.NetworkInterfaceSpec{
 			NetworkName: "network-1",
 		},
-		Status: networkv1alpha1.NetworkInterfaceStatus{
-			Routes: []networkv1alpha1.Route{
+		Status: networkv1.NetworkInterfaceStatus{
+			Routes: []networkv1.Route{
 				{To: "1.1.1.1/20"},
 				{To: "2.2.2.2/20"},
 			},

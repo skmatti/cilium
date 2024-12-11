@@ -89,6 +89,9 @@ type CompileTimeConfiguration interface {
 
 	// IsMultiNIC returns true if the endpoint is a MultiNIC endpoint (macvlan/macvtap).
 	IsMultiNIC() bool
+
+	// EnableMulticast returns true if the endpoint allows multicast traffic.
+	EnableMulticast() bool
 }
 
 // EndpointConfiguration provides datapath implementations a clean interface

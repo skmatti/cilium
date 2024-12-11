@@ -734,17 +734,6 @@ func newDaemon(ctx context.Context, cleaner *daemonCleanup, params *daemonParams
 		close(params.CacheStatus)
 	}
 
-	// Initialize and wait for multinic client cache to sync
-	if features.GlobalConfig.EnableGoogleMultiNIC {
-		if !params.Clientset.IsEnabled() {
-			log.Fatal("K8s needs to be enabled for multi nic support")
-		}
-		d.multinicClient, d.kubeletClient, d.dhcpClient, err = multinic.Init(d.ctx, d.endpointManager, params.Clientset.RestConfig(), d.devices, d.db)
-		if err != nil {
-			log.WithError(err).Fatal("Unable to init multinic")
-		}
-	}
-
 	bootstrapStats.cleanup.Start()
 	err = clearCiliumVeths()
 	bootstrapStats.cleanup.EndError(err)
@@ -804,6 +793,17 @@ func newDaemon(ctx context.Context, cleaner *daemonCleanup, params *daemonParams
 
 		// Start services watcher
 		serviceStore.JoinClusterServices(d.k8sSvcCache, option.Config.ClusterName)
+	}
+
+	// Initialize and wait for multinic client cache to sync
+	if features.GlobalConfig.EnableGoogleMultiNIC {
+		if !params.Clientset.IsEnabled() {
+			log.Fatal("K8s needs to be enabled for multi nic support")
+		}
+		d.multinicClient, d.kubeletClient, d.dhcpClient, err = multinic.Init(d.ctx, d.endpointManager, params.Clientset.RestConfig(), &d, d.devices, d.db)
+		if err != nil {
+			log.WithError(err).Fatal("Unable to init multinic")
+		}
 	}
 
 	// Start IPAM

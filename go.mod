@@ -308,12 +308,10 @@ require (
 require (
 	github.com/containernetworking/plugins v1.2.0
 	github.com/golang/protobuf v1.5.4
-	gke-internal.googlesource.com/anthos-networking/apis v0.0.0-00010101000000-000000000000
 	gopkg.in/yaml.v2 v2.4.0
+	k8s.io/cloud-provider-gcp/crd v0.0.0-20230119221216-bb1acae5826d
 	k8s.io/kubelet v0.23.0
 )
-
-replace gke-internal.googlesource.com/anthos-networking/apis => gke-internal.googlesource.com/anthos-networking.git/apis v0.0.0-20220301232334-fc89b0fcc868
 
 replace (
 	gke-internal/gke-node-firewall => gke-internal.googlesource.com/kubernetes/gke-node-firewall.git v0.0.20

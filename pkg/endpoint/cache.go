@@ -40,6 +40,7 @@ type epInfoCache struct {
 	requireRouting         bool
 	requireEndpointRoute   bool
 	atHostNS               bool
+	enableMulticast        bool
 	policyVerdictLogFilter uint32
 	options                *option.IntOptions
 	lxcMAC                 mac.MAC
@@ -90,6 +91,7 @@ func (e *Endpoint) createEpInfoCache(epdir string) *epInfoCache {
 		requireEgressProg:      e.RequireEgressProg(),
 		requireRouting:         e.RequireRouting(),
 		requireEndpointRoute:   e.RequireEndpointRoute(),
+		enableMulticast:        e.EnableMulticast(),
 		policyVerdictLogFilter: e.GetPolicyVerdictLogFilter(),
 		options:                e.Options.DeepCopy(),
 		lxcMAC:                 e.mac,

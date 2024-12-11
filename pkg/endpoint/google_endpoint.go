@@ -101,3 +101,13 @@ func (e *Endpoint) GetPodStackRedirectIfindex() int {
 func (e *Endpoint) ExternalDHCPEnabled() bool {
 	return e.externalDHCP4
 }
+
+// IsIPVlan returns if the endpoint is a multinic endpoint of type IPVlan.
+func (e *Endpoint) IsIPVlan() bool {
+	return features.GlobalConfig.EnableGoogleMultiNIC && e.deviceType == multinicep.EndpointDeviceIPVLAN
+}
+
+// EnableMulticast returns true if the endpoint allows multicast traffic.
+func (e *Endpoint) EnableMulticast() bool {
+	return e.DatapathConfiguration.EnableMulticast
+}
