@@ -55,6 +55,7 @@
 #include "lib/nodeport.h"
 #include "lib/policy_log.h"
 #include "lib/google_arp.h"
+#include "lib/google_multinic.h"
 
 /* Per-packet LB is needed if all LB cases can not be handled in bpf_sock.
  * Most services with L7 LB flag can not be redirected to their proxy port
@@ -630,7 +631,8 @@ ct_recreate6:
 		 *    host itself.
 		 */
 		ep = lookup_ip6_endpoint(ip6);
-		if (ep) {
+		// Skip local delivery if the destination endpoint is a multi NIC endpoint.
+		if (ep && !(ep->flags & ENDPOINT_F_MULTI_NIC)) {
 #if defined(ENABLE_HOST_ROUTING) || defined(ENABLE_ROUTING)
 			if (ep->flags & ENDPOINT_MASK_HOST_DELIVERY) {
 				if (is_defined(ENABLE_ROUTING)) {
@@ -800,7 +802,7 @@ static __always_inline int __tail_handle_ipv6(struct __ctx_buff *ctx,
 	if (unlikely(!is_valid_lxc_src_ip(ip6)))
 		return DROP_INVALID_SIP;
 
-#ifdef ENABLE_PER_PACKET_LB
+#if defined(ENABLE_PER_PACKET_LB) && !defined(IS_MULTI_NIC_DEVICE)
 	/* will tailcall internally or return error */
 	return __per_packet_lb_svc_xlate_6(ctx, ip6, ext_err);
 #else
@@ -872,6 +874,17 @@ static __always_inline int handle_ipv4_from_lxc(struct __ctx_buff *ctx, __u32 *d
 	lb4_ctx_restore_state(ctx, &ct_state_new, &proxy_port, &cluster_id);
 	hairpin_flow = ct_state_new.loopback;
 #endif /* ENABLE_PER_PACKET_LB */
+
+#ifdef IS_MULTI_NIC_DEVICE
+	// Examine packet sourcing from multi NIC endpoint.
+	ret = redirect_if_dhcp(ctx, ip4->protocol, ETH_HLEN + ipv4_hdrlen(ip4));
+	if (ret != CTX_ACT_OK)
+	        return ret;
+	// Revalidate data after redirect_if_dhcp to avoid verifier
+	// rejecting the previous dereferenced ip4.
+	if (!revalidate_data(ctx, &data, &data_end, &ip4))
+		return DROP_INVALID;
+#endif /* IS_MULTI_NIC_DEVICE */
 
 	/* Determine the destination category for policy fallback. */
 	if (1) {
@@ -1128,7 +1141,8 @@ ct_recreate4:
 		 *  - The destination IP address belongs to endpoint itself.
 		 */
 		ep = __lookup_ip4_endpoint(daddr);
-		if (ep) {
+		// Skip local delivery if the destination endpoint is a multi NIC endpoint.
+		if (ep && !(ep->flags & ENDPOINT_F_MULTI_NIC)) {
 #if defined(ENABLE_HOST_ROUTING) || defined(ENABLE_ROUTING)
 			if (ep->flags & ENDPOINT_MASK_HOST_DELIVERY) {
 				if (is_defined(ENABLE_ROUTING)) {
@@ -1248,10 +1262,10 @@ skip_vtep:
 		else
 			return ret;
 	}
-#endif /* TUNNEL_MODE || ENABLE_HIGH_SCALE_IPCACHE */
+#endif /* (TUNNEL_MODE || ENABLE_HIGH_SCALE_IPCACHE) && !IS_MULTI_NIC_DEVICE */
 
 maybe_pass_to_stack: __maybe_unused;
-	if (is_defined(ENABLE_HOST_ROUTING)) {
+	if (is_defined(ENABLE_HOST_ROUTING) && !is_defined(IS_MULTI_NIC_DEVICE)) {
 		int oif = 0;
 
 		ret = fib_redirect_v4(ctx, ETH_HLEN, ip4, false, false, ext_err, &oif);
@@ -1388,7 +1402,7 @@ static __always_inline int __tail_handle_ipv4(struct __ctx_buff *ctx,
 	}
 #endif /* ENABLE_MULTICAST */
 
-#ifdef ENABLE_PER_PACKET_LB
+#if defined(ENABLE_PER_PACKET_LB) && !defined(IS_MULTI_NIC_DEVICE)
 	/* will tailcall internally or return error */
 	return __per_packet_lb_svc_xlate_4(ctx, ip4, ext_err);
 #else
@@ -1846,6 +1860,13 @@ ipv4_policy(struct __ctx_buff *ctx, struct iphdr *ip4, int ifindex, __u32 src_la
 	 */
 	is_untracked_fragment = ipv4_is_fragment(ip4);
 #endif
+
+#ifdef IS_MULTI_NIC_DEVICE
+	if (ipv4_has_l4_header(ip4)) {
+		int l4_off_tmp = ETH_HLEN + ipv4_hdrlen(ip4);
+		skip_policy_if_dhcp(ctx, ip4->protocol, l4_off_tmp);
+	}
+#endif /* IS_MULTI_NIC_DEVICE */
 
 	ct_buffer = map_lookup_elem(&CT_TAIL_CALL_BUFFER4, &zero);
 	if (!ct_buffer)

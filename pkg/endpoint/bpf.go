@@ -33,6 +33,7 @@ import (
 	"github.com/cilium/cilium/pkg/logging/logfields"
 	"github.com/cilium/cilium/pkg/maps/ctmap"
 	"github.com/cilium/cilium/pkg/maps/lxcmap"
+	"github.com/cilium/cilium/pkg/maps/multinicdev"
 	"github.com/cilium/cilium/pkg/maps/policymap"
 	"github.com/cilium/cilium/pkg/option"
 	"github.com/cilium/cilium/pkg/policy"
@@ -608,6 +609,10 @@ func (e *Endpoint) regenerateBPF(regenContext *regenerationContext) (revnum uint
 		// Hook the endpoint into the endpoint and endpoint to policy tables then expose it
 		stats.mapSync.Start()
 		err = lxcmap.WriteEndpoint(datapathRegenCtxt.epInfoCache)
+		if err == nil {
+			err = multinicdev.AddEndpointToMap(datapathRegenCtxt.epInfoCache)
+		}
+
 		stats.mapSync.End(err == nil)
 		if err != nil {
 			return 0, fmt.Errorf("Exposing new BPF failed: %w", err)
@@ -1580,6 +1585,16 @@ type linkCheckerFunc func(string) error
 
 // ValidateConnectorPlumbing checks whether the endpoint is correctly plumbed.
 func (e *Endpoint) ValidateConnectorPlumbing(linkChecker linkCheckerFunc) error {
+	if e.IsMultiNIC() {
+		// FIXME: We cannot check whether macvlan/macvtap slave netdev exists,
+		// because it requires entering container netns which is not
+		// always accessible (e.g. in k8s case "/proc" has to be bind
+		// mounted). Instead, we check whether the tail call map exists.
+		if _, err := os.Stat(e.BPFMapPath()); err != nil {
+			return fmt.Errorf("tail call map for Macvlan/Macvtap unavailable: %s", err)
+		}
+		return nil
+	}
 	if linkChecker == nil {
 		return fmt.Errorf("cannot check state of datapath; link checker is nil")
 	}

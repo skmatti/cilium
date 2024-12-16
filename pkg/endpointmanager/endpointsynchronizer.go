@@ -29,6 +29,9 @@ import (
 	"github.com/cilium/cilium/pkg/node/types"
 	"github.com/cilium/cilium/pkg/option"
 	"github.com/cilium/cilium/pkg/time"
+
+	"github.com/cilium/cilium/pkg/gke/features"
+	multiniccep "github.com/cilium/cilium/pkg/gke/multinic/ciliumendpoint"
 )
 
 const (
@@ -112,6 +115,16 @@ func (epSync *EndpointSynchronizer) RunK8sCiliumEndpointSync(e *endpoint.Endpoin
 					return fmt.Errorf("Kubernetes apiserver is not available")
 				}
 
+				// Regenerate CEP name using Google's naming scheme of endpoints
+				if features.GlobalConfig.EnableGoogleMultiNIC {
+					// K8sPodName and K8sNamespace are not always available when an
+					// endpoint is first created, so we collect them here.
+					cepName = e.GenerateCEPName()
+					if cepName == "" {
+						scopedLog.Debug("Skipping CiliumEndpoint update because it has empty CEP name")
+						return nil
+					}
+				}
 				cepOwner := e.GetCEPOwner()
 				if cepOwner.IsNil() {
 					scopedLog.Debug("Skipping CiliumEndpoint update because it has no k8s namespace")
@@ -188,6 +201,9 @@ func (epSync *EndpointSynchronizer) RunK8sCiliumEndpointSync(e *endpoint.Endpoin
 							},
 							Status: *mdl,
 						}
+
+						// For multi NIC CEP, we add annotation to identify.
+						multiniccep.AddAnnotationIfMultiNIC(e, cep)
 						localCEP, err = ciliumClient.CiliumEndpoints(cepOwner.GetNamespace()).Create(ctx, cep, meta_v1.CreateOptions{})
 						if err != nil {
 							// Suppress logging an error if ep backing the pod was terminated
@@ -432,6 +448,11 @@ func (epSync *EndpointSynchronizer) DeleteK8sCiliumEndpointSync(e *endpoint.Endp
 
 func deleteCEP(ctx context.Context, scopedLog *logrus.Entry, ciliumClient v2.CiliumV2Interface, e *endpoint.Endpoint) error {
 	cepName := e.GetK8sCEPName()
+	if features.GlobalConfig.EnableGoogleMultiNIC {
+		// K8sPodName and K8sNamespace are not always available when an
+		// endpoint is first created, so we collect them here.
+		cepName = e.GenerateCEPName()
+	}
 	if cepName == "" {
 		scopedLog.Debug("Skipping CiliumEndpoint deletion because it has no k8s cep name")
 		return nil

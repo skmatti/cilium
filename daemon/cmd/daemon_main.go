@@ -1002,6 +1002,10 @@ func InitGlobalFlags(cmd *cobra.Command, vp *viper.Viper) {
 	flags.Int(option.FragmentsMapEntriesName, defaults.FragmentsMapEntries, "Maximum number of entries in fragments tracking map")
 	option.BindEnv(vp, option.FragmentsMapEntriesName)
 
+	flags.Bool(option.AllowDisableSourceIPValidation, false, "Allow disabling source IP validation on multi-nic endpoints")
+	flags.MarkHidden(option.AllowDisableSourceIPValidation)
+	option.BindEnv(vp, option.AllowDisableSourceIPValidation)
+
 	flags.Int(option.LBMapEntriesName, lbmap.DefaultMaxEntries, "Maximum number of entries in Cilium BPF lbmap")
 	option.BindEnv(vp, option.LBMapEntriesName)
 

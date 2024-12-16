@@ -19,6 +19,8 @@ import (
 
 // EndpointChangeRequest Structure which contains the mutable elements of an Endpoint.
 //
+// +k8s:deepcopy-gen=true
+//
 // swagger:model EndpointChangeRequest
 type EndpointChangeRequest struct {
 
@@ -40,6 +42,9 @@ type EndpointChangeRequest struct {
 	// ID of datapath tail call map
 	DatapathMapID int64 `json:"datapath-map-id,omitempty"`
 
+	// Type of the device. Empty string for veth.
+	DeviceType string `json:"device-type,omitempty"`
+
 	// Disables lookup using legacy endpoint identifiers (container name, container id, pod name) for this endpoint
 	DisableLegacyIdentifiers bool `json:"disable-legacy-identifiers,omitempty"`
 
@@ -48,6 +53,9 @@ type EndpointChangeRequest struct {
 
 	// Docker network ID
 	DockerNetworkID string `json:"docker-network-id,omitempty"`
+
+	// Whether the IPAM is static or allocation by the external DHCP server
+	ExternalDHCP4 bool `json:"externalDHCP4,omitempty"`
 
 	// MAC address
 	HostMac string `json:"host-mac,omitempty"`
@@ -60,6 +68,9 @@ type EndpointChangeRequest struct {
 
 	// Name of network device in host netns
 	InterfaceName string `json:"interface-name,omitempty"`
+
+	// Name of the interface inside the pod namespace
+	InterfaceNameInPod string `json:"interface-name-in-pod,omitempty"`
 
 	// Kubernetes namespace name
 	K8sNamespace string `json:"k8s-namespace,omitempty"`
@@ -78,9 +89,20 @@ type EndpointChangeRequest struct {
 
 	// Network namespace cookie
 	NetnsCookie string `json:"netns-cookie,omitempty"`
+	// Linux network namespace of the container
+	NetworkNamespace string `json:"network-namespace,omitempty"`
+
+	// Index of the parent interface for a macvtap/macvlan endpoint
+	ParentDeviceIndex int64 `json:"parent-device-index,omitempty"`
+
+	// Name of the parent interface for a macvtap/macvlan endpoint
+	ParentDeviceName string `json:"parent-device-name,omitempty"`
 
 	// Process ID of the workload belonging to this endpoint
 	Pid int64 `json:"pid,omitempty"`
+
+	// Interface index of the pod-network interface inside the pod-ns
+	PodStackRedirectIfindex int64 `json:"pod-stack-redirect-ifindex,omitempty"`
 
 	// Whether policy enforcement is enabled or not
 	PolicyEnabled bool `json:"policy-enabled,omitempty"`

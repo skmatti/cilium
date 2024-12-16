@@ -267,6 +267,9 @@ func (d *Daemon) restoreOldEndpoints(state *endpointRestoreState) {
 			}
 		}
 	}
+
+	cleanupMultiNICDevMap(state.restored)
+	return
 }
 
 func (d *Daemon) regenerateRestoredEndpoints(state *endpointRestoreState, endpointsRegenerator *endpoint.Regenerator) {

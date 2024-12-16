@@ -9,6 +9,7 @@ import (
 
 	"github.com/sirupsen/logrus"
 
+	multinicep "github.com/cilium/cilium/pkg/gke/multinic/endpoint"
 	"github.com/cilium/cilium/pkg/identity"
 	"github.com/cilium/cilium/pkg/mac"
 	"github.com/cilium/cilium/pkg/option"
@@ -52,6 +53,10 @@ type epInfoCache struct {
 	// holding the endpoint lock, for use beyond the holding of that lock.
 	// Dereferencing fields in this endpoint is not guaranteed to be safe.
 	endpoint *Endpoint
+
+	deviceType              multinicep.EndpointDeviceType
+	parentDevIndex          int
+	podStackRedirectIfindex int
 }
 
 // Must be called when endpoint is still locked.
@@ -92,6 +97,10 @@ func (e *Endpoint) createEpInfoCache(epdir string) *epInfoCache {
 		netNsCookie:            e.NetNsCookie,
 
 		endpoint: e,
+
+		deviceType:              e.GetDeviceType(),
+		parentDevIndex:          e.parentDevIndex,
+		podStackRedirectIfindex: e.podStackRedirectIfindex,
 	}
 }
 
@@ -107,6 +116,11 @@ func (ep *epInfoCache) LXCMac() mac.MAC {
 // communicating with the endpoint.
 func (ep *epInfoCache) InterfaceName() string {
 	return ep.ifName
+}
+
+// MapPath returns tail call map path.
+func (ep *epInfoCache) MapPath() string {
+	return ep.endpoint.BPFMapPath()
 }
 
 // GetID returns the endpoint's ID.

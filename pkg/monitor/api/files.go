@@ -32,6 +32,7 @@ var files = map[uint8]string{
 	111: "trace.h",
 	112: "encap.h",
 	113: "encrypt.h",
+	114: "google_multinic.h",
 
 	// @@ source files list end
 }

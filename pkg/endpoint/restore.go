@@ -27,6 +27,7 @@ import (
 	"github.com/cilium/cilium/pkg/endpoint/regeneration"
 	"github.com/cilium/cilium/pkg/fqdn"
 	"github.com/cilium/cilium/pkg/fqdn/restore"
+	multinicep "github.com/cilium/cilium/pkg/gke/multinic/endpoint"
 	"github.com/cilium/cilium/pkg/identity"
 	"github.com/cilium/cilium/pkg/ipcache"
 	"github.com/cilium/cilium/pkg/labels"
@@ -413,6 +414,13 @@ func (e *Endpoint) toSerializedEndpoint() *serializableEndpoint {
 		CiliumEndpointUID:        e.ciliumEndpointUID,
 		Properties:               e.properties,
 		NetnsCookie:              e.NetNsCookie,
+		IfNameInPod:              e.ifNameInPod,
+		NetNs:                    e.netNs,
+		DeviceType:               e.deviceType,
+		ParentDevName:            e.parentDevName,
+		ParentDevIndex:           e.parentDevIndex,
+		PodStackRedirectIfindex:  e.podStackRedirectIfindex,
+		ExternalDHCP4:            e.externalDHCP4,
 	}
 }
 
@@ -443,6 +451,9 @@ type serializableEndpoint struct {
 	// dockerEndpointID is the Docker network endpoint ID if managed by
 	// libnetwork
 	DockerEndpointID string
+
+	// Corresponding BPF map identifier for tail call map of macvlan/macvtap datapath
+	DatapathMapID int
 
 	// ifName is the name of the host facing interface (veth pair) which
 	// connects into the endpoint
@@ -531,6 +542,29 @@ type serializableEndpoint struct {
 
 	// NetnsCookie is the network namespace cookie of the Endpoint.
 	NetnsCookie uint64
+	// ifNameInPod is the name of the interface inside the pod namespace which connects from endpoint to host
+	IfNameInPod string
+
+	// netNs is the Linux network namespace of the container.
+	NetNs string
+
+	// Device type of the endpoint. If it's unset (empty), it's the normal veth endpoint.
+	DeviceType multinicep.EndpointDeviceType
+
+	// parentDevName is the name of the parent interface for a macvtap/macvlan endpoint.
+	ParentDevName string
+
+	// parentDevIndex is the index of the parent interface for a macvtap/macvlan endpoint.
+	ParentDevIndex int
+
+	// pod stack redirect can be used to send traffic to the pod-ns
+	// kernel stack. The primary use if from a macvtap interface to redirect
+	// dhcp traffic.
+	PodStackRedirectIfindex int
+
+	// ExternalDHCP4 indicates whether the IPAM is static or
+	// allocation by the external DHCP server
+	ExternalDHCP4 bool
 }
 
 // UnmarshalJSON expects that the contents of `raw` are a serializableEndpoint,
@@ -563,6 +597,7 @@ func (ep *Endpoint) fromSerializedEndpoint(r *serializableEndpoint) {
 	ep.containerID.Store(&r.ContainerID)
 	ep.dockerNetworkID = r.DockerNetworkID
 	ep.dockerEndpointID = r.DockerEndpointID
+	ep.datapathMapID = r.DatapathMapID
 	ep.ifName = r.IfName
 	ep.ifIndex = r.IfIndex
 	ep.containerIfName = r.ContainerIfName
@@ -591,4 +626,11 @@ func (ep *Endpoint) fromSerializedEndpoint(r *serializableEndpoint) {
 		ep.properties = map[string]interface{}{}
 	}
 	ep.NetNsCookie = r.NetnsCookie
+	ep.ifNameInPod = r.IfNameInPod
+	ep.netNs = r.NetNs
+	ep.deviceType = r.DeviceType
+	ep.parentDevName = r.ParentDevName
+	ep.parentDevIndex = r.ParentDevIndex
+	ep.podStackRedirectIfindex = r.PodStackRedirectIfindex
+	ep.externalDHCP4 = r.ExternalDHCP4
 }

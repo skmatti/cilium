@@ -12,6 +12,7 @@ import (
 
 	"github.com/cilium/cilium/pkg/bpf"
 	dptypes "github.com/cilium/cilium/pkg/datapath/types"
+	"github.com/cilium/cilium/pkg/endpoint"
 	"github.com/cilium/cilium/pkg/logging"
 	"github.com/cilium/cilium/pkg/logging/logfields"
 	"github.com/cilium/cilium/pkg/maps/callsmap"
@@ -97,6 +98,7 @@ func (ms *MapSweeper) walk(path string, _ os.FileInfo, _ error) error {
 		ctmap.MapNameAny4,
 		callsmap.MapName,
 		callsmap.CustomCallsMapName,
+		endpoint.MultiNICMapName,
 	}
 
 	ms.checkStaleGlobalMap(path, filename)

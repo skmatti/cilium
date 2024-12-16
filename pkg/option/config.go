@@ -1179,6 +1179,8 @@ const (
 
 	// Use the CiliumInternalIPs (vs. NodeInternalIPs) for IPsec encapsulation.
 	UseCiliumInternalIPForIPsec = "use-cilium-internal-ip-for-ipsec"
+	// AllowDisableSourceIPValidation is the name of the option to allow disabling source IP validation for multi-nic endpoints.
+	AllowDisableSourceIPValidation = "allow-disable-source-ip-validation"
 
 	// BypassIPAvailabilityUponRestore bypasses the IP availability error
 	// within IPAM upon endpoint restore and allows the use of the restored IP
@@ -2387,6 +2389,8 @@ type DaemonConfig struct {
 
 	// DisableExternalIPMigration disable externalIP mitigation (CVE-2020-8554)
 	DisableExternalIPMitigation bool
+	// AllowDisableSourceIPValidation is a feature flag to allow disable source IP validation, default is false.
+	AllowDisableSourceIPValidation bool
 
 	// EnableL2NeighDiscovery determines if cilium should perform L2 neighbor
 	// discovery.
@@ -3126,6 +3130,7 @@ func (c *DaemonConfig) Populate(vp *viper.Viper) {
 	c.CgroupPathMKE = vp.GetString(CgroupPathMKE)
 	c.EnableHostFirewall = vp.GetBool(EnableHostFirewall)
 	c.EnableLocalRedirectPolicy = vp.GetBool(EnableLocalRedirectPolicy)
+	c.AllowDisableSourceIPValidation = vp.GetBool(AllowDisableSourceIPValidation)
 	c.EncryptInterface = vp.GetStringSlice(EncryptInterface)
 	c.EncryptNode = vp.GetBool(EncryptNode)
 	c.IdentityChangeGracePeriod = vp.GetDuration(IdentityChangeGracePeriod)

@@ -246,7 +246,7 @@ policy_can_egress(struct __ctx_buff *ctx, const void *map, __u32 src_id, __u32 d
 {
 	int ret;
 
-#ifdef HAVE_ENCAP
+#if defined(HAVE_ENCAP) && !defined(IS_MULTI_NIC_DEVICE)
 	if (src_id != HOST_ID && is_encap(dport, proto))
 		return DROP_ENCAP_PROHIBITED;
 #endif

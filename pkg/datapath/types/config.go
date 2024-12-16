@@ -51,6 +51,7 @@ type LoadTimeConfiguration interface {
 	GetIfIndex() int
 	GetEndpointNetNsCookie() uint64
 	LXCMac() mac.MAC
+	GetPodStackRedirectIfindex() int
 }
 
 // CompileTimeConfiguration provides datapath implementations a clean interface
@@ -85,6 +86,9 @@ type CompileTimeConfiguration interface {
 
 	// IsHost returns true if the endpoint is the host endpoint.
 	IsHost() bool
+
+	// IsMultiNIC returns true if the endpoint is a MultiNIC endpoint (macvlan/macvtap).
+	IsMultiNIC() bool
 }
 
 // EndpointConfiguration provides datapath implementations a clean interface

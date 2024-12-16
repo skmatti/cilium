@@ -54,9 +54,9 @@
 #include "lib/encrypt.h"
 #include "lib/wireguard.h"
 #include "lib/vxlan.h"
+#include "lib/google_multinic.h"
 
- #define host_egress_policy_hook(ctx, src_sec_identity, ext_err) CTX_ACT_OK
-
+#define host_egress_policy_hook(ctx, src_sec_identity, ext_err) CTX_ACT_OK
 /* Bit 0 is skipped for robustness, as it's used in some places to indicate from_host itself. */
 #define FROM_HOST_FLAG_NEED_HOSTFW (1 << 1)
 #define FROM_HOST_FLAG_HOST_ID (1 << 2)
@@ -726,6 +726,15 @@ handle_ipv4_cont(struct __ctx_buff *ctx, __u32 secctx, const bool from_host,
 			return ret;
 	}
 #endif /* ENABLE_HOST_FIREWALL */
+
+#ifdef ENABLE_GOOGLE_MULTI_NIC
+	// Mark the source IDENTITY to HOST if the packet is local-redirected
+	// for the multinic device before redirection to kernel.
+	// The ingress BPF program of the multinic device can correctly
+	// inherit the source IDENTITY to process the packet.
+	if (unlikely(ctx_google_local_redirect(ctx)))
+		ctx->mark = MARK_MAGIC_HOST;
+#endif /* ENABLE_GOOGLE_MULTI_NIC */
 
 #ifndef ENABLE_HOST_ROUTING
 	/* Without bpf_redirect_neigh() helper, we cannot redirect a
@@ -1603,6 +1612,14 @@ skip_egress_gateway:
 		if (ret == CTX_ACT_REDIRECT)
 			return ret;
 	}
+#endif
+#if defined(ENABLE_GOOGLE_MULTI_NIC)
+	ret = multinic_redirect_ipv4(ctx);
+	if (IS_ERR(ret))
+		return send_drop_notify_error(ctx, 0, ret, CTX_ACT_DROP,
+					      METRIC_EGRESS);
+	if (ret != CTX_ACT_OK)
+		return ret;
 #endif
 
 #ifdef ENABLE_HEALTH_CHECK

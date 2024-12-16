@@ -16,6 +16,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	fake "github.com/cilium/cilium/pkg/datapath/fake/types"
+	"github.com/cilium/cilium/pkg/endpoint/regeneration"
+	multinicep "github.com/cilium/cilium/pkg/gke/multinic/endpoint"
 	"github.com/cilium/cilium/pkg/identity"
 	"github.com/cilium/cilium/pkg/labels"
 	"github.com/cilium/cilium/pkg/mac"
@@ -29,12 +31,14 @@ func (s *EndpointSuite) createEndpoints() ([]*Endpoint, map[uint16]*Endpoint) {
 		s.endpointCreator(257, identity.NumericIdentity(1257)),
 		s.endpointCreator(258, identity.NumericIdentity(1258)),
 		s.endpointCreator(259, identity.NumericIdentity(1259)),
+		s.endpointCreatorMultiNIC(260, identity.NumericIdentity(1260)),
 	}
 	epsMap := map[uint16]*Endpoint{
 		epsWanted[0].ID: epsWanted[0],
 		epsWanted[1].ID: epsWanted[1],
 		epsWanted[2].ID: epsWanted[2],
 		epsWanted[3].ID: epsWanted[3],
+		epsWanted[4].ID: epsWanted[4],
 	}
 	return epsWanted, epsMap
 }
@@ -75,6 +79,30 @@ func (s *EndpointSuite) endpointCreator(id uint16, secID identity.NumericIdentit
 	return ep
 }
 
+func (ds *EndpointSuite) endpointCreatorMultiNIC(id uint16, secID identity.NumericIdentity) *Endpoint {
+	ep := ds.endpointCreator(id, secID)
+
+	strID := getStrID(id)
+	ep.ifNameInPod = "eth" + strID
+	ep.netNs = "/proc/" + strID
+	ep.deviceType = multinicep.EndpointDeviceMACVTAP
+	ep.parentDevIndex = int(id)
+	ep.parentDevName = "ens" + strID
+	return ep
+}
+
+var (
+	regenerationMetadata = &regeneration.ExternalRegenerationMetadata{
+		Reason:            "test",
+		RegenerationLevel: regeneration.RegenerateWithoutDatapath,
+	}
+)
+
+/*
+	func (ds *EndpointSuite) TestReadEPsFromDirNames(c *C) {
+		// For this test, the real linux datapath is necessary to properly
+		// serialize config files to disk and test the restore.
+*/
 func TestReadEPsFromDirNames(t *testing.T) {
 	s := setupEndpointSuite(t)
 	oldDatapath := s.datapath

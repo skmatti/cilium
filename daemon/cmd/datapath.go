@@ -19,6 +19,7 @@ import (
 	datapath "github.com/cilium/cilium/pkg/datapath/types"
 	"github.com/cilium/cilium/pkg/defaults"
 	"github.com/cilium/cilium/pkg/endpointmanager"
+	"github.com/cilium/cilium/pkg/gke/features"
 	"github.com/cilium/cilium/pkg/logging/logfields"
 	"github.com/cilium/cilium/pkg/maps/ctmap"
 	"github.com/cilium/cilium/pkg/maps/encrypt"
@@ -28,6 +29,7 @@ import (
 	"github.com/cilium/cilium/pkg/maps/lbmap"
 	"github.com/cilium/cilium/pkg/maps/lxcmap"
 	"github.com/cilium/cilium/pkg/maps/metricsmap"
+	"github.com/cilium/cilium/pkg/maps/multinicdev"
 	"github.com/cilium/cilium/pkg/maps/nat"
 	"github.com/cilium/cilium/pkg/maps/neighborsmap"
 	"github.com/cilium/cilium/pkg/maps/policymap"
@@ -161,6 +163,12 @@ func (d *Daemon) initMaps() error {
 	if option.Config.TunnelingEnabled() {
 		if err := tunnel.TunnelMap().Recreate(); err != nil {
 			return fmt.Errorf("initializing tunnel map: %w", err)
+		}
+	}
+
+	if features.GlobalConfig.EnableGoogleMultiNIC {
+		if err := multinicdev.Map.OpenOrCreate(); err != nil {
+			return err
 		}
 	}
 

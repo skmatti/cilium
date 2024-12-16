@@ -46,5 +46,8 @@ func truncateString(epID string, maxLen uint) string {
 
 // DisableRpFilter tries to disable rpfilter on specified interface
 func DisableRpFilter(sysctl sysctl.Sysctl, ifName string) error {
+	// If there is "." in the ifName, must replace it with "/" so sysctl can handle it.
+	// nomalizedName := strings.ReplaceAll(ifName, ".", "/")
+	// return sysctl.Disable(fmt.Sprintf("net.ipv4.conf.%s.rp_filter", nomalizedName))
 	return sysctl.Disable([]string{"net", "ipv4", "conf", ifName, "rp_filter"})
 }

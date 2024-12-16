@@ -14,6 +14,7 @@ import (
 
 	agentK8s "github.com/cilium/cilium/daemon/k8s"
 	"github.com/cilium/cilium/pkg/endpointmanager"
+	multiniccep "github.com/cilium/cilium/pkg/gke/multinic/ciliumendpoint"
 	hubblemetrics "github.com/cilium/cilium/pkg/hubble/metrics"
 	"github.com/cilium/cilium/pkg/identity"
 	"github.com/cilium/cilium/pkg/ipcache"
@@ -230,7 +231,14 @@ func (k *K8sCiliumEndpointsWatcher) endpointUpdated(oldEndpoint, endpoint *types
 		Namespace:  endpoint.Namespace,
 		PodName:    endpoint.Name,
 		NamedPorts: make(ciliumTypes.NamedPortMap, len(endpoint.NamedPorts)),
+		IsMultiNIC: multiniccep.IsMultiNICCEP(endpoint),
 	}
+	podName, err := multiniccep.GetPodNameFromCEP(endpoint)
+	if err != nil {
+		log.WithError(err).Warning("cannot get pod name from CiliumEndpoint")
+		return
+	}
+	k8sMeta.PodName = podName
 	for _, port := range endpoint.NamedPorts {
 		p, err := u8proto.ParseProtocol(port.Protocol)
 		if err != nil {
@@ -264,18 +272,23 @@ func (k *K8sCiliumEndpointsWatcher) endpointUpdated(oldEndpoint, endpoint *types
 }
 
 func (k *K8sCiliumEndpointsWatcher) endpointDeleted(endpoint *types.CiliumEndpoint) {
+	podName, err := multiniccep.GetPodNameFromCEP(endpoint)
+	if err != nil {
+		log.WithError(err).Warning("cannot get pod name from CiliumEndpoint")
+		return
+	}
 	if endpoint.Networking != nil {
 		namedPortsChanged := false
 		for _, pair := range endpoint.Networking.Addressing {
 			if pair.IPV4 != "" {
-				portsChanged := k.ipcache.DeleteOnMetadataMatch(pair.IPV4, source.CustomResource, endpoint.Namespace, endpoint.Name)
+				portsChanged := k.ipcache.DeleteOnMetadataMatch(pair.IPV4, source.CustomResource, endpoint.Namespace, podName)
 				if portsChanged {
 					namedPortsChanged = true
 				}
 			}
 
 			if pair.IPV6 != "" {
-				portsChanged := k.ipcache.DeleteOnMetadataMatch(pair.IPV6, source.CustomResource, endpoint.Namespace, endpoint.Name)
+				portsChanged := k.ipcache.DeleteOnMetadataMatch(pair.IPV6, source.CustomResource, endpoint.Namespace, podName)
 				if portsChanged {
 					namedPortsChanged = true
 				}

@@ -17,6 +17,8 @@ import (
 
 	"github.com/cilium/cilium/api/v1/models"
 	"github.com/cilium/cilium/pkg/endpoint/regeneration"
+	"github.com/cilium/cilium/pkg/gke/features"
+	multinicep "github.com/cilium/cilium/pkg/gke/multinic/endpoint"
 	"github.com/cilium/cilium/pkg/identity/cache"
 	identitymodel "github.com/cilium/cilium/pkg/identity/model"
 	"github.com/cilium/cilium/pkg/labels"
@@ -81,6 +83,17 @@ func NewEndpointFromChangeModel(ctx context.Context, owner regeneration.Owner, p
 	ep.K8sNamespace = base.K8sNamespace
 	ep.K8sUID = base.K8sUID
 	ep.disableLegacyIdentifiers = base.DisableLegacyIdentifiers
+	ep.datapathMapID = int(base.DatapathMapID)
+	ep.deviceType = multinicep.EndpointDeviceType(base.DeviceType)
+
+	if features.GlobalConfig.EnableGoogleMultiNIC && base.DeviceType != multinicep.EndpointDeviceVETH {
+		ep.parentDevIndex = int(base.ParentDeviceIndex)
+		ep.parentDevName = base.ParentDeviceName
+		ep.netNs = base.NetworkNamespace
+		ep.ifNameInPod = base.InterfaceNameInPod
+		ep.podStackRedirectIfindex = int(base.PodStackRedirectIfindex)
+		ep.externalDHCP4 = base.ExternalDHCP4
+	}
 
 	if base.Mac != "" {
 		m, err := mac.ParseMAC(base.Mac)

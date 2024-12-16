@@ -20,16 +20,18 @@ var (
 )
 
 type TestEndpoint struct {
-	Id          uint64
-	Identity    *identity.Identity
-	Opts        *option.IntOptions
-	MAC         mac.MAC
-	LXCMAC      mac.MAC
-	IfIndex     int
-	IPv6        netip.Addr
-	isHost      bool
-	State       string
-	NetNsCookie uint64
+	Id                      uint64
+	Identity                *identity.Identity
+	Opts                    *option.IntOptions
+	MAC                     mac.MAC
+	LXCMAC                  mac.MAC
+	IfIndex                 int
+	IPv6                    netip.Addr
+	isHost                  bool
+	State                   string
+	NetNsCookie             uint64
+	PodRedirectStackIfindex int
+	MultiNic                bool
 }
 
 func NewTestEndpoint() TestEndpoint {
@@ -76,8 +78,10 @@ func (e *TestEndpoint) GetSecurityIdentity() *identity.Identity     { return e.I
 func (e *TestEndpoint) GetNodeMAC() mac.MAC                         { return e.MAC }
 func (e *TestEndpoint) LXCMac() mac.MAC                             { return e.LXCMAC }
 func (e *TestEndpoint) GetIfIndex() int                             { return e.IfIndex }
+func (e *TestEndpoint) GetPodStackRedirectIfindex() int             { return e.PodRedirectStackIfindex }
 func (e *TestEndpoint) GetOptions() *option.IntOptions              { return e.Opts }
 func (e *TestEndpoint) IsHost() bool                                { return e.isHost }
+func (e *TestEndpoint) IsMultiNIC() bool                            { return e.MultiNic }
 
 func (e *TestEndpoint) IPv4Address() netip.Addr {
 	return netip.MustParseAddr("192.0.2.3")
@@ -103,4 +107,8 @@ func (e *TestEndpoint) StateDir() string {
 		return e.State
 	}
 	return "test_loader"
+}
+
+func (e *TestEndpoint) MapPath() string {
+	return "map_path"
 }

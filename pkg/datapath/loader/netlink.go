@@ -26,6 +26,15 @@ import (
 
 const qdiscClsact = "clsact"
 
+type baseDeviceMode string
+
+const (
+	directMode = baseDeviceMode("direct")
+	tunnelMode = baseDeviceMode("tunnel")
+
+	libbpfFixupMsg = "struct bpf_elf_map fixup performed due to size mismatch!"
+)
+
 func directionToParent(dir string) uint32 {
 	switch dir {
 	case dirIngress:

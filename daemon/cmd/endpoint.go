@@ -27,6 +27,7 @@ import (
 	endpointid "github.com/cilium/cilium/pkg/endpoint/id"
 	"github.com/cilium/cilium/pkg/endpoint/regeneration"
 	"github.com/cilium/cilium/pkg/fqdn/restore"
+	"github.com/cilium/cilium/pkg/gke/features"
 	"github.com/cilium/cilium/pkg/ipam"
 	"github.com/cilium/cilium/pkg/k8s"
 	"github.com/cilium/cilium/pkg/k8s/client"
@@ -42,6 +43,8 @@ import (
 	"github.com/cilium/cilium/pkg/proxy"
 	"github.com/cilium/cilium/pkg/resiliency"
 	"github.com/cilium/cilium/pkg/time"
+
+	networkv1alpha1 "gke-internal.googlesource.com/anthos-networking/apis/network/v1alpha1"
 )
 
 var errEndpointNotFound = errors.New("endpoint not found")
@@ -266,6 +269,9 @@ func (m *endpointCreationManager) NewCreateRequest(ep *endpoint.Endpoint, cancel
 	}
 
 	cepName := ep.GetK8sNamespaceAndCEPName()
+	if ep.IsMultiNIC() {
+		cepName = fmt.Sprintf("%s-%s", cepName, ep.GetInterfaceNameInPod())
+	}
 
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
@@ -289,6 +295,9 @@ func (m *endpointCreationManager) EndCreateRequest(ep *endpoint.Endpoint) bool {
 	}
 
 	cepName := ep.GetK8sNamespaceAndCEPName()
+	if ep.IsMultiNIC() {
+		cepName = fmt.Sprintf("%s-%s", cepName, ep.GetInterfaceNameInPod())
+	}
 
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
@@ -621,6 +630,7 @@ func putEndpointIDHandler(d *Daemon, params PutEndpointIDParams) (resp middlewar
 		log.WithField(logfields.Params, logfields.Repr(params)).Debug("PUT /endpoint/{id} request")
 	}
 	epTemplate := params.Endpoint
+	addNetworkLabelIfMultiNICEnabled(epTemplate, networkv1alpha1.DefaultNetworkName)
 
 	r, err := d.apiLimiterSet.Wait(params.HTTPRequest.Context(), restapi.APIRequestEndpointCreate)
 	if err != nil {
@@ -635,7 +645,16 @@ func putEndpointIDHandler(d *Daemon, params PutEndpointIDParams) (resp middlewar
 	}
 
 	ep.Logger(daemonSubsys).Info("Successful endpoint creation")
-
+	if features.GlobalConfig.EnableGoogleMultiNIC {
+		eps, code, err := d.createMultiNICEndpoints(params.HTTPRequest.Context(), d, epTemplate, ep)
+		if err != nil {
+			r.Error(err, code)
+			return api.Error(code, err)
+		}
+		for _, e := range eps {
+			e.Logger(daemonSubsys).Info("Successful multinic endpoint creation")
+		}
+	}
 	return NewPutEndpointIDCreated().WithPayload(ep.GetModel())
 }
 
@@ -745,7 +764,14 @@ func (d *Daemon) deleteEndpointRelease(ep *endpoint.Endpoint, noIPRelease bool) 
 	d.endpointCreations.CancelCreateRequest(ep)
 
 	scopedLog := log.WithField(logfields.EndpointID, ep.ID)
+
+	noIPRelease = ep.DatapathConfiguration.ExternalIpam
+	if ep.IsMultiNIC() {
+		noIPRelease = true
+	}
+
 	errs := d.deleteEndpointQuiet(ep, endpoint.DeleteConfig{
+		// If the IP is managed by an external IPAM, it does not need to be released
 		NoIPRelease: noIPRelease,
 	})
 	for _, err := range errs {
@@ -767,6 +793,9 @@ func (d *Daemon) deleteEndpoint(ep *endpoint.Endpoint) int {
 // Specific users such as the cilium-health EP may choose not to release the IP
 // when deleting the endpoint. Most users should pass true for releaseIP.
 func (d *Daemon) deleteEndpointQuiet(ep *endpoint.Endpoint, conf endpoint.DeleteConfig) []error {
+	if ep.IsMultiNIC() {
+		return d.deleteMultiNICEndpointQuiet(ep, conf)
+	}
 	return d.endpointManager.RemoveEndpoint(ep, conf)
 }
 
@@ -880,7 +909,13 @@ func deleteEndpointIDHandler(d *Daemon, params DeleteEndpointIDParams) middlewar
 	}
 	defer r.Done()
 
-	if nerr, err := d.DeleteEndpoint(params.ID); err != nil {
+	var nerr int
+	if features.GlobalConfig.EnableGoogleMultiNIC {
+		nerr, err = d.DeleteEndpoints(params.ID)
+	} else {
+		nerr, err = d.DeleteEndpoint(params.ID)
+	}
+	if err != nil {
 		apierr := &api.APIError{}
 		if errors.As(err, &apierr) {
 			r.Error(err, apierr.GetCode())

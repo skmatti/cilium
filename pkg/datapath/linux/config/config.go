@@ -33,6 +33,7 @@ import (
 	"github.com/cilium/cilium/pkg/datapath/tables"
 	datapath "github.com/cilium/cilium/pkg/datapath/types"
 	"github.com/cilium/cilium/pkg/defaults"
+	"github.com/cilium/cilium/pkg/gke/features"
 	"github.com/cilium/cilium/pkg/gke/imds"
 	"github.com/cilium/cilium/pkg/identity"
 	"github.com/cilium/cilium/pkg/labels"
@@ -51,6 +52,7 @@ import (
 	"github.com/cilium/cilium/pkg/maps/lbmap"
 	"github.com/cilium/cilium/pkg/maps/lxcmap"
 	"github.com/cilium/cilium/pkg/maps/metricsmap"
+	"github.com/cilium/cilium/pkg/maps/multinicdev"
 	"github.com/cilium/cilium/pkg/maps/nat"
 	"github.com/cilium/cilium/pkg/maps/neighborsmap"
 	"github.com/cilium/cilium/pkg/maps/nodemap"
@@ -726,6 +728,12 @@ func (h *HeaderfileWriter) WriteNodeConfig(w io.Writer, cfg *datapath.LocalNodeC
 		cDefinesMap["ENABLE_ICMP_RULE"] = "1"
 	}
 
+	if features.GlobalConfig.EnableGoogleMultiNIC {
+		cDefinesMap["ENABLE_GOOGLE_MULTI_NIC"] = "1"
+		cDefinesMap["MULTI_NIC_DEV_MAP"] = multinicdev.MapName
+		cDefinesMap["MULTI_NIC_DEV_MAP_SIZE"] = fmt.Sprintf("%d", multinicdev.MaxEntries)
+	}
+
 	cDefinesMap["CIDR_IDENTITY_RANGE_START"] = fmt.Sprintf("%d", identity.MinLocalIdentity)
 	cDefinesMap["CIDR_IDENTITY_RANGE_END"] = fmt.Sprintf("%d", identity.MaxLocalIdentity)
 
@@ -1072,6 +1080,8 @@ func (h *HeaderfileWriter) WriteEndpointConfig(w io.Writer, cfg *datapath.LocalN
 }
 
 func (h *HeaderfileWriter) writeTemplateConfig(fw *bufio.Writer, devices []string, hostEndpointID uint64, e datapath.EndpointConfiguration) error {
+	h.writeMultinicEndpointConfig(fw, e)
+
 	if e.RequireEgressProg() {
 		fmt.Fprintf(fw, "#define USE_BPF_PROG_FOR_INGRESS_POLICY 1\n")
 	}

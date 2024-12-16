@@ -2811,7 +2811,7 @@ func init() {
       }
     },
     "EndpointChangeRequest": {
-      "description": "Structure which contains the mutable elements of an Endpoint.\n",
+      "description": "Structure which contains the mutable elements of an Endpoint.\n+k8s:deepcopy-gen=true\n",
       "type": "object",
       "required": [
         "state"
@@ -2839,6 +2839,10 @@ func init() {
           "description": "ID of datapath tail call map",
           "type": "integer"
         },
+        "device-type": {
+          "description": "Type of the device. Empty string for veth.",
+          "type": "string"
+        },
         "disable-legacy-identifiers": {
           "description": "Disables lookup using legacy endpoint identifiers (container name, container id, pod name) for this endpoint",
           "type": "boolean"
@@ -2850,6 +2854,10 @@ func init() {
         "docker-network-id": {
           "description": "Docker network ID",
           "type": "string"
+        },
+        "externalDHCP4": {
+          "description": "Whether the IPAM is static or allocation by the external DHCP server",
+          "type": "boolean"
         },
         "host-mac": {
           "description": "MAC address",
@@ -2865,6 +2873,10 @@ func init() {
         },
         "interface-name": {
           "description": "Name of network device in host netns",
+          "type": "string"
+        },
+        "interface-name-in-pod": {
+          "description": "Name of the interface inside the pod namespace",
           "type": "string"
         },
         "k8s-namespace": {
@@ -2891,8 +2903,24 @@ func init() {
           "description": "Network namespace cookie",
           "type": "string"
         },
+        "network-namespace": {
+          "description": "Linux network namespace of the container",
+          "type": "string"
+        },
+        "parent-device-index": {
+          "description": "Index of the parent interface for a macvtap/macvlan endpoint",
+          "type": "integer"
+        },
+        "parent-device-name": {
+          "description": "Name of the parent interface for a macvtap/macvlan endpoint",
+          "type": "string"
+        },
         "pid": {
           "description": "Process ID of the workload belonging to this endpoint",
+          "type": "integer"
+        },
+        "pod-stack-redirect-ifindex": {
+          "description": "Interface index of the pod-network interface inside the pod-ns",
           "type": "integer"
         },
         "policy-enabled": {
@@ -2948,7 +2976,7 @@ func init() {
       }
     },
     "EndpointDatapathConfiguration": {
-      "description": "Datapath configuration to be used for the endpoint",
+      "description": "Datapath configuration to be used for the endpoint\n+k8s:deepcopy-gen=true",
       "type": "object",
       "properties": {
         "disable-sip-verification": {
@@ -8568,7 +8596,7 @@ func init() {
       }
     },
     "EndpointChangeRequest": {
-      "description": "Structure which contains the mutable elements of an Endpoint.\n",
+      "description": "Structure which contains the mutable elements of an Endpoint.\n+k8s:deepcopy-gen=true\n",
       "type": "object",
       "required": [
         "state"
@@ -8596,6 +8624,10 @@ func init() {
           "description": "ID of datapath tail call map",
           "type": "integer"
         },
+        "device-type": {
+          "description": "Type of the device. Empty string for veth.",
+          "type": "string"
+        },
         "disable-legacy-identifiers": {
           "description": "Disables lookup using legacy endpoint identifiers (container name, container id, pod name) for this endpoint",
           "type": "boolean"
@@ -8607,6 +8639,10 @@ func init() {
         "docker-network-id": {
           "description": "Docker network ID",
           "type": "string"
+        },
+        "externalDHCP4": {
+          "description": "Whether the IPAM is static or allocation by the external DHCP server",
+          "type": "boolean"
         },
         "host-mac": {
           "description": "MAC address",
@@ -8622,6 +8658,10 @@ func init() {
         },
         "interface-name": {
           "description": "Name of network device in host netns",
+          "type": "string"
+        },
+        "interface-name-in-pod": {
+          "description": "Name of the interface inside the pod namespace",
           "type": "string"
         },
         "k8s-namespace": {
@@ -8648,8 +8688,24 @@ func init() {
           "description": "Network namespace cookie",
           "type": "string"
         },
+        "network-namespace": {
+          "description": "Linux network namespace of the container",
+          "type": "string"
+        },
+        "parent-device-index": {
+          "description": "Index of the parent interface for a macvtap/macvlan endpoint",
+          "type": "integer"
+        },
+        "parent-device-name": {
+          "description": "Name of the parent interface for a macvtap/macvlan endpoint",
+          "type": "string"
+        },
         "pid": {
           "description": "Process ID of the workload belonging to this endpoint",
+          "type": "integer"
+        },
+        "pod-stack-redirect-ifindex": {
+          "description": "Interface index of the pod-network interface inside the pod-ns",
           "type": "integer"
         },
         "policy-enabled": {
@@ -8705,7 +8761,7 @@ func init() {
       }
     },
     "EndpointDatapathConfiguration": {
-      "description": "Datapath configuration to be used for the endpoint",
+      "description": "Datapath configuration to be used for the endpoint\n+k8s:deepcopy-gen=true",
       "type": "object",
       "properties": {
         "disable-sip-verification": {

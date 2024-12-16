@@ -65,6 +65,7 @@ type endpointManager interface {
 	GetEndpoints() []*endpoint.Endpoint
 	GetHostEndpoint() *endpoint.Endpoint
 	GetEndpointsByPodName(string) []*endpoint.Endpoint
+	LookupPrimaryEndpointByPodName(string) *endpoint.Endpoint
 	WaitForEndpointsAtPolicyRev(ctx context.Context, rev uint64) error
 	UpdatePolicyMaps(context.Context, *sync.WaitGroup) *sync.WaitGroup
 }

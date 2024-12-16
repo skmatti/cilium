@@ -9,6 +9,7 @@ import (
 	"io"
 	"net"
 	"net/netip"
+	"path"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -477,6 +478,16 @@ func (l *loader) reloadDatapath(ep datapath.Endpoint, spec *ebpf.CollectionSpec)
 		if err := l.reloadHostDatapath(ep, spec, devices); err != nil {
 			return err
 		}
+	} else if ep.IsMultiNIC() {
+		dirs := directoryInfo{
+			Library: option.Config.BpfDir,
+			Runtime: option.Config.StateDir,
+			State:   ep.StateDir(),
+			Output:  ep.StateDir(),
+		}
+		objPath := path.Join(dirs.Output, endpointObj)
+		ctx := context.Background()
+		return setupMultiNICDataPath(ctx, ep, objPath)
 	} else {
 		coll, commit, err := loadDatapath(spec, ELFMapSubstitutions(ep), ELFVariableSubstitutions(ep))
 		if err != nil {

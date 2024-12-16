@@ -123,6 +123,7 @@ type EndpointsModify interface {
 }
 
 type EndpointManager interface {
+	GoogleEndpointManager
 	EndpointsLookup
 	EndpointsModify
 	EndpointResourceSynchronizer

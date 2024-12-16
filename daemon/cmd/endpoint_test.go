@@ -31,6 +31,7 @@ func getEPTemplate(t *testing.T, d *Daemon) *models.EndpointChangeRequest {
 
 	return &models.EndpointChangeRequest{
 		ContainerName: "foo",
+		ContainerID:   "container-id",
 		State:         models.EndpointStateWaitingDashForDashIdentity.Pointer(),
 		Addressing: &models.AddressPair{
 			IPV6: ip6.IP.String(),

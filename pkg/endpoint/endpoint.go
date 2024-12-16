@@ -37,6 +37,7 @@ import (
 	"github.com/cilium/cilium/pkg/eventqueue"
 	"github.com/cilium/cilium/pkg/fqdn"
 	"github.com/cilium/cilium/pkg/fqdn/restore"
+	multinicep "github.com/cilium/cilium/pkg/gke/multinic/endpoint"
 	"github.com/cilium/cilium/pkg/identity"
 	"github.com/cilium/cilium/pkg/identity/cache"
 	ippkg "github.com/cilium/cilium/pkg/ip"
@@ -49,6 +50,8 @@ import (
 	"github.com/cilium/cilium/pkg/logging/logfields"
 	"github.com/cilium/cilium/pkg/mac"
 	"github.com/cilium/cilium/pkg/maps/ctmap"
+	"github.com/cilium/cilium/pkg/maps/lxcmap"
+	"github.com/cilium/cilium/pkg/maps/multinicdev"
 	"github.com/cilium/cilium/pkg/maps/policymap"
 	"github.com/cilium/cilium/pkg/metrics"
 	"github.com/cilium/cilium/pkg/monitor/notifications"
@@ -186,6 +189,9 @@ type Endpoint struct {
 	// libnetwork.
 	// immutable.
 	dockerEndpointID string
+
+	// Corresponding BPF map identifier for tail call map of macvlan/macvtap datapath
+	datapathMapID int
 
 	// ifName is the name of the host facing interface (veth pair) which
 	// connects into the endpoint
@@ -428,6 +434,29 @@ type Endpoint struct {
 
 	// NetNsCookie is the network namespace cookie of the Endpoint.
 	NetNsCookie uint64
+	// ifNameInPod is the name of the interface inside the pod namespace which connects from endpoint to host
+	ifNameInPod string
+
+	// netNs is the Linux network namespace of the container.
+	netNs string
+
+	// Device type of the endpoint. If it's unset (empty), it's the normal veth endpoint.
+	deviceType multinicep.EndpointDeviceType
+
+	// parentDevName is the name of the parent interface for a macvtap/macvlan endpoint.
+	parentDevName string
+
+	// parentDevIndex is the index of the parent interface for a macvtap/macvlan endpoint.
+	parentDevIndex int
+
+	// pod stack redirect can be used to send traffic to the pod-ns
+	// kernel stack. The primary use is to redirect traffic from a
+	// macvtap interface into the pod networking stack for dhcp traffic
+	podStackRedirectIfindex int
+
+	// externalDHCP4 indicates whether the IPAM is static or
+	// allocation by the external DHCP server
+	externalDHCP4 bool
 }
 
 func (e *Endpoint) GetRealizedRedirects() (redirects map[string]uint16) {
@@ -710,6 +739,9 @@ func (e *Endpoint) GetID16() uint16 {
 // In some datapath modes, it may return an empty string as there is no unique
 // host netns network interface for this endpoint.
 func (e *Endpoint) HostInterface() string {
+	if e.IsMultiNIC() {
+		return ""
+	}
 	return e.ifName
 }
 
@@ -1355,6 +1387,12 @@ func (e *Endpoint) GetCEPOwner() CEPOwnerInterface {
 	return e.GetPod()
 }
 
+// GetInterfaceName returns the interface name inside the host namespace.
+// For ipvlan/macvlan/macvtap endpoint, it's the interface name before namespace moving and renaming.
+func (e *Endpoint) GetInterfaceName() string {
+	return e.ifName
+}
+
 // SetK8sMetadata sets the k8s container ports specified by kubernetes.
 // Note that once put in place, the new k8sPorts is never changed,
 // so that the map can be used concurrently without keeping locks.
@@ -1797,6 +1835,12 @@ func (e *Endpoint) metadataResolver(ctx context.Context,
 			}
 		}
 		return false, err
+	}
+
+	if e.IsMultiNIC() {
+		// Make sure multinic labels are not lost during label resolving.
+		k8sMetadata.IdentityLabels.MergeMultiNICLabels(e.OpLabels.IdentityLabels())
+		e.Logger(resolveLabels).WithField(logfields.IdentityLabels, k8sMetadata.IdentityLabels.String()).Debug("Merged with multinic labels")
 	}
 
 	// Merge the labels retrieved from the 'resolveMetadata' into the base
@@ -2523,6 +2567,21 @@ func (e *Endpoint) Delete(conf DeleteConfig) []error {
 		return []error{}
 	}
 	e.setState(StateDisconnecting, "Deleting endpoint")
+
+	// If dry mode is enabled, no changes to BPF maps are performed
+	if !option.Config.DryMode {
+		if errs2 := lxcmap.DeleteElement(e); errs2 != nil {
+			errs = append(errs, errs2...)
+		}
+
+		if err := multinicdev.DeleteEndpointFromMap(e); err != nil {
+			errs = append(errs, err)
+		}
+
+		if errs2 := e.deleteMaps(); errs2 != nil {
+			errs = append(errs, errs2...)
+		}
+	}
 
 	if option.Config.IPAM == ipamOption.IPAMENI || option.Config.IPAM == ipamOption.IPAMAzure || option.Config.IPAM == ipamOption.IPAMAlibabaCloud {
 		e.getLogger().WithFields(logrus.Fields{

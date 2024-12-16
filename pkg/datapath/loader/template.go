@@ -254,6 +254,7 @@ func ELFVariableSubstitutions(ep datapath.Endpoint) map[string]uint64 {
 	lxcMAC := ep.LXCMac()
 	result["LXC_MAC_1"] = uint64(sliceToBe32(lxcMAC[0:4]))
 	result["LXC_MAC_2"] = uint64(sliceToBe16(lxcMAC[4:6]))
+	multiNicElfVariableSubstitutions(ep, result)
 
 	if ep.IsHost() {
 		result["NATIVE_DEV_IFINDEX"] = 0

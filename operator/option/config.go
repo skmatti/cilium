@@ -386,6 +386,9 @@ type OperatorConfig struct {
 	// the number of API calls to AlibabaCloud ECS service.
 	AlibabaCloudReleaseExcessIPs bool
 
+	// EnableGoogleMultiNIC is a feature flag for google multi NIC support, default is false.
+	EnableGoogleMultiNIC bool
+
 	// EnableGatewayAPI enables support of Gateway API
 	EnableGatewayAPI bool
 
@@ -442,6 +445,7 @@ func (c *OperatorConfig) Populate(vp *viper.Viper) {
 	c.SetCiliumNodeTaints = vp.GetBool(SetCiliumNodeTaints)
 	c.SetCiliumIsUpCondition = vp.GetBool(SetCiliumIsUpCondition)
 	c.PodRestartSelector = vp.GetString(PodRestartSelector)
+	c.EnableGoogleMultiNIC = vp.GetBool(EnableGoogleMultiNIC)
 
 	c.CiliumK8sNamespace = vp.GetString(CiliumK8sNamespace)
 

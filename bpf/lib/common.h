@@ -328,6 +328,7 @@ struct tunnel_value {
 #define ENDPOINT_F_HOST			1 /* Special endpoint representing local host */
 #define ENDPOINT_F_ATHOSTNS		2 /* Endpoint located at the host networking namespace */
 #define ENDPOINT_MASK_HOST_DELIVERY	(ENDPOINT_F_HOST | ENDPOINT_F_ATHOSTNS)
+#define ENDPOINT_F_MULTI_NIC 4 /* Special endpoint representing multi nic */
 
 /* Value of endpoint map */
 struct endpoint_info {
@@ -688,6 +689,13 @@ enum {
 #define REASON_FRAG_PACKET_UPDATE	10
 #define REASON_MISSED_CUSTOM_CALL	11
 
+/* Metrics used by google specific code.The range for the metrics
+ * is between the REASON codes and the drop codes to avoid
+ * conflicts with cilium OSS code
+ */
+#define REASON_GOOGLE_DHCP_REQ_REDIRECT    	100
+#define REASON_GOOGLE_DHCP_RESP_REDIRECT    	101
+
 /* Lookup scope for externalTrafficPolicy=Local */
 #define LB_LOOKUP_SCOPE_EXT	0
 #define LB_LOOKUP_SCOPE_INT	1
@@ -813,6 +821,16 @@ static __always_inline __u32 or_encrypt_key(__u8 key)
 #define TC_INDEX_F_SKIP_HOST_FIREWALL	16
 
 #define CB_NAT_FLAGS_REVDNAT_ONLY	(1 << 0)
+
+/*
+ * Used to mark google self-generated dhcp packets and construct
+ * the program to skip policy enforcement.
+ * tc_index is u32 and set the value to 4096 to
+ * avoid conflicting with cilium OSS code.
+*/
+#define TC_INDEX_F_SKIP_POLICY_GOOGLE_DHCP	4096
+/* Used to mark google multinic local redirect packets */
+#define TC_INDEX_F_GOOGLE_LOCAL_REDIRECT	8192
 
 /*
  * For use in ctx_{load,store}_meta(), which operates on sk_buff->cb or

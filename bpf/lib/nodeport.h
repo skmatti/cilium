@@ -23,6 +23,7 @@
 #include "ghash.h"
 #include "pcap.h"
 #include "host_firewall.h"
+#include "google_multinic.h"
 #include "stubs.h"
 #include "proxy_hairpin.h"
 #include "fib.h"
@@ -3321,6 +3322,9 @@ int tail_handle_nat_fwd_ipv4(struct __ctx_buff *ctx)
 				  TRACE_EP_ID_UNKNOWN, NATIVE_DEV_IFINDEX,
 				  trace.reason, trace.monitor);
 
+#if defined(ENABLE_GOOGLE_MULTI_NIC) && defined(IS_BPF_HOST)
+	return multinic_redirect_ipv4(ctx);
+#endif
 	return ret;
 }
 

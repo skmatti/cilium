@@ -47,6 +47,9 @@ import (
 	"github.com/cilium/cilium/pkg/endpointmanager"
 	"github.com/cilium/cilium/pkg/envoy"
 	"github.com/cilium/cilium/pkg/fqdn"
+	"github.com/cilium/cilium/pkg/gke/features"
+	"github.com/cilium/cilium/pkg/gke/multinic"
+	dhcp "github.com/cilium/cilium/pkg/gke/multinic/dhcp"
 	"github.com/cilium/cilium/pkg/hubble/observer"
 	"github.com/cilium/cilium/pkg/identity"
 	identitycell "github.com/cilium/cilium/pkg/identity/cache/cell"
@@ -168,6 +171,16 @@ type Daemon struct {
 	cgroupManager manager.CGroupManager
 
 	apiLimiterSet *rate.APILimiterSet
+
+	// client used to query and update Network and NetworkInterface resources
+	// when multinic is enabled
+	multinicClient multinic.K8sClient
+
+	// dhcpClient is used to allocate and release IPs from external DHCP server
+	dhcpClient dhcp.DHCPClient
+
+	// kubeletClient is used to query resource information for a given pod
+	kubeletClient *multinic.KubeletClient
 
 	// CIDRs for which identities were restored during bootstrap
 	restoredCIDRs map[netip.Prefix]identity.NumericIdentity
@@ -719,6 +732,17 @@ func newDaemon(ctx context.Context, cleaner *daemonCleanup, params *daemonParams
 		bootstrapStats.k8sInit.End(true)
 	} else {
 		close(params.CacheStatus)
+	}
+
+	// Initialize and wait for multinic client cache to sync
+	if features.GlobalConfig.EnableGoogleMultiNIC {
+		if !params.Clientset.IsEnabled() {
+			log.Fatal("K8s needs to be enabled for multi nic support")
+		}
+		d.multinicClient, d.kubeletClient, d.dhcpClient, err = multinic.Init(d.ctx, d.endpointManager, params.Clientset.RestConfig(), d.devices, d.db)
+		if err != nil {
+			log.WithError(err).Fatal("Unable to init multinic")
+		}
 	}
 
 	bootstrapStats.cleanup.Start()

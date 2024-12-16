@@ -9,6 +9,10 @@ import (
 const (
 	// Define constants here. Do not delete this entry and comment.
 	_ = 0
+	// EnableLoadBalancerIPAM enables the LoadBalancer IPAM feature, and exposes the CiliumLoadBalancerIPPool CRD
+	EnableLoadBalancerIPAM = "enable-lbipam"
+	// EnableCiliumNodeConfig enables the CiliumNodeConfig CRD
+	EnableCiliumNodeConfig = "enable-cnc"
 )
 
 var (
