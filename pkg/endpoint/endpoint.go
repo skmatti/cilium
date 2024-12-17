@@ -443,11 +443,14 @@ type Endpoint struct {
 	// Device type of the endpoint. If it's unset (empty), it's the normal veth endpoint.
 	deviceType multinicep.EndpointDeviceType
 
-	// parentDevName is the name of the parent interface for a macvtap/macvlan endpoint.
+	// parentDevName is the name of the parent interface for a multinic L2/L3 endpoint.
 	parentDevName string
 
-	// parentDevIndex is the index of the parent interface for a macvtap/macvlan endpoint.
+	// parentDevIndex is the index of the parent interface for a multinic (L2/L3) endpoint.
 	parentDevIndex int
+
+	// parentDevMac is the MAC address of the parent interface for a multinic L3 (veth) endpoint.
+	parentDevMac mac.MAC
 
 	// pod stack redirect can be used to send traffic to the pod-ns
 	// kernel stack. The primary use is to redirect traffic from a
@@ -739,7 +742,7 @@ func (e *Endpoint) GetID16() uint16 {
 // In some datapath modes, it may return an empty string as there is no unique
 // host netns network interface for this endpoint.
 func (e *Endpoint) HostInterface() string {
-	if e.IsMultiNIC() {
+	if e.deviceType != multinicep.EndpointDeviceMultinicVETH && e.deviceType != multinicep.EndpointDeviceVETH {
 		return ""
 	}
 	return e.ifName
@@ -1837,11 +1840,9 @@ func (e *Endpoint) metadataResolver(ctx context.Context,
 		return false, err
 	}
 
-	if e.IsMultiNIC() {
-		// Make sure multinic labels are not lost during label resolving.
-		k8sMetadata.IdentityLabels.MergeMultiNICLabels(e.OpLabels.IdentityLabels())
-		e.Logger(resolveLabels).WithField(logfields.IdentityLabels, k8sMetadata.IdentityLabels.String()).Debug("Merged with multinic labels")
-	}
+	// Make sure multinic labels are not lost during label resolving.
+	k8sMetadata.IdentityLabels.MergeMultiNICLabels(e.OpLabels.IdentityLabels())
+	e.Logger(resolveLabels).WithField(logfields.IdentityLabels, k8sMetadata.IdentityLabels.String()).Debug("Merged with multinic labels")
 
 	// Merge the labels retrieved from the 'resolveMetadata' into the base
 	// labels.

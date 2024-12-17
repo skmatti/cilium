@@ -30,6 +30,7 @@ import (
 	"github.com/cilium/cilium/pkg/datapath/tables"
 	datapath "github.com/cilium/cilium/pkg/datapath/types"
 	"github.com/cilium/cilium/pkg/defaults"
+	multinicep "github.com/cilium/cilium/pkg/gke/multinic/endpoint"
 	iputil "github.com/cilium/cilium/pkg/ip"
 	"github.com/cilium/cilium/pkg/lock"
 	"github.com/cilium/cilium/pkg/logging"
@@ -478,7 +479,7 @@ func (l *loader) reloadDatapath(ep datapath.Endpoint, spec *ebpf.CollectionSpec)
 		if err := l.reloadHostDatapath(ep, spec, devices); err != nil {
 			return err
 		}
-	} else if ep.IsMultiNIC() {
+	} else if ep.GetDeviceTypeIndex() == multinicep.EndpointDeviceIndexMACVLAN || ep.GetDeviceTypeIndex() == multinicep.EndpointDeviceIndexMACVTAP {
 		dirs := directoryInfo{
 			Library: option.Config.BpfDir,
 			Runtime: option.Config.StateDir,

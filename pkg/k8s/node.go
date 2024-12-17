@@ -145,6 +145,7 @@ func ParseNode(k8sNode *slim_corev1.Node, source source.Source) *nodeTypes.Node 
 		}
 	}
 
+	node.SetAnnotations(k8sNode.GetAnnotations()) // google: Read and cache node annotations during bringup
 	if !option.Config.AnnotateK8sNode {
 		return newNode
 	}
@@ -247,6 +248,5 @@ func ParseNode(k8sNode *slim_corev1.Node, source source.Source) *nodeTypes.Node 
 	}
 
 	newNode.Labels = k8sNode.GetLabels()
-	node.SetAnnotations(k8sNode.Annotations)
 	return newNode
 }

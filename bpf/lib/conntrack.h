@@ -793,19 +793,19 @@ ct_extract_ports4(struct __ctx_buff *ctx, struct iphdr *ip4, int off,
 
 		break;
 
-#if defined(IS_MULTI_NIC_DEVICE) && defined(ENABLE_MULTICAST)
+#if defined(MULTI_NIC_DEVICE_TYPE) && defined(ENABLE_MULTICAST)
     case IPPROTO_IGMP:
 		tuple->sport = 0;
 		tuple->dport = 0;
 		return ACTION_CREATE;
-#endif /* IS_MULTI_NIC_DEVICE || ENABLE_MULTICAST */
+#endif /* MULTI_NIC_DEVICE_TYPE || ENABLE_MULTICAST */
 
-#if defined(ENABLE_HOST_FIREWALL) || defined(IS_MULTI_NIC_DEVICE)
+#if defined(ENABLE_HOST_FIREWALL) || defined(MULTI_NIC_DEVICE_TYPE)
 	case IPPROTO_VRRP:
 		tuple->dport = 0;
 		tuple->sport = 0;
 		return ACTION_CREATE;
-#endif /* ENABLE_HOST_FIREWALL || IS_MULTI_NIC_DEVICE */
+#endif /* ENABLE_HOST_FIREWALL || MULTI_NIC_DEVICE_TYPE */
 
 	default:
 		/* Can't handle extension headers yet */

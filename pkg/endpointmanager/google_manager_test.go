@@ -401,9 +401,10 @@ func (s *EndpointManagerSuite) TestLookupPrimaryEndpointByContainerID(t *testing
 			name: "existing container ID two endpoints",
 			cm: []apiv1.EndpointChangeRequest{
 				{
-					ContainerID: "foo",
-					ID:          1,
-					DeviceType:  multinicep.EndpointDeviceMACVLAN,
+					ContainerID:     "foo",
+					ID:              1,
+					DeviceType:      multinicep.EndpointDeviceMACVLAN,
+					ParentDeviceMac: "00:00:5e:00:53:01",
 				},
 				{
 					ContainerID: "foo",

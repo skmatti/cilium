@@ -2911,6 +2911,10 @@ func init() {
           "description": "Index of the parent interface for a macvtap/macvlan endpoint",
           "type": "integer"
         },
+        "parent-device-mac": {
+          "description": "MAC address of the parent interface for a multinic veth endpoint.",
+          "type": "string"
+        },
         "parent-device-name": {
           "description": "Name of the parent interface for a macvtap/macvlan endpoint",
           "type": "string"
@@ -8699,6 +8703,10 @@ func init() {
         "parent-device-index": {
           "description": "Index of the parent interface for a macvtap/macvlan endpoint",
           "type": "integer"
+        },
+        "parent-device-mac": {
+          "description": "MAC address of the parent interface for a multinic veth endpoint.",
+          "type": "string"
         },
         "parent-device-name": {
           "description": "Name of the parent interface for a macvtap/macvlan endpoint",

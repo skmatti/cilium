@@ -52,6 +52,9 @@ type LoadTimeConfiguration interface {
 	GetEndpointNetNsCookie() uint64
 	LXCMac() mac.MAC
 	GetPodStackRedirectIfindex() int
+	GetParentDevIndex() int
+	GetNetworkID() uint32
+	GetParentDevMac() mac.MAC
 }
 
 // CompileTimeConfiguration provides datapath implementations a clean interface
@@ -92,6 +95,9 @@ type CompileTimeConfiguration interface {
 
 	// EnableMulticast returns true if the endpoint allows multicast traffic.
 	EnableMulticast() bool
+
+	// GetDeviceTypeIndex returns deviec type encoded as int, 0 for veth.
+	GetDeviceTypeIndex() int
 }
 
 // EndpointConfiguration provides datapath implementations a clean interface

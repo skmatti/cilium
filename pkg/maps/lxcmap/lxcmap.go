@@ -12,6 +12,7 @@ import (
 	"github.com/cilium/ebpf"
 
 	"github.com/cilium/cilium/pkg/bpf"
+	multinicep "github.com/cilium/cilium/pkg/gke/multinic/endpoint"
 	"github.com/cilium/cilium/pkg/identity"
 	"github.com/cilium/cilium/pkg/mac"
 	"github.com/cilium/cilium/pkg/option"
@@ -53,8 +54,14 @@ const (
 	// EndpointFlagAtHostNS indicates that this endpoint is located at the host networking
 	// namespace
 	EndpointFlagAtHostNS = 2
-	// EndpointFlagMultiNIC indicates that this endpoint represents the multi nic
-	EndpointFlagMultiNIC = 2
+	// EndpointFlagMultiNICL2 indicates that this endpoint represents the L2 multinic
+	// devices such as macvtap/macvlan.
+	// It corresponds to ENDPOINT_F_MULTI_NIC_L2 in the datapath
+	EndpointFlagMultiNICL2 = 4
+	// EndpointFlagMultiNICVETH indicates that this endpoint represents L3 multinic
+	// veth type device.
+	// It corresponds to ENDPOINT_F_MULTI_NIC_VETH in the datapath
+	EndpointFlagMultiNICVETH = 8
 )
 
 // EndpointFrontend is the interface to implement for an object to synchronize
@@ -69,6 +76,7 @@ type EndpointFrontend interface {
 	GetIdentity() identity.NumericIdentity
 	IsAtHostNS() bool
 	IsMultiNIC() bool
+	GetDeviceTypeIndex() int
 }
 
 // GetBPFKeys returns all keys which should represent this endpoint in the BPF
@@ -114,12 +122,19 @@ func GetBPFValue(e EndpointFrontend) (*EndpointInfo, error) {
 	if e.IsAtHostNS() {
 		info.Flags |= EndpointFlagAtHostNS
 	}
-	if e.IsMultiNIC() {
-		info.Flags |= EndpointFlagMultiNIC
+
+	switch e.GetDeviceTypeIndex() {
+	case multinicep.EndpointDeviceIndexMultinicVETH:
+		// veth
+		info.Flags |= EndpointFlagMultiNICVETH
+	case multinicep.EndpointDeviceIndexIPVLAN,
+		multinicep.EndpointDeviceIndexMACVLAN,
+		multinicep.EndpointDeviceIndexMACVTAP:
+		// l2
+		info.Flags |= EndpointFlagMultiNICL2
 	}
 
 	return info, nil
-
 }
 
 type pad3uint32 [3]uint32

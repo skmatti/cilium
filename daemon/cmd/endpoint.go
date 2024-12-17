@@ -363,6 +363,8 @@ func (d *Daemon) createEndpoint(ctx context.Context, owner regeneration.Owner, e
 		epTemplate.DatapathConfiguration.RequireRouting = &disabled
 	}
 
+	setDataPathConfigurationForMultiNIC(epTemplate)
+
 	log.WithFields(logrus.Fields{
 		"addressing":                 epTemplate.Addressing,
 		logfields.ContainerID:        epTemplate.ContainerID,
@@ -633,7 +635,7 @@ func putEndpointIDHandler(d *Daemon, params PutEndpointIDParams) (resp middlewar
 		log.WithField(logfields.Params, logfields.Repr(params)).Debug("PUT /endpoint/{id} request")
 	}
 	epTemplate := params.Endpoint
-	addNetworkLabelIfMultiNICEnabled(epTemplate, networkv1.DefaultNetworkName)
+	addNetworkLabelIfMultiNICEnabled(epTemplate, networkv1.DefaultPodNetworkName)
 
 	r, err := d.apiLimiterSet.Wait(params.HTTPRequest.Context(), restapi.APIRequestEndpointCreate)
 	if err != nil {

@@ -15,6 +15,7 @@ import (
 type MultiNetworkIPAMManager interface {
 	// UpdateMultiNetworkIPAMAllocators updates the daemon's multi-network allocators with the new networks.
 	UpdateMultiNetworkIPAMAllocators(annotations map[string]string) error
+	ReserveGatewayIP(network *networkv1.Network) error
 }
 
 // BuildMultiNetworkCIDRs parses the multi-network annotation on a node and builds a name-cidr map per network.

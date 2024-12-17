@@ -3182,7 +3182,7 @@ redo:
 		*
 		* [1]: https://vincent.bernat.ch/en/blog/2017-linux-bridge-isolation#about-macvlan-interfaces
 		*/
-		if (backend_local && backend_local->flags & ENDPOINT_F_MULTI_NIC) {
+		if (backend_local && backend_local->flags & ENDPOINT_F_MULTI_NIC_L2) {
 			mac_t dmac = backend_local->mac;
 			if (eth_store_daddr(ctx, (__u8 *) &dmac, 0) < 0)
 				return DROP_WRITE_ERROR;

@@ -17,7 +17,9 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 
 	"github.com/cilium/cilium/pkg/endpoint"
+	"github.com/cilium/cilium/pkg/endpointmanager"
 	"github.com/cilium/cilium/pkg/endpointstate"
+	"github.com/cilium/cilium/pkg/gke/features"
 	cilium_v2a1 "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2alpha1"
 	k8sClient "github.com/cilium/cilium/pkg/k8s/client"
 	cilium_v2 "github.com/cilium/cilium/pkg/k8s/client/clientset/versioned/typed/cilium.io/v2"
@@ -33,6 +35,8 @@ import (
 
 type localEndpointCache interface {
 	LookupCEPName(namespacedName string) *endpoint.Endpoint
+	LookupEndpointsByPodName(name string) []*endpoint.Endpoint
+	GetEndpoints() []*endpoint.Endpoint
 }
 
 type params struct {
@@ -49,6 +53,7 @@ type params struct {
 	EndpointsCache      localEndpointCache
 	Cfg                 Config
 	DaemonCfg           *option.DaemonConfig
+	EndpointManager     endpointmanager.EndpointManager
 }
 
 type cleanup struct {
@@ -148,6 +153,12 @@ func (c *cleanup) cleanStaleCEPs(ctx context.Context) error {
 		return fmt.Errorf("failed to get indexed CiliumEndpointSlice from store: %w", err)
 	}
 	for _, cep := range objs {
+		if features.GlobalConfig.EnableGoogleMultiNIC {
+			if err := c.cleanStaleCEPWhenMultiNIC(ctx, c.endpointsCache, cep); err != nil {
+				return fmt.Errorf("could not clean statle CiliumEndpoint when Google MultiNIC is enabled: %w", err)
+			}
+			continue
+		}
 		if cep.Networking.NodeIP == node.GetCiliumEndpointNodeIP() && c.endpointsCache.LookupCEPName(cep.Namespace+"/"+cep.Name) == nil {
 			if err := c.deleteCiliumEndpoint(ctx, cep.Namespace, cep.Name, &cep.ObjectMeta.UID); err != nil {
 				errs = errors.Join(errs, err)
@@ -167,6 +178,12 @@ func (c *cleanup) cleanStaleCESs(ctx context.Context) error {
 	objs, err := store.ByIndex("localNode", node.GetCiliumEndpointNodeIP())
 	if err != nil {
 		return fmt.Errorf("failed to get indexed CiliumEndpointSlice from store: %w", err)
+	}
+	if features.GlobalConfig.EnableGoogleMultiNIC {
+		if err := c.cleanStaleCEPinCESWhenMultiNIC(ctx, c.endpointsCache, objs); err != nil {
+			return fmt.Errorf("error while cleaning stale CEPs in CESs: %v", err)
+		}
+		return nil
 	}
 	for _, ces := range objs {
 		for _, cep := range ces.Endpoints {

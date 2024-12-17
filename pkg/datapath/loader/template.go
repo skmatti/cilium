@@ -267,6 +267,9 @@ func ELFVariableSubstitutions(ep datapath.Endpoint) map[string]uint64 {
 	} else {
 		result["LXC_ID"] = uint64(ep.GetID())
 		result["THIS_INTERFACE_IFINDEX"] = uint64(ep.GetIfIndex())
+		lxcMAC := ep.LXCMac()
+		result["LXC_MAC_1"] = uint64(sliceToBe32(lxcMAC[0:4]))
+		result["LXC_MAC_2"] = uint64(sliceToBe16(lxcMAC[4:6]))
 	}
 
 	// Contrary to IPV4_MASQUERADE, we cannot use a simple #define and

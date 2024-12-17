@@ -59,6 +59,10 @@ func (t testIPAMMgr) UpdateMultiNetworkIPAMAllocators(annotations map[string]str
 	return nil
 }
 
+func (t testIPAMMgr) ReserveGatewayIP(network *networkv1.Network) error {
+	return nil
+}
+
 func TestEnsureInterface(t *testing.T) {
 	testutils.PrivilegedTest(t)
 
@@ -452,6 +456,7 @@ func TestUpdateNodeNetworkAnnotation(t *testing.T) {
 		ipv6Subnet          string
 		isAdd               bool
 		wantErr             string
+		wantPatchErr        string
 		wantAnnotations     map[string]string
 	}{
 		{
@@ -490,6 +495,18 @@ func TestUpdateNodeNetworkAnnotation(t *testing.T) {
 			desc: "add new network to null annotation value",
 			existingAnnotations: map[string]string{
 				networkv1.NodeNetworkAnnotationKey: "null",
+			},
+			nodeName: nodeName,
+			network:  "bar",
+			isAdd:    true,
+			wantAnnotations: map[string]string{
+				networkv1.NodeNetworkAnnotationKey: `[{"name":"bar"}]`,
+			},
+		},
+		{
+			desc: "add new network to empty annotation value",
+			existingAnnotations: map[string]string{
+				networkv1.NodeNetworkAnnotationKey: "",
 			},
 			nodeName: nodeName,
 			network:  "bar",
@@ -596,26 +613,28 @@ func TestUpdateNodeNetworkAnnotation(t *testing.T) {
 			existingAnnotations: map[string]string{
 				networkv1.NodeNetworkAnnotationKey: `[{"name":"foo"}]`,
 			},
-			nodeName: "foo-node",
-			network:  parentLinkName,
-			wantErr:  "failed to get k8s node \"test-node\": nodes \"test-node\" not found",
+			nodeName:     "foo-node",
+			network:      parentLinkName,
+			wantPatchErr: "failed to patch k8s node \"foo-node\": nodes \"foo-node\" not found",
 		},
 	}
 	for _, tc := range testcases {
 		t.Run(tc.desc, func(t *testing.T) {
-			testNode := corev1.Node{
+			testNode := &corev1.Node{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:        tc.nodeName,
+					Name:        nodeName,
 					Annotations: tc.existingAnnotations,
 				},
 			}
-			k8sClient := fake.NewClientBuilder().WithScheme(scheme).WithObjects(&testNode).Build()
+			k8sClient := fake.NewClientBuilder().WithScheme(scheme).WithObjects(testNode).Build()
+			testNode.Name = tc.nodeName
 			testReconciler := NetworkReconciler{
 				Client:   k8sClient,
-				NodeName: nodeName,
+				NodeName: tc.nodeName,
 				IPAMMgr:  testIPAMMgr{},
 			}
-			gotErr := testReconciler.updateNodeNetworkAnnotation(ctx, tc.network, tc.ipv4Subnet, tc.ipv6Subnet, logger, tc.isAdd)
+			oldNode := testNode.DeepCopy()
+			gotErr := updateNodeNetworkAnnotation(ctx, testNode, tc.network, tc.ipv4Subnet, tc.ipv6Subnet, logger, tc.isAdd)
 			if gotErr != nil {
 				if tc.wantErr == "" {
 					t.Fatalf("updateNodeNetworkAnnotation() return error %v but want nil", gotErr)
@@ -626,6 +645,16 @@ func TestUpdateNodeNetworkAnnotation(t *testing.T) {
 				return
 			}
 
+			patchErr := testReconciler.patchNodeAnnotations(ctx, log, oldNode, testNode)
+			if patchErr != nil {
+				if tc.wantPatchErr == "" {
+					t.Fatalf("patchNodeAnnotations() return error %v but want nil", patchErr)
+				}
+				if patchErr.Error() != tc.wantPatchErr {
+					t.Fatalf("patchNodeAnnotations() return error %v but want %v", patchErr, tc.wantPatchErr)
+				}
+				return
+			}
 			gotNode := &corev1.Node{}
 			if err := k8sClient.Get(ctx, types.NamespacedName{Name: tc.nodeName}, gotNode); err != nil {
 				t.Fatalf("failed to get k8s node: %v", err)

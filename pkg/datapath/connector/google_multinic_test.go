@@ -25,8 +25,8 @@ import (
 	"github.com/cilium/cilium/pkg/gke/multinic/dhcp"
 	multinictypes "github.com/cilium/cilium/pkg/gke/multinic/types"
 	"github.com/cilium/cilium/pkg/ipam"
+	netNs "github.com/cilium/cilium/pkg/netns"
 	"github.com/cilium/cilium/pkg/testutils"
-	"github.com/containernetworking/plugins/pkg/ns"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/vishvananda/netlink"
@@ -184,7 +184,6 @@ func TestGetInterfaceConfiguration(t *testing.T) {
 	parentDevNameEmpty := ""
 	goodMACStr := "01:02:03:04:05:06"
 	badMACStr := "ff"
-	networkProviderGKE := networkv1.ProviderType("GKE")
 	testcases := []struct {
 		desc         string
 		wantErr      string
@@ -204,20 +203,6 @@ func TestGetInterfaceConfiguration(t *testing.T) {
 					Mask: net.IPv4Mask(255, 255, 255, 0),
 				},
 				Type:       "macvlan",
-				MacAddress: net.HardwareAddr([]byte{1, 2, 3, 4, 5, 6}),
-			},
-		},
-		{
-			desc: "parse successfully ipvlan",
-			intf: getTestInterfaceCR([]string{goodIPv4Str}, &goodMACStr),
-			net:  getTestNetworkCR(&parentDevName, &networkProviderGKE),
-			want: &interfaceConfiguration{
-				ParentInterfaceName: parentDevName,
-				IPV4Address: &net.IPNet{
-					IP:   net.IPv4(1, 2, 3, 4),
-					Mask: net.IPv4Mask(255, 255, 255, 0),
-				},
-				Type:       "ipvlan",
 				MacAddress: net.HardwareAddr([]byte{1, 2, 3, 4, 5, 6}),
 			},
 		},
@@ -480,6 +465,7 @@ func TestSetupNetworkRoutes(t *testing.T) {
 		desc               string
 		interfaceName      string
 		intf               *networkv1.NetworkInterface
+		net                *networkv1.Network
 		isDefaultInterface bool
 		routeMTU           int
 		wantRoutes         []netlink.Route
@@ -665,6 +651,34 @@ func TestSetupNetworkRoutes(t *testing.T) {
 			isDefaultInterface: true,
 			wantErr:            "default route must have a valid gateway address",
 		},
+		{
+			desc: "default route but without gw address",
+			intf: &networkv1.NetworkInterface{
+				Status: networkv1.NetworkInterfaceStatus{
+					Routes: []networkv1.Route{
+						{
+							To: "10.10.10.0/24",
+						},
+						{
+							To: "20.20.20.0/24",
+						},
+					},
+					Gateway4: &v4GW,
+				},
+			},
+			net: &networkv1.Network{
+				Spec: networkv1.NetworkSpec{
+					Type: networkv1.L3NetworkType,
+				},
+			},
+			isDefaultInterface: true,
+			wantRoutes: []netlink.Route{
+				v4Route("10.10.10.0", v4GW, 24, 0, netlink.SCOPE_UNIVERSE),
+				v4Route("20.20.20.0", v4GW, 24, 0, netlink.SCOPE_UNIVERSE),
+				v4Route(v4GW, "", 32, 0, netlink.SCOPE_LINK),
+				v4DefaultRoute(v4GW),
+			},
+		},
 	}
 
 	for _, tc := range testcases {
@@ -677,7 +691,7 @@ func TestSetupNetworkRoutes(t *testing.T) {
 				}
 			}()
 
-			testNS, err := ns.GetNS(testNSPath)
+			testNS, err := netNs.OpenPinned(testNSPath)
 			if err != nil {
 				t.Fatalf("failed to open test network namespace: %v", err)
 			}
@@ -689,7 +703,7 @@ func TestSetupNetworkRoutes(t *testing.T) {
 			}
 
 			// Run the test in the root ns.
-			gotErr := SetupNetworkRoutes(interfaceNameInPod, tc.intf, testNS.Path(), tc.isDefaultInterface, tc.routeMTU)
+			gotErr := SetupNetworkRoutes(interfaceNameInPod, tc.intf, tc.net, testNSPath, tc.isDefaultInterface, tc.routeMTU)
 			if gotErr != nil {
 				if tc.wantErr == "" {
 					t.Fatalf("SetupNetworkRoutes() return error %v but want nil", gotErr)
@@ -701,7 +715,7 @@ func TestSetupNetworkRoutes(t *testing.T) {
 			}
 
 			var gotRoutes []netlink.Route
-			if err := testNS.Do(func(_ ns.NetNS) error {
+			if err := testNS.Do(func() error {
 				gotRoutes, err = netlink.RouteList(dummyLink, netlink.FAMILY_V4)
 				if err != nil {
 					return err
@@ -950,7 +964,7 @@ func TestConfigureDHCPInfo(t *testing.T) {
 			cfg:     emptyConfig,
 			dc:      fakeClient,
 			wantCfg: emptyConfig,
-			wantErr: "failed to configure dhcp info for : invalid network : network.spec.nodeInterfaceMatcher.InterfaceName cannot be nil or empty",
+			wantErr: "failed to configure dhcp info for : no node annotations passed, cannot look for any north-interface annotation",
 		},
 		{
 			desc:    "dhcp client errors",
@@ -1214,7 +1228,7 @@ func TestConfigureInterface(t *testing.T) {
 				}
 			}()
 
-			testNS, err := ns.GetNS(testNSPath)
+			testNS, err := netNs.OpenPinned(testNSPath)
 			if err != nil {
 				t.Fatalf("failed to open test network namespace: %v", err)
 			}
@@ -1233,7 +1247,7 @@ func TestConfigureInterface(t *testing.T) {
 
 			var mv netlink.Link
 			var ip4Addr []netlink.Addr
-			if err := testNS.Do(func(_ ns.NetNS) error {
+			if err := testNS.Do(func() error {
 				mv, err = netlink.LinkByName(macvtapLinkName)
 				if err != nil {
 					return err

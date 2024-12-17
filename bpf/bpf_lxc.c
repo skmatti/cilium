@@ -56,6 +56,7 @@
 #include "lib/policy_log.h"
 #include "lib/google_arp.h"
 #include "lib/google_multinic.h"
+#include "lib/google_arp.h"
 
 /* Per-packet LB is needed if all LB cases can not be handled in bpf_sock.
  * Most services with L7 LB flag can not be redirected to their proxy port
@@ -631,8 +632,8 @@ ct_recreate6:
 		 *    host itself.
 		 */
 		ep = lookup_ip6_endpoint(ip6);
-		// Skip local delivery if the destination endpoint is a multi NIC endpoint.
-		if (ep && !(ep->flags & ENDPOINT_F_MULTI_NIC)) {
+		// Skip local delivery if the destination endpoint is an L2 multi NIC endpoint.
+		if (ep && !(ep->flags & ENDPOINT_F_MULTI_NIC_L2)) {
 #if defined(ENABLE_HOST_ROUTING) || defined(ENABLE_ROUTING)
 			if (ep->flags & ENDPOINT_MASK_HOST_DELIVERY) {
 				if (is_defined(ENABLE_ROUTING)) {
@@ -802,13 +803,13 @@ static __always_inline int __tail_handle_ipv6(struct __ctx_buff *ctx,
 	if (unlikely(!is_valid_lxc_src_ip(ip6)))
 		return DROP_INVALID_SIP;
 
-#if defined(ENABLE_PER_PACKET_LB) && !defined(IS_MULTI_NIC_DEVICE)
+#if defined(ENABLE_PER_PACKET_LB) && !defined(MULTI_NIC_DEVICE_TYPE)
 	/* will tailcall internally or return error */
 	return __per_packet_lb_svc_xlate_6(ctx, ip6, ext_err);
 #else
 	/* won't be a tailcall, see TAIL_CT_LOOKUP6 */
 	return tail_ipv6_ct_egress(ctx);
-#endif /* ENABLE_PER_PACKET_LB */
+#endif /* ENABLE_PER_PACKET_LB && !MULTI_NIC_DEVICE_TYPE */
 }
 
 __section_tail(CILIUM_MAP_CALLS, CILIUM_CALL_IPV6_FROM_LXC)
@@ -874,17 +875,6 @@ static __always_inline int handle_ipv4_from_lxc(struct __ctx_buff *ctx, __u32 *d
 	lb4_ctx_restore_state(ctx, &ct_state_new, &proxy_port, &cluster_id);
 	hairpin_flow = ct_state_new.loopback;
 #endif /* ENABLE_PER_PACKET_LB */
-
-#ifdef IS_MULTI_NIC_DEVICE
-	// Examine packet sourcing from multi NIC endpoint.
-	ret = redirect_if_dhcp(ctx, ip4->protocol, ETH_HLEN + ipv4_hdrlen(ip4));
-	if (ret != CTX_ACT_OK)
-	        return ret;
-	// Revalidate data after redirect_if_dhcp to avoid verifier
-	// rejecting the previous dereferenced ip4.
-	if (!revalidate_data(ctx, &data, &data_end, &ip4))
-		return DROP_INVALID;
-#endif /* IS_MULTI_NIC_DEVICE */
 
 	/* Determine the destination category for policy fallback. */
 	if (1) {
@@ -1091,7 +1081,11 @@ ct_recreate4:
 		return ctx_redirect_to_proxy4(ctx, tuple, proxy_port, false);
 	}
 
-#if defined(ENABLE_HOST_FIREWALL) && !defined(ENABLE_ROUTING) && !defined(IS_MULTI_NIC_DEVICE)
+	/* After L4 write in port mapping: revalidate for direct packet access */
+	if (!revalidate_data(ctx, &data, &data_end, &ip4))
+		return DROP_INVALID;
+
+#if defined(ENABLE_HOST_FIREWALL) && !defined(ENABLE_ROUTING) && !defined(MULTI_NIC_DEVICE_TYPE)
 	/* If the destination is the local host and per-endpoint routes are
 	 * enabled, jump to the bpf_host program to enforce ingress host policies.
 	 * Note that bpf_lxc can be loaded before bpf_host, so bpf_host's policy
@@ -1104,7 +1098,7 @@ ct_recreate4:
 		/* report fine-grained error: */
 		return DROP_HOST_NOT_READY;
 	}
-#endif /* ENABLE_HOST_FIREWALL && !ENABLE_ROUTING && !IS_MULTI_NIC_DEVICE */
+#endif /* ENABLE_HOST_FIREWALL && !ENABLE_ROUTING && !MULTI_NIC_DEVICE_TYPE */
 
 	/* Allow a hairpin packet to be redirected even if ENABLE_ROUTING is
 	 * disabled (for example, with per-endpoint routes). Otherwise, the
@@ -1141,8 +1135,8 @@ ct_recreate4:
 		 *  - The destination IP address belongs to endpoint itself.
 		 */
 		ep = __lookup_ip4_endpoint(daddr);
-		// Skip local delivery if the destination endpoint is a multi NIC endpoint.
-		if (ep && !(ep->flags & ENDPOINT_F_MULTI_NIC)) {
+		// Skip local delivery if the destination endpoint is an L2 multi NIC endpoint.
+		if (ep && !(ep->flags & ENDPOINT_F_MULTI_NIC_L2)) {
 #if defined(ENABLE_HOST_ROUTING) || defined(ENABLE_ROUTING)
 			if (ep->flags & ENDPOINT_MASK_HOST_DELIVERY) {
 				if (is_defined(ENABLE_ROUTING)) {
@@ -1154,6 +1148,35 @@ ct_recreate4:
 				goto pass_to_stack;
 			}
 #endif /* ENABLE_HOST_ROUTING || ENABLE_ROUTING */
+
+#if MULTI_NIC_DEVICE_TYPE == EP_DEV_TYPE_INDEX_MULTI_NIC_VETH
+{
+			union macaddr *dmac;
+			const struct multi_nic_dev_info *dev;
+
+			// If the destination endpoint is a multi NIC endpoint veth pair,
+			// we want local delivery to be done only between endpoints that
+			// share the same NETWORK_ID.
+			dmac = (union macaddr *)&ep->mac;
+			dev = lookup_multi_nic_dev(dmac);
+			if (dev == NULL || dev->net_id != NETWORK_ID)
+			{
+				goto skip_ipv4_local_delivery;
+			}
+}
+#else
+			// Skip local delivery if src is a default network veth and dst is
+			// a multinic-veth. This helps enforce isolation between default
+			// network and multinic L3 networks.
+			// This section is only excercised by default (L3) network when
+			// ENABLE_ROUTING is true. L2 multinic endpoints does not reach here
+			// because it doesn't have ENABLE_ROUTING.
+			if (ep->flags & ENDPOINT_F_MULTI_NIC_VETH)
+			{
+				goto skip_ipv4_local_delivery;
+			}
+#endif /* MULTI_NIC_DEVICE_TYPE == EP_DEV_TYPE_INDEX_MULTI_NIC_VETH */
+
 			policy_clear_mark(ctx);
 			/* If the packet is from L7 LB it is coming from the host */
 			return ipv4_local_delivery(ctx, ETH_HLEN, SECLABEL_IPV4,
@@ -1163,6 +1186,7 @@ ct_recreate4:
 		}
 	}
 
+skip_ipv4_local_delivery:
 #ifdef ENABLE_EGRESS_GATEWAY_COMMON
 	/* We handle traffic to Egress GW that is not redirected to L7 proxy here.
 	 * The traffic that has been redirected is processed by to-netdev@bpf_host.
@@ -1262,10 +1286,30 @@ skip_vtep:
 		else
 			return ret;
 	}
-#endif /* (TUNNEL_MODE || ENABLE_HIGH_SCALE_IPCACHE) && !IS_MULTI_NIC_DEVICE */
+#endif /* (TUNNEL_MODE || ENABLE_HIGH_SCALE_IPCACHE) && !MULTI_NIC_DEVICE_TYPE */
+
+#ifdef MULTI_NIC_DEVICE_TYPE
+#if MULTI_NIC_DEVICE_TYPE == EP_DEV_TYPE_INDEX_MULTI_NIC_VETH
+{
+	union macaddr parent_mac = PARENT_DEV_MAC;
+
+	// For veth based multi-nic endpoint, redirect traffic to parent
+	// interface in the host.
+	send_trace_notify(ctx, TRACE_TO_NETWORK, SECLABEL, HOST_ID, 0,
+			  PARENT_DEV_IFINDEX, trace.reason, trace.monitor);
+	ret = ipv4_l3(ctx, ETH_HLEN, (__u8 *) &parent_mac.addr, NULL, ip4);
+	if (unlikely(ret != CTX_ACT_OK))
+		return ret;
+	return ctx_redirect(ctx, PARENT_DEV_IFINDEX, 0);
+}
+#else
+	// For other (L2) multinic types, go to stack
+	goto pass_to_stack;
+#endif /* MULTI_NIC_DEVICE_TYPE == EP_DEV_TYPE_INDEX_MULTI_NIC_VETH */
+#endif /* MULTI_NIC_DEVICE_TYPE */
 
 maybe_pass_to_stack: __maybe_unused;
-	if (is_defined(ENABLE_HOST_ROUTING) && !is_defined(IS_MULTI_NIC_DEVICE)) {
+	if (is_defined(ENABLE_HOST_ROUTING)) {
 		int oif = 0;
 
 		ret = fib_redirect_v4(ctx, ETH_HLEN, ip4, false, false, ext_err, &oif);
@@ -1381,6 +1425,16 @@ static __always_inline int __tail_handle_ipv4(struct __ctx_buff *ctx,
 	// DCHP packets and will fail the mac spoof check.
 	if (unlikely(!is_valid_lxc_src_mac(ctx, ip4->protocol)))
 		return DROP_GOOGLE_INVALID_SMAC;
+#ifdef MULTI_NIC_DEVICE_TYPE
+	// Examine packet sourcing from multi NIC endpoint.
+	ret = redirect_if_dhcp(ctx, ip4->protocol, ETH_HLEN + ipv4_hdrlen(ip4));
+	if (ret != CTX_ACT_OK)
+	        return ret;
+	// Revalidate data after redirect_if_dhcp to avoid verifier
+	// rejecting the previous dereferenced ip4.
+	if (!revalidate_data(ctx, &data, &data_end, &ip4))
+		return DROP_INVALID;
+#endif /* MULTI_NIC_DEVICE_TYPE */
 
 	if (unlikely(!is_valid_lxc_src_ipv4(ip4)))
 		return DROP_INVALID_SIP;
@@ -1402,13 +1456,13 @@ static __always_inline int __tail_handle_ipv4(struct __ctx_buff *ctx,
 	}
 #endif /* ENABLE_MULTICAST */
 
-#if defined(ENABLE_PER_PACKET_LB) && !defined(IS_MULTI_NIC_DEVICE)
+#if defined(ENABLE_PER_PACKET_LB) && !defined(MULTI_NIC_DEVICE_TYPE)
 	/* will tailcall internally or return error */
 	return __per_packet_lb_svc_xlate_4(ctx, ip4, ext_err);
 #else
 	/* won't be a tailcall, see TAIL_CT_LOOKUP4 */
 	return tail_ipv4_ct_egress(ctx);
-#endif /* ENABLE_PER_PACKET_LB */
+#endif /* ENABLE_PER_PACKET_LB && !MULTI_NIC_DEVICE_TYPE */
 }
 
 __section_tail(CILIUM_MAP_CALLS, CILIUM_CALL_IPV4_FROM_LXC)
@@ -1861,12 +1915,12 @@ ipv4_policy(struct __ctx_buff *ctx, struct iphdr *ip4, int ifindex, __u32 src_la
 	is_untracked_fragment = ipv4_is_fragment(ip4);
 #endif
 
-#ifdef IS_MULTI_NIC_DEVICE
+#ifdef MULTI_NIC_DEVICE_TYPE
 	if (ipv4_has_l4_header(ip4)) {
 		int l4_off_tmp = ETH_HLEN + ipv4_hdrlen(ip4);
 		skip_policy_if_dhcp(ctx, ip4->protocol, l4_off_tmp);
 	}
-#endif /* IS_MULTI_NIC_DEVICE */
+#endif /* MULTI_NIC_DEVICE_TYPE */
 
 	ct_buffer = map_lookup_elem(&CT_TAIL_CALL_BUFFER4, &zero);
 	if (!ct_buffer)

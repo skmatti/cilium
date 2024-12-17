@@ -14,8 +14,10 @@ import (
 	"github.com/cilium/cilium/pkg/datapath/loader"
 	"github.com/cilium/cilium/pkg/logging"
 	"github.com/cilium/cilium/pkg/logging/logfields"
+	"github.com/cilium/cilium/pkg/node"
 	"github.com/sirupsen/logrus"
 	"github.com/vishvananda/netlink"
+	"go.uber.org/multierr"
 	corev1 "k8s.io/api/core/v1"
 	k8sErrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/types"
@@ -31,8 +33,8 @@ import (
 
 	"github.com/cilium/cilium/pkg/datapath/tables"
 	"github.com/cilium/cilium/pkg/gke/features"
-	multinictypes "github.com/cilium/cilium/pkg/gke/multinic/types"
 	"github.com/cilium/statedb"
+	anutils "gke-internal.googlesource.com/anthos-networking/apis/v2/utils"
 )
 
 var (
@@ -51,6 +53,7 @@ type NetworkReconciler struct {
 
 type ipamManager interface {
 	UpdateMultiNetworkIPAMAllocators(annotations map[string]string) error
+	ReserveGatewayIP(network *networkv1.Network) error
 }
 
 const (
@@ -58,14 +61,27 @@ const (
 	multinicObjDir = "/var/run/cilium/state/multinic"
 )
 
-func (r *NetworkReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+func (r *NetworkReconciler) Reconcile(ctx context.Context, req ctrl.Request) (_ ctrl.Result, rerr error) {
 	if !features.GlobalConfig.EnableGoogleMultiNIC {
 		return ctrl.Result{}, nil
 	}
 	log := logger.WithField("namespacedName", req.NamespacedName)
 
 	log.Info("Reconciling")
-
+	oldNode := &corev1.Node{}
+	if err := r.Get(ctx, types.NamespacedName{Name: r.NodeName}, oldNode); err != nil {
+		return ctrl.Result{}, fmt.Errorf("failed to get k8s node %q: %v", r.NodeName, err)
+	}
+	// Reset annotations so we don't override anything outside of anetd's scope.
+	node := oldNode.DeepCopy()
+	node.Annotations = make(map[string]string)
+	if oldNode.Annotations != nil {
+		node.Annotations[networkv1.NodeNetworkAnnotationKey] = oldNode.Annotations[networkv1.NodeNetworkAnnotationKey]
+	}
+	defer func() {
+		err := r.patchNodeAnnotations(ctx, log, oldNode, node)
+		rerr = multierr.Append(rerr, err)
+	}()
 	network := &networkv1.Network{}
 	if err := r.Get(ctx, req.NamespacedName, network); err != nil {
 		if k8sErrors.IsNotFound(err) {
@@ -76,10 +92,10 @@ func (r *NetworkReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		return ctrl.Result{}, err
 	}
 	if !network.ObjectMeta.DeletionTimestamp.IsZero() {
-		return r.reconcileNetworkDelete(ctx, network, log)
+		return r.reconcileNetworkDelete(ctx, node, network, log)
 	}
 
-	return r.reconcileNetwork(ctx, network, log)
+	return r.reconcileNetwork(ctx, node, network, log)
 }
 
 // SetupWithManager configures this controller in the manager.
@@ -113,7 +129,11 @@ func (r *NetworkReconciler) mapNodeToNetwork(ctx context.Context, obj client.Obj
 	// accordingly.
 	return []ctrl.Request{
 		{
+			// TODO(b/269187538): Remove request from the list once DefaultNetworkName is deprecated.
 			NamespacedName: types.NamespacedName{Name: networkv1.DefaultNetworkName},
+		},
+		{
+			NamespacedName: types.NamespacedName{Name: networkv1.DefaultPodNetworkName},
 		},
 	}
 }
@@ -137,11 +157,11 @@ func (r *NetworkReconciler) loadEBPFOnParent(ctx context.Context, network *netwo
 		log.Info("EndpointManager is nil. Please make sure the reconciler is initialized successfully")
 		return nil
 	}
-	if network.Spec.Type != networkv1.L2NetworkType {
-		log.Infof("No need to load ebpf for network type %q", network.Spec.Type)
+	if networkv1.IsDefaultNetwork(network.Name) {
+		log.Infof("No need to load ebpf for default network: %v", network.Name)
 		return nil
 	}
-	devToLoad, err := multinictypes.InterfaceName(network)
+	devToLoad, _, err := anutils.InterfaceInfo(network, node.GetAnnotations())
 	if err != nil {
 		log.Infof("errored generating interface name for network %s: %s", network.Name, err)
 		return nil
@@ -153,7 +173,7 @@ func (r *NetworkReconciler) loadEBPFOnParent(ctx context.Context, network *netwo
 		return nil
 	}
 
-	scopedLog.Info("Loading ebpf")
+	scopedLog.WithField("network", network.Name).Infof("Loading ebpf for network")
 	objDir := path.Join(multinicObjDir, devToLoad)
 	if err := os.MkdirAll(objDir, os.ModePerm); err != nil {
 		return fmt.Errorf("failed to create multinic object dir: %v", err)
@@ -176,7 +196,7 @@ func (r *NetworkReconciler) loadEBPFOnParent(ctx context.Context, network *netwo
 }
 
 func (r *NetworkReconciler) unloadEBPFOnParent(ctx context.Context, network *networkv1.Network, log *logrus.Entry) error {
-	devToUnload, err := multinictypes.InterfaceName(network)
+	devToUnload, _, err := anutils.InterfaceInfo(network, node.GetAnnotations())
 	if err != nil {
 		log.Infof("errored generating interface name for network %s: %s", network.Name, err)
 		return nil
@@ -246,8 +266,8 @@ func ensureVlanID(vlanIntName string, vlanID int, parentLink netlink.Link, log *
 // The information is parsed from the node annotation.
 func getNetworkStatusMap(node *corev1.Node) (map[string]networkv1.NodeNetworkStatus, error) {
 	netStatusMap := make(map[string]networkv1.NodeNetworkStatus)
-	annotation, exist := node.Annotations[networkv1.NodeNetworkAnnotationKey]
-	if !exist {
+	annotation := node.Annotations[networkv1.NodeNetworkAnnotationKey]
+	if len(annotation) == 0 {
 		return netStatusMap, nil
 	}
 	netAnn, err := networkv1.ParseNodeNetworkAnnotation(annotation)
@@ -271,54 +291,83 @@ func marshalNodeNetworkAnnotation(statusMap map[string]networkv1.NodeNetworkStat
 	return networkv1.MarshalNodeNetworkAnnotation(ann)
 }
 
-func (r *NetworkReconciler) updateNodeNetworkAnnotation(ctx context.Context, networkName string, ipv4, ipv6 string, log *logrus.Entry, isAdd bool) error {
-	node := &corev1.Node{}
-	if err := r.Get(ctx, types.NamespacedName{Name: r.NodeName}, node); err != nil {
-		return fmt.Errorf("failed to get k8s node %q: %v", r.NodeName, err)
-	}
-
+func updateNodeNetworkAnnotation(ctx context.Context, node *corev1.Node, networkName string, ipv4, ipv6 string, log *logrus.Entry, isAdd bool) error {
 	log.WithFields(logrus.Fields{
-		logfields.NodeName: r.NodeName,
+		logfields.NodeName: node.Name,
 		"network":          networkName,
 	}).Info("Updating node network status annotation")
 	netStatusMap, err := getNetworkStatusMap(node)
 	if err != nil {
-		return fmt.Errorf("failed to get network status map from node %q: %v", r.NodeName, err)
+		return fmt.Errorf("failed to get network status map from node %q: %v", node.Name, err)
 	}
 	log.Infof("existing node network status annotation %+v", netStatusMap)
 
 	oldNetAnnotation, exist := netStatusMap[networkName]
 	if isAdd {
 		if exist && oldNetAnnotation.IPv4Subnet == ipv4 && oldNetAnnotation.IPv6Subnet == ipv6 {
-			log.Infof("network %q already exists on the node %q", networkName, r.NodeName)
+			log.Infof("network %q already exists on the node %q", networkName, node.Name)
 			return nil
 		}
 		netStatusMap[networkName] = networkv1.NodeNetworkStatus{Name: networkName, IPv4Subnet: ipv4, IPv6Subnet: ipv6}
 	} else {
 		if !exist {
-			log.Infof("network %q doesn't exist on the node %q", networkName, r.NodeName)
+			log.Infof("network %q doesn't exist on the node %q", networkName, node.Name)
 			return nil
 		}
 		delete(netStatusMap, networkName)
 	}
 	log.Infof("node network status annotation to update %+v", netStatusMap)
-
-	annotations := make(map[string]string)
-	annotations[networkv1.NodeNetworkAnnotationKey], err = marshalNodeNetworkAnnotation(netStatusMap)
+	netAnnotations, err := marshalNodeNetworkAnnotation(netStatusMap)
 	if err != nil {
 		return fmt.Errorf("failed to marshal node network annotation %v: %v", netStatusMap, err)
 	}
 
-	raw, err := json.Marshal(annotations)
-	if err != nil {
-		return fmt.Errorf("failed to marshal node annotations %v: %v", annotations, err)
+	if node.Annotations == nil {
+		node.Annotations = make(map[string]string)
 	}
-	patch := []byte(fmt.Sprintf(`{"metadata":{"annotations":%s}}`, raw))
-	if err := r.Client.Patch(ctx, node, client.RawPatch(types.StrategicMergePatchType, patch)); err != nil {
-		return fmt.Errorf("failed to patch k8s node %q: %v", r.NodeName, err)
+	node.Annotations[networkv1.NodeNetworkAnnotationKey] = netAnnotations
+	log.Info("Updated node network status annotation")
+	return nil
+}
+
+func addNodeNetworkAnnotation(ctx context.Context, node *corev1.Node, networkName string, ipv4, ipv6 string, log *logrus.Entry) error {
+	return updateNodeNetworkAnnotation(ctx, node, networkName, ipv4, ipv6, log, true)
+}
+
+func deleteNodeNetworkAnnotation(ctx context.Context, node *corev1.Node, networkName string, ipv4, ipv6 string, log *logrus.Entry) error {
+	return updateNodeNetworkAnnotation(ctx, node, networkName, ipv4, ipv6, log, false)
+}
+
+func (r *NetworkReconciler) patchNodeAnnotations(ctx context.Context, log *logrus.Entry, oldNode, node *corev1.Node) error {
+	// Do not patch if node annotations are all contained in old Nodes
+	// annotation.
+	doPatch := false
+	// If annotations the same length, check each annotation and ensure that
+	// they match.
+	if oldNode.Annotations != nil {
+		for key, value := range node.Annotations {
+			oldValue, ok := oldNode.Annotations[key]
+			if oldValue != value || !ok {
+				doPatch = true
+				break
+			}
+		}
+	} else {
+		doPatch = true
 	}
 
-	log.Info("Updated node network status annotation")
+	if !doPatch {
+		return nil
+	}
+	raw, err := json.Marshal(node.Annotations)
+	if err != nil {
+		return fmt.Errorf("failed to marshall node annotations for node %q: %v", node.Name, err)
+	}
+
+	patch := []byte(fmt.Sprintf(`{"metadata":{"annotations":%s}}`, raw))
+	if err := r.Client.Patch(ctx, node, client.RawPatch(types.StrategicMergePatchType, patch)); err != nil {
+		return fmt.Errorf("failed to patch k8s node %q: %v", node.Name, err)
+	}
 	return nil
 }
 
@@ -338,7 +387,12 @@ func (r *NetworkReconciler) updateMultiNetworkIPAM(ctx context.Context, network 
 	return nil
 }
 
-func (r *NetworkReconciler) reconcileNetwork(ctx context.Context, network *networkv1.Network, log *logrus.Entry) (ctrl.Result, error) {
+func (r *NetworkReconciler) reconcileNetwork(ctx context.Context, node *corev1.Node, network *networkv1.Network, log *logrus.Entry) (_ ctrl.Result, rerr error) {
+	// Remove network from node if we fail along the way.
+	if err := deleteNodeNetworkAnnotation(ctx, node, network.Name, "", "", log); err != nil {
+		log.WithError(err).Error("Failed to update node network status annotation")
+		return ctrl.Result{}, err
+	}
 	if err := ensureInterface(network, log); err != nil {
 		log.WithError(err).Error("Unable to ensure network interface")
 		return ctrl.Result{}, err
@@ -347,13 +401,12 @@ func (r *NetworkReconciler) reconcileNetwork(ctx context.Context, network *netwo
 		log.WithError(err).Error("Unable to load ebpf on parent interface")
 		return ctrl.Result{}, err
 	}
-
 	// Obtain ip/subnet for node network
 	ipv4, ipv6, err := obtainSubnet(network, log)
 	if err != nil {
 		log.WithError(err).Error("Unable to read interface for subnets")
 	}
-	if err := r.updateNodeNetworkAnnotation(ctx, network.Name, ipv4, ipv6, log, true); err != nil {
+	if err := addNodeNetworkAnnotation(ctx, node, network.Name, ipv4, ipv6, log); err != nil {
 		log.WithError(err).Error("Failed to update node network status annotation")
 		return ctrl.Result{}, err
 	}
@@ -361,11 +414,15 @@ func (r *NetworkReconciler) reconcileNetwork(ctx context.Context, network *netwo
 		log.WithError(err).Error("Failed to update node multi-network IPAM")
 		return ctrl.Result{}, err
 	}
+	if err := r.IPAMMgr.ReserveGatewayIP(network); err != nil {
+		log.WithError(err).Error("Failed to reserve gateway IP")
+		return ctrl.Result{}, err
+	}
 	log.Info("Reconciled successfully")
 	return ctrl.Result{}, nil
 }
 
-func (r *NetworkReconciler) reconcileNetworkDelete(ctx context.Context, network *networkv1.Network, log *logrus.Entry) (ctrl.Result, error) {
+func (r *NetworkReconciler) reconcileNetworkDelete(ctx context.Context, node *corev1.Node, network *networkv1.Network, log *logrus.Entry) (_ ctrl.Result, rerr error) {
 	inUseAnn := network.Annotations[networkv1.NetworkInUseAnnotationKey]
 	if inUseAnn == networkv1.NetworkInUseAnnotationValTrue {
 		log.Infof("Network %q is still in use, exit reconciliation", network.Name)
@@ -379,7 +436,7 @@ func (r *NetworkReconciler) reconcileNetworkDelete(ctx context.Context, network 
 		log.WithError(err).Errorf("Unable to delete tagged interface")
 		return ctrl.Result{}, err
 	}
-	if err := r.updateNodeNetworkAnnotation(ctx, network.Name, "", "", log, false); err != nil {
+	if err := updateNodeNetworkAnnotation(ctx, node, network.Name, "", "", log, false); err != nil {
 		log.WithError(err).Error("Failed to update node network status annotation")
 		return ctrl.Result{}, err
 	}
@@ -394,9 +451,9 @@ func deleteVlanID(network *networkv1.Network, log *logrus.Entry) error {
 		return nil
 	}
 
-	taggedIntName, err := multinictypes.InterfaceName(network)
+	taggedIntName, _, err := anutils.InterfaceInfo(network, node.GetAnnotations())
 	if err != nil {
-		log.Errorf("Errored generating interface name for network %s: %s", network.Name, err)
+		log.Errorf("deleteVlanID: Errored generating interface name for network %s: %s", network.Name, err)
 		return nil
 	}
 
@@ -431,17 +488,18 @@ func hasVlanTag(network *networkv1.Network) bool {
 }
 
 func ensureInterface(network *networkv1.Network, log *logrus.Entry) error {
-	intfName, err := multinictypes.InterfaceName(network)
+	intfName, _, err := anutils.InterfaceInfo(network, node.GetAnnotations())
 	if err != nil {
 		// Log error but return nil here as this is mostly due to misconfiguration
 		// in the network CR object and is unlikely to reconcile.
-		log.Errorf("Errored generating interface name for network %s: %v", network.Name, err)
+		log.Errorf("ensureInterface: Errored generating interface name for network %s: %v", network.Name, err)
 		return nil
 	}
 	scopedLog := log.WithField(logfields.Interface, intfName)
-
-	// InterfaceName() will return an error if Spec.NodeInterfaceMatcher.InterfaceName is nil
-	parentIntName := *network.Spec.NodeInterfaceMatcher.InterfaceName
+	parentIntName := intfName
+	if network.Spec.L2NetworkConfig != nil && network.Spec.L2NetworkConfig.VlanID != nil {
+		parentIntName = *network.Spec.NodeInterfaceMatcher.InterfaceName
+	}
 	link, err := safenetlink.LinkByName(parentIntName)
 	if err != nil {
 		return fmt.Errorf("failed to find parent interface %s: %q", parentIntName, err)
@@ -490,19 +548,16 @@ func bestAddrMatch(addrs []netlink.Addr) *net.IPNet {
 }
 
 func obtainSubnet(network *networkv1.Network, log *logrus.Entry) (string, string, error) {
-	_, err := multinictypes.InterfaceName(network)
+	intfName, _, err := anutils.InterfaceInfo(network, node.GetAnnotations())
 	if err != nil {
 		// Log error but return nil here as this is mostly due to misconfiguration
 		// in the network CR object and is unlikely to reconcile.
-		log.Errorf("Errored generating interface name for network %s: %v", network.Name, err)
+		log.Errorf("obtainSubnet: Errored generating interface name for network %s: %v", network.Name, err)
 		return "", "", nil
 	}
-
-	// InterfaceName() will return an error if Spec.NodeInterfaceMatcher.InterfaceName is nil
-	parentIntName := *network.Spec.NodeInterfaceMatcher.InterfaceName
-	link, err := safenetlink.LinkByName(parentIntName)
+	link, err := safenetlink.LinkByName(intfName)
 	if err != nil {
-		return "", "", fmt.Errorf("failed to find parent interface %s: %q", parentIntName, err)
+		return "", "", fmt.Errorf("failed to find parent interface %s: %q", intfName, err)
 	}
 	addrs, err := safenetlink.AddrList(link, netlink.FAMILY_V4)
 	if err != nil {

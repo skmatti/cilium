@@ -80,6 +80,12 @@ func (mgr *endpointManager) LookupPrimaryEndpointByPodName(name string) *endpoin
 	return nil
 }
 
+// UpdateIDReferences is a wrapper on the existing updateIDReferenceLocked
+// that can be useful for unit testing purposes.
+func (mgr *endpointManager) UpdateIDReferences(ep *endpoint.Endpoint) {
+	mgr.updateIDReferenceLocked(ep)
+}
+
 func (mgr *endpointManager) addToMultiNICMapIfNeeded(ep *endpoint.Endpoint, prefix endpointid.PrefixType, id string) bool {
 	if features.GlobalConfig.EnableGoogleMultiNIC && (prefix == endpointid.ContainerIdPrefix || prefix == endpointid.PodNamePrefix || prefix == endpointid.DockerEndpointPrefix || prefix == endpointid.ContainerNamePrefix) {
 		mgr.endpointsMultiNIC[id] = append(mgr.endpointsMultiNIC[id], ep)

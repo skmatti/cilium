@@ -19,9 +19,9 @@ import (
 
 	"github.com/cilium/cilium/pkg/datapath/link"
 	"github.com/cilium/cilium/pkg/datapath/linux/safenetlink"
+	"github.com/cilium/cilium/pkg/netns"
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/asm"
-	"github.com/containernetworking/plugins/pkg/ns"
 	"github.com/vishvananda/netlink"
 	"golang.org/x/sys/unix"
 )
@@ -126,7 +126,7 @@ func removeBpfFilter(l netlink.Link, mapIndex ProgMapIndex) error {
 //
 // NB: Do not close the returned map before it has been pinned. Otherwise,
 // the map will be destroyed.
-func setupInterfaceInRemoteNs(netNs ns.NetNS, srcIfName, dstIfName string, ingress bool) (*ebpf.Map, error) {
+func setupInterfaceInRemoteNs(ns *netns.NetNS, srcIfName, dstIfName string, ingress bool) (*ebpf.Map, error) {
 	rl := unix.Rlimit{
 		Cur: unix.RLIM_INFINITY,
 		Max: unix.RLIM_INFINITY,
@@ -151,7 +151,7 @@ func setupInterfaceInRemoteNs(netNs ns.NetNS, srcIfName, dstIfName string, ingre
 		return nil, fmt.Errorf("failed to create root BPF map for %q: %s", dstIfName, err)
 	}
 
-	err = netNs.Do(func(_ ns.NetNS) error {
+	err = ns.Do(func() error {
 		var err error
 
 		if srcIfName != dstIfName {

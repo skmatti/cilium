@@ -1,4 +1,6 @@
 #pragma once
+// #ifndef __LIB_GOOGLE_ARP_H_
+// #define __LIB_GOOGLE_ARP_H_
 
 #include "arp.h"
 #include "eps.h"
@@ -101,3 +103,4 @@ static __always_inline int arp_validate_mac_spoof(const struct __ctx_buff *ctx)
 	return CTX_ACT_OK;
 }
 #endif /* IS_BPF_HOST */
+// #endif /* __LIB_GOOGLE_ARP_H_ */

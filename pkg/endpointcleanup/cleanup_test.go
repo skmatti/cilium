@@ -258,6 +258,14 @@ func (epm *fakeEPManager) LookupCEPName(namespacedName string) *endpoint.Endpoin
 	return ep
 }
 
+func (epm *fakeEPManager) LookupEndpointsByPodName(namespacedName string) []*endpoint.Endpoint {
+	return nil
+}
+
+func (epm *fakeEPManager) GetEndpoints() []*endpoint.Endpoint {
+	return nil
+}
+
 func cep(name, ns, nodeIP string) types.CiliumEndpoint {
 	return types.CiliumEndpoint{
 		ObjectMeta: slim_metav1.ObjectMeta{

@@ -328,7 +328,8 @@ struct tunnel_value {
 #define ENDPOINT_F_HOST			1 /* Special endpoint representing local host */
 #define ENDPOINT_F_ATHOSTNS		2 /* Endpoint located at the host networking namespace */
 #define ENDPOINT_MASK_HOST_DELIVERY	(ENDPOINT_F_HOST | ENDPOINT_F_ATHOSTNS)
-#define ENDPOINT_F_MULTI_NIC 4 /* Special endpoint representing multi nic */
+#define ENDPOINT_F_MULTI_NIC_L2 4	/* Special endpoint representing multi nic that is not a veth */
+#define ENDPOINT_F_MULTI_NIC_VETH 8 /* Special endpoint representing multi nic of type veth */
 
 /* Value of endpoint map */
 struct endpoint_info {

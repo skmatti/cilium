@@ -278,7 +278,6 @@ require (
 	go.opentelemetry.io/proto/otlp v1.5.0 // indirect
 	go.uber.org/atomic v1.11.0 // indirect
 	go.uber.org/dig v1.17.1 // indirect
-	go.uber.org/multierr v1.11.0 // indirect
 	golang.org/x/oauth2 v0.27.0 // indirect
 	golang.org/x/term v0.31.0 // indirect
 	golang.org/x/text v0.24.0 // indirect
@@ -307,11 +306,13 @@ require (
 
 require (
 	github.com/containernetworking/plugins v1.2.0
-	github.com/golang/protobuf v1.5.4
-	gopkg.in/yaml.v2 v2.4.0
-	k8s.io/cloud-provider-gcp/crd v0.0.0-20230119221216-bb1acae5826d
+	gke-internal.googlesource.com/anthos-networking/apis/v2 v2.0.0-00010101000000-000000000000
+	go.uber.org/multierr v1.11.0
+	k8s.io/cloud-provider-gcp/crd v0.0.0-20230209193419-9f8207133805
 	k8s.io/kubelet v0.23.0
 )
+
+replace gke-internal.googlesource.com/anthos-networking/apis/v2 => gke-internal.googlesource.com/anthos-networking.git/apis/v2 v2.0.0-20240605185045-5f865b778586
 
 replace (
 	gke-internal/gke-node-firewall => gke-internal.googlesource.com/kubernetes/gke-node-firewall.git v0.0.20
