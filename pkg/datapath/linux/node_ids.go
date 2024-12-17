@@ -147,7 +147,7 @@ func (n *linuxNodeHandler) deallocateIDForNode(oldNode *nodeTypes.Node) error {
 		nodeIPs[addr.IP.String()] = true
 		id := n.nodeIDsByIPs[addr.IP.String()]
 		if nodeID != id {
-			n.log.Error("Found two node IDs for the same node",
+			n.log.Debug("Found two node IDs for the same node",
 				"first", id, "second", nodeID,
 				logfields.NodeName, oldNode.Name,
 				logfields.IPAddr, addr.IP,
@@ -168,7 +168,7 @@ func (n *linuxNodeHandler) deallocateNodeIDLocked(nodeID uint16, nodeIPs map[str
 		}
 		// Check that only IPs of this node had this node ID.
 		if _, isIPOfOldNode := nodeIPs[ip]; !isIPOfOldNode {
-			n.log.Error("Found a foreign IP address with the ID of the current node",
+			n.log.Debug("Found a foreign IP address with the ID of the current node",
 				logfields.NodeName, nodeName,
 				logfields.IPAddr, ip,
 				logfields.NodeID, id,
