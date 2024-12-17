@@ -10,10 +10,8 @@ import (
 	"net"
 	"net/netip"
 	"os"
-	"slices"
 	"sort"
 	"strconv"
-	"strings"
 
 	cniInvoke "github.com/containernetworking/cni/pkg/invoke"
 	"github.com/containernetworking/cni/pkg/skel"
@@ -459,29 +457,31 @@ func (cmd *Cmd) Add(args *skel.CmdArgs) (err error) {
 	logger = loggerWithCNIArgs(logger, cniArgs)
 
 	chainedMode := len(n.NetConf.RawPrevResult) != 0 && n.Name != chainingapi.DefaultConfigName
-	fastStartEnabled := false
-	var conf *models.DaemonConfigurationStatus
-	// Enable fast start only if cilium is used in chained plugin.
-	if chainedMode {
-		fastStartNamespacesList := strings.Split(n.FastStartNamespaces, ",")
-		if slices.Contains(fastStartNamespacesList, string(cniArgs.K8S_POD_NAMESPACE)) {
-			fastStartEnabled = true
-		}
-	}
 
+	fastStartEnabled := isFastStartEnabled(n, string(cniArgs.K8S_POD_NAMESPACE))
 	fc, err := lib.NewCreationFallbackClient(logger, fastStartEnabled)
 	if err != nil {
 		return err
 	}
 
-	if !fastStartEnabled && fc.CiliumClient == nil {
-		return fmt.Errorf("invalid direct cilium client and fast start is disabled")
-	}
-
+	var conf *models.DaemonConfigurationStatus
 	if fc.CiliumClient != nil {
+		// If cilium-agent is up, we get the daemon configuration from the agent.
 		conf, err = getConfigFromCiliumAgent(fc.CiliumClient)
-		if err != nil {
-			return err
+	} else {
+		if !fastStartEnabled {
+			// If fast start is disabled, we always need the agent to be available to process CNI ADD.
+			return fmt.Errorf("invalid cilium client and fast start is disabled")
+		}
+		if !chainedMode {
+			// If fast start is enabled and cilium-cni is the only CNI plugin, we create the daemon configuration from the CNI configuration file.
+			var ipamData *ipamConfig
+			if ipamData, err = getIpamConfig(args.StdinData); err != nil {
+				return err
+			}
+			if conf, err = createDaemonConfFromCNIConfig(n, ipamData); err != nil {
+				return err
+			}
 		}
 	}
 
