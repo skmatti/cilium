@@ -75,7 +75,7 @@
 #ifdef ENABLE_PER_PACKET_LB
 
 #ifdef ENABLE_IPV4
-static __always_inline int __per_packet_lb_svc_xlate_4(void *ctx, struct iphdr *ip4,
+static __always_inline __maybe_unused int __per_packet_lb_svc_xlate_4(void *ctx, struct iphdr *ip4,
 						       __s8 *ext_err)
 {
 	struct ipv4_ct_tuple tuple = {};
@@ -138,7 +138,7 @@ skip_service_lookup:
 #endif /* ENABLE_IPV4 */
 
 #ifdef ENABLE_IPV6
-static __always_inline int __per_packet_lb_svc_xlate_6(void *ctx, struct ipv6hdr *ip6,
+static __always_inline __maybe_unused int __per_packet_lb_svc_xlate_6(void *ctx, struct ipv6hdr *ip6,
 						       __s8 *ext_err)
 {
 	struct ipv6_ct_tuple tuple __align_stack_8 = {};
@@ -1407,6 +1407,7 @@ static __always_inline int __tail_handle_ipv4(struct __ctx_buff *ctx,
 {
 	void *data, *data_end;
 	struct iphdr *ip4;
+	int ret __maybe_unused;
 
 	if (!revalidate_data_pull(ctx, &data, &data_end, &ip4))
 		return DROP_INVALID;
@@ -1427,9 +1428,9 @@ static __always_inline int __tail_handle_ipv4(struct __ctx_buff *ctx,
 		return DROP_GOOGLE_INVALID_SMAC;
 #ifdef MULTI_NIC_DEVICE_TYPE
 	// Examine packet sourcing from multi NIC endpoint.
-	ret = redirect_if_dhcp(ctx, ip4->protocol, ETH_HLEN + ipv4_hdrlen(ip4));
+	ret = redirect_if_dhcp(ctx, ip4->protocol, ETH_HLEN + ipv4_hdrlen(ip4), ip4->saddr);
 	if (ret != CTX_ACT_OK)
-	        return ret;
+		return ret;
 	// Revalidate data after redirect_if_dhcp to avoid verifier
 	// rejecting the previous dereferenced ip4.
 	if (!revalidate_data(ctx, &data, &data_end, &ip4))
@@ -1460,9 +1461,10 @@ static __always_inline int __tail_handle_ipv4(struct __ctx_buff *ctx,
 	/* will tailcall internally or return error */
 	return __per_packet_lb_svc_xlate_4(ctx, ip4, ext_err);
 #else
-	/* won't be a tailcall, see TAIL_CT_LOOKUP4 */
-	return tail_ipv4_ct_egress(ctx);
-#endif /* ENABLE_PER_PACKET_LB && !MULTI_NIC_DEVICE_TYPE */
+    /* Google: should always tailcall if ENABLE_PER_PACKET_LB. */
+    return invoke_tailcall_if(is_defined(ENABLE_PER_PACKET_LB),
+			      CILIUM_CALL_IPV4_CT_EGRESS, tail_ipv4_ct_egress, ext_err);
+#endif /* ENABLE_PER_PACKET_LB && (!MULTI_NIC_DEVICE_TYPE || ENABLE_GOOGLE_SERVICE_STEERING)*/
 }
 
 __section_tail(CILIUM_MAP_CALLS, CILIUM_CALL_IPV4_FROM_LXC)

@@ -732,6 +732,9 @@ func (h *HeaderfileWriter) WriteNodeConfig(w io.Writer, cfg *datapath.LocalNodeC
 		cDefinesMap["ENABLE_GOOGLE_MULTI_NIC"] = "1"
 		cDefinesMap["MULTI_NIC_DEV_MAP"] = multinicdev.MapName
 		cDefinesMap["MULTI_NIC_DEV_MAP_SIZE"] = fmt.Sprintf("%d", multinicdev.MaxEntries)
+		if features.GlobalConfig.EnableGoogleMultiNICHairpin {
+			cDefinesMap["ENABLE_GOOGLE_MULTI_NIC_HAIRPIN"] = "1"
+		}
 	}
 
 	cDefinesMap["CIDR_IDENTITY_RANGE_START"] = fmt.Sprintf("%d", identity.MinLocalIdentity)

@@ -38,12 +38,15 @@ type Config struct {
 	// EnableGoogleConfigOverride enables overriding Cilium configuration by
 	// reading from cilium-config-emergency-override ConfigMap.
 	EnableGoogleConfigOverride bool
+	// EnableGoogleMultiNICHairpin is a flag for google multi nic hairpin support, default is true.
+	EnableGoogleMultiNICHairpin bool
 }
 
 var defaultConfig = Config{
 	// Add fields here. Do not delete this comment.
-	EnableGoogleMultiNIC:       false,
-	EnableGoogleConfigOverride: false,
+	EnableGoogleMultiNIC:        false,
+	EnableGoogleConfigOverride:  false,
+	EnableGoogleMultiNICHairpin: false,
 }
 
 func (cfg Config) Flags(flags *pflag.FlagSet) {
@@ -52,4 +55,7 @@ func (cfg Config) Flags(flags *pflag.FlagSet) {
 	flags.MarkHidden(option.EnableGoogleMultiNIC)
 	flags.Bool(option.EnableGoogleConfigOverrideName, defaultConfig.EnableGoogleConfigOverride, `Enable overriding Cilium configuration by reading from cilium-config-emergency-override ConfigMap`)
 	flags.MarkHidden(option.EnableGoogleConfigOverrideName)
+
+	flags.Bool(option.EnableGoogleMultiNICHairpin, defaultConfig.EnableGoogleMultiNICHairpin, "Enable google multi NIC local hairpin for local L2 broadcast")
+	flags.MarkHidden(option.EnableGoogleMultiNICHairpin)
 }

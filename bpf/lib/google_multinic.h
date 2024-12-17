@@ -3,6 +3,7 @@
 #include "common.h"
 #include "l4.h"
 #include "google_maps.h"
+#include "trace.h"
 
 DEFINE_U32(POD_STACK_REDIRECT_IFINDEX, 0xdeadbeef);
 #define POD_STACK_REDIRECT_IFINDEX fetch_u32(POD_STACK_REDIRECT_IFINDEX)
@@ -78,7 +79,7 @@ static __always_inline __maybe_unused int try_google_L3_fast_redirect(struct __c
 /** A trimmed version of ipv4_local_delivery that forces bpf_redirect. */
 static __always_inline int __redirect_multinic_ep(struct __ctx_buff *ctx, int l3_off,
 					       __u32 seclabel, struct iphdr *ip4,
-					       const struct endpoint_info *ep)
+					       const struct endpoint_info *ep, bool from_tunnel)
 {
 	mac_t router_mac = ep->node_mac;
 	mac_t lxc_mac = ep->mac;
@@ -89,9 +90,8 @@ static __always_inline int __redirect_multinic_ep(struct __ctx_buff *ctx, int l3
 	if (ret != CTX_ACT_OK)
 		return ret;
 
-	ctx->mark |= MARK_MAGIC_IDENTITY;
-	set_identity_mark(ctx, seclabel);
-	return redirect_ep(ctx, ep->ifindex, false);
+	set_identity_mark(ctx, seclabel, MARK_MAGIC_IDENTITY);
+	return redirect_ep(ctx, ep->ifindex, false, from_tunnel);
 }
 
 /**
@@ -127,11 +127,8 @@ static __always_inline int try_google_L3_fast_redirect(struct __ctx_buff *ctx, _
 		return DROP_UNROUTABLE;
 	}
 
-	return __redirect_multinic_ep(ctx, ETH_HLEN, seclabel, ip4, ep);
+	return __redirect_multinic_ep(ctx, ETH_HLEN, seclabel, ip4, ep, false);
 }
-
-static int BPF_FUNC(clone_redirect, struct __sk_buff *skb, int ifindex,
-		    __u32 flags);
 
 static __always_inline void
 ctx_google_local_redirect_set(struct __sk_buff *ctx)
@@ -153,9 +150,13 @@ multinic_redirect_ipv4(struct __ctx_buff *ctx)
 {
 	struct ethhdr *eth = ctx_data(ctx);
 	const union macaddr *dmac = (union macaddr *)&eth->h_dest;
-	const union macaddr host_mac = NODE_MAC;
+	const union macaddr host_mac = THIS_INTERFACE_MAC;
 	__u16 proto = 0;
 	const struct multi_nic_dev_info *dev;
+
+#ifndef ENABLE_GOOGLE_MULTI_NIC_HAIRPIN
+    return CTX_ACT_OK;
+#endif
 
 	if (!validate_ethertype(ctx, &proto)) {
 		return DROP_UNSUPPORTED_L2;
@@ -192,7 +193,7 @@ to_ingress:
 
 #if __ctx_is != __ctx_skb ||  !defined(ENABLE_GOOGLE_MULTI_NIC)
 static __always_inline __maybe_unused int redirect_if_dhcp(struct __ctx_buff *ctx __maybe_unused,
-                        __u8 nexthdr __maybe_unused, int l4_off __maybe_unused)
+                        __u8 nexthdr __maybe_unused, int l4_off __maybe_unused, __be32 saddr __maybe_unused)
 {
 	return CTX_ACT_OK;
 }
@@ -232,6 +233,12 @@ static __always_inline bool ctx_skip_google_dhcp(struct __sk_buff *ctx)
 	return tc_index & TC_INDEX_F_SKIP_POLICY_GOOGLE_DHCP;
 }
 
+// 0x0050fea9 is the network used by kubevirt for their dummy dhcp server IP address.
+// https://gke-internal.googlesource.com/third_party/kubevirt/kubevirt/+/refs/heads/dev/pkg/network/link/address_google.go#9
+static __always_inline bool is_kubevirt_dhcp(__be32 saddr) {
+	return ((saddr&0x00ffffff) == 0x0050fea9);
+}
+
 /**
  * Redirect dhcp client packets
  * if destination port is 67 on UDP(dhcp-request), redirect to pod-network interface
@@ -248,7 +255,7 @@ static __always_inline bool ctx_skip_google_dhcp(struct __sk_buff *ctx)
  *        A negative DROP_* code on error.
  */
 static __always_inline __maybe_unused int redirect_if_dhcp(struct __ctx_buff *ctx,
-                        __u8 nexthdr, int l4_off)
+                        __u8 nexthdr, int l4_off, __be32 saddr)
 {
     __be16 dport;
     if (nexthdr == IPPROTO_UDP) {
@@ -260,7 +267,7 @@ static __always_inline __maybe_unused int redirect_if_dhcp(struct __ctx_buff *ct
                               0, ctx->ifindex,
                               REASON_GOOGLE_DHCP_REQ_REDIRECT, TRACE_PAYLOAD_LEN);
             return redirect(POD_STACK_REDIRECT_IFINDEX, BPF_F_INGRESS);
-        } else if (unlikely(dport == bpf_htons(DHCP_RESPONSE_UDP_DPORT))) {
+        } else if (unlikely((dport == bpf_htons(DHCP_RESPONSE_UDP_DPORT)) && is_kubevirt_dhcp(saddr))) {
             // DHCP clients don't care if the source mac address is a broadcast mac.
             const __u8 dhcp_source_mac[6] = { 0xff, 0xff, 0xff, 0xff, 0xff, 0xff } ;
 
