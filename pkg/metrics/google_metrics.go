@@ -8,28 +8,34 @@ import (
 var (
 	// Define metrics here. Do not delete this entry and comment.
 	_ metric.Counter
-
-	ConntrackGCDistribution = NoOpObserverVec
-)
-
-const (
-	subsystemWireguard = "wireguard"
-	subsystemDatapath  = "google_datapath"
-)
-
-var (
 	// Metrics for In-transit Encryption
 	WireguardPeersTotal         = NoOpGaugeVec
 	WireguardAgentTimeStats     = NoOpObserverVec
 	WireguardTransferBytesTotal = NoOpGaugeVec
+	ConntrackGCDistribution     = NoOpObserverVec
+	MultiNetworkEndpoint        = NoOpGaugeVec
+	MultiNetworkPodCreation     = NoOpCounterVec
+	MultiNetworkIpamEvent       = NoOpCounterVec
+)
+
+const (
+	subsystemWireguard    = "wireguard"
+	subsystemDatapath     = "google_datapath"
+	subsystemMultiNetwork = "google_multinet"
+	labelNetwork          = "network"
+	labelNetworkType      = "network_type"
 )
 
 type GoogleMetrics struct {
-	ConntrackGCDistribution metric.Vec[metric.Observer]
 	// Metrics for In-transit Encryption
 	WireguardPeersTotalEnabled         metric.Vec[metric.Gauge]
 	WireguardAgentTimeStatsEnabled     metric.Vec[metric.Observer]
 	WireguardTransferBytesTotalEnabled metric.Vec[metric.Gauge]
+	ConntrackGCDistribution            metric.Vec[metric.Observer]
+
+	MultiNetworkEndpoint    metric.Vec[metric.Gauge]
+	MultiNetworkPodCreation metric.Vec[metric.Counter]
+	MultiNetworkIpamEvent   metric.Vec[metric.Counter]
 }
 
 func NewGoogleMetrics() *GoogleMetrics {
@@ -75,12 +81,40 @@ func NewGoogleMetrics() *GoogleMetrics {
 			LabelProtocol,
 		}),
 		// Add metrics here. Do not delete this comment.
+		MultiNetworkEndpoint: metric.NewGaugeVec(metric.GaugeOpts{
+			Namespace: Namespace,
+			Subsystem: subsystemMultiNetwork,
+			Name:      "endpoints_total",
+			Help:      "Number of multi-network endpoints managed by this agent.",
+		}, []string{
+			labelNetwork,
+			labelNetworkType,
+		}),
+		MultiNetworkPodCreation: metric.NewCounterVec(metric.CounterOpts{
+			Namespace: Namespace,
+			Subsystem: subsystemMultiNetwork,
+			Name:      "pod_creations_total",
+			Help:      "Number of multi-network pod creations.",
+		}, []string{
+			LabelOutcome,
+		}),
+		MultiNetworkIpamEvent: metric.NewCounterVec(metric.CounterOpts{
+			Namespace: Namespace,
+			Subsystem: subsystemMultiNetwork,
+			Name:      "ipam_events_total",
+			Help:      "Number of IPAM events received.",
+		}, []string{
+			labelNetwork,
+			LabelAction,
+			LabelDatapathFamily,
+		}),
 	}
-
 	WireguardPeersTotal = gm.WireguardPeersTotalEnabled
 	WireguardAgentTimeStats = gm.WireguardAgentTimeStatsEnabled
 	WireguardTransferBytesTotal = gm.WireguardTransferBytesTotalEnabled
 	ConntrackGCDistribution = gm.ConntrackGCDistribution
-
+	MultiNetworkEndpoint = gm.MultiNetworkEndpoint
+	MultiNetworkPodCreation = gm.MultiNetworkPodCreation
+	MultiNetworkIpamEvent = gm.MultiNetworkIpamEvent
 	return gm
 }

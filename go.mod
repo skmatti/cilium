@@ -13,6 +13,8 @@ replace (
 	k8s.io/endpointslice => k8s.io/endpointslice v0.30.2
 )
 
+replace k8s.io/kube-openapi => k8s.io/kube-openapi v0.0.0-20240105020646-a37d4de58910
+
 require (
 	cloud.google.com/go/compute/metadata v0.5.2
 	github.com/AdaLogics/go-fuzz-headers v0.0.0-20230811130428-ced1acdcaa24
@@ -137,6 +139,7 @@ require (
 	k8s.io/apiextensions-apiserver v0.30.2
 	k8s.io/apimachinery v0.31.1
 	k8s.io/client-go v0.31.1
+	k8s.io/cloud-provider-gcp/crd v0.0.0-20240613212235-9400b6ea07da
 	k8s.io/code-generator v0.30.2
 	k8s.io/component-base v0.30.2
 	k8s.io/endpointslice v0.30.2
@@ -295,9 +298,6 @@ require (
 	sigs.k8s.io/structured-merge-diff/v4 v4.4.1 // indirect
 )
 
-// GKE specific dependencies.
-replace gke-internal.googlesource.com/kon/pkg => gke-internal.googlesource.com/kon.git/pkg v0.0.0-20240702092033-e9d7919db158
-
 require (
 	github.com/GoogleCloudPlatform/gke-networking-api v0.2.0
 	github.com/golang/protobuf v1.5.4
@@ -308,11 +308,13 @@ require (
 	github.com/containernetworking/plugins v1.2.0
 	gke-internal.googlesource.com/anthos-networking/apis/v2 v2.0.0-00010101000000-000000000000
 	go.uber.org/multierr v1.11.0
-	k8s.io/cloud-provider-gcp/crd v0.0.0-20230209193419-9f8207133805
 	k8s.io/kubelet v0.23.0
 )
 
-replace gke-internal.googlesource.com/anthos-networking/apis/v2 => gke-internal.googlesource.com/anthos-networking.git/apis/v2 v2.0.0-20240605185045-5f865b778586
+replace (
+	gke-internal.googlesource.com/anthos-networking/apis/v2 => gke-internal.googlesource.com/anthos-networking.git/apis/v2 v2.10.1
+	gke-internal.googlesource.com/kon/pkg => gke-internal.googlesource.com/kon.git/pkg v0.0.0-20240702092033-e9d7919db158
+)
 
 replace (
 	gke-internal/gke-node-firewall => gke-internal.googlesource.com/kubernetes/gke-node-firewall.git v0.0.20

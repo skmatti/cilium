@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/cilium/cilium/pkg/cidr"
+	"github.com/cilium/cilium/pkg/endpoint"
 	"github.com/cilium/cilium/pkg/ip"
 	"github.com/cilium/cilium/pkg/node"
 	networkv1 "k8s.io/cloud-provider-gcp/crd/apis/network/v1"
@@ -16,6 +17,11 @@ type MultiNetworkIPAMManager interface {
 	// UpdateMultiNetworkIPAMAllocators updates the daemon's multi-network allocators with the new networks.
 	UpdateMultiNetworkIPAMAllocators(annotations map[string]string) error
 	ReserveGatewayIP(network *networkv1.Network) error
+	PreAllocateIPsForRestoredMultiNICEndpoints(eps []*endpoint.Endpoint) error
+}
+
+type HighPerfDeviceManager interface {
+	ReloadOnDeviceChange(devices []string)
 }
 
 // BuildMultiNetworkCIDRs parses the multi-network annotation on a node and builds a name-cidr map per network.

@@ -4,10 +4,15 @@
 #include "l4.h"
 #include "google_maps.h"
 #include "trace.h"
+#include "stubs.h"
 
 DEFINE_U32(POD_STACK_REDIRECT_IFINDEX, 0xdeadbeef);
 #define POD_STACK_REDIRECT_IFINDEX fetch_u32(POD_STACK_REDIRECT_IFINDEX)
 
+
+#ifndef NODEPORT_IPV4_BY_IFINDEX
+#define NODEPORT_IPV4_BY_IFINDEX(IFINDEX) ({ int __tmp __maybe_unused = IFINDEX; 0; })
+#endif
 
 DEFINE_U32(PARENT_DEV_IFINDEX, 0xdeadbeef);
 #define PARENT_DEV_IFINDEX fetch_u32(PARENT_DEV_IFINDEX)

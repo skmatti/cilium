@@ -468,6 +468,7 @@ func TestSetupNetworkRoutes(t *testing.T) {
 		net                *networkv1.Network
 		isDefaultInterface bool
 		routeMTU           int
+		skipInstallation   bool
 		wantRoutes         []netlink.Route
 		wantErr            string
 	}{
@@ -487,6 +488,7 @@ func TestSetupNetworkRoutes(t *testing.T) {
 				},
 			},
 			wantRoutes: []netlink.Route{
+				macvtapLinkRoute(),
 				v4Route("10.10.10.0", v4GW, 24, 0, netlink.SCOPE_UNIVERSE),
 				v4Route("20.20.20.0", v4GW, 24, 0, netlink.SCOPE_UNIVERSE),
 			},
@@ -506,6 +508,7 @@ func TestSetupNetworkRoutes(t *testing.T) {
 				},
 			},
 			wantRoutes: []netlink.Route{
+				macvtapLinkRoute(),
 				v4Route("10.10.10.0", "", 24, 0, netlink.SCOPE_LINK),
 				v4Route("20.20.20.0", "", 24, 0, netlink.SCOPE_LINK),
 			},
@@ -527,13 +530,14 @@ func TestSetupNetworkRoutes(t *testing.T) {
 			},
 			isDefaultInterface: true,
 			wantRoutes: []netlink.Route{
+				macvtapLinkRoute(),
 				v4Route("10.10.10.0", v4GW, 24, 0, netlink.SCOPE_UNIVERSE),
 				v4Route("20.20.20.0", v4GW, 24, 0, netlink.SCOPE_UNIVERSE),
 				v4DefaultRoute(v4GW),
 			},
 		},
 		{
-			desc: "apply default route with gw to pod-network",
+			desc: "apply default route with gw to default-network",
 			intf: &networkv1.NetworkInterface{
 				Spec: networkv1.NetworkInterfaceSpec{
 					NetworkName: networkv1.DefaultNetworkName,
@@ -552,6 +556,31 @@ func TestSetupNetworkRoutes(t *testing.T) {
 			},
 			isDefaultInterface: true,
 			wantRoutes: []netlink.Route{
+				macvtapLinkRoute(),
+				v4Route("10.10.10.0", v4GW, 24, 0, netlink.SCOPE_UNIVERSE),
+				v4Route("20.20.20.0", v4GW, 24, 0, netlink.SCOPE_UNIVERSE),
+			},
+		},
+		{
+			desc: "apply route with gw to default-network",
+			intf: &networkv1.NetworkInterface{
+				Spec: networkv1.NetworkInterfaceSpec{
+					NetworkName: networkv1.DefaultNetworkName,
+				},
+				Status: networkv1.NetworkInterfaceStatus{
+					Routes: []networkv1.Route{
+						{
+							To: "10.10.10.0/24",
+						},
+						{
+							To: "20.20.20.0/24",
+						},
+					},
+					Gateway4: &v4GW,
+				},
+			},
+			wantRoutes: []netlink.Route{
+				macvtapLinkRoute(),
 				v4Route("10.10.10.0", v4GW, 24, 0, netlink.SCOPE_UNIVERSE),
 				v4Route("20.20.20.0", v4GW, 24, 0, netlink.SCOPE_UNIVERSE),
 			},
@@ -572,6 +601,7 @@ func TestSetupNetworkRoutes(t *testing.T) {
 			},
 			routeMTU: 1300,
 			wantRoutes: []netlink.Route{
+				macvtapLinkRoute(),
 				v4Route("10.10.10.0", "", 24, 0, netlink.SCOPE_LINK),
 				v4Route("20.20.20.0", "", 24, 0, netlink.SCOPE_LINK),
 			},
@@ -595,14 +625,17 @@ func TestSetupNetworkRoutes(t *testing.T) {
 			},
 			routeMTU: 1300,
 			wantRoutes: []netlink.Route{
+				macvtapLinkRoute(),
 				v4Route("10.10.10.0", "", 24, 1300, netlink.SCOPE_LINK),
 				v4Route("20.20.20.0", "", 24, 1300, netlink.SCOPE_LINK),
 			},
 		},
 		{
-			desc:       "no routes to apply",
-			intf:       &networkv1.NetworkInterface{Status: networkv1.NetworkInterfaceStatus{}},
-			wantRoutes: []netlink.Route{},
+			desc: "no routes to apply",
+			intf: &networkv1.NetworkInterface{Status: networkv1.NetworkInterfaceStatus{}},
+			wantRoutes: []netlink.Route{
+				macvtapLinkRoute(),
+			},
 		},
 		{
 			desc: "invalid routes",
@@ -649,10 +682,10 @@ func TestSetupNetworkRoutes(t *testing.T) {
 				},
 			},
 			isDefaultInterface: true,
-			wantErr:            "default route must have a valid gateway address",
+			wantErr:            "gateway must be configured for default interface network: ",
 		},
 		{
-			desc: "default route but without gw address",
+			desc: "default route for L3 network",
 			intf: &networkv1.NetworkInterface{
 				Status: networkv1.NetworkInterfaceStatus{
 					Routes: []networkv1.Route{
@@ -673,11 +706,33 @@ func TestSetupNetworkRoutes(t *testing.T) {
 			},
 			isDefaultInterface: true,
 			wantRoutes: []netlink.Route{
+				macvtapLinkRoute(),
 				v4Route("10.10.10.0", v4GW, 24, 0, netlink.SCOPE_UNIVERSE),
 				v4Route("20.20.20.0", v4GW, 24, 0, netlink.SCOPE_UNIVERSE),
 				v4Route(v4GW, "", 32, 0, netlink.SCOPE_LINK),
 				v4DefaultRoute(v4GW),
 			},
+		},
+		{
+			desc: "skip route installation",
+			intf: &networkv1.NetworkInterface{
+				Status: networkv1.NetworkInterfaceStatus{
+					Routes: []networkv1.Route{
+						{
+							To: "10.10.10.0/24",
+						},
+					},
+					Gateway4: &v4GW,
+				},
+			},
+			net: &networkv1.Network{
+				Spec: networkv1.NetworkSpec{
+					Type: networkv1.L2NetworkType,
+				},
+			},
+			isDefaultInterface: true,
+			skipInstallation:   true,
+			wantRoutes:         nil,
 		},
 	}
 
@@ -703,7 +758,7 @@ func TestSetupNetworkRoutes(t *testing.T) {
 			}
 
 			// Run the test in the root ns.
-			gotErr := SetupNetworkRoutes(interfaceNameInPod, tc.intf, tc.net, testNSPath, tc.isDefaultInterface, tc.routeMTU)
+			gotErr := SetupNetworkRoutes(interfaceNameInPod, tc.intf, tc.net, testNSPath, tc.isDefaultInterface, tc.routeMTU, tc.skipInstallation)
 			if gotErr != nil {
 				if tc.wantErr == "" {
 					t.Fatalf("SetupNetworkRoutes() return error %v but want nil", gotErr)
@@ -724,8 +779,6 @@ func TestSetupNetworkRoutes(t *testing.T) {
 			}); err != nil {
 				t.Fatalf("failed to list routes: %v", err)
 			}
-
-			tc.wantRoutes = append(tc.wantRoutes, macvtapLinkRoute())
 			if diff := cmp.Diff(gotRoutes, tc.wantRoutes, cmpopts.SortSlices(func(r1, r2 netlink.Route) bool {
 				return r1.String() < r2.String()
 			})); diff != "" {
@@ -872,6 +925,8 @@ func TestConfigureDHCPInfo(t *testing.T) {
 		wantErr  string
 		wantCfg  interfaceConfiguration
 		dc       *fakeDHCPClient
+		clientIP net.IP
+		serverIP net.IP
 	}{
 		{
 			desc:     "network specifies external DHCP and no static config",
@@ -888,6 +943,51 @@ func TestConfigureDHCPInfo(t *testing.T) {
 			dc:       fakeClient,
 			wantResp: &emptyMacResponse,
 			wantCfg:  dhcpConfig,
+		},
+		{
+			desc:    "network specifies external DHCP and no static config with DHCP renew",
+			network: dhcpNetwork,
+			cfg:     emptyConfig,
+			dc: &fakeDHCPClient{
+				emptyMacResponse: emptyMacResponse,
+				resp:             dhcpResp,
+				// Error if we call GetDHCPResponse since we should only renew.
+				clientErr: fmt.Errorf("should not get this error, discover called"),
+			},
+			wantResp: &emptyMacResponse,
+			wantCfg:  dhcpConfig,
+			clientIP: net.ParseIP("10.0.0.0"),
+			serverIP: net.ParseIP("10.0.0.1"),
+		},
+		{
+			desc:    "dhcp Renew fails, fall back to discover",
+			network: dhcpNetwork,
+			cfg:     emptyConfig,
+			dc: &fakeDHCPClient{
+				emptyMacResponse: emptyMacResponse,
+				resp:             dhcpResp,
+				renewErr:         fmt.Errorf("NACK"),
+			},
+			wantResp: &emptyMacResponse,
+			wantCfg:  dhcpConfig,
+			clientIP: net.ParseIP("10.0.0.0"),
+			serverIP: net.ParseIP("10.0.0.1"),
+		},
+		{
+			desc:    "dhcp Renew fails and so does discover, should error",
+			network: dhcpNetwork,
+			cfg:     emptyConfig,
+			dc: &fakeDHCPClient{
+				emptyMacResponse: emptyMacResponse,
+				resp:             dhcpResp,
+				renewErr:         fmt.Errorf("dhcp renew error"),
+				clientErr:        fmt.Errorf("dhcp client error"),
+			},
+			wantResp: nil,
+			wantCfg:  emptyConfig,
+			wantErr:  "dhcp client error",
+			clientIP: net.ParseIP("10.0.0.0"),
+			serverIP: net.ParseIP("10.0.0.1"),
 		},
 		{
 			desc:    "network specifies external DHCP and no static config, and no IP is returned",
@@ -986,7 +1086,7 @@ func TestConfigureDHCPInfo(t *testing.T) {
 			testCfg := tc.cfg
 			tc.dc.network = tc.network
 			tc.dc.t = t
-			gotResp, gotErr := configureDHCPInfo(tc.network, &testCfg, tc.dc, "podNS", "podIface", "containerID")
+			gotResp, gotErr := configureDHCPInfo(tc.network, &testCfg, tc.dc, tc.clientIP, tc.serverIP, "podNS", "podIface", "containerID")
 
 			if diff := cmp.Diff(gotResp, tc.wantResp); diff != "" {
 				t.Errorf("configureDHCPInfo() has incorrect dhcp response (-got, +want): %s\n", diff)
@@ -1014,12 +1114,22 @@ func TestConfigureDHCPInfo(t *testing.T) {
 }
 
 func TestConfigureIPAMInfo(t *testing.T) {
+	ipamModeInternal := networkv1.InternalMode
+	ipamModeExternal := networkv1.ExternalMode
 	testNw := "test-nw"
 	l3NwInfo := networkv1.Network{
 		ObjectMeta: metav1.ObjectMeta{Name: testNw},
 		Spec: networkv1.NetworkSpec{
 			Type:   networkv1.L3NetworkType,
 			Routes: []networkv1.Route{{To: "10.0.0.0/21"}},
+		},
+	}
+	l3NwExtIPAMInfo := networkv1.Network{
+		ObjectMeta: metav1.ObjectMeta{Name: testNw},
+		Spec: networkv1.NetworkSpec{
+			Type:     networkv1.L3NetworkType,
+			Routes:   []networkv1.Route{{To: "10.0.0.0/21"}},
+			IPAMMode: &ipamModeExternal,
 		},
 	}
 	l2NwInfo := networkv1.Network{
@@ -1088,9 +1198,25 @@ func TestConfigureIPAMInfo(t *testing.T) {
 				Spec: networkv1.NetworkSpec{
 					Type:            networkv1.L2NetworkType,
 					L2NetworkConfig: &networkv1.L2NetworkConfig{PrefixLength4: pointer.Int32(24)},
+					IPAMMode:        &ipamModeInternal,
 				},
 			},
 			wantMask: 24,
+		},
+		{
+			desc: "l2 network dynamic IP with IPAM Mode set to External",
+			network: &networkv1.Network{
+				ObjectMeta: metav1.ObjectMeta{Name: testNw},
+				Spec: networkv1.NetworkSpec{
+					Type:            networkv1.L2NetworkType,
+					L2NetworkConfig: &networkv1.L2NetworkConfig{PrefixLength4: pointer.Int32(24)},
+					IPAMMode:        &ipamModeExternal,
+				},
+			},
+		},
+		{
+			desc:    "l3 network dynamic IP with external IPAM Mode",
+			network: &l3NwExtIPAMInfo,
 		},
 	}
 
@@ -1109,16 +1235,26 @@ func TestConfigureIPAMInfo(t *testing.T) {
 				}
 				return
 			}
+
+			// Returned IPv4 address must match what was provided when Static IPAM is configured.
 			if tc.infCfg.IPV4Address != nil && tc.infCfg.IPV4Address != infCfg.IPV4Address {
 				t.Fatalf("configureIPAMInfo() returned interface configuration with ipv4 address different from provided static IP")
-			} else if infCfg.IPV4Address == nil {
-				t.Fatalf("configureIPAMInfo() returned interface configuration with nil ipv4 address")
 			}
-			if tc.infCfg.IPV4Address == nil {
-				ones, _ := infCfg.IPV4Address.Mask.Size()
-				if ones != tc.wantMask {
-					t.Fatalf("configureIPAMInfo() returned interface configuration with ipv4 address with incorrect netmask, got %d, want %d", ones, tc.wantMask)
+
+			// Dynamic IPAM expects a valid IPAM config unless IPAM Mode is set to 'External'
+			if tc.network.Spec.IPAMMode == nil || *tc.network.Spec.IPAMMode == networkv1.InternalMode {
+				if infCfg.IPV4Address == nil {
+					t.Fatalf("configureIPAMInfo() returned interface configuration with nil ipv4 address")
 				}
+
+				if tc.infCfg.IPV4Address == nil {
+					ones, _ := infCfg.IPV4Address.Mask.Size()
+					if ones != tc.wantMask {
+						t.Fatalf("configureIPAMInfo() returned interface configuration with ipv4 address with incorrect netmask, got %d, want %d", ones, tc.wantMask)
+					}
+				}
+			} else if tc.infCfg.IPV4Address == nil && infCfg.IPV4Address != nil {
+				t.Fatalf("configureIPAMInfo() returned interface configuration when IPAM Mode was set to external.")
 			}
 		})
 	}
@@ -1128,15 +1264,12 @@ type fakeDHCPClient struct {
 	emptyMacResponse dhcp.DHCPResponse
 	resp             dhcp.DHCPResponse
 	clientErr        error
+	renewErr         error
 	network          *networkv1.Network
 	t                *testing.T
 }
 
-func (dc *fakeDHCPClient) GetDHCPResponse(containerID, podNS, podIface, parentIface string, macAddress *string) (*dhcp.DHCPResponse, error) {
-	if dc.clientErr != nil {
-		return nil, dc.clientErr
-	}
-
+func (dc *fakeDHCPClient) combinedResponse(containerID, podNS, podIface, parentIface string, macAddress *string) (*dhcp.DHCPResponse, error) {
 	expectedParentIface, err := multinictypes.InterfaceName(dc.network)
 	if err != nil {
 		dc.t.Fatalf("errored getting parent interface from network %+v: %s", dc.network, err)
@@ -1152,11 +1285,26 @@ func (dc *fakeDHCPClient) GetDHCPResponse(containerID, podNS, podIface, parentIf
 	return &dc.resp, nil
 }
 
+func (dc *fakeDHCPClient) GetDHCPResponse(containerID, podNS, podIface, parentIface string, macAddress *string) (*dhcp.DHCPResponse, error) {
+	if dc.clientErr != nil {
+		return nil, dc.clientErr
+	}
+	return dc.combinedResponse(containerID, podNS, podIface, parentIface, macAddress)
+}
+
+func (dc *fakeDHCPClient) Renew(containerID, podNS, podIface, parentIface string, macAddress *string, clientIP, serverIP net.IP) (*dhcp.DHCPResponse, error) {
+	if dc.renewErr != nil {
+		return nil, dc.renewErr
+	}
+	return dc.combinedResponse(containerID, podNS, podIface, parentIface, macAddress)
+}
+
 func (dc *fakeDHCPClient) Release(containerID, podNS, podIface string, letLeaseExpire bool) error {
 	return dc.clientErr
 }
 
 func TestConfigureInterface(t *testing.T) {
+	testutils.PrivilegedTest(t)
 	testcases := []struct {
 		desc    string
 		infCfg  interfaceConfiguration

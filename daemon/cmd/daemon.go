@@ -62,6 +62,7 @@ import (
 	k8sClient "github.com/cilium/cilium/pkg/k8s/client"
 	slim_corev1 "github.com/cilium/cilium/pkg/k8s/slim/k8s/api/core/v1"
 	"github.com/cilium/cilium/pkg/k8s/watchers"
+	"github.com/cilium/cilium/pkg/l2announcer"
 	"github.com/cilium/cilium/pkg/labels"
 	"github.com/cilium/cilium/pkg/lock"
 	"github.com/cilium/cilium/pkg/logging/logfields"
@@ -91,7 +92,8 @@ import (
 
 const (
 	// AutoCIDR indicates that a CIDR should be allocated
-	AutoCIDR = "auto"
+	AutoCIDR              = "auto"
+	syncHostIPsController = "sync-host-ips"
 )
 
 // Daemon is the cilium daemon that is in charge of perform all necessary plumbing,
@@ -194,6 +196,8 @@ type Daemon struct {
 
 	// just used to tie together some status reporting
 	cniConfigManager cni.CNIConfigManager
+
+	l2announcer *l2announcer.L2Announcer
 
 	// authManager for reporting the status of the auth system certificate provider
 	authManager *auth.AuthManager
@@ -424,6 +428,7 @@ func newDaemon(ctx context.Context, cleaner *daemonCleanup, params *daemonParams
 		clusterInfo:       params.ClusterInfo,
 		clustermesh:       params.ClusterMesh,
 		monitorAgent:      params.MonitorAgent,
+		l2announcer:       params.L2Announcer,
 		svc:               params.ServiceManager,
 		l7Proxy:           params.L7Proxy,
 		envoyXdsServer:    params.EnvoyXdsServer,
@@ -665,6 +670,10 @@ func newDaemon(ctx context.Context, cleaner *daemonCleanup, params *daemonParams
 		}
 	}
 
+	if d.l2announcer != nil {
+		d.l2announcer.DevicesChanged(devices)
+	}
+
 	nativeDevices, _ := datapathTables.SelectedDevices(d.devices, d.db.ReadTxn())
 	if err := finishKubeProxyReplacementInit(params.Sysctl, nativeDevices); err != nil {
 		log.WithError(err).Error("failed to finalise LB initialization")
@@ -795,17 +804,6 @@ func newDaemon(ctx context.Context, cleaner *daemonCleanup, params *daemonParams
 		serviceStore.JoinClusterServices(d.k8sSvcCache, option.Config.ClusterName)
 	}
 
-	// Initialize and wait for multinic client cache to sync
-	if features.GlobalConfig.EnableGoogleMultiNIC {
-		if !params.Clientset.IsEnabled() {
-			log.Fatal("K8s needs to be enabled for multi nic support")
-		}
-		d.multinicClient, d.kubeletClient, d.dhcpClient, err = multinic.Init(d.ctx, d.endpointManager, params.Clientset.RestConfig(), &d, d.devices, d.db)
-		if err != nil {
-			log.WithError(err).Fatal("Unable to init multinic")
-		}
-	}
-
 	// Start IPAM
 	d.startIPAM()
 
@@ -912,6 +910,17 @@ func newDaemon(ctx context.Context, cleaner *daemonCleanup, params *daemonParams
 		return nil, nil, err
 	}
 
+	// Initialize and wait for multinic client cache to sync
+	if features.GlobalConfig.EnableGoogleMultiNIC {
+		if !params.Clientset.IsEnabled() {
+			log.Fatal("K8s needs to be enabled for multi nic support")
+		}
+		d.multinicClient, d.kubeletClient, d.dhcpClient, err = multinic.Init(d.ctx, d.endpointManager, params.Clientset, restoredEndpoints.restored, &d, &d, d.devices, d.db)
+		if err != nil {
+			log.WithError(err).Fatal("Unable to init multinic")
+		}
+	}
+
 	// Start watcher for endpoint IP --> identity mappings in key-value store.
 	// this needs to be done *after* init() for the daemon in that function,
 	// we populate the IPCache with the host's IP(s).
@@ -975,4 +984,35 @@ func (d *Daemon) SendNotification(notification monitorAPI.AgentNotifyMessage) er
 
 type endpointMetadataFetcher interface {
 	Fetch(nsName, podName string) (*slim_corev1.Namespace, *slim_corev1.Pod, error)
+}
+
+// ReloadOnDeviceChange regenerates device related information and reloads the datapath.
+// The devices is the new set of devices that replaces the old set.
+// This is here for google multinic and needs to be removed when MN is moved to a cell.
+func (d *Daemon) ReloadOnDeviceChange(devices []string) {
+	// option.Config.SetDevices(devices)
+
+	if option.Config.MasqueradingEnabled() && option.Config.EnableBPFMasquerade {
+		if err := node.InitBPFMasqueradeAddrs(devices); err != nil {
+			log.Warnf("InitBPFMasqueradeAddrs failed: %s", err)
+		}
+	}
+
+	if d.l2announcer != nil {
+		d.l2announcer.DevicesChanged(devices)
+	}
+
+	if option.Config.EnableNodePort {
+		// Synchronize services and endpoints to reflect new addresses onto lbmap.
+		// d.svc.SyncNodePortFrontends(d.Datapath().LocalNodeAddressing())
+		d.controllers.TriggerController(syncHostIPsController)
+	}
+
+	// Reload the datapath.
+	wg, err := d.TriggerReload("devices changed")
+	if err != nil {
+		log.WithError(err).Warn("Failed to reload datapath")
+		return
+	}
+	wg.Wait()
 }

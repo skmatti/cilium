@@ -9,6 +9,7 @@
 #include "common.h"
 #include "neigh.h"
 #include "l3.h"
+#include "google_multinic.h"
 
 static __always_inline int
 add_l2_hdr(struct __ctx_buff *ctx __maybe_unused)
@@ -86,6 +87,10 @@ fib_do_redirect(struct __ctx_buff *ctx, const bool needs_l2_check,
 		const struct bpf_fib_lookup_padded *fib_params,
 		bool allow_neigh_map, __s8 *fib_ret, int *oif)
 {
+	bool mn_veth = false;
+#if defined(IS_BPF_LXC) && defined(MULTI_NIC_DEVICE_TYPE) && MULTI_NIC_DEVICE_TYPE == EP_DEV_TYPE_INDEX_MULTI_NIC_VETH
+	mn_veth = true;
+#endif
 	/* sanity check, we only enter this function with these two fib lookup
 	 * return codes.
 	 */
@@ -134,7 +139,7 @@ fib_do_redirect(struct __ctx_buff *ctx, const bool needs_l2_check,
 		 * prefer that over the BPF neighbor map since the latter
 		 * might be less accurate in some asymmetric corner cases.
 		 */
-		if (neigh_resolver_available()) {
+		if (neigh_resolver_available() && !mn_veth) {
 			if (fib_params) {
 				struct bpf_redir_neigh nh_params;
 
@@ -184,17 +189,18 @@ fib_redirect(struct __ctx_buff *ctx, const bool needs_l2_check,
 #ifdef ENABLE_SKIP_FIB
 	*oif = DIRECT_ROUTING_DEV_IFINDEX;
 #endif
-
 	if (!is_defined(ENABLE_SKIP_FIB) || !neigh_resolver_available()) {
 		int ret;
-
-		ret = fib_lookup(ctx, &fib_params->l, sizeof(fib_params->l), 0);
+		#if defined(IS_BPF_LXC) && defined(MULTI_NIC_DEVICE_TYPE) && MULTI_NIC_DEVICE_TYPE == EP_DEV_TYPE_INDEX_MULTI_NIC_VETH
+			ret = BPF_FIB_LKUP_RET_NO_NEIGH;
+			*oif = PARENT_DEV_IFINDEX;
+		#else
+			ret = fib_lookup(ctx, &fib_params->l, sizeof(fib_params->l), 0);
+		#endif
 		*fib_err = (__s8)ret;
-
 		return fib_do_redirect(ctx, needs_l2_check, fib_params, use_neigh_map,
 				       fib_err, oif);
 	}
-
 	*fib_err = BPF_FIB_LKUP_RET_NO_NEIGH;
 
 	return fib_do_redirect(ctx, needs_l2_check, NULL, use_neigh_map,

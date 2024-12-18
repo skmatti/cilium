@@ -3,11 +3,14 @@ package endpoint
 import (
 	"fmt"
 	"hash/crc32"
+	"runtime"
+	"unsafe"
 
 	"github.com/cilium/cilium/pkg/bpf"
 	"github.com/cilium/cilium/pkg/gke/features"
 	multinicep "github.com/cilium/cilium/pkg/gke/multinic/endpoint"
 	"github.com/cilium/cilium/pkg/mac"
+	"golang.org/x/sys/unix"
 )
 
 const (
@@ -53,6 +56,30 @@ func (e *Endpoint) SetDeviceTypeForTest(t multinicep.EndpointDeviceType) {
 // BPFMapPath returns the path to the ipvlan/macvtap/macvlan tail call map of an endpoint.
 func (e *Endpoint) BPFMapPath() string {
 	return bpf.LocalMapPath(MultiNICMapName, e.ID)
+}
+
+// PinDatapathMap retrieves a file descriptor from the map ID from the API call
+// and pins the corresponding map into the BPF file system.
+func (e *Endpoint) PinDatapathMap() error {
+	if err := e.lockAlive(); err != nil {
+		return err
+	}
+	defer e.unlock()
+	return e.pinDatapathMap()
+}
+
+func (e *Endpoint) pinDatapathMap() error {
+	if e.datapathMapID == 0 {
+		return nil
+	}
+
+	mapFd, err := mapFdFromID(e.datapathMapID)
+	if err != nil {
+		return err
+	}
+	defer unix.Close(mapFd)
+
+	return objPin(mapFd, e.BPFMapPath())
 }
 
 // GetInterfaceNameInPod returns the interface name inside the pod namespace.
@@ -148,4 +175,66 @@ func (e *Endpoint) GetNetworkID() uint32 {
 		return 0
 	}
 	return e.DatapathConfiguration.NetworkID
+}
+
+type bpfAttrFdFromId struct {
+	ID     uint32
+	NextID uint32
+	Flags  uint32
+}
+
+// mapFdFromID retrieves a file descriptor based on a map ID.
+func mapFdFromID(id int) (int, error) {
+	uba := bpfAttrFdFromId{
+		ID: uint32(id),
+	}
+	const BPF_MAP_GET_FD_BY_ID = 14
+	fd, _, err := unix.Syscall(
+		unix.SYS_BPF,
+		BPF_MAP_GET_FD_BY_ID,
+		uintptr(unsafe.Pointer(&uba)),
+		unsafe.Sizeof(uba),
+	)
+	runtime.KeepAlive(&uba)
+
+	if fd == 0 || err != 0 {
+		return 0, fmt.Errorf("Unable to get object fd from id %d: %s", id, err)
+	}
+
+	return int(fd), nil
+}
+
+// This struct must be in sync with union bpf_attr's anonymous struct used by
+// BPF_OBJ_*_ commands
+type bpfAttrObjOp struct {
+	pathname uint64
+	fd       uint32
+	pad0     [4]byte
+}
+
+// objPin stores the map's fd in pathname.
+func objPin(fd int, pathname string) error {
+	pathStr, err := unix.BytePtrFromString(pathname)
+	if err != nil {
+		return fmt.Errorf("Unable to convert pathname %q to byte pointer: %w", pathname, err)
+	}
+	uba := bpfAttrObjOp{
+		pathname: uint64(uintptr(unsafe.Pointer(pathStr))),
+		fd:       uint32(fd),
+	}
+	const BPF_OBJ_PIN = 6
+	ret, _, errno := unix.Syscall(
+		unix.SYS_BPF,
+		BPF_OBJ_PIN,
+		uintptr(unsafe.Pointer(&uba)),
+		unsafe.Sizeof(uba),
+	)
+	runtime.KeepAlive(pathStr)
+	runtime.KeepAlive(&uba)
+
+	if ret != 0 || errno != 0 {
+		return fmt.Errorf("Unable to pin object with file descriptor %d to %s: %s", fd, pathname, errno)
+	}
+
+	return nil
 }

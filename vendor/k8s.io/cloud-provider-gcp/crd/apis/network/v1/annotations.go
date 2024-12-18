@@ -12,6 +12,10 @@ const (
 	DisableSourceIPValidationAnnotationKey = "networking.gke.io/disable-source-ip-validation"
 	// DisableSourceValidationAnnotationValTrue is the value to disable source IP validation for the pod.
 	DisableSourceIPValidationAnnotationValTrue = "true"
+	// DisableSourceMACValidationAnnotationKey is the annotation on pod to disable source MAC validation on L2 interfaces.
+	DisableSourceMACValidationAnnotationKey = "networking.gke.io/disable-source-mac-validation"
+	// DisableSourceMACValidationAnnotationValTrue is the value to disable source MAC validation for the pod.
+	DisableSourceMACValidationAnnotationValTrue = "true"
 	// EnableMulticastAnnotationKey is the annotation on pod to enable multicast on L2 interfaces.
 	// It's also used to enable IGMP protocol for L2 interfaces.
 	EnableMulticastAnnotationKey = "networking.gke.io/enable-multicast"
@@ -44,6 +48,8 @@ const (
 	AutoGenAnnotationValTrue = "true"
 	// NorthInterfacesAnnotationKey is the annotation key used to hold interfaces data per node.
 	NorthInterfacesAnnotationKey = "networking.gke.io/north-interfaces"
+	// NICInfoAnnotationKey specifies the mapping between the fist IP addresse and the PCI BDF number on the node.
+	NICInfoAnnotationKey = "networking.gke.io/nic-info"
 )
 
 // InterfaceAnnotation is the value of the interface annotation.
@@ -62,6 +68,22 @@ type InterfaceRef struct {
 	Network *string `json:"network,omitempty"`
 	// Interface reference the NetworkInterface object within the namespace.
 	Interface *string `json:"interface,omitempty"`
+}
+
+// NICInfoAnnotation is the value of the nic-info annotation
+// +kubebuilder:object:generate:=false
+type NICInfoAnnotation []NICInfoRef
+
+// NICInfoRef specifies the mapping between a NIC's first IP and its
+// PCI address on the node.
+// +kubebuilder:object:generate:=false
+type NICInfoRef struct {
+	// First IP address of the interface.
+	BirthIP string `json:"birthIP,omitempty"`
+	// PCI address of this device on the node.
+	PCIAddress string `json:"pciAddress,omitempty"`
+	// Name is the birth name of this interface at node boot time.
+	BirthName string `json:"birthName,omitempty"`
 }
 
 // ParseInterfaceAnnotation parses the given annotation.
@@ -168,6 +190,13 @@ func ParseNorthInterfacesAnnotation(annotation string) (NorthInterfacesAnnotatio
 	return *ret, err
 }
 
+// ParseNICInfoAnnotation parses given annotation to NicInfoAnnotation
+func ParseNICInfoAnnotation(annotation string) (NICInfoAnnotation, error) {
+	ret := &NICInfoAnnotation{}
+	err := json.Unmarshal([]byte(annotation), ret)
+	return *ret, err
+}
+
 // MarshalNodeNetworkAnnotation marshals a NodeNetworkAnnotation into string.
 func MarshalNodeNetworkAnnotation(a NodeNetworkAnnotation) (string, error) {
 	return MarshalAnnotation(a)
@@ -175,5 +204,10 @@ func MarshalNodeNetworkAnnotation(a NodeNetworkAnnotation) (string, error) {
 
 // MarshalNorthInterfacesAnnotation marshals a NorthInterfacesAnnotation into string.
 func MarshalNorthInterfacesAnnotation(a NorthInterfacesAnnotation) (string, error) {
+	return MarshalAnnotation(a)
+}
+
+// MarshalNICInfoAnnotation marshals a NICInfoAnnotation into string.
+func MarshalNICInfoAnnotation(a NICInfoAnnotation) (string, error) {
 	return MarshalAnnotation(a)
 }

@@ -40,6 +40,7 @@ type Config struct {
 	EnableGoogleConfigOverride bool
 	// EnableGoogleMultiNICHairpin is a flag for google multi nic hairpin support, default is true.
 	EnableGoogleMultiNICHairpin bool
+	PopulateGCENICInfo          bool
 }
 
 var defaultConfig = Config{
@@ -47,6 +48,7 @@ var defaultConfig = Config{
 	EnableGoogleMultiNIC:        false,
 	EnableGoogleConfigOverride:  false,
 	EnableGoogleMultiNICHairpin: false,
+	PopulateGCENICInfo:          false,
 }
 
 func (cfg Config) Flags(flags *pflag.FlagSet) {
@@ -58,4 +60,7 @@ func (cfg Config) Flags(flags *pflag.FlagSet) {
 
 	flags.Bool(option.EnableGoogleMultiNICHairpin, defaultConfig.EnableGoogleMultiNICHairpin, "Enable google multi NIC local hairpin for local L2 broadcast")
 	flags.MarkHidden(option.EnableGoogleMultiNICHairpin)
+
+	flags.Bool(option.PopulateGCENICInfo, defaultConfig.PopulateGCENICInfo, "Populate GCE NIC information as node annotation.")
+	flags.MarkHidden(option.PopulateGCENICInfo)
 }

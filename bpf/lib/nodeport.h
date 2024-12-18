@@ -2745,6 +2745,18 @@ int tail_nodeport_nat_egress_ipv4(struct __ctx_buff *ctx)
 	__be32 tunnel_endpoint = 0;
 #endif
 
+	/* Use per-interface NodePort SNAT IP for additional-network host devices
+	 * to preserve network isolation.
+	 * Same as above, this can be removed when GH#17158 is resolved and
+	 * bpf_fib_lookup() resolves src IP.
+	 */
+#ifdef ENABLE_GOOGLE_MULTI_NIC
+	if (DIRECT_ROUTING_DEV_IFINDEX != NATIVE_DEV_IFINDEX) {
+		volatile __u32 ifindex = NATIVE_DEV_IFINDEX;
+		target.addr = NODEPORT_IPV4_BY_IFINDEX(ifindex);
+	}
+#endif
+
 	if (!revalidate_data(ctx, &data, &data_end, &ip4)) {
 		ret = DROP_INVALID;
 		goto drop_err;
@@ -3347,6 +3359,10 @@ int tail_handle_snat_fwd_ipv4(struct __ctx_buff *ctx)
 		send_trace_notify4(ctx, obs_point, UNKNOWN_ID, UNKNOWN_ID, saddr,
 				   TRACE_EP_ID_UNKNOWN, NATIVE_DEV_IFINDEX,
 				   trace.reason, trace.monitor);
+
+#if defined(ENABLE_GOOGLE_MULTI_NIC) && defined(IS_BPF_HOST)
+	return multinic_redirect_ipv4(ctx);
+#endif
 
 	return ret;
 }

@@ -735,6 +735,11 @@ func (h *HeaderfileWriter) WriteNodeConfig(w io.Writer, cfg *datapath.LocalNodeC
 		if features.GlobalConfig.EnableGoogleMultiNICHairpin {
 			cDefinesMap["ENABLE_GOOGLE_MULTI_NIC_HAIRPIN"] = "1"
 		}
+		nodePortIPv4ByIfIndex, err := h.nodePortIPv4AddrsMacro()
+		if err != nil {
+			return err
+		}
+		cDefinesMap["NODEPORT_IPV4_BY_IFINDEX(IFINDEX)"] = nodePortIPv4ByIfIndex
 	}
 
 	cDefinesMap["CIDR_IDENTITY_RANGE_START"] = fmt.Sprintf("%d", identity.MinLocalIdentity)

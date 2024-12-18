@@ -22,6 +22,7 @@
 #include "nat_46x64.h"
 #include "stubs.h"
 #include "trace.h"
+#include "google_multinic.h"
 
 enum  nat_dir {
 	NAT_DIR_EGRESS  = TUPLE_F_OUT,
@@ -546,6 +547,17 @@ snat_v4_needs_masquerade(struct __ctx_buff *ctx __maybe_unused,
 	}
 # endif
 #endif /* TUNNEL_MODE && IS_BPF_OVERLAY */
+
+#if defined(ENABLE_GOOGLE_MULTI_NIC) && defined(IS_BPF_HOST)
+{
+	volatile __u32 ifindex = NATIVE_DEV_IFINDEX;
+	__be32 nodeport_ip = NODEPORT_IPV4_BY_IFINDEX(ifindex);
+	if (ip4->saddr == nodeport_ip) {
+		target->addr = nodeport_ip;
+		return true;
+	}
+}
+# endif
 
 #if defined(ENABLE_MASQUERADE_IPV4) && defined(IS_BPF_HOST)
 	if (tuple->saddr == IPV4_MASQUERADE) {

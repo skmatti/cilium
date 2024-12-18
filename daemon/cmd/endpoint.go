@@ -525,6 +525,12 @@ func (d *Daemon) createEndpoint(ctx context.Context, owner regeneration.Owner, e
 		return d.errorDuringCreation(ep, fmt.Errorf("unable to insert endpoint into manager: %w", err))
 	}
 
+	// Now that we have ep.ID we can pin the map from this point. This
+	// also has to happen before the first build takes place.
+	if err = ep.PinDatapathMap(); err != nil {
+		return d.errorDuringCreation(ep, fmt.Errorf("unable to pin datapath maps: %s", err))
+	}
+
 	var regenTriggered bool
 	if ep.K8sNamespaceAndPodNameIsSet() && d.clientset.IsEnabled() {
 		// We need to refetch the pod labels again because we have just added

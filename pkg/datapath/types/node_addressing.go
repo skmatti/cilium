@@ -28,6 +28,10 @@ type NodeAddressingFamily interface {
 	// DirectRouting returns the interface index and IP address for
 	// direct routing.
 	DirectRouting() (int, net.IP, bool)
+
+	// LoadBalancerNodeAddressesByIndex returns a map of IPv4 nodeport addresses by
+	// the interface index
+	LoadBalancerNodeAddressesV4ByIndex() map[int]net.IP
 }
 
 // NodeAddressing implements addressing of a node

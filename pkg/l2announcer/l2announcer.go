@@ -134,6 +134,17 @@ func NewL2Announcer(params l2AnnouncerParams) *L2Announcer {
 	return announcer
 }
 
+// DevicesChanged can be invoked by an external component responsible for discovering all available network devices to
+// inform this component of all the devices we can use for L2 announcements.
+func (l2a *L2Announcer) DevicesChanged(devices []string) {
+	l2a.devices = devices
+
+	select {
+	case l2a.devicesUpdatedSig <- struct{}{}:
+	default:
+	}
+}
+
 func (l2a *L2Announcer) run(ctx context.Context, health cell.Health) error {
 	var err error
 	l2a.svcStore, err = l2a.params.Services.Store(ctx)
