@@ -35,7 +35,10 @@ var Cell = cell.Module(
 	metrics.Cell,
 )
 
-func fqdnNetworkPolicyResources(lc cell.Lifecycle, fqdnClient fqdnversioned.Interface) (resource.Resource[*fqdnv1alpha1.FQDNNetworkPolicy], error) {
+func fqdnNetworkPolicyResources(lc cell.Lifecycle, config fqdnnetworkpolicy.Config, fqdnClient fqdnversioned.Interface) (resource.Resource[*fqdnv1alpha1.FQDNNetworkPolicy], error) {
+	if !config.EnableFQDNNetworkPolicy {
+		return nil, nil
+	}
 	// This cascades the `!clientset.IsEnabled()` result from the client provier.
 	if fqdnClient == nil {
 		return nil, nil
