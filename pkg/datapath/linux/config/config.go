@@ -735,6 +735,10 @@ func (h *HeaderfileWriter) WriteNodeConfig(w io.Writer, cfg *datapath.LocalNodeC
 		cDefinesMap["ENABLE_ICMP_RULE"] = "1"
 	}
 
+	if features.GlobalConfig.DisableIPv6Tunnel {
+		cDefinesMap["DISABLE_IPV6_TUNNEL"] = "1"
+	}
+
 	if option.Config.EnableFlatIPv4 {
 		cDefinesMap["ENABLE_FLAT_IPV4"] = "1"
 	}

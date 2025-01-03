@@ -972,6 +972,7 @@ nodeport_rev_dnat_ingress_ipv6(struct __ctx_buff *ctx, struct trace_ctx *trace,
 		ifindex = ct_state.ifindex;
 #endif
 #ifdef TUNNEL_MODE
+#ifndef DISABLE_IPV6_TUNNEL
 		{
 			union v6addr *dst = (union v6addr *)&ip6->daddr;
 			struct remote_endpoint_info *info;
@@ -983,6 +984,7 @@ nodeport_rev_dnat_ingress_ipv6(struct __ctx_buff *ctx, struct trace_ctx *trace,
 				goto encap_redirect;
 			}
 		}
+#endif
 #endif
 
 		goto fib_lookup;
@@ -1175,10 +1177,12 @@ int tail_nodeport_nat_egress_ipv6(struct __ctx_buff *ctx)
 	struct ipv6hdr *ip6;
 	__s8 ext_err = 0;
 #ifdef TUNNEL_MODE
+#ifndef DISABLE_IPV6_TUNNEL
 	struct remote_endpoint_info *info;
 	__be32 tunnel_endpoint = 0;
 	__u32 dst_sec_identity = 0;
 	union v6addr *dst;
+#endif
 #endif
 
 	if (nat_46x64)
@@ -1190,6 +1194,7 @@ int tail_nodeport_nat_egress_ipv6(struct __ctx_buff *ctx)
 	}
 
 #ifdef TUNNEL_MODE
+#ifndef DISABLE_IPV6_TUNNEL
 	dst = (union v6addr *)&ip6->daddr;
 	info = lookup_ip6_remote_endpoint(dst, 0);
 	if (info && info->tunnel_endpoint != 0 && !info->flag_skip_tunnel) {
@@ -1198,6 +1203,7 @@ int tail_nodeport_nat_egress_ipv6(struct __ctx_buff *ctx)
 
 		BPF_V6(target.addr, ROUTER_IP);
 	}
+#endif
 #endif
 
 	ret = lb6_extract_tuple(ctx, ip6, ETH_HLEN, &l4_off, &tuple);
@@ -1219,6 +1225,7 @@ int tail_nodeport_nat_egress_ipv6(struct __ctx_buff *ctx)
 	ctx_snat_done_set(ctx);
 
 #ifdef TUNNEL_MODE
+#ifndef DISABLE_IPV6_TUNNEL
 	if (tunnel_endpoint) {
 		__be16 src_port;
 
@@ -1244,6 +1251,7 @@ int tail_nodeport_nat_egress_ipv6(struct __ctx_buff *ctx)
 		goto fib_ipv4;
 	}
 #endif
+#endif
 	if (!revalidate_data(ctx, &data, &data_end, &ip6)) {
 		ret = DROP_INVALID;
 		goto drop_err;
@@ -1256,7 +1264,9 @@ int tail_nodeport_nat_egress_ipv6(struct __ctx_buff *ctx)
 			goto drop_err;
 
 #ifdef TUNNEL_MODE
+#ifndef DISABLE_IPV6_TUNNEL
 fib_ipv4:
+#endif
 #endif
 		if (!revalidate_data(ctx, &data, &data_end, &ip4)) {
 			ret = DROP_INVALID;

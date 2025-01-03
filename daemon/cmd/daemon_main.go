@@ -1480,6 +1480,18 @@ func initEnv(vp *viper.Viper) {
 		log.Fatalf("%s cannot be used with tunneling. Packets must be routed through the tunnel device.", option.EnableAutoDirectRoutingName)
 	}
 
+	if option.Config.TunnelingEnabled() && features.GlobalConfig.EnableAutoDirectRoutingIPv4 {
+		log.Fatalf("%s cannot be used with tunneling. Packets must be routed through the tunnel device.", option.EnableAutoDirectRoutingIPv4Name)
+	}
+
+	if option.Config.EnableAutoDirectRouting && (features.GlobalConfig.EnableAutoDirectRoutingIPv4 || features.GlobalConfig.EnableAutoDirectRoutingIPv6) {
+		log.Fatalf("%s cannot be enabled with %s or %s.", option.EnableAutoDirectRoutingName, option.EnableAutoDirectRoutingIPv4Name, option.EnableAutoDirectRoutingIPv6Name)
+	}
+
+	if option.Config.DirectRoutingSkipUnreachable && (!option.Config.EnableAutoDirectRouting || !features.GlobalConfig.EnableAutoDirectRoutingIPv4 || !features.GlobalConfig.EnableAutoDirectRoutingIPv6) {
+		log.Fatalf("Flag %s cannot be enabled when none of %s, %s and %s are not enabled. As if any of them are then enabled, it may lead to unexpected behaviour causing network connectivity issues.", option.DirectRoutingSkipUnreachableName, option.EnableAutoDirectRoutingName, option.EnableAutoDirectRoutingIPv4Name, option.EnableAutoDirectRoutingIPv6Name)
+	}
+
 	initClockSourceOption()
 
 	if option.Config.EnableSRv6 {

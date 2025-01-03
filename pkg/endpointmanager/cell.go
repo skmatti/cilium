@@ -15,6 +15,7 @@ import (
 	"github.com/cilium/cilium/pkg/identity/cache"
 	"github.com/cilium/cilium/pkg/ipcache"
 	"github.com/cilium/cilium/pkg/k8s/client"
+	"github.com/cilium/cilium/pkg/mcastmanager"
 	"github.com/cilium/cilium/pkg/metrics"
 	"github.com/cilium/cilium/pkg/node"
 	"github.com/cilium/cilium/pkg/option"
@@ -174,6 +175,9 @@ type EndpointManager interface {
 
 	// GetEndpointNetnsCookieByIP returns the netns cookie for the passed endpoint with ip address if found.
 	GetEndpointNetnsCookieByIP(ip netip.Addr) (uint64, error)
+
+	// RegisterMcastManager registers the multicast manager.
+	RegisterMcastManager(mcastMgr *mcastmanager.MCastManager)
 }
 
 // EndpointResourceSynchronizer is an interface which synchronizes CiliumEndpoint

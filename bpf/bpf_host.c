@@ -370,6 +370,7 @@ handle_ipv6_cont(struct __ctx_buff *ctx, __u32 secctx, const bool from_host,
 #endif
 
 #ifdef TUNNEL_MODE
+#ifndef DISABLE_IPV6_TUNNEL
 	if (info && info->flag_skip_tunnel)
 		goto skip_tunnel;
 
@@ -390,6 +391,7 @@ handle_ipv6_cont(struct __ctx_buff *ctx, __u32 secctx, const bool from_host,
 			return ret;
 	}
 skip_tunnel:
+#endif
 #endif
 
 	if (!info || (!from_proxy &&

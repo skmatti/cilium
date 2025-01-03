@@ -508,6 +508,19 @@ static __always_inline int handle_ipv6_from_lxc(struct __ctx_buff *ctx, __u32 *d
 		goto skip_policy_enforcement;
 	}
 
+	/* Always allow ICMPv6 NDP packets to go through without policy enforcement */
+	if (unlikely(ip6->nexthdr == IPPROTO_ICMPV6)) {
+		__u8 type;
+		icmp6_load_type(ctx, ETH_HLEN, &type);
+		switch (type) {
+		case ICMP6_ROUTER_SOLICIT_TYPE:
+		case ICMP6_ROUTER_ADV_TYPE:
+		case ICMP6_NS_MSG_TYPE:
+		case ICMP6_NA_MSG_TYPE:
+			goto skip_policy_enforcement;
+		}
+	}
+
 	/* If the packet is in the establishing direction and it's destined
 	 * within the cluster, it must match policy or be dropped. If it's
 	 * bound for the host/outside, perform the CIDR policy check.
@@ -668,6 +681,7 @@ ct_recreate6:
 
 	/* The packet goes to a peer not managed by this agent instance */
 #ifdef TUNNEL_MODE
+#ifndef DISABLE_IPV6_TUNNEL
 	if (!skip_tunnel) {
 		struct tunnel_key key = {};
 		union v6addr *daddr = (union v6addr *)&ip6->daddr;
@@ -703,6 +717,7 @@ ct_recreate6:
 		else if (ret != DROP_NO_TUNNEL_ENDPOINT)
 			return ret;
 	}
+#endif
 #endif
 	if (is_defined(ENABLE_HOST_ROUTING)) {
 		int oif = 0;
@@ -758,7 +773,9 @@ pass_to_stack:
 	}
 
 #ifdef TUNNEL_MODE
+#ifndef DISABLE_IPV6_TUNNEL
 encrypt_to_stack:
+#endif
 #endif
 	send_trace_notify(ctx, TRACE_TO_STACK, SECLABEL_IPV6, *dst_sec_identity,
 			  TRACE_EP_ID_UNKNOWN,
@@ -1628,6 +1645,10 @@ int cil_from_container(struct __ctx_buff *ctx)
 		ret = tail_call_internal(ctx, CILIUM_CALL_IPV6_FROM_LXC, &ext_err);
 		sec_label = SECLABEL_IPV6;
 		break;
+#else
+	case bpf_htons(ETH_P_IPV6):
+		ret = CTX_ACT_OK;
+		break;
 #endif /* ENABLE_IPV6 */
 #ifdef ENABLE_IPV4
 	case bpf_htons(ETH_P_IP):
@@ -1921,6 +1942,19 @@ int tail_ipv6_to_endpoint(struct __ctx_buff *ctx)
 	update_metrics(ctx_full_len(ctx), METRIC_INGRESS, REASON_FORWARDED);
 #endif
 
+        /* Always allow NDP messages to bypass policy verification and L7 redirects
+		*/
+	if (unlikely(ip6->nexthdr == IPPROTO_ICMPV6)) {
+		__u8 type;
+		icmp6_load_type(ctx, ETH_HLEN, &type);
+		switch (type) {
+		case ICMP6_ROUTER_SOLICIT_TYPE:
+		case ICMP6_ROUTER_ADV_TYPE:
+		case ICMP6_NS_MSG_TYPE:
+		case ICMP6_NA_MSG_TYPE:
+			return CTX_ACT_OK;
+		}
+	}
 	ret = ipv6_policy(ctx, ip6, THIS_INTERFACE_IFINDEX, src_sec_identity,
 			  NULL, &ext_err, &proxy_port, false);
 	switch (ret) {
@@ -2546,6 +2580,10 @@ int cil_to_container(struct __ctx_buff *ctx)
 # endif /* ENABLE_HIGH_SCALE_IPCACHE */
 		ctx_store_meta(ctx, CB_SRC_LABEL, identity);
 		ret = tail_call_internal(ctx, CILIUM_CALL_IPV6_CT_INGRESS, &ext_err);
+		break;
+#else
+	case bpf_htons(ETH_P_IPV6):
+		ret = CTX_ACT_OK;
 		break;
 #endif /* ENABLE_IPV6 */
 #ifdef ENABLE_IPV4

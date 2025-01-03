@@ -505,6 +505,12 @@ func (n *linuxNodeHandler) updateNodeRoute(prefix *cidr.CIDR, addressFamilyEnabl
 		return nil
 	}
 
+	// Do not add IPv6 routes if not local, required to enable FlatIP
+	// ToDo (sarveshr): Make tunnel enablement configurable
+	if n.nodeConfig.DisableIPv6Tunnel && prefix.IP.To4() == nil && !isLocalNode {
+		return nil
+	}
+
 	nodeRoute, err := n.createNodeRouteSpec(prefix, isLocalNode)
 	if err != nil {
 		return err
@@ -1057,6 +1063,17 @@ func (n *linuxNodeHandler) nodeUpdate(oldNode, newNode *nodeTypes.Node, firstAdd
 		return errs
 	}
 
+	// EnableAutoDirectRoutingIPv6 is used to enable auto direct routing for IPv6 only.
+	if n.nodeConfig.EnableAutoDirectRoutingIPv6 {
+		n.updateDirectRoutes(oldAllIP6AllocCidrs, newAllIP6AllocCidrs, oldIP6, newIP6, firstAddition, n.nodeConfig.EnableIPv6, n.nodeConfig.DirectRoutingSkipUnreachable)
+	}
+
+	// EnableAutoDirectRoutingIPv4 is used to enable auto direct routing for IPv4 only.
+	if n.nodeConfig.EnableAutoDirectRoutingIPv4 {
+		n.updateDirectRoutes(oldAllIP4AllocCidrs, newAllIP4AllocCidrs, oldIP4, newIP4, firstAddition, n.nodeConfig.EnableIPv4, n.nodeConfig.DirectRoutingSkipUnreachable)
+		return nil
+	}
+
 	if n.enableEncapsulation(newNode) {
 		// An uninitialized PrefixCluster has empty netip.Prefix and 0 ClusterID.
 		// We use this empty PrefixCluster instead of nil here.
@@ -1081,14 +1098,19 @@ func (n *linuxNodeHandler) nodeUpdate(oldNode, newNode *nodeTypes.Node, firstAdd
 		// node has changed its CIDR range, a new entry in the
 		// map is created and the old entry is removed.
 		errs = errors.Join(errs, updateTunnelMapping(n.log, oldPrefixCluster4, newPrefixCluster4, oldIP4, newIP4, firstAddition, n.nodeConfig.EnableIPv4, oldKey, newKey))
-		// Not a typo, the IPv4 host IP is used to build the IPv6 overlay
-		errs = errors.Join(errs, updateTunnelMapping(n.log, oldPrefixCluster6, newPrefixCluster6, oldIP4, newIP4, firstAddition, n.nodeConfig.EnableIPv6, oldKey, newKey))
-
+		// Do not enable IPv6 tunneling if explicitly disabled
+		if !n.nodeConfig.DisableIPv6Tunnel {
+			// Not a typo, the IPv4 host IP is used to build the IPv6 overlay
+			errs = errors.Join(errs, updateTunnelMapping(n.log, oldPrefixCluster6, newPrefixCluster6, oldIP4, newIP4, firstAddition, n.nodeConfig.EnableIPv6, oldKey, newKey))
+		}
 		if err := n.updateOrRemoveNodeRoutes(oldAllIP4AllocCidrs, newAllIP4AllocCidrs, isLocalNode); err != nil {
 			errs = errors.Join(errs, fmt.Errorf("failed to enable encapsulation: single cluster routes: ipv4: %w", err))
 		}
-		if err := n.updateOrRemoveNodeRoutes(oldAllIP6AllocCidrs, newAllIP6AllocCidrs, isLocalNode); err != nil {
-			errs = errors.Join(errs, fmt.Errorf("failed to enable encapsulation: single cluster routes: ipv6: %w", err))
+		// Do not enable IPv6 tunneling if explicitly disabled
+		if !n.nodeConfig.DisableIPv6Tunnel {
+			if err := n.updateOrRemoveNodeRoutes(oldAllIP6AllocCidrs, newAllIP6AllocCidrs, isLocalNode); err != nil {
+				errs = errors.Join(errs, fmt.Errorf("failed to enable encapsulation: single cluster routes: ipv6: %w", err))
+			}
 		}
 
 		return errs
@@ -1142,10 +1164,12 @@ func (n *linuxNodeHandler) nodeDelete(oldNode *nodeTypes.Node) error {
 	oldIP6 := oldNode.GetNodeIP(true)
 
 	var errs error
-	if n.nodeConfig.EnableAutoDirectRouting && !n.enableEncapsulation(oldNode) {
+	if (n.nodeConfig.EnableAutoDirectRouting && !n.enableEncapsulation(oldNode)) || n.nodeConfig.EnableAutoDirectRoutingIPv4 {
 		if err := n.deleteDirectRoute(oldNode.IPv4AllocCIDR, oldIP4); err != nil {
 			errs = errors.Join(errs, fmt.Errorf("failed to remove old direct routing: deleting old routes: %w", err))
 		}
+	}
+	if (n.nodeConfig.EnableAutoDirectRouting && !n.enableEncapsulation(oldNode)) || n.nodeConfig.EnableAutoDirectRoutingIPv6 {
 		if err := n.deleteDirectRoute(oldNode.IPv6AllocCIDR, oldIP6); err != nil {
 			errs = errors.Join(errs, fmt.Errorf("failed to remove old direct routing: deleting old routes: %w", err))
 		}

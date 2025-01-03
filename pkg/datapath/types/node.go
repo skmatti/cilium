@@ -135,6 +135,22 @@ type LocalNodeConfiguration struct {
 	// subsequent calls to NodeConfigurationChanged().
 	DirectRoutingSkipUnreachable bool
 
+	// EnableAutoDirectRoutingIPv4 enables the use of direct routes for IPv4
+	// communication between nodes if two nodes have direct L2
+	// connectivity. This field takes effect only when EnableAutoDirectRouting=false.
+	//
+	// This field is immutable at runtime. The value will not change in
+	// subsequent calls to NodeConfigurationChanged().
+	EnableAutoDirectRoutingIPv4 bool
+
+	// EnableAutoDirectRoutingIPv6 enables the use of direct routes for IPv4
+	// communication between nodes if two nodes have direct L2
+	// connectivity. This field takes effect only when EnableAutoDirectRouting=false.
+	//
+	// This field is immutable at runtime. The value will not change in
+	// subsequent calls to NodeConfigurationChanged().
+	EnableAutoDirectRoutingIPv6 bool
+
 	// EnableLocalNodeRoute enables installation of the route which points
 	// the allocation prefix of the local node. Disabling this option is
 	// useful when another component is responsible for the routing of the
@@ -149,6 +165,10 @@ type LocalNodeConfiguration struct {
 
 	// EncryptNode enables encrypting NodeIP traffic requires EnableIPSec
 	EncryptNode bool
+
+	// DisableIPv6Tunnel determines if IPv6 tunnel should be explicitly disabled
+	// Currently Tunnel is enabled for both IP families by default
+	DisableIPv6Tunnel bool
 
 	// IPv4PodSubnets is a list of IPv4 subnets that pod IPs are assigned from
 	// these are then used when encryption is enabled to configure the node

@@ -11,6 +11,7 @@ import (
 	"github.com/cilium/cilium/pkg/cidr"
 	"github.com/cilium/cilium/pkg/datapath/tables"
 	datapath "github.com/cilium/cilium/pkg/datapath/types"
+	"github.com/cilium/cilium/pkg/gke/features"
 	ipamOption "github.com/cilium/cilium/pkg/ipam/option"
 	"github.com/cilium/cilium/pkg/mtu"
 	"github.com/cilium/cilium/pkg/node"
@@ -80,10 +81,13 @@ func newLocalNodeConfig(
 		EnableEncapsulation:          config.TunnelingEnabled(),
 		EnableAutoDirectRouting:      config.EnableAutoDirectRouting,
 		DirectRoutingSkipUnreachable: config.DirectRoutingSkipUnreachable,
+		EnableAutoDirectRoutingIPv4:  features.GlobalConfig.EnableAutoDirectRoutingIPv4,
+		EnableAutoDirectRoutingIPv6:  features.GlobalConfig.EnableAutoDirectRoutingIPv6,
 		EnableLocalNodeRoute:         config.EnableLocalNodeRoute && config.IPAM != ipamOption.IPAMENI && config.IPAM != ipamOption.IPAMAzure && config.IPAM != ipamOption.IPAMAlibabaCloud,
 		EnableIPSec:                  config.EnableIPSec,
 		EnableIPSecEncryptedOverlay:  config.EnableIPSecEncryptedOverlay,
 		EncryptNode:                  config.EncryptNode,
+		DisableIPv6Tunnel:            features.GlobalConfig.DisableIPv6Tunnel,
 		IPv4PodSubnets:               config.IPv4PodSubnets,
 		IPv6PodSubnets:               config.IPv6PodSubnets,
 	}, nil

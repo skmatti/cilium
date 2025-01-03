@@ -28,7 +28,8 @@ int is_valid_lxc_src_ip(struct ipv6hdr *ip6 __maybe_unused)
 
 	return ipv6_addr_equals((union v6addr *)&ip6->saddr, &valid);
 #else
-	return 0;
+	/* Ignore IPv6 packets if IPv6 is not enabled for GKE Directpath */
+	return 1;
 #endif
 }
 

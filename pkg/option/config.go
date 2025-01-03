@@ -2912,7 +2912,8 @@ func (c *DaemonConfig) Validate(vp *viper.Viper) error {
 			return fmt.Errorf("IPv6NDP cannot be enabled when IPv6 is not enabled")
 		}
 		if len(c.IPv6MCastDevice) == 0 {
-			return fmt.Errorf("IPv6NDP cannot be enabled without %s", IPv6MCastDevice)
+			// Depends on runtime to config IPv6MCastDevice
+			log.Warningf("IPv6NDP cannot be enabled without %s", IPv6MCastDevice)
 		}
 	}
 
@@ -3336,10 +3337,6 @@ func (c *DaemonConfig) Populate(vp *viper.Viper) {
 		if len(c.IPv6NativeRoutingCIDR.IP) != net.IPv6len {
 			log.Fatalf("%s must be an IPv6 CIDR", IPv6NativeRoutingCIDR)
 		}
-	}
-
-	if c.DirectRoutingSkipUnreachable && !c.EnableAutoDirectRouting {
-		log.Fatalf("Flag %s cannot be enabled when %s is not enabled. As if %s is then enabled, it may lead to unexpected behaviour causing network connectivity issues.", DirectRoutingSkipUnreachableName, EnableAutoDirectRoutingName, EnableAutoDirectRoutingName)
 	}
 
 	if err := c.calculateBPFMapSizes(vp); err != nil {

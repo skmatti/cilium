@@ -39,6 +39,15 @@ const (
 	// EnableFQDNNetworkPolicy enables google fqdn network policy
 	EnableFQDNNetworkPolicy = "enable-fqdn-network-policy"
 
+	// DisableIPv6Tunnel is the name of the option to disable tunnel for IPv6
+	DisableIPv6Tunnel = "disable-ipv6-tunnel"
+
+	// EnableAutoDirectRoutingIPv4Name is the name for the EnableAutoDirectRoutingIPv4 option.
+	EnableAutoDirectRoutingIPv4Name = "auto-direct-node-routes-ipv4"
+
+	// EnableAutoDirectRoutingIPv6Name is the name for the EnableAutoDirectRoutingIPv6 option.
+	EnableAutoDirectRoutingIPv6Name = "auto-direct-node-routes-ipv6"
+
 	// AllowIMDSAccessInHostNSOnly adds bpf logic that will block non-hostnetwork
 	// pods from accessing IMDS at 169.254.169.254.
 	AllowIMDSAccessInHostNSOnly = "allow-imds-access-in-hostns-only"

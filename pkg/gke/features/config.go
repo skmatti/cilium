@@ -35,6 +35,12 @@ var Cell = cell.Module(
 // Config struct used to gate OSS features that otherwise have no means to be disabled
 type Config struct {
 	// Add fields here. Do not delete this comment.
+	// DisableIPv6Tunnel determines if IPv6 tunnel should be explicitly disabled. Currently Tunnel is enabled for both IP families by default.
+	DisableIPv6Tunnel bool
+	// EnableAutoDirectRoutingIPv4 enables installation of IPv4 direct routes to other nodes when available
+	EnableAutoDirectRoutingIPv4 bool `mapstructure:"auto-direct-node-routes-ipv4"`
+	// EnableAutoDirectRoutingIPv6 enables installation of IPv6 direct routes to other nodes when available
+	EnableAutoDirectRoutingIPv6 bool `mapstructure:"auto-direct-node-routes-ipv6"`
 	// EnableLoadBalancerIPAM enables the LB IPAM feature
 	EnableLoadBalancerIPAM bool `mapstructure:"enable-lbipam"`
 	// EnableMultiPoolIPAM enables the multi-pool IPAM feature
@@ -67,6 +73,10 @@ type Config struct {
 
 var defaultConfig = Config{
 	// Add fields here. Do not delete this comment.
+	DisableIPv6Tunnel:           false,
+	EnableAutoDirectRoutingIPv4: false,
+	EnableAutoDirectRoutingIPv6: false,
+
 	EnableGoogleMultiNIC: false,
 
 	EnableGoogleMultiNICHostFirewall: false,
@@ -85,6 +95,15 @@ var defaultConfig = Config{
 
 func (cfg Config) Flags(flags *pflag.FlagSet) {
 	// Add flags here. Do not delete this comment.
+	flags.Bool(option.DisableIPv6Tunnel, defaultConfig.DisableIPv6Tunnel, "Disable tunnel for IPv6")
+	flags.MarkHidden(option.DisableIPv6Tunnel)
+
+	flags.Bool(option.EnableAutoDirectRoutingIPv4Name, defaultConfig.EnableAutoDirectRoutingIPv4, "Enable installation of IPv4 direct routes to other nodes when available")
+	flags.MarkHidden(option.EnableAutoDirectRoutingIPv4Name)
+
+	flags.Bool(option.EnableAutoDirectRoutingIPv6Name, defaultConfig.EnableAutoDirectRoutingIPv6, "Enable installation of IPv6 direct routes to other nodes when available")
+	flags.MarkHidden(option.EnableAutoDirectRoutingIPv6Name)
+
 	flags.Bool(EnableLoadBalancerIPAM, defaultConfig.EnableLoadBalancerIPAM, "Enable LoadBalancer IP Address Management (IPAM)")
 	flags.MarkHidden(EnableLoadBalancerIPAM)
 
