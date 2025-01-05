@@ -3,7 +3,7 @@ presubmits:
 - name: wora-abm-gce_cilium
   trigger: /test wora-abm-gce$
   rerun_command: /test wora-abm-gce
-  always_run: true
+  always_run: false
   decorate: true
   decoration_config:
     timeout: 240m
