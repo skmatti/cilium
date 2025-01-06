@@ -59,6 +59,7 @@
 #include "lib/google_arp.h"
 #include "lib/google_sfc.h"
 #include "lib/google_sfc_icmp.h"
+#include "lib/google_pip.h"
 
 /* Per-packet LB is needed if all LB cases can not be handled in bpf_sock.
  * Most services with L7 LB flag can not be redirected to their proxy port
@@ -1487,6 +1488,15 @@ static __always_inline int __tail_handle_ipv4(struct __ctx_buff *ctx,
 		return DROP_INVALID;
 #endif /* MULTI_NIC_DEVICE_TYPE */
 
+#ifdef ENABLE_GOOGLE_PERSISTENT_IP
+	ret = google_try_pip_egress_redirect4(ctx, ip4);
+	if (ret != CTX_ACT_OK)
+	    return ret;
+	// We always return above if modifying the packet.
+	// But still need this revalidation to make verifier happy.
+	if (!revalidate_data(ctx, &data, &data_end, &ip4))
+		return DROP_INVALID;
+#endif
 #ifdef ENABLE_GOOGLE_SERVICE_STEERING
 	{
 		struct redirect_info redir = {};
@@ -2549,6 +2559,16 @@ int cil_to_container(struct __ctx_buff *ctx)
 				break;
 		}
 # endif /* ENABLE_GOOGLE_SERVICE_STEERING */
+
+#ifdef ENABLE_GOOGLE_PERSISTENT_IP
+		{
+			if (is_dst_endpoint_pip4(ctx)) {
+				ret = CTX_ACT_OK;
+				break;
+			}
+		}
+#endif /* ENABLE_GOOGLE_PERSISTENT_IP */
+
 # ifdef ENABLE_HIGH_SCALE_IPCACHE
 	if (identity_is_world_ipv4(identity)) {
 		struct endpoint_info *ep;

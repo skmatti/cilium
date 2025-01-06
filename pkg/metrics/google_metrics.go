@@ -16,12 +16,14 @@ var (
 	MultiNetworkEndpoint        = NoOpGaugeVec
 	MultiNetworkPodCreation     = NoOpCounterVec
 	MultiNetworkIpamEvent       = NoOpCounterVec
+	PersistentIPEndpointsTotal  = NoOpGaugeDeletableVec
 )
 
 const (
 	subsystemWireguard    = "wireguard"
 	subsystemDatapath     = "google_datapath"
 	subsystemMultiNetwork = "google_multinet"
+	subsystemPersistentIP = "google_persistent_ip"
 	labelNetwork          = "network"
 	labelNetworkType      = "network_type"
 )
@@ -36,6 +38,8 @@ type GoogleMetrics struct {
 	MultiNetworkEndpoint    metric.Vec[metric.Gauge]
 	MultiNetworkPodCreation metric.Vec[metric.Counter]
 	MultiNetworkIpamEvent   metric.Vec[metric.Counter]
+
+	PersistentIPEndpointsTotal metric.DeletableVec[metric.Gauge]
 }
 
 func NewGoogleMetrics() *GoogleMetrics {
@@ -108,6 +112,15 @@ func NewGoogleMetrics() *GoogleMetrics {
 			LabelAction,
 			LabelDatapathFamily,
 		}),
+		PersistentIPEndpointsTotal: metric.NewGaugeVec(metric.GaugeOpts{
+			Namespace: Namespace,
+			Subsystem: subsystemPersistentIP,
+			Name:      "pip_endpoints_total",
+			Help:      "Number of persistent-ip endpoints per IP family and network.",
+		}, []string{
+			LabelDatapathFamily,
+			labelNetwork,
+		}),
 	}
 	WireguardPeersTotal = gm.WireguardPeersTotalEnabled
 	WireguardAgentTimeStats = gm.WireguardAgentTimeStatsEnabled
@@ -116,5 +129,7 @@ func NewGoogleMetrics() *GoogleMetrics {
 	MultiNetworkEndpoint = gm.MultiNetworkEndpoint
 	MultiNetworkPodCreation = gm.MultiNetworkPodCreation
 	MultiNetworkIpamEvent = gm.MultiNetworkIpamEvent
+	PersistentIPEndpointsTotal = gm.PersistentIPEndpointsTotal
+
 	return gm
 }

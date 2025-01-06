@@ -35,6 +35,7 @@ import (
 	"github.com/cilium/cilium/pkg/defaults"
 	"github.com/cilium/cilium/pkg/gke/features"
 	"github.com/cilium/cilium/pkg/gke/imds"
+	pip "github.com/cilium/cilium/pkg/gke/pip/config"
 	sfcconfig "github.com/cilium/cilium/pkg/gke/servicesteering/config"
 	"github.com/cilium/cilium/pkg/identity"
 	"github.com/cilium/cilium/pkg/labels"
@@ -58,6 +59,7 @@ import (
 	"github.com/cilium/cilium/pkg/maps/nat"
 	"github.com/cilium/cilium/pkg/maps/neighborsmap"
 	"github.com/cilium/cilium/pkg/maps/nodemap"
+	pipmaps "github.com/cilium/cilium/pkg/maps/pip"
 	"github.com/cilium/cilium/pkg/maps/policymap"
 	"github.com/cilium/cilium/pkg/maps/ratelimitmetricsmap"
 	"github.com/cilium/cilium/pkg/maps/recorder"
@@ -759,6 +761,12 @@ func (h *HeaderfileWriter) WriteNodeConfig(w io.Writer, cfg *datapath.LocalNodeC
 		cDefinesMap["SFC_SELECT_MAP"] = sfc.SelectMapName
 		cDefinesMap["SFC_SELECT_MAP_SIZE"] = fmt.Sprintf("%d", sfc.SelectMaxEntries)
 		cDefinesMap["SFC_FLOW_MAP_ANY4"] = sfc.FlowMapAny4Name
+	}
+
+	if pip.GlobalPersistentIPConfig().EnableGooglePersistentIP {
+		cDefinesMap["ENABLE_GOOGLE_PERSISTENT_IP"] = "1"
+		cDefinesMap["PIP_ROUTING_MAP"] = pipmaps.RoutingMapName
+		cDefinesMap["PIP_ROUTING_MAP_SIZE"] = strconv.Itoa(pipmaps.RoutingMaxEntries)
 	}
 
 	cDefinesMap["CIDR_IDENTITY_RANGE_START"] = fmt.Sprintf("%d", identity.MinLocalIdentity)

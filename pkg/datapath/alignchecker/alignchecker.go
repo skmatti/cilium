@@ -13,6 +13,7 @@ import (
 	"github.com/cilium/cilium/pkg/maps/lxcmap"
 	"github.com/cilium/cilium/pkg/maps/metricsmap"
 	"github.com/cilium/cilium/pkg/maps/neighborsmap"
+	"github.com/cilium/cilium/pkg/maps/pip"
 	"github.com/cilium/cilium/pkg/maps/policymap"
 	"github.com/cilium/cilium/pkg/maps/ratelimitmetricsmap"
 	"github.com/cilium/cilium/pkg/maps/recorder"
@@ -100,6 +101,8 @@ func init() {
 		"sfc_path_entry":          {sfc.PathEntry{}},
 		"sfc_ipv4_flow_key":       {sfc.FlowKey4{}},
 		"sfc_ipv4_flow_entry":     {sfc.FlowEntry4{}},
+		"pip_cidr_key":            {pip.CIDRKey{}},
+		"pip_routing_entry":       {pip.RoutingEntry{}},
 	})
 
 	registerToCheckSizes(map[string][]any{

@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 
+	"github.com/cilium/cilium/pkg/endpointmanager"
 	"github.com/cilium/cilium/pkg/gke/endpointqueue"
 	"github.com/cilium/cilium/pkg/gke/enhancedservices"
 	"github.com/cilium/cilium/pkg/gke/features"
@@ -11,6 +12,7 @@ import (
 	"github.com/cilium/cilium/pkg/gke/multitenancy"
 	"github.com/cilium/cilium/pkg/gke/networklogging"
 	"github.com/cilium/cilium/pkg/gke/nodefirewall/types"
+	"github.com/cilium/cilium/pkg/gke/pip"
 	"github.com/cilium/cilium/pkg/gke/redirectservice"
 	"github.com/cilium/cilium/pkg/gke/servicesteering"
 	"github.com/cilium/cilium/pkg/gke/subnet"
@@ -39,6 +41,7 @@ var googleCell = cell.Module(
 	cell.Provide(newIPCachePromise),
 	remotenode.Cell,
 
+	cell.Provide(newEndpointManagerPromise),
 	cell.Provide(newPolicyManagerPromise),
 
 	cell.Provide(newLocalNodePromise),
@@ -54,6 +57,7 @@ var googleCell = cell.Module(
 	networklogging.Cell,
 	fqdnnetworkpolicy.Cell,
 	trafficsteering.Cell,
+	pip.Cell,
 	servicesteering.Cell,
 
 	imds.Cell,
@@ -178,5 +182,26 @@ func newEgressMapPromise(dp promise.Promise[*Daemon], lc cell.Lifecycle, config 
 	} else {
 		emResolver.Reject(fmt.Errorf("egress map requires %s to be set", option.EnableIPv4EgressGateway))
 	}
+	return emPromise
+}
+
+// Converts Daemon promise into a EndpointManager promise
+func newEndpointManagerPromise(dp promise.Promise[*Daemon], lc cell.Lifecycle) promise.Promise[endpointmanager.EndpointManager] {
+	emResolver, emPromise := promise.New[endpointmanager.EndpointManager]()
+	lc.Append(cell.Hook{
+		OnStart: func(hc cell.HookContext) error {
+			daemon, err := dp.Await(hc)
+			if err != nil {
+				return err
+			}
+
+			emResolver.Resolve(daemon.endpointManager)
+			return nil
+		},
+		OnStop: func(_ cell.HookContext) error {
+			emResolver.Reject(fmt.Errorf("failed to initialize endpoint manager"))
+			return nil
+		},
+	})
 	return emPromise
 }

@@ -56,6 +56,7 @@
 #include "lib/vxlan.h"
 #include "lib/google_multinic.h"
 #include "lib/google_arp.h"
+#include "lib/google_pip.h"
 
 #define host_egress_policy_hook(ctx, src_sec_identity, ext_err) CTX_ACT_OK
 /* Bit 0 is skipped for robustness, as it's used in some places to indicate from_host itself. */
@@ -742,8 +743,18 @@ handle_ipv4_cont(struct __ctx_buff *ctx, __u32 secctx, const bool from_host,
 	ret = try_google_L3_fast_redirect(ctx, secctx, ip4);
 	if (ret != CTX_ACT_OK)
 		return ret;
+	if (!revalidate_data(ctx, &data, &data_end, &ip4))
+		return DROP_INVALID;
 }
 #endif /* ENABLE_GOOGLE_MULTI_NIC */
+
+#ifdef ENABLE_GOOGLE_PERSISTENT_IP
+	ret = google_try_pip_ingress_redirect4(ctx, secctx, ip4);
+	if (ret != CTX_ACT_OK)
+		return ret;
+	if (!revalidate_data(ctx, &data, &data_end, &ip4))
+		return DROP_INVALID;
+#endif /* ENABLE_GOOGLE_PERSISTENT_IP */
 
 #ifndef ENABLE_HOST_ROUTING
 	/* Without bpf_redirect_neigh() helper, we cannot redirect a

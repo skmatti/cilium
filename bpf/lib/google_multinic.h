@@ -5,6 +5,7 @@
 #include "google_maps.h"
 #include "trace.h"
 #include "stubs.h"
+#include "google_common.h"
 
 #include <bpf/ctx/ctx.h>
 #include <bpf/api.h>
@@ -167,24 +168,6 @@ static __always_inline __maybe_unused int try_google_L3_fast_redirect(struct __c
 
 #else
 
-/** A trimmed version of ipv4_local_delivery that forces bpf_redirect. */
-static __always_inline int __redirect_multinic_ep(struct __ctx_buff *ctx, int l3_off,
-					       __u32 seclabel, struct iphdr *ip4,
-					       const struct endpoint_info *ep, bool from_tunnel)
-{
-	mac_t router_mac = ep->node_mac;
-	mac_t lxc_mac = ep->mac;
-	int ret;
-
-
-	ret = ipv4_l3(ctx, l3_off, (__u8 *) &router_mac, (__u8 *) &lxc_mac, ip4);
-	if (ret != CTX_ACT_OK)
-		return ret;
-
-	set_identity_mark(ctx, seclabel, MARK_MAGIC_IDENTITY);
-	return redirect_ep(ctx, ep->ifindex, false, from_tunnel);
-}
-
 /**
  * Redirect packets from host to L3 multinic endpoints if IP is found
  * in local ep map and is intended for the correct native dev index.
@@ -218,7 +201,7 @@ static __always_inline int try_google_L3_fast_redirect(struct __ctx_buff *ctx, _
 		return DROP_UNROUTABLE;
 	}
 
-	return __redirect_multinic_ep(ctx, ETH_HLEN, seclabel, ip4, ep, false);
+	return __redirect_google_ep(ctx, ETH_HLEN, seclabel, ip4, ep, false);
 }
 
 static __always_inline void
