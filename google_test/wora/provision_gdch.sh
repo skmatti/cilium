@@ -13,6 +13,7 @@ OC_UPDATE_TEMPLATE="${OC_UPDATE_TEMPLATE:-}"
 ENV_TEMPLATE_ID="${ENV_TEMPLATE_ID:-}"
 GDCH_E2E_TESTS="${GDCH_E2E_TESTS:-}"
 GDCH_E2E_TEST_PLAN="${GDCH_E2E_TEST_PLAN:-}"
+GDCH_E2E_START_AT_TEST="${GDCH_E2E_START_AT_TEST:-}"
 ADHOC_USERNAME="${ADHOC_USERNAME:-}"
 
 # Insert the cluster name.
@@ -68,14 +69,15 @@ function insert_gdch_e2e_tests {
   local tbconfig_path="${1:?}"
   export GDCH_E2E_TESTS="${2:-}"
   export GDCH_E2E_TEST_PLAN="${3:-}"
-  updated_tbconfig=$(envsubst '${GDCH_E2E_TESTS},${GDCH_E2E_TEST_PLAN}' <"${tbconfig_path}")
+  export GDCH_E2E_START_AT_TEST="${4:-}"
+  updated_tbconfig=$(envsubst '${GDCH_E2E_TESTS},${GDCH_E2E_TEST_PLAN},${GDCH_E2E_START_AT_TEST}' <"${tbconfig_path}")
   echo "${updated_tbconfig}" >${tbconfig_path}
 }
 
 insert_adhoc_username "${ABSOLUTE_PATH_TBCONFIG}" "${ADHOC_USERNAME}"
 insert_cluster_name "${ABSOLUTE_PATH_TBCONFIG}"
 insert_env_template_id "${ABSOLUTE_PATH_TBCONFIG}" "${ENV_TEMPLATE_ID}"
-insert_gdch_e2e_tests "${ABSOLUTE_PATH_TBCONFIG}" "${GDCH_E2E_TESTS}" "${GDCH_E2E_TEST_PLAN}"
+insert_gdch_e2e_tests "${ABSOLUTE_PATH_TBCONFIG}" "${GDCH_E2E_TESTS}" "${GDCH_E2E_TEST_PLAN}" "${GDCH_E2E_START_AT_TEST}"
 
 # only build and push images if CILIUM_GITREF, IMAGE_REGISTRY, DOCKER_IMAGE_TAG and CILIUM_DOCKER_IMAGE_TAG are set
 if [[ -z "${CILIUM_GITREF}" ]]; then
