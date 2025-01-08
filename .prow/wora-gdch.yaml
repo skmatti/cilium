@@ -36,7 +36,7 @@ presubmits:
       - name: ADHOC_USERNAME
         value: an-shift-left-legacy-presubmit
       - name: GDCH_E2E_TESTS
-        value: TestVMSetupV2MT|TestVMCreateUbuntuVMV2MT|TestUNETVMSetup|TestConnectivityMultiTenant|TestVMNetworkToVMInterProjectV2MT|TestVMNetworkToVMIntraProjectV2MT|TestVMEgressNATV2MT|TestGdcloudNetworkDiagnoseMT|TestClusterMeshConnectivityMultiTenant|TestClusterMeshConnectivityNewFrameworkMultiTenant|TestVMNetworkToPodIntraProjectV2MT|TestFabricTracingMultiTenant|TestILBServiceConnectivityMultiTenant|TestProjectNetworkPolicyEnforcementMultiTenant|TestEgressNATMultiTenant|TestExternalLBMultiTenant|TestClusterMeshHealthMultiTenant|TestUNETReadyRootAdmin|TestUNETReadyOrgAdmin
+        value: TestVMSetupV2MT$|TestVMCreateUbuntuVMV2MT$|TestUNETVMSetup$|TestConnectivityMultiTenant$|TestVMNetworkToVMInterProjectV2MT$|TestVMNetworkToVMIntraProjectV2MT$|TestVMEgressNATV2MT$|TestGdcloudNetworkDiagnoseMT$|TestClusterMeshConnectivityMultiTenant$|TestClusterMeshConnectivityNewFrameworkMultiTenant$|TestVMNetworkToPodIntraProjectV2MT$|TestFabricTracingMultiTenant$|TestILBServiceConnectivityMultiTenant$|TestProjectNetworkPolicyEnforcementMultiTenant$|TestEgressNATMultiTenant$|TestExternalLBMultiTenant$|TestClusterMeshHealthMultiTenant$|TestUNETReadyRootAdmin$|TestUNETReadyOrgAdmin$
       - name: GDCH_E2E_TEST_PLAN
         value: dynamic
       - name: WORA_CONFIG
@@ -82,7 +82,7 @@ presubmits:
       - name: ADHOC_USERNAME
         value: an-shift-left-lancer-presubmit
       - name: GDCH_E2E_TESTS
-        value: TestUNETReadyOrgInfra|TestUNETReadyOrgMgmt|TestUNETReadyOrgService|TestUNETReadyVMUser|TestOrgNetworkPolicyLancer
+        value: TestUNETReadyOrgInfra$|TestUNETReadyOrgMgmt$|TestUNETReadyOrgService$|TestUNETReadyVMUser$|TestOrgNetworkPolicyLancer$
       - name: GDCH_E2E_TEST_PLAN
         value: dynamic
       - name: WORA_CONFIG
@@ -124,7 +124,7 @@ presubmits:
       - name: ADHOC_USERNAME
         value: an-shift-left-legacy-nobuild-presubmit
       - name: GDCH_E2E_TESTS
-        value: TestVMSetupV2MT|TestVMCreateUbuntuVMV2MT|TestUNETVMSetup|TestConnectivityMultiTenant|TestVMNetworkToVMInterProjectV2MT|TestVMNetworkToVMIntraProjectV2MT|TestVMEgressNATV2MT|TestGdcloudNetworkDiagnoseMT|TestClusterMeshConnectivityMultiTenant|TestClusterMeshConnectivityNewFrameworkMultiTenant|TestVMNetworkToPodIntraProjectV2MT|TestFabricTracingMultiTenant|TestILBServiceConnectivityMultiTenant|TestProjectNetworkPolicyEnforcementMultiTenant|TestEgressNATMultiTenant|TestExternalLBMultiTenant|TestClusterMeshHealthMultiTenant|TestUNETReadyRootAdmin|TestUNETReadyOrgAdmin
+        value: TestVMSetupV2MT$|TestVMCreateUbuntuVMV2MT$|TestUNETVMSetup$|TestConnectivityMultiTenant$|TestVMNetworkToVMInterProjectV2MT$|TestVMNetworkToVMIntraProjectV2MT$|TestVMEgressNATV2MT$|TestGdcloudNetworkDiagnoseMT$|TestClusterMeshConnectivityMultiTenant$|TestClusterMeshConnectivityNewFrameworkMultiTenant$|TestVMNetworkToPodIntraProjectV2MT$|TestFabricTracingMultiTenant$|TestILBServiceConnectivityMultiTenant$|TestProjectNetworkPolicyEnforcementMultiTenant$|TestEgressNATMultiTenant$|TestExternalLBMultiTenant$|TestClusterMeshHealthMultiTenant$|TestUNETReadyRootAdmin$|TestUNETReadyOrgAdmin$
       - name: GDCH_E2E_TEST_PLAN
         value: dynamic
       - name: WORA_CONFIG
@@ -166,7 +166,7 @@ presubmits:
       - name: ADHOC_USERNAME
         value: an-shift-left-lancer-nobuild-presubmit
       - name: GDCH_E2E_TESTS
-        value: TestUNETReadyOrgInfra|TestUNETReadyOrgMgmt|TestUNETReadyOrgService|TestUNETReadyVMUser|TestOrgNetworkPolicyLancer
+        value: TestUNETReadyOrgInfra$|TestUNETReadyOrgMgmt$|TestUNETReadyOrgService$|TestUNETReadyVMUser$|TestOrgNetworkPolicyLancer$
       - name: GDCH_E2E_TEST_PLAN
         value: dynamic
       - name: WORA_CONFIG
