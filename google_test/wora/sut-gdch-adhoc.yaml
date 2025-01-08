@@ -32,7 +32,7 @@ spec:
                 plan:      "${GDCH_E2E_TEST_PLAN}"
                 use_stored_entities: "true"
                 run_post_diagnose: "true"
-                run_per_diagnose: "true"
+                run_per_diagnose: "false"
                 comment:   "AN Shift left testing"
                 tb_update_oc: "unet"
                 tb_update_spec: "${UPDATE_SPEC_STRING}"
