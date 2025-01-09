@@ -98,18 +98,15 @@ func (a addressFamily) getDirectRouting(flags getFlags) (int, net.IP, bool) {
 
 	var addr net.IP
 	for _, a := range dev.Addrs {
-		if flags&ipv6 != 0 && a.Addr.Is6() {
-			addr = a.AsIP()
-			break
-		} else if flags&ipv6 == 0 && a.Addr.Is4() {
-			addr = a.AsIP()
-			break
+		if (flags&ipv6 != 0 && a.Addr.Is6()) || (flags&ipv6 == 0 && a.Addr.Is4()) {
+			if addr = a.AsIP(); !addr.IsLinkLocalUnicast() {
+				return dev.Index, addr, true
+			}
 		}
 	}
 	if addr == nil {
 		return 0, nil, false
 	}
-
 	return dev.Index, addr, true
 }
 
