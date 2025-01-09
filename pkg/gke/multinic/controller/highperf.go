@@ -17,6 +17,7 @@ import (
 	k8sErrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/rand"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 )
 
@@ -157,7 +158,6 @@ func (r *NetworkReconciler) takeDevice(ctx context.Context, dev string, ciliumDe
 // Init renames all devices found to their birthname and sets the anetd devices list. Does *not*
 // update the annotations.
 func (r *NetworkReconciler) RestoreDevices(ctx context.Context, node *corev1.Node) error {
-	controllerMap := make(map[string]bool)
 	links, err := safenetlink.LinkList()
 	if err != nil {
 		return fmt.Errorf("failed to list links: %v", err)
@@ -167,17 +167,12 @@ func (r *NetworkReconciler) RestoreDevices(ctx context.Context, node *corev1.Nod
 		return fmt.Errorf("failed to get nic-info: %v", err)
 	}
 
-	for _, val := range nicInfo {
-		// we mark every device as owned by us, then unmark devices
-		// that cilium will see in netns. This lets us mark devices
-		// that in are in pods as owned by us. See end of loop below
-		controllerMap[val.birthName] = true
-	}
 	// we take a copy of the list so we can make one atomic change
 	selectedDevices, _ := tables.SelectedDevices(r.Devices, r.DB.ReadTxn())
 	devs := tables.DeviceNames(selectedDevices)
 	ciliumDevicesList := copySlice(devs)
 	r.Log.Infof("Existing cilium devices during RestoreDevices: %v", ciliumDevicesList)
+	devsToRename := map[string]netlink.Link{}
 	for _, link := range links {
 		dev := link.Attrs().Name
 		isVirt, err := nic.IsVirtual(dev)
@@ -199,18 +194,27 @@ func (r *NetworkReconciler) RestoreDevices(ctx context.Context, node *corev1.Nod
 			if err != nil {
 				r.Log.Infof("Failed removing altname from device %s, expected on COS. err: %v, output: %s", birthname, err, output)
 			}
-			r.Log.Infof("Renaming %s to %s during RestoreDevices", dev, birthname)
-			if err := setLinkName(link, birthname); err != nil {
+			// Before renaming back to birthName, rename to a tmp name to avoid naming conflict
+			tempName := nic.TempDevPrefix + fmt.Sprint(rand.Intn(1000000))
+			if err := setLinkName(link, tempName); err != nil {
 				return err
 			}
+			devsToRename[birthname] = link
 			if idx := findInSlice(ciliumDevicesList, dev); idx != -1 {
 				ciliumDevicesList[idx] = birthname
 			}
-			dev = birthname
 		}
-		// cilium will steal every device in root netns
-		controllerMap[dev] = false
 	}
+	for birthname, link := range devsToRename {
+		r.Log.Infof("Renaming %s to %s during RestoreDevices", link.Attrs().Name, birthname)
+		if err := setLinkName(link, birthname); err != nil {
+			return err
+		}
+		if err = netlink.LinkSetUp(link); err != nil {
+			return fmt.Errorf("unable to turn device %s up, err: %v", link, err)
+		}
+	}
+
 	sort.Strings(ciliumDevicesList)
 	r.Log.Infof("Updating cilium devices during RestoreDevices: %v", ciliumDevicesList)
 	// option.Config.SetDevices(ciliumDevicesList)
@@ -254,10 +258,6 @@ func setLinkName(link netlink.Link, name string) error {
 	err = netlink.LinkSetName(link, name)
 	if err != nil {
 		return fmt.Errorf("unable to rename device %s to %s, err: %v", link, name, err)
-	}
-	err = netlink.LinkSetUp(link)
-	if err != nil {
-		return fmt.Errorf("unable to turn device %s up, err: %v", link, err)
 	}
 	return nil
 }
