@@ -121,8 +121,7 @@ func TestMultiNiCHostGetMatchingRules(t *testing.T) {
 	ing, egr, _, _, matchingRules = repo.computePolicyEnforcementAndRules(testMultiNICIdentity)
 	require.Equal(t, true, ing, "should match both selector rules")
 	require.Equal(t, false, egr, "should not match, no egress rules are in repository")
-	require.Equal(t, multiNICSelectorRule, matchingRules[0].Rule, "returned matching rules did not match")
-	require.Equal(t, allHostSelectorRule, matchingRules[1].Rule, "returned matching rules did not match")
+	require.ElementsMatch(t, matchingRules.AsPolicyRules(), api.Rules{&multiNICSelectorRule, &allHostSelectorRule}, "returned matching rules did not match")
 
 	// For host identity.
 	ing, egr, _, _, matchingRules = repo.computePolicyEnforcementAndRules(hostIdentity)
