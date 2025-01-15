@@ -20,7 +20,7 @@ ADHOC_USERNAME="${ADHOC_USERNAME:-}"
 function insert_cluster_name {
   echo 'INFO: insert the cluster name to the cluster Rookery file.' >&2
   local tbconfig_path="${1:?}"
-  cluster_name=${PROW_JOB_ID:?}-cluster
+  cluster_name=${PROW_JOB_ID:?}-${BASHPID:?}-cluster
   export cluster_name
   yq -i '.spec.knests.[0].spec.clusters.[0].spec.provisionerArgs.clusterName = env(cluster_name)' "${tbconfig_path}"
 }

@@ -155,6 +155,7 @@ if [[ -n "${CILIUM_GITREF:-}" ]]; then
     build_and_push_cilium_image "${CILIUM_GITREF}" "${IMAGE_REGISTRY}"
   fi
 fi
+RUN_ID="${PROW_JOB_ID:-}"
 
 # Update the cluster rookery file.
 case "${PLATFORM}" in
@@ -240,6 +241,7 @@ case "${PLATFORM}" in
     # Image verification is not possible in GDCH due to lack of kubeconfig support.
     DISABLE_UPGRADE_VERIFICATION=true
     TB_STATUS_CHECK=1200 # set timeout to 10 hours (1200*30s)
+    RUN_ID="${PROW_JOB_ID}"-"${BASHPID:?}"
     ;;
   *)
     echo "Unknown platform: ${PLATFORM}." >&2
@@ -296,6 +298,7 @@ CILIUM_IMAGE_WITH_TAG=${CILIUM_IMAGE_WITH_TAG:-} \
   DISABLE_UPGRADE_VERIFICATION=${DISABLE_UPGRADE_VERIFICATION:-} \
   kubetest2-tailorbird \
   --verbose \
+  --run-id="${RUN_ID:?}" \
   --up \
   --down="${RUN_DOWN:-true}" \
   --tbconfig="${TBCONFIG}" \
