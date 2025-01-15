@@ -183,7 +183,7 @@ func (s *syncHostIPs) sync(addrs statedb.Iterator[tables.NodeAddress]) error {
 				},
 				labels.LabelHost,
 			})
-			log.WithField(logfields.IPAddr, gwIP).Debugf("Added host identity to Pod CIDR gateway address")
+			log.WithField(logfields.IPAddr, gwIP).Info("Added host identity to Pod CIDR gateway address")
 		}
 
 		ipv4Ident := identity.ReservedIdentityWorldIPv4
