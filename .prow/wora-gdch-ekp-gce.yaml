@@ -30,7 +30,7 @@ presubmits:
       # The path for the PATCH_CONTENT_DIR is from the script dir of
       # prow_entrypoint.sh.
       - name: PATCH_CONTENT_DIR
-        value: addon/patch_content/abm-1.30.0-gke.1829/overlays/gdch-abm
+        value: addon/patch_content/abm-1.31.0-gke.590/overlays/gdch-abm
       - name: TBCONFIG
         value: sut-gdch-abm-gce.yaml
       - name: WORA_CONFIG
@@ -70,7 +70,7 @@ presubmits:
       # The path for the PATCH_CONTENT_DIR is from the script dir of
       # prow_entrypoint.sh.
       - name: PATCH_CONTENT_DIR
-        value: addon/patch_content/abm-1.30.0-gke.1829/overlays/gdch-abm
+        value: addon/patch_content/abm-1.31.0-gke.590/overlays/gdch-abm
       - name: TBCONFIG
         value: sut-gdch-abm-gce.yaml
       - name: WORA_CONFIG
@@ -112,7 +112,7 @@ presubmits:
       # The path for the PATCH_CONTENT_DIR is from the script dir of
       # prow_entrypoint.sh.
       - name: PATCH_CONTENT_DIR
-        value: addon/patch_content/abm-1.30.0-gke.1829/overlays/gdch-abm
+        value: addon/patch_content/abm-1.31.0-gke.590/overlays/gdch-abm
       - name: TBCONFIG
         value: sut-gdch-abm-gce.yaml
       - name: WORA_CONFIG
