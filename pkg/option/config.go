@@ -1752,6 +1752,7 @@ type DaemonConfig struct {
 	ReverseFixedZoneMapping       map[uint8]string
 	FixedZoneMappingValidator     func(val string) (string, error) `json:"-"`
 	IPv4Range                     string
+	RegisterIPv4PodGateway        bool
 	IPv6Range                     string
 	IPv4ServiceRange              string
 	IPv6ServiceRange              string
@@ -3151,6 +3152,7 @@ func (c *DaemonConfig) Populate(vp *viper.Viper) {
 	c.IPAM = vp.GetString(IPAM)
 	c.IPAMDefaultIPPool = vp.GetString(IPAMDefaultIPPool)
 	c.IPv4Range = vp.GetString(IPv4Range)
+	c.RegisterIPv4PodGateway = vp.GetBool(RegisterIPv4PodGateway)
 	c.IPv4NodeAddr = vp.GetString(IPv4NodeAddr)
 	c.IPv4ServiceRange = vp.GetString(IPv4ServiceRange)
 	c.IPv6ClusterAllocCIDR = vp.GetString(IPv6ClusterAllocCIDRName)

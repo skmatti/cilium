@@ -14,6 +14,7 @@ import (
 	"github.com/cilium/statedb"
 
 	"github.com/cilium/cilium/pkg/datapath/tables"
+	datapath "github.com/cilium/cilium/pkg/datapath/types"
 	"github.com/cilium/cilium/pkg/identity"
 	ippkg "github.com/cilium/cilium/pkg/ip"
 	"github.com/cilium/cilium/pkg/ipcache"
@@ -34,6 +35,7 @@ type syncHostIPsParams struct {
 
 	Jobs          job.Registry
 	Health        cell.Health
+	Datapath      datapath.Datapath
 	DB            *statedb.DB
 	Config        *option.DaemonConfig
 	NodeAddresses statedb.Table[tables.NodeAddress]
@@ -161,6 +163,29 @@ func (s *syncHostIPs) sync(addrs statedb.Iterator[tables.NodeAddress]) error {
 	}
 
 	if option.Config.EnableIPv4 {
+		// Ensures that the Pod CIDR gateway IP (the first IP from the Node's
+		// Pod AllocationCIDR) gets registered with the host identity. The Pod
+		// CIDR gateway IP is the source IP for any kubelet health checks sent
+		// to Pods. Registering the gateway IP as host identity ensures that
+		// kubelet health checks bypass Network Policy and reach the Pod.
+		//
+		// The gateway IP also gets added below when iterating through
+		// LocalAddresses, but only after the first Pod is created. Without
+		// explicitly adding the gateway IP, kubelet health checks can fail if
+		// there is a Network Policy installed, until this function is called
+		// again.
+		//
+		if gwIP, ok := s.podGatewayIPv4(); ok {
+			specialIdentities = append(specialIdentities, ipIDLabel{
+				identity.IPIdentityPair{
+					IP: gwIP,
+					ID: identity.ReservedIdentityHost,
+				},
+				labels.LabelHost,
+			})
+			log.WithField(logfields.IPAddr, gwIP).Debugf("Added host identity to Pod CIDR gateway address")
+		}
+
 		ipv4Ident := identity.ReservedIdentityWorldIPv4
 		ipv4Label := labels.LabelWorldIPv4
 		if !option.Config.EnableIPv6 {

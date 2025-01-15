@@ -85,4 +85,9 @@ const (
 
 	// EnableGDCILB is the name of the option to enable google GDC-H ILB Support
 	EnableGDCILB = "enable-gdc-ilb"
+
+	// RegisterIPv4PodGateway is the option to register the Pod CIDR Gateway IP
+	// (the first IP in the Pod CIDR) as a host identity. This allows kubelet
+	// health-checks to be recognized as coming from the host.
+	RegisterIPv4PodGateway = "register-ipv4-pod-gateway"
 )
