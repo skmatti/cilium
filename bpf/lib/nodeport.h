@@ -993,6 +993,7 @@ out:
 	return CTX_ACT_OK;
 
 #ifdef TUNNEL_MODE
+#ifndef DISABLE_IPV6_TUNNEL
 encap_redirect:
 	src_port = tunnel_gen_src_port_v6(&tuple);
 
@@ -1012,6 +1013,7 @@ encap_redirect:
 	/* neigh map doesn't contain DMACs for other nodes */
 	allow_neigh_map = false;
 	goto fib_redirect;
+#endif
 #endif
 
 fib_lookup:
@@ -1036,7 +1038,9 @@ fib_lookup:
 	}
 
 #ifdef TUNNEL_MODE
+#ifndef DISABLE_IPV6_TUNNEL
 fib_redirect:
+#endif
 #endif
 	return fib_redirect(ctx, true, &fib_params, allow_neigh_map, ext_err, &ifindex);
 }
