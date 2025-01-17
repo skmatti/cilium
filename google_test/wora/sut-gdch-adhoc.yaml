@@ -4,7 +4,7 @@ metadata:
   name: wora-sut-gdch-adhoc
   namespace: tailorbird-users
 spec:
-  ttlSeconds: 18000 # 5 hours
+  ttlSeconds: 39600 # 11 hours
   knests:
   - apiVersion: sut.tailorbird.io/v1alpha1
     kind: Knest
