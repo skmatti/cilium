@@ -324,7 +324,9 @@ func (d *Daemon) createMultiNICEndpoints(ctx context.Context, multiNICWaitCh cha
 				return d.errorDuringMultiNICCreation(primaryEp, PutEndpointIDInvalidCode, fmt.Errorf("network %q has invalid network type %v of the multinic endpoint for pod %q", netCR.Name, netCR.Spec.Type, podID))
 			}
 
-			addNetworkLabelIfMultiNICEnabled(multinicTemplate, intfCR.Spec.NetworkName)
+			if d.googleMultiNICEnabled {
+				addNetworkLabel(multinicTemplate, intfCR.Spec.NetworkName)
+			}
 
 			if !skipEpCreation {
 				multinicEndpoint, code, err := d.createEndpoint(ctx, owner, multinicTemplate)
@@ -801,12 +803,9 @@ func (d *Daemon) deleteEndpoints(ctx context.Context, eps []*endpoint.Endpoint) 
 	return nerrs, nil
 }
 
-// addNetworkLabelIfMultiNICEnabled appends a network label to the existing labels in the
+// addNetworkLabel appends a network label to the existing labels in the
 // endpoint template. e.g. networking.gke.io/network: vlan-100, networking.gke.io/network: pod-network.
-func addNetworkLabelIfMultiNICEnabled(epTemplate *models.EndpointChangeRequest, network string) {
-	if !features.GlobalConfig.EnableGoogleMultiNIC {
-		return
-	}
+func addNetworkLabel(epTemplate *models.EndpointChangeRequest, network string) {
 	log.WithFields(logrus.Fields{
 		"addressing":         epTemplate.Addressing,
 		logfields.DeviceType: epTemplate.DeviceType,
@@ -817,7 +816,7 @@ func addNetworkLabelIfMultiNICEnabled(epTemplate *models.EndpointChangeRequest, 
 
 // cleanupMultiNICDevMap cleans up entries that's not in the endpoint list.
 func cleanupMultiNICDevMap(eps []*endpoint.Endpoint) {
-	if option.Config.DryMode || !features.GlobalConfig.EnableGoogleMultiNIC {
+	if option.Config.DryMode {
 		return
 	}
 	existing, err := multinicdev.DumpToMap()
@@ -882,11 +881,6 @@ func convertNetworkSpecToInterface(network *networkv1.Network) *networkv1.Networ
 	}
 }
 
-func isMultiNICPod(annotations map[string]string) bool {
-	_, ok := annotations[networkv1.InterfaceAnnotationKey]
-	return ok && features.GlobalConfig.EnableGoogleMultiNIC
-}
-
 func waitForEndpointsFirstRegeneration(ctx context.Context, eps []*endpoint.Endpoint) error {
 	var (
 		wg   sync.WaitGroup
@@ -911,9 +905,6 @@ func waitForEndpointsFirstRegeneration(ctx context.Context, eps []*endpoint.Endp
 }
 
 func setDataPathConfigurationForMultiNIC(ep *models.EndpointChangeRequest) {
-	if !features.GlobalConfig.EnableGoogleMultiNIC {
-		return
-	}
 	switch ep.DeviceType {
 	case multinicep.EndpointDeviceMultinicVETH:
 		// L3 multinic endpoint

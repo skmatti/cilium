@@ -10,7 +10,6 @@ import (
 	"github.com/cilium/cilium/pkg/datapath/connector"
 	"github.com/cilium/cilium/pkg/endpoint"
 	"github.com/cilium/cilium/pkg/endpointmanager"
-	"github.com/cilium/cilium/pkg/gke/features"
 	"github.com/cilium/cilium/pkg/lock"
 	"github.com/cilium/cilium/pkg/maps/pip"
 	"github.com/cilium/cilium/pkg/metrics"
@@ -53,7 +52,8 @@ type GKEIPRouteReconciler struct {
 	reconcileLock lock.Mutex
 	// denotes a map of pods along with the network that
 	// any GKEIPRoute is referenced to.
-	gkeIPRoutePodsCache map[gkeIPRoutePod]bool
+	gkeIPRoutePodsCache   map[gkeIPRoutePod]bool
+	googleMultiNICEnabled bool
 }
 
 func (r *GKEIPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (_ ctrl.Result, rerr error) {
@@ -319,11 +319,11 @@ func (r *GKEIPRouteReconciler) SetupWithManager(mgr ctrl.Manager) error {
 // LookupEndpointByPodNameAndNetwork looks up endpoint in a pod by namespace + pod name and a network id.
 func (r *GKEIPRouteReconciler) LookupEndpointByPodNameAndNetwork(name string, networkID uint32) *endpoint.Endpoint {
 	// don't support queuries when multinic is disabled and networkID is non-zero
-	if !features.GlobalConfig.EnableGoogleMultiNIC && networkID != 0 {
+	if !r.googleMultiNICEnabled && networkID != 0 {
 		return nil
 	}
 	// endpoints belonging to default network have a networkID value 0.
-	if !features.GlobalConfig.EnableGoogleMultiNIC || networkID == 0 {
+	if !r.googleMultiNICEnabled || networkID == 0 {
 		return r.em.LookupPrimaryEndpointByPodName(name)
 	}
 	eps := r.em.LookupEndpointsByPodName(name)

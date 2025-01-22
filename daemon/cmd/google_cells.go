@@ -9,6 +9,7 @@ import (
 	"github.com/cilium/cilium/pkg/gke/features"
 	"github.com/cilium/cilium/pkg/gke/fqdnnetworkpolicy"
 	"github.com/cilium/cilium/pkg/gke/imds"
+	"github.com/cilium/cilium/pkg/gke/multinic"
 	"github.com/cilium/cilium/pkg/gke/multitenancy"
 	"github.com/cilium/cilium/pkg/gke/networklogging"
 	"github.com/cilium/cilium/pkg/gke/nodefirewall/types"
@@ -59,6 +60,7 @@ var googleCell = cell.Module(
 	trafficsteering.Cell,
 	pip.Cell,
 	servicesteering.Cell,
+	multinic.Cell,
 
 	imds.Cell,
 

@@ -8,7 +8,6 @@ import (
 	"github.com/cilium/cilium/pkg/endpoint"
 	endpointid "github.com/cilium/cilium/pkg/endpoint/id"
 	"github.com/cilium/cilium/pkg/endpoint/regeneration"
-	"github.com/cilium/cilium/pkg/gke/features"
 	"github.com/cilium/cilium/pkg/identity/cache"
 	"github.com/cilium/cilium/pkg/ipcache"
 )
@@ -59,7 +58,7 @@ func (mgr *endpointManager) LookupEndpointsByPodName(name string) []*endpoint.En
 func (mgr *endpointManager) LookupPrimaryEndpointByContainerID(id string) *endpoint.Endpoint {
 	mgr.mutex.RLock()
 	defer mgr.mutex.RUnlock()
-	if !features.GlobalConfig.EnableGoogleMultiNIC {
+	if !mgr.googleMultiNICEnabled {
 		return mgr.lookupContainerID(id)
 	}
 
@@ -76,7 +75,7 @@ func (mgr *endpointManager) LookupPrimaryEndpointByContainerID(id string) *endpo
 func (mgr *endpointManager) LookupPrimaryEndpointByPodName(name string) *endpoint.Endpoint {
 	mgr.mutex.RLock()
 	defer mgr.mutex.RUnlock()
-	if !features.GlobalConfig.EnableGoogleMultiNIC {
+	if !mgr.googleMultiNICEnabled {
 		return mgr.lookupPodNameLocked(name)
 	}
 
@@ -96,7 +95,7 @@ func (mgr *endpointManager) UpdateIDReferences(ep *endpoint.Endpoint) {
 }
 
 func (mgr *endpointManager) addToMultiNICMapIfNeeded(ep *endpoint.Endpoint, prefix endpointid.PrefixType, id string) bool {
-	if features.GlobalConfig.EnableGoogleMultiNIC && (prefix == endpointid.ContainerIdPrefix || prefix == endpointid.PodNamePrefix || prefix == endpointid.DockerEndpointPrefix || prefix == endpointid.ContainerNamePrefix) {
+	if mgr.googleMultiNICEnabled && (prefix == endpointid.ContainerIdPrefix || prefix == endpointid.PodNamePrefix || prefix == endpointid.DockerEndpointPrefix || prefix == endpointid.ContainerNamePrefix) {
 		mgr.endpointsMultiNIC[id] = append(mgr.endpointsMultiNIC[id], ep)
 		return true
 	}
@@ -104,7 +103,7 @@ func (mgr *endpointManager) addToMultiNICMapIfNeeded(ep *endpoint.Endpoint, pref
 }
 
 func (mgr *endpointManager) removeFromMultiNICMapIfNeeded(ep *endpoint.Endpoint, prefix endpointid.PrefixType, id string) {
-	if features.GlobalConfig.EnableGoogleMultiNIC && (prefix == endpointid.ContainerIdPrefix || prefix == endpointid.PodNamePrefix || prefix == endpointid.DockerEndpointPrefix || prefix == endpointid.ContainerNamePrefix) {
+	if mgr.googleMultiNICEnabled && (prefix == endpointid.ContainerIdPrefix || prefix == endpointid.PodNamePrefix || prefix == endpointid.DockerEndpointPrefix || prefix == endpointid.ContainerNamePrefix) {
 		eps := mgr.endpointsMultiNIC[id]
 		for i := len(eps) - 1; i >= 0; i-- {
 			if eps[i].ID == ep.ID {
@@ -174,4 +173,10 @@ func (mgr *endpointManager) CreateMultiNICHostEndpoint(
 
 	mgr.initHostEndpointLabels(ctx, ep)
 	return ep, nil
+}
+
+// SetEnableGoogleMultiNIC allows to control the setting of `enable-google-multi-nic` config.
+// Should be used only for tests.
+func (mgr *endpointManager) SetEnableGoogleMultiNIC(googleMultiNICEnabled bool) {
+	mgr.googleMultiNICEnabled = googleMultiNICEnabled
 }

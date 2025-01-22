@@ -19,7 +19,6 @@ import (
 	"github.com/cilium/cilium/pkg/endpoint"
 	endpointid "github.com/cilium/cilium/pkg/endpoint/id"
 	"github.com/cilium/cilium/pkg/endpoint/regeneration"
-	"github.com/cilium/cilium/pkg/gke/features"
 	"github.com/cilium/cilium/pkg/identity/cache"
 	"github.com/cilium/cilium/pkg/ipcache"
 	"github.com/cilium/cilium/pkg/lock"
@@ -97,6 +96,9 @@ type endpointManager struct {
 
 	// Allocator for local endpoint identifiers.
 	epIDAllocator *epIDAllocator
+
+	// googleMultiNICEnabled denotes if google multinic support is enabled
+	googleMultiNICEnabled bool
 }
 
 // endpointDeleteFunc is used to abstract away concrete Endpoint Delete
@@ -282,25 +284,25 @@ func (mgr *endpointManager) Lookup(id string) (*endpoint.Endpoint, error) {
 		return mgr.lookupCNIAttachmentID(eid), nil
 
 	case endpointid.ContainerIdPrefix:
-		if features.GlobalConfig.EnableGoogleMultiNIC {
+		if mgr.googleMultiNICEnabled {
 			return nil, ErrUnsupportedWhenMultiNIC{Prefix: prefix.String()}
 		}
 		return mgr.lookupContainerID(eid), nil
 
 	case endpointid.DockerEndpointPrefix:
-		if features.GlobalConfig.EnableGoogleMultiNIC {
+		if mgr.googleMultiNICEnabled {
 			return nil, ErrUnsupportedWhenMultiNIC{Prefix: prefix.String()}
 		}
 		return mgr.lookupDockerEndpoint(eid), nil
 
 	case endpointid.ContainerNamePrefix:
-		if features.GlobalConfig.EnableGoogleMultiNIC {
+		if mgr.googleMultiNICEnabled {
 			return nil, ErrUnsupportedWhenMultiNIC{Prefix: prefix.String()}
 		}
 		return mgr.lookupDockerContainerName(eid), nil
 
 	case endpointid.PodNamePrefix:
-		if features.GlobalConfig.EnableGoogleMultiNIC {
+		if mgr.googleMultiNICEnabled {
 			return nil, ErrUnsupportedWhenMultiNIC{Prefix: prefix.String()}
 		}
 		return mgr.lookupPodNameLocked(eid), nil

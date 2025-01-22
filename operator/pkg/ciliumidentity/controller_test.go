@@ -23,11 +23,10 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	k8sTesting "k8s.io/client-go/testing"
 
-	"github.com/cilium/cilium/operator/pkg/ciliumconfig"
-	"github.com/cilium/cilium/pkg/gke/features"
-
 	"github.com/cilium/cilium/operator/k8s"
+	"github.com/cilium/cilium/operator/pkg/ciliumconfig"
 	cestest "github.com/cilium/cilium/operator/pkg/ciliumendpointslice/testutils"
+	"github.com/cilium/cilium/pkg/gke/multinic/multinicconfig"
 	"github.com/cilium/cilium/pkg/hive"
 	"github.com/cilium/cilium/pkg/hive/health/types"
 	capi_v2 "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2"
@@ -130,8 +129,8 @@ func initHiveTest(operatorManagingCID bool, enableGoogleMultiNIC bool) (*resourc
 				DisableNetworkPolicy:      false,
 			}
 		}),
-		cell.Provide(func() features.Config {
-			return features.Config{
+		cell.Provide(func() multinicconfig.Config {
+			return multinicconfig.Config{
 				EnableGoogleMultiNIC: enableGoogleMultiNIC,
 			}
 		}),

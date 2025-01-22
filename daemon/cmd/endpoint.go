@@ -28,7 +28,6 @@ import (
 	endpointid "github.com/cilium/cilium/pkg/endpoint/id"
 	"github.com/cilium/cilium/pkg/endpoint/regeneration"
 	"github.com/cilium/cilium/pkg/fqdn/restore"
-	"github.com/cilium/cilium/pkg/gke/features"
 	"github.com/cilium/cilium/pkg/ipam"
 	"github.com/cilium/cilium/pkg/k8s"
 	"github.com/cilium/cilium/pkg/k8s/client"
@@ -374,8 +373,9 @@ func (d *Daemon) createEndpoint(ctx context.Context, owner regeneration.Owner, e
 		epTemplate.DatapathConfiguration.RequireRouting = &disabled
 	}
 
-	setDataPathConfigurationForMultiNIC(epTemplate)
-
+	if d.googleMultiNICEnabled {
+		setDataPathConfigurationForMultiNIC(epTemplate)
+	}
 	log.WithFields(logrus.Fields{
 		"addressing":                 epTemplate.Addressing,
 		logfields.ContainerID:        epTemplate.ContainerID,
@@ -408,7 +408,7 @@ func (d *Daemon) createEndpoint(ctx context.Context, owner regeneration.Owner, e
 		return invalidDataError(ep, fmt.Errorf("endpoint ID %d already exists", ep.ID))
 	}
 
-	if !features.GlobalConfig.EnableGoogleMultiNIC || !ep.IsMultiNIC() {
+	if !d.googleMultiNICEnabled || !ep.IsMultiNIC() {
 		oldEp = d.endpointManager.LookupCNIAttachmentID(ep.GetCNIAttachmentID())
 		if oldEp != nil {
 			return invalidDataError(ep, fmt.Errorf("endpoint for CNI attachment ID %s already exists", ep.GetCNIAttachmentID()))
@@ -490,7 +490,8 @@ func (d *Daemon) createEndpoint(ctx context.Context, owner regeneration.Owner, e
 		if err != nil {
 			ep.Logger("api").WithError(err).Warning("Unable to fetch kubernetes labels")
 		} else {
-			multinicPod = isMultiNICPod(k8sMetadata.Annotations)
+			_, ok := k8sMetadata.Annotations[networkv1.InterfaceAnnotationKey]
+			multinicPod = ok && d.googleMultiNICEnabled
 			ep.SetPod(pod)
 			ep.SetK8sMetadata(k8sMetadata.ContainerPorts)
 			identityLbls.MergeLabels(k8sMetadata.IdentityLabels)
@@ -654,7 +655,9 @@ func putEndpointIDHandler(d *Daemon, params PutEndpointIDParams) (resp middlewar
 		log.WithField(logfields.Params, logfields.Repr(params)).Debug("PUT /endpoint/{id} request")
 	}
 	epTemplate := params.Endpoint
-	addNetworkLabelIfMultiNICEnabled(epTemplate, networkv1.DefaultPodNetworkName)
+	if d.googleMultiNICEnabled {
+		addNetworkLabel(epTemplate, networkv1.DefaultPodNetworkName)
+	}
 
 	r, err := d.apiLimiterSet.Wait(params.HTTPRequest.Context(), restapi.APIRequestEndpointCreate)
 	if err != nil {
@@ -669,7 +672,8 @@ func putEndpointIDHandler(d *Daemon, params PutEndpointIDParams) (resp middlewar
 	}
 
 	ep.Logger(daemonSubsys).Info("Successful endpoint creation")
-	if features.GlobalConfig.EnableGoogleMultiNIC {
+
+	if d.googleMultiNICEnabled {
 		multiNICCleanupWaitCh := make(chan struct{})
 		defer close(multiNICCleanupWaitCh)
 
@@ -858,7 +862,7 @@ func (d *Daemon) deleteEndpointByContainerID(containerID string) (nErrors int, e
 		return 0, api.New(DeleteEndpointInvalidCode, "invalid container id")
 	}
 
-	if features.GlobalConfig.EnableGoogleMultiNIC {
+	if d.googleMultiNICEnabled {
 		return d.DeleteEndpointsByContainerID(context.Background(), containerID)
 	}
 
@@ -947,7 +951,7 @@ func deleteEndpointIDHandler(d *Daemon, params DeleteEndpointIDParams) middlewar
 	defer r.Done()
 
 	var nerr int
-	if features.GlobalConfig.EnableGoogleMultiNIC {
+	if d.googleMultiNICEnabled {
 		nerr, err = d.DeleteEndpointsByID(params.HTTPRequest.Context(), params.ID)
 		if err != nil {
 			if apierr, ok := err.(*api.APIError); ok {

@@ -23,7 +23,7 @@ import (
 
 	networkv1 "github.com/GoogleCloudPlatform/gke-networking-api/apis/network/v1"
 	"github.com/cilium/cilium/pkg/endpoint"
-	"github.com/cilium/cilium/pkg/gke/features"
+	"github.com/cilium/cilium/pkg/gke/multinic/multinicconfig"
 	"github.com/cilium/cilium/pkg/ipam"
 	"github.com/cilium/cilium/pkg/logging"
 	"github.com/cilium/cilium/pkg/logging/logfields"
@@ -765,7 +765,10 @@ func TestUpdateNodeMultiNetworkIPAM(t *testing.T) {
 	scheme := k8sruntime.NewScheme()
 	corev1.AddToScheme(scheme)
 	ctx := context.Background()
-	features.GlobalConfig.EnableGoogleMultiNIC = true
+	multinicconfig.GlobalConfig.EnableGoogleMultiNIC = true
+	defer func() {
+		multinicconfig.GlobalConfig.EnableGoogleMultiNIC = false
+	}()
 	testNw := networkv1.Network{ObjectMeta: metav1.ObjectMeta{Name: networkName}, Spec: networkv1.NetworkSpec{Type: networkv1.L2NetworkType}}
 	testcases := []struct {
 		desc                string

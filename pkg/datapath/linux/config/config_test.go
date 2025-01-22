@@ -27,6 +27,7 @@ import (
 	"github.com/cilium/cilium/pkg/datapath/loader"
 	"github.com/cilium/cilium/pkg/datapath/tables"
 	datapath "github.com/cilium/cilium/pkg/datapath/types"
+	"github.com/cilium/cilium/pkg/gke/multinic/multinicconfig"
 	"github.com/cilium/cilium/pkg/hive"
 	"github.com/cilium/cilium/pkg/maps/nodemap"
 	"github.com/cilium/cilium/pkg/maps/nodemap/fake"
@@ -99,6 +100,11 @@ func writeConfig(t *testing.T, header string, write writeFn) {
 			),
 			cell.Invoke(func(writer_ datapath.ConfigWriter) {
 				writer = writer_
+			}),
+			cell.Provide(func() multinicconfig.Config {
+				return multinicconfig.Config{
+					EnableGoogleMultiNIC: false,
+				}
 			}),
 		)
 

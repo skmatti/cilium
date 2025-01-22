@@ -4,8 +4,8 @@ import (
 	"testing"
 
 	"github.com/cilium/cilium/pkg/endpoint"
-	"github.com/cilium/cilium/pkg/gke/features"
 	multinicep "github.com/cilium/cilium/pkg/gke/multinic/endpoint"
+	"github.com/cilium/cilium/pkg/gke/multinic/multinicconfig"
 	cilium_v2 "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2"
 	slim_metav1 "github.com/cilium/cilium/pkg/k8s/slim/k8s/apis/meta/v1"
 	"github.com/cilium/cilium/pkg/k8s/types"
@@ -84,9 +84,9 @@ func TestUpdateMultiNICCEP(t *testing.T) {
 			e := &endpoint.Endpoint{}
 			e.UpdateLogger(nil)
 			e.SetDeviceTypeForTest(tc.deviceType)
-			features.GlobalConfig.EnableGoogleMultiNIC = true
+			multinicconfig.GlobalConfig.EnableGoogleMultiNIC = true
 			defer func() {
-				features.GlobalConfig.EnableGoogleMultiNIC = false
+				multinicconfig.GlobalConfig.EnableGoogleMultiNIC = false
 			}()
 			AddAnnotationIfMultiNIC(e, tc.cep)
 			if s := cmp.Diff(tc.cep, tc.wantCEP); s != "" {

@@ -78,12 +78,13 @@ const NodePortMaxNAT = 65535
 // HeaderfileWriter is a wrapper type which implements datapath.ConfigWriter.
 // It manages writing of configuration of datapath program headerfiles.
 type HeaderfileWriter struct {
-	log                *slog.Logger
-	nodeMap            nodemap.MapV2
-	nodeAddressing     datapath.NodeAddressing
-	nodeExtraDefines   dpdef.Map
-	nodeExtraDefineFns []dpdef.Fn
-	sysctl             sysctl.Sysctl
+	log                   *slog.Logger
+	nodeMap               nodemap.MapV2
+	nodeAddressing        datapath.NodeAddressing
+	nodeExtraDefines      dpdef.Map
+	nodeExtraDefineFns    []dpdef.Fn
+	sysctl                sysctl.Sysctl
+	googleMultiNICEnabled bool
 }
 
 func NewHeaderfileWriter(p WriterParams) (datapath.ConfigWriter, error) {
@@ -94,12 +95,13 @@ func NewHeaderfileWriter(p WriterParams) (datapath.ConfigWriter, error) {
 		}
 	}
 	return &HeaderfileWriter{
-		nodeMap:            p.NodeMap,
-		nodeAddressing:     p.NodeAddressing,
-		nodeExtraDefines:   merged,
-		nodeExtraDefineFns: p.NodeExtraDefineFns,
-		log:                p.Log,
-		sysctl:             p.Sysctl,
+		nodeMap:               p.NodeMap,
+		nodeAddressing:        p.NodeAddressing,
+		nodeExtraDefines:      merged,
+		nodeExtraDefineFns:    p.NodeExtraDefineFns,
+		log:                   p.Log,
+		sysctl:                p.Sysctl,
+		googleMultiNICEnabled: p.GoogleMultiNIC.EnableGoogleMultiNIC,
 	}, nil
 }
 
@@ -743,7 +745,7 @@ func (h *HeaderfileWriter) WriteNodeConfig(w io.Writer, cfg *datapath.LocalNodeC
 		cDefinesMap["ENABLE_FLAT_IPV4"] = "1"
 	}
 
-	if features.GlobalConfig.EnableGoogleMultiNIC {
+	if h.googleMultiNICEnabled {
 		cDefinesMap["ENABLE_GOOGLE_MULTI_NIC"] = "1"
 		cDefinesMap["MULTI_NIC_DEV_MAP"] = multinicdev.MapName
 		cDefinesMap["MULTI_NIC_DEV_MAP_SIZE"] = fmt.Sprintf("%d", multinicdev.MaxEntries)

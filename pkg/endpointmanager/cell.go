@@ -12,6 +12,7 @@ import (
 
 	"github.com/cilium/cilium/pkg/endpoint"
 	"github.com/cilium/cilium/pkg/endpoint/regeneration"
+	"github.com/cilium/cilium/pkg/gke/multinic/multinicconfig"
 	"github.com/cilium/cilium/pkg/identity/cache"
 	"github.com/cilium/cilium/pkg/ipcache"
 	"github.com/cilium/cilium/pkg/k8s/client"
@@ -203,6 +204,8 @@ type endpointManagerParams struct {
 	Health          cell.Health
 	EPSynchronizer  EndpointResourceSynchronizer
 	LocalNodeStore  *node.LocalNodeStore
+
+	GoogleMultiNIC multinicconfig.Config
 }
 
 type endpointManagerOut struct {
@@ -234,6 +237,7 @@ func newDefaultEndpointManager(p endpointManagerParams) endpointManagerOut {
 
 	mgr.InitMetrics(p.MetricsRegistry)
 
+	mgr.googleMultiNICEnabled = p.GoogleMultiNIC.EnableGoogleMultiNIC
 	return endpointManagerOut{
 		Lookup:  mgr,
 		Modify:  mgr,
@@ -244,9 +248,10 @@ func newDefaultEndpointManager(p endpointManagerParams) endpointManagerOut {
 type endpointSynchronizerParams struct {
 	cell.In
 
-	Clientset client.Clientset
+	Clientset      client.Clientset
+	GoogleMultiNIC multinicconfig.Config
 }
 
 func newEndpointSynchronizer(p endpointSynchronizerParams) EndpointResourceSynchronizer {
-	return &EndpointSynchronizer{Clientset: p.Clientset}
+	return &EndpointSynchronizer{Clientset: p.Clientset, EnableGoogleMultiNIC: p.GoogleMultiNIC.EnableGoogleMultiNIC}
 }

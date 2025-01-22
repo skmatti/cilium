@@ -19,7 +19,6 @@ import (
 	datapath "github.com/cilium/cilium/pkg/datapath/types"
 	"github.com/cilium/cilium/pkg/defaults"
 	"github.com/cilium/cilium/pkg/endpointmanager"
-	"github.com/cilium/cilium/pkg/gke/features"
 	"github.com/cilium/cilium/pkg/logging/logfields"
 	"github.com/cilium/cilium/pkg/maps/ctmap"
 	"github.com/cilium/cilium/pkg/maps/encrypt"
@@ -167,7 +166,7 @@ func (d *Daemon) initMaps() error {
 		}
 	}
 
-	if features.GlobalConfig.EnableGoogleMultiNIC {
+	if d.googleMultiNICEnabled {
 		if err := multinicdev.Map.OpenOrCreate(); err != nil {
 			return err
 		}

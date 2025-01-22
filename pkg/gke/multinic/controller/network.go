@@ -14,6 +14,7 @@ import (
 	"github.com/cilium/cilium/pkg/datapath/tables"
 	"github.com/cilium/cilium/pkg/endpoint"
 	"github.com/cilium/cilium/pkg/gke/features"
+	"github.com/cilium/cilium/pkg/gke/multinic/multinicconfig"
 	"github.com/cilium/cilium/pkg/logging"
 	"github.com/cilium/cilium/pkg/logging/logfields"
 	"github.com/cilium/cilium/pkg/time"
@@ -47,7 +48,7 @@ var (
 )
 
 func (r *NetworkReconciler) Reconcile(ctx context.Context, req ctrl.Request) (_ ctrl.Result, rerr error) {
-	if !features.GlobalConfig.EnableGoogleMultiNIC {
+	if !multinicconfig.Enabled() {
 		return ctrl.Result{}, nil
 	}
 	r.Log = logger.WithField("namespacedName", req.NamespacedName)

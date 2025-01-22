@@ -17,8 +17,8 @@ import (
 
 	"github.com/cilium/cilium/api/v1/models"
 	"github.com/cilium/cilium/pkg/endpoint/regeneration"
-	"github.com/cilium/cilium/pkg/gke/features"
 	multinicep "github.com/cilium/cilium/pkg/gke/multinic/endpoint"
+	"github.com/cilium/cilium/pkg/gke/multinic/multinicconfig"
 	"github.com/cilium/cilium/pkg/identity/cache"
 	identitymodel "github.com/cilium/cilium/pkg/identity/model"
 	"github.com/cilium/cilium/pkg/labels"
@@ -87,7 +87,7 @@ func NewEndpointFromChangeModel(ctx context.Context, owner regeneration.Owner, p
 	ep.deviceType = multinicep.EndpointDeviceType(base.DeviceType)
 	ep.netNs = base.NetworkNamespace
 
-	if features.GlobalConfig.EnableGoogleMultiNIC && base.DeviceType != multinicep.EndpointDeviceVETH {
+	if multinicconfig.Enabled() && base.DeviceType != multinicep.EndpointDeviceVETH {
 		ep.parentDevIndex = int(base.ParentDeviceIndex)
 		ep.parentDevName = base.ParentDeviceName
 		ep.podStackRedirectIfindex = int(base.PodStackRedirectIfindex)

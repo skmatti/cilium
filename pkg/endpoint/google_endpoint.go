@@ -9,6 +9,7 @@ import (
 	"github.com/cilium/cilium/pkg/bpf"
 	"github.com/cilium/cilium/pkg/gke/features"
 	multinicep "github.com/cilium/cilium/pkg/gke/multinic/endpoint"
+	"github.com/cilium/cilium/pkg/gke/multinic/multinicconfig"
 	"github.com/cilium/cilium/pkg/identity"
 	"github.com/cilium/cilium/pkg/labels"
 	"github.com/cilium/cilium/pkg/mac"
@@ -171,7 +172,7 @@ func (e *Endpoint) ExternalDHCPEnabled() bool {
 
 // IsIPVlan returns if the endpoint is a multinic endpoint of type IPVlan.
 func (e *Endpoint) IsIPVlan() bool {
-	return features.GlobalConfig.EnableGoogleMultiNIC && e.deviceType == multinicep.EndpointDeviceIPVLAN
+	return multinicconfig.Enabled() && e.deviceType == multinicep.EndpointDeviceIPVLAN
 }
 
 // EnableMulticast returns true if the endpoint allows multicast traffic.

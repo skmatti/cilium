@@ -8,7 +8,7 @@ import (
 	networkv1 "github.com/GoogleCloudPlatform/gke-networking-api/apis/network/v1"
 	apiEndpoint "github.com/cilium/cilium/api/v1/server/restapi/endpoint"
 	"github.com/cilium/cilium/pkg/endpoint"
-	"github.com/cilium/cilium/pkg/gke/features"
+	"github.com/cilium/cilium/pkg/endpointmanager"
 	slim_corev1 "github.com/cilium/cilium/pkg/k8s/slim/k8s/api/core/v1"
 	v1 "github.com/cilium/cilium/pkg/k8s/slim/k8s/api/core/v1"
 	"github.com/cilium/cilium/pkg/k8s/watchers"
@@ -30,16 +30,29 @@ func (ds *DaemonSuite) TestCreateEndpointQueue(t *testing.T) {
 	require.Empty(t, err)
 }
 
+// multinetworkingEnabledDaemon enables multinetworking for the Suite's underlying Daemon.
+// The returned function restores the original Daemon.
+// Note: this function is not concurrent safe (i.e. test cannot t.Parallel())
+func multinetworkingEnabledDaemon(ds *DaemonSuite) func() {
+	oldMgr := ds.d.endpointManager
+	mgr := endpointmanager.New(&dummyEpSyncher{}, nil, nil)
+	mgr.SetEnableGoogleMultiNIC(true)
+	ds.d.endpointManager = mgr
+	ds.d.googleMultiNICEnabled = true
+	return func() {
+		ds.d.googleMultiNICEnabled = false
+		ds.d.endpointManager = oldMgr
+	}
+}
+
 func (ds *DaemonSuite) TestCreateMultiNICEndpointsNoK8sEnabled(t *testing.T) {
 	testutils.PrivilegedTest(t)
 
 	epTemplate := getEPTemplate(t, ds.d)
 	epTemplate.K8sPodName = "foo-pod"
 	epTemplate.K8sNamespace = "foo-ns"
-	features.GlobalConfig.EnableGoogleMultiNIC = true
-	defer func() {
-		features.GlobalConfig.EnableGoogleMultiNIC = false
-	}()
+	revert := multinetworkingEnabledDaemon(ds)
+	defer revert()
 	ep, _, err := ds.d.createEndpoint(context.TODO(), ds, epTemplate)
 	require.NoError(t, err)
 	eps := ds.d.endpointManager.LookupEndpointsByContainerID(epTemplate.ContainerID)
@@ -59,10 +72,8 @@ func (ds *DaemonSuite) TestCreateMultiNICEndpointsNoK8sPodName(t *testing.T) {
 	testutils.PrivilegedTest(t)
 
 	ds.d.multinicClient = &mockMultiNICClient{}
-	features.GlobalConfig.EnableGoogleMultiNIC = true
-	defer func() {
-		features.GlobalConfig.EnableGoogleMultiNIC = false
-	}()
+	revert := multinetworkingEnabledDaemon(ds)
+	defer revert()
 	epTemplate := getEPTemplate(t, ds.d)
 	// Create the primary endpoint
 	ep, _, err := ds.d.createEndpoint(context.TODO(), ds, epTemplate)
@@ -127,11 +138,8 @@ func (f *fakeEndpointMetadataFetcher) Fetch(nsName, podName string) (*slim_corev
 func (ds *DaemonSuite) TestDeleteEndpointsMissingPod(t *testing.T) {
 	epTemplate := getEPTemplate(t, ds.d)
 	epTemplate.K8sPodName = "foo-pod"
-	epTemplate.K8sNamespace = "foo-ns"
-	features.GlobalConfig.EnableGoogleMultiNIC = true
-	defer func() {
-		features.GlobalConfig.EnableGoogleMultiNIC = false
-	}()
+	revert := multinetworkingEnabledDaemon(ds)
+	defer revert()
 	ep, _, err := ds.d.createEndpoint(context.TODO(), ds, epTemplate)
 	require.NoError(t, err)
 	eps := ds.d.endpointManager.LookupEndpointsByContainerID(epTemplate.ContainerID)

@@ -18,7 +18,7 @@ import (
 	"k8s.io/utils/clock"
 
 	"github.com/cilium/cilium/operator/pkg/ciliumconfig"
-	"github.com/cilium/cilium/pkg/gke/features"
+	"github.com/cilium/cilium/pkg/gke/multinic/multinicconfig"
 
 	cilium_api_v2 "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2"
 	"github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2alpha1"
@@ -64,7 +64,7 @@ type params struct {
 	CiliumEndpoint      resource.Resource[*cilium_api_v2.CiliumEndpoint]
 	CiliumEndpointSlice resource.Resource[*v2alpha1.CiliumEndpointSlice]
 
-	GoogleConfig features.Config
+	GoogleMultiNIC multinicconfig.Config
 }
 
 type Controller struct {
@@ -118,7 +118,7 @@ func registerController(p params) {
 		oldNSSecurityLabels:   make(map[string]labels.Labels),
 		cesEnabled:            p.SharedCfg.EnableCiliumEndpointSlice,
 		enqueueTimeTracker:    &EnqueueTimeTracker{clock: clock.RealClock{}, enqueuedAt: make(map[string]time.Time)},
-		googleMultiNICEnabled: p.GoogleConfig.EnableGoogleMultiNIC,
+		googleMultiNICEnabled: p.GoogleMultiNIC.EnableGoogleMultiNIC,
 	}
 
 	cidController.initializeQueues()

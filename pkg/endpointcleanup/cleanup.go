@@ -19,7 +19,7 @@ import (
 	"github.com/cilium/cilium/pkg/endpoint"
 	"github.com/cilium/cilium/pkg/endpointmanager"
 	"github.com/cilium/cilium/pkg/endpointstate"
-	"github.com/cilium/cilium/pkg/gke/features"
+	"github.com/cilium/cilium/pkg/gke/multinic/multinicconfig"
 	cilium_v2a1 "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2alpha1"
 	k8sClient "github.com/cilium/cilium/pkg/k8s/client"
 	cilium_v2 "github.com/cilium/cilium/pkg/k8s/client/clientset/versioned/typed/cilium.io/v2"
@@ -54,6 +54,8 @@ type params struct {
 	Cfg                 Config
 	DaemonCfg           *option.DaemonConfig
 	EndpointManager     endpointmanager.EndpointManager
+
+	GoogleMultiNIC multinicconfig.Config
 }
 
 type cleanup struct {
@@ -65,6 +67,7 @@ type cleanup struct {
 	endpointsCache             localEndpointCache
 	ciliumEndpointSliceEnabled bool
 	storeReleaseFn             func()
+	googleMultiNICEnabled      bool
 }
 
 func registerCleanup(p params) {
@@ -81,6 +84,7 @@ func registerCleanup(p params) {
 		restorerPromise:            p.RestorerPromise,
 		endpointsCache:             p.EndpointsCache,
 		ciliumEndpointSliceEnabled: p.DaemonCfg.EnableCiliumEndpointSlice,
+		googleMultiNICEnabled:      p.GoogleMultiNIC.EnableGoogleMultiNIC,
 	}
 
 	p.JobGroup.Add(
@@ -153,7 +157,7 @@ func (c *cleanup) cleanStaleCEPs(ctx context.Context) error {
 		return fmt.Errorf("failed to get indexed CiliumEndpointSlice from store: %w", err)
 	}
 	for _, cep := range objs {
-		if features.GlobalConfig.EnableGoogleMultiNIC {
+		if c.googleMultiNICEnabled {
 			if err := c.cleanStaleCEPWhenMultiNIC(ctx, c.endpointsCache, cep); err != nil {
 				return fmt.Errorf("could not clean statle CiliumEndpoint when Google MultiNIC is enabled: %w", err)
 			}
@@ -179,7 +183,7 @@ func (c *cleanup) cleanStaleCESs(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("failed to get indexed CiliumEndpointSlice from store: %w", err)
 	}
-	if features.GlobalConfig.EnableGoogleMultiNIC {
+	if c.googleMultiNICEnabled {
 		if err := c.cleanStaleCEPinCESWhenMultiNIC(ctx, c.endpointsCache, objs); err != nil {
 			return fmt.Errorf("error while cleaning stale CEPs in CESs: %v", err)
 		}

@@ -18,6 +18,7 @@ import (
 
 	"github.com/cilium/cilium/pkg/controller"
 	"github.com/cilium/cilium/pkg/endpoint"
+	"github.com/cilium/cilium/pkg/gke/multinic/multinicconfig"
 	"github.com/cilium/cilium/pkg/k8s"
 	cilium_v2 "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2"
 	"github.com/cilium/cilium/pkg/k8s/client"
@@ -30,7 +31,6 @@ import (
 	"github.com/cilium/cilium/pkg/option"
 	"github.com/cilium/cilium/pkg/time"
 
-	"github.com/cilium/cilium/pkg/gke/features"
 	multiniccep "github.com/cilium/cilium/pkg/gke/multinic/ciliumendpoint"
 )
 
@@ -44,7 +44,8 @@ var ciliumEndpointToK8sSyncControllerGroup = controller.NewGroup("sync-to-k8s-ci
 // EndpointSynchronizer currently is an empty type, which wraps around syncing
 // of CiliumEndpoint resources.
 type EndpointSynchronizer struct {
-	Clientset client.Clientset
+	Clientset            client.Clientset
+	EnableGoogleMultiNIC bool
 }
 
 // RunK8sCiliumEndpointSync starts a controller that synchronizes the endpoint
@@ -116,7 +117,7 @@ func (epSync *EndpointSynchronizer) RunK8sCiliumEndpointSync(e *endpoint.Endpoin
 				}
 
 				// Regenerate CEP name using Google's naming scheme of endpoints
-				if features.GlobalConfig.EnableGoogleMultiNIC {
+				if epSync.EnableGoogleMultiNIC {
 					// K8sPodName and K8sNamespace are not always available when an
 					// endpoint is first created, so we collect them here.
 					cepName = e.GenerateCEPName()
@@ -448,7 +449,7 @@ func (epSync *EndpointSynchronizer) DeleteK8sCiliumEndpointSync(e *endpoint.Endp
 
 func deleteCEP(ctx context.Context, scopedLog *logrus.Entry, ciliumClient v2.CiliumV2Interface, e *endpoint.Endpoint) error {
 	cepName := e.GetK8sCEPName()
-	if features.GlobalConfig.EnableGoogleMultiNIC {
+	if multinicconfig.Enabled() {
 		// K8sPodName and K8sNamespace are not always available when an
 		// endpoint is first created, so we collect them here.
 		cepName = e.GenerateCEPName()

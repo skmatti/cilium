@@ -17,10 +17,6 @@ import (
 )
 
 func (s *EndpointManagerSuite) TestLookupMultiNIC(t *testing.T) {
-	features.GlobalConfig.EnableGoogleMultiNIC = true
-	defer func() {
-		features.GlobalConfig.EnableGoogleMultiNIC = false
-	}()
 	type args struct {
 		id string
 	}
@@ -144,6 +140,7 @@ func (s *EndpointManagerSuite) TestLookupMultiNIC(t *testing.T) {
 		ep, err := endpoint.NewEndpointFromChangeModel(context.Background(), s, s, testipcache.NewMockIPCache(), &endpoint.FakeEndpointProxy{}, testidentity.NewMockIdentityAllocator(nil), &tt.cm)
 		require.NoError(t, err, "Test Name: %s", tt.name)
 		mgr := New(&dummyEpSyncher{}, nil, nil)
+		mgr.googleMultiNICEnabled = true
 
 		err = mgr.expose(ep)
 		require.NoError(t, err, "Test Name: %s", tt.name)
@@ -162,10 +159,6 @@ func (s *EndpointManagerSuite) TestLookupMultiNIC(t *testing.T) {
 }
 
 func (s *EndpointManagerSuite) TestLookupEndpointsByContainerID(t *testing.T) {
-	features.GlobalConfig.EnableGoogleMultiNIC = true
-	defer func() {
-		features.GlobalConfig.EnableGoogleMultiNIC = false
-	}()
 	type args struct {
 		id string
 	}
@@ -236,6 +229,7 @@ func (s *EndpointManagerSuite) TestLookupEndpointsByContainerID(t *testing.T) {
 	}
 	for _, tt := range tests {
 		mgr := New(&dummyEpSyncher{}, nil, nil)
+		mgr.googleMultiNICEnabled = true
 		for _, req := range tt.cm {
 			ep, err := endpoint.NewEndpointFromChangeModel(context.Background(), s, s, testipcache.NewMockIPCache(), &endpoint.FakeEndpointProxy{}, testidentity.NewMockIdentityAllocator(nil), &req)
 			require.NoError(t, err, "Test Name: %s", tt.name)
@@ -255,10 +249,6 @@ func (s *EndpointManagerSuite) TestLookupEndpointsByContainerID(t *testing.T) {
 }
 
 func (s *EndpointManagerSuite) TestLookupEndpointsByPodName(t *testing.T) {
-	features.GlobalConfig.EnableGoogleMultiNIC = true
-	defer func() {
-		features.GlobalConfig.EnableGoogleMultiNIC = false
-	}()
 	type args struct {
 		id string
 	}
@@ -332,6 +322,7 @@ func (s *EndpointManagerSuite) TestLookupEndpointsByPodName(t *testing.T) {
 	}
 	for _, tt := range tests {
 		mgr := New(&dummyEpSyncher{}, nil, nil)
+		mgr.googleMultiNICEnabled = true
 		for _, req := range tt.cm {
 			ep, err := endpoint.NewEndpointFromChangeModel(context.Background(), s, s, testipcache.NewMockIPCache(), &endpoint.FakeEndpointProxy{}, testidentity.NewMockIdentityAllocator(nil), &req)
 			require.NoError(t, err, "Test Name: %s", tt.name)
@@ -351,10 +342,6 @@ func (s *EndpointManagerSuite) TestLookupEndpointsByPodName(t *testing.T) {
 }
 
 func (s *EndpointManagerSuite) TestLookupPrimaryEndpointByContainerID(t *testing.T) {
-	features.GlobalConfig.EnableGoogleMultiNIC = true
-	defer func() {
-		features.GlobalConfig.EnableGoogleMultiNIC = false
-	}()
 	type args struct {
 		id string
 	}
@@ -427,6 +414,7 @@ func (s *EndpointManagerSuite) TestLookupPrimaryEndpointByContainerID(t *testing
 	}
 	for _, tt := range tests {
 		mgr := New(&dummyEpSyncher{}, nil, nil)
+		mgr.googleMultiNICEnabled = true
 		for _, req := range tt.cm {
 			ep, err := endpoint.NewEndpointFromChangeModel(context.Background(), s, s, testipcache.NewMockIPCache(), &endpoint.FakeEndpointProxy{}, testidentity.NewMockIdentityAllocator(nil), &req)
 			require.NoError(t, err, "Test Name: %s", tt.name)
@@ -446,13 +434,10 @@ func (s *EndpointManagerSuite) TestLookupPrimaryEndpointByContainerID(t *testing
 }
 
 func (s *EndpointManagerSuite) TestLookupPrimaryEndpointByPodName(t *testing.T) {
-	features.GlobalConfig.EnableGoogleMultiNIC = true
-	defer func() {
-		features.GlobalConfig.EnableGoogleMultiNIC = false
-	}()
 	var ep1 *endpoint.Endpoint
 	var ep2 *endpoint.Endpoint
 	mgr := New(&dummyEpSyncher{}, nil, nil)
+	mgr.googleMultiNICEnabled = true
 	type args struct {
 		id string
 	}
@@ -533,10 +518,6 @@ func (s *EndpointManagerSuite) TestLookupPrimaryEndpointByPodName(t *testing.T) 
 }
 
 func (s *EndpointManagerSuite) TestUpdateReferencesMultiNIC(t *testing.T) {
-	features.GlobalConfig.EnableGoogleMultiNIC = true
-	defer func() {
-		features.GlobalConfig.EnableGoogleMultiNIC = false
-	}()
 	var ep *endpoint.Endpoint
 	var err error
 	type args struct {
@@ -580,6 +561,7 @@ func (s *EndpointManagerSuite) TestUpdateReferencesMultiNIC(t *testing.T) {
 		ep, err = endpoint.NewEndpointFromChangeModel(context.Background(), s, s, testipcache.NewMockIPCache(), &endpoint.FakeEndpointProxy{}, testidentity.NewMockIdentityAllocator(nil), &tt.cm)
 		require.NoError(t, err, "Test Name: %s", tt.name)
 		mgr := New(&dummyEpSyncher{}, nil, nil)
+		mgr.googleMultiNICEnabled = true
 
 		err = mgr.expose(ep)
 		require.NoError(t, err, "Test Name: %s", tt.name)
@@ -609,10 +591,6 @@ func (s *EndpointManagerSuite) TestUpdateReferencesMultiNIC(t *testing.T) {
 }
 
 func (s *EndpointManagerSuite) TestRemoveMultiNIC(t *testing.T) {
-	features.GlobalConfig.EnableGoogleMultiNIC = true
-	defer func() {
-		features.GlobalConfig.EnableGoogleMultiNIC = false
-	}()
 	tests := []struct {
 		name string
 		cm   apiv1.EndpointChangeRequest
@@ -630,6 +608,7 @@ func (s *EndpointManagerSuite) TestRemoveMultiNIC(t *testing.T) {
 		ep, err := endpoint.NewEndpointFromChangeModel(context.Background(), s, s, testipcache.NewMockIPCache(), &endpoint.FakeEndpointProxy{}, testidentity.NewMockIdentityAllocator(nil), &tt.cm)
 		require.NoError(t, err, "Test Name: %s", tt.name)
 		mgr := New(&dummyEpSyncher{}, nil, nil)
+		mgr.googleMultiNICEnabled = true
 
 		err = mgr.expose(ep)
 		require.NoError(t, err, "Test Name: %s", tt.name)

@@ -1,6 +1,7 @@
 package features
 
 import (
+	"github.com/cilium/cilium/pkg/gke/multinic/multinicconfig"
 	"github.com/cilium/cilium/pkg/option"
 	"github.com/cilium/hive/cell"
 	"github.com/spf13/pflag"
@@ -27,6 +28,7 @@ var Cell = cell.Module(
 	"Features",
 
 	cell.Config(defaultConfig),
+	multinicconfig.Cell,
 	cell.Invoke(func(config Config) {
 		GlobalConfig = config
 	}),
@@ -47,8 +49,6 @@ type Config struct {
 	EnableMultiPoolIPAM bool `mapstructure:"enable-multipool-ipam"`
 	// EnableCiliumNodeConfig enables the CiliumNodeConfig CRD
 	EnableCiliumNodeConfig bool `mapstructure:"enable-cnc"`
-	// EnableGoogleMultiNIC enables multi-nic support
-	EnableGoogleMultiNIC bool `mapstructure:"enable-google-multi-nic"`
 
 	// EnableGoogleMultiNICHostFirewall enables multi-nic host firewall support
 	EnableGoogleMultiNICHostFirewall bool              `mapstructure:"enable-google-multi-nic-host-firewall"`
@@ -76,8 +76,6 @@ var defaultConfig = Config{
 	DisableIPv6Tunnel:           false,
 	EnableAutoDirectRoutingIPv4: false,
 	EnableAutoDirectRoutingIPv6: false,
-
-	EnableGoogleMultiNIC: false,
 
 	EnableGoogleMultiNICHostFirewall: false,
 	GoogleMultiNICHostMapping:        make(map[string]string),
@@ -112,8 +110,6 @@ func (cfg Config) Flags(flags *pflag.FlagSet) {
 
 	flags.Bool(EnableCiliumNodeConfig, defaultConfig.EnableCiliumNodeConfig, "Enable CiliumNodeConfig")
 	flags.MarkHidden(EnableCiliumNodeConfig)
-	flags.Bool(option.EnableGoogleMultiNIC, defaultConfig.EnableGoogleMultiNIC, "Enable google multi NIC support")
-	flags.MarkHidden(option.EnableGoogleMultiNIC)
 
 	flags.Bool(option.EnableGoogleMultiNICHostFirewall, defaultConfig.EnableGoogleMultiNICHostFirewall, "Enable google multi NIC local hairpin for local L2 broadcast")
 	flags.MarkHidden(option.EnableGoogleMultiNICHostFirewall)

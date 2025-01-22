@@ -60,6 +60,7 @@ import (
 	"github.com/cilium/cilium/pkg/envoy"
 	"github.com/cilium/cilium/pkg/flowdebug"
 	"github.com/cilium/cilium/pkg/gke/features"
+	"github.com/cilium/cilium/pkg/gke/multinic/multinicconfig"
 	"github.com/cilium/cilium/pkg/hive"
 	"github.com/cilium/cilium/pkg/hubble/exporter/exporteroption"
 	"github.com/cilium/cilium/pkg/hubble/observer/observeroption"
@@ -1764,6 +1765,7 @@ type daemonParams struct {
 	CRDSyncPromise      promise.Promise[k8sSynced.CRDSync]
 	LRPManager          *redirectpolicy.Manager
 	IdentityManager     *identitymanager.IdentityManager
+	GoogleMultiNIC      multinicconfig.Config
 }
 
 func newDaemonPromise(params daemonParams) (promise.Promise[*Daemon], promise.Promise[*option.DaemonConfig], promise.Promise[policyK8s.PolicyManager]) {

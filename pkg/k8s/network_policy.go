@@ -8,7 +8,7 @@ import (
 
 	networkv1 "github.com/GoogleCloudPlatform/gke-networking-api/apis/network/v1"
 	"github.com/cilium/cilium/pkg/annotation"
-	"github.com/cilium/cilium/pkg/gke/features"
+	"github.com/cilium/cilium/pkg/gke/multinic/multinicconfig"
 	k8sConst "github.com/cilium/cilium/pkg/k8s/apis/cilium.io"
 	k8sCiliumUtils "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/utils"
 	slim_networkingv1 "github.com/cilium/cilium/pkg/k8s/slim/k8s/api/networking/v1"
@@ -125,7 +125,7 @@ func ParseNetworkPolicy(np *slim_networkingv1.NetworkPolicy) (api.Rules, error) 
 	networkAnnotationValue, networkAnnotationPresent := np.ObjectMeta.Annotations[networkv1.NetworkAnnotationKey]
 	var networkSelector *slim_metav1.LabelSelector
 
-	if features.GlobalConfig.EnableGoogleMultiNIC && networkAnnotationPresent {
+	if multinicconfig.Enabled() && networkAnnotationPresent {
 		networkSelector = &slim_metav1.LabelSelector{
 			MatchLabels: map[string]string{
 				labels.MultinicNetwork: networkAnnotationValue,

@@ -268,7 +268,9 @@ func (d *Daemon) restoreOldEndpoints(state *endpointRestoreState) {
 		}
 	}
 
-	cleanupMultiNICDevMap(state.restored)
+	if d.googleMultiNICEnabled {
+		cleanupMultiNICDevMap(state.restored)
+	}
 	return
 }
 

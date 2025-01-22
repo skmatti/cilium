@@ -47,7 +47,6 @@ import (
 	"github.com/cilium/cilium/pkg/endpointmanager"
 	"github.com/cilium/cilium/pkg/envoy"
 	"github.com/cilium/cilium/pkg/fqdn"
-	"github.com/cilium/cilium/pkg/gke/features"
 	"github.com/cilium/cilium/pkg/gke/multinic"
 	dhcp "github.com/cilium/cilium/pkg/gke/multinic/dhcp"
 	"github.com/cilium/cilium/pkg/hubble/observer"
@@ -174,6 +173,9 @@ type Daemon struct {
 	cgroupManager manager.CGroupManager
 
 	apiLimiterSet *rate.APILimiterSet
+
+	// googleMultiNICEnabled denotes google multinic support
+	googleMultiNICEnabled bool
 
 	// client used to query and update Network and NetworkInterface resources
 	// when multinic is enabled
@@ -421,30 +423,31 @@ func newDaemon(ctx context.Context, cleaner *daemonCleanup, params *daemonParams
 		// **NOTE** The global identity allocator is not yet initialized here; that
 		// happens below via InitIdentityAllocator(). Only the local identity
 		// allocator is initialized here.
-		identityAllocator: params.IdentityAllocator,
-		ipcache:           params.IPCache,
-		policy:            params.Policy,
-		idmgr:             params.IdentityManager,
-		cniConfigManager:  params.CNIConfigManager,
-		clusterInfo:       params.ClusterInfo,
-		clustermesh:       params.ClusterMesh,
-		monitorAgent:      params.MonitorAgent,
-		l2announcer:       params.L2Announcer,
-		svc:               params.ServiceManager,
-		l7Proxy:           params.L7Proxy,
-		envoyXdsServer:    params.EnvoyXdsServer,
-		authManager:       params.AuthManager,
-		settings:          params.Settings,
-		bigTCPConfig:      params.BigTCPConfig,
-		tunnelConfig:      params.TunnelConfig,
-		bwManager:         params.BandwidthManager,
-		cgroupManager:     params.CGroupManager,
-		endpointManager:   params.EndpointManager,
-		k8sWatcher:        params.K8sWatcher,
-		k8sSvcCache:       params.K8sSvcCache,
-		rec:               params.Recorder,
-		ipam:              params.IPAM,
-		lrpManager:        params.LRPManager,
+		identityAllocator:     params.IdentityAllocator,
+		ipcache:               params.IPCache,
+		policy:                params.Policy,
+		idmgr:                 params.IdentityManager,
+		cniConfigManager:      params.CNIConfigManager,
+		clusterInfo:           params.ClusterInfo,
+		clustermesh:           params.ClusterMesh,
+		monitorAgent:          params.MonitorAgent,
+		l2announcer:           params.L2Announcer,
+		svc:                   params.ServiceManager,
+		l7Proxy:               params.L7Proxy,
+		envoyXdsServer:        params.EnvoyXdsServer,
+		authManager:           params.AuthManager,
+		settings:              params.Settings,
+		bigTCPConfig:          params.BigTCPConfig,
+		tunnelConfig:          params.TunnelConfig,
+		bwManager:             params.BandwidthManager,
+		cgroupManager:         params.CGroupManager,
+		endpointManager:       params.EndpointManager,
+		k8sWatcher:            params.K8sWatcher,
+		k8sSvcCache:           params.K8sSvcCache,
+		rec:                   params.Recorder,
+		ipam:                  params.IPAM,
+		lrpManager:            params.LRPManager,
+		googleMultiNICEnabled: params.GoogleMultiNIC.EnableGoogleMultiNIC,
 	}
 
 	// initialize endpointRestoreComplete channel as soon as possible so that subsystems
@@ -917,7 +920,7 @@ func newDaemon(ctx context.Context, cleaner *daemonCleanup, params *daemonParams
 	}
 
 	// Initialize and wait for multinic client cache to sync
-	if features.GlobalConfig.EnableGoogleMultiNIC {
+	if d.googleMultiNICEnabled {
 		if !params.Clientset.IsEnabled() {
 			log.Fatal("K8s needs to be enabled for multi nic support")
 		}

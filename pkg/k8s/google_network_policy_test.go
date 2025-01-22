@@ -6,7 +6,7 @@ import (
 
 	networkv1 "github.com/GoogleCloudPlatform/gke-networking-api/apis/network/v1"
 	"github.com/cilium/cilium/api/v1/models"
-	"github.com/cilium/cilium/pkg/gke/features"
+	"github.com/cilium/cilium/pkg/gke/multinic/multinicconfig"
 	k8sConst "github.com/cilium/cilium/pkg/k8s/apis/cilium.io"
 	slim_networkingv1 "github.com/cilium/cilium/pkg/k8s/slim/k8s/api/networking/v1"
 	slim_metav1 "github.com/cilium/cilium/pkg/k8s/slim/k8s/apis/meta/v1"
@@ -291,8 +291,10 @@ var (
 
 func Test_parseNetworkPolicyIngressForNetworkSelectorWithMultiNicEnabled(t *testing.T) {
 
-	features.GlobalConfig.EnableGoogleMultiNIC = true
-	defer func() { features.GlobalConfig.EnableGoogleMultiNIC = false }()
+	multinicconfig.GlobalConfig.EnableGoogleMultiNIC = true
+	defer func() {
+		multinicconfig.GlobalConfig.EnableGoogleMultiNIC = false
+	}()
 
 	tests := []struct {
 		name          string
@@ -379,8 +381,10 @@ func Test_parseNetworkPolicyIngressForNetworkSelectorWithMultiNicEnabled(t *test
 }
 
 func Test_parseNetworkPolicyEgressForNetworkSelectorWithMultiNicEnabled(t *testing.T) {
-	features.GlobalConfig.EnableGoogleMultiNIC = true
-	defer func() { features.GlobalConfig.EnableGoogleMultiNIC = false }()
+	multinicconfig.GlobalConfig.EnableGoogleMultiNIC = true
+	defer func() {
+		multinicconfig.GlobalConfig.EnableGoogleMultiNIC = false
+	}()
 
 	tests := []struct {
 		name          string
@@ -552,8 +556,10 @@ func Test_parseNetworkPolicyEgressForNetworkSelectorWithMultiNicDisabled(t *test
 }
 
 func Test_parseNetworkPolicyIngressAllowAllForNetworkSelector(t *testing.T) {
-	features.GlobalConfig.EnableGoogleMultiNIC = true
-	defer func() { features.GlobalConfig.EnableGoogleMultiNIC = false }()
+	multinicconfig.GlobalConfig.EnableGoogleMultiNIC = true
+	defer func() {
+		multinicconfig.GlobalConfig.EnableGoogleMultiNIC = false
+	}()
 
 	allowAllIngressNP := &slim_networkingv1.NetworkPolicy{
 		Spec: slim_networkingv1.NetworkPolicySpec{
@@ -643,8 +649,10 @@ func Test_parseNetworkPolicyIngressAllowAllForNetworkSelector(t *testing.T) {
 }
 
 func Test_parseNetworkPolicyEgressAllowAllForNetworkSelector(t *testing.T) {
-	features.GlobalConfig.EnableGoogleMultiNIC = true
-	defer func() { features.GlobalConfig.EnableGoogleMultiNIC = false }()
+	multinicconfig.GlobalConfig.EnableGoogleMultiNIC = true
+	defer func() {
+		multinicconfig.GlobalConfig.EnableGoogleMultiNIC = false
+	}()
 
 	allowAllEgressNP := &slim_networkingv1.NetworkPolicy{
 		Spec: slim_networkingv1.NetworkPolicySpec{
@@ -734,8 +742,10 @@ func Test_parseNetworkPolicyEgressAllowAllForNetworkSelector(t *testing.T) {
 }
 
 func Test_parseNetworkPolicyIngressDenyAllForNetworkSelector(t *testing.T) {
-	features.GlobalConfig.EnableGoogleMultiNIC = true
-	defer func() { features.GlobalConfig.EnableGoogleMultiNIC = false }()
+	multinicconfig.GlobalConfig.EnableGoogleMultiNIC = true
+	defer func() {
+		multinicconfig.GlobalConfig.EnableGoogleMultiNIC = false
+	}()
 
 	denyAllIngressNP := &slim_networkingv1.NetworkPolicy{
 		Spec: slim_networkingv1.NetworkPolicySpec{
@@ -815,8 +825,10 @@ func Test_parseNetworkPolicyIngressDenyAllForNetworkSelector(t *testing.T) {
 }
 
 func Test_parseNetworkPolicyEgressDenyAllForNetworkSelector(t *testing.T) {
-	features.GlobalConfig.EnableGoogleMultiNIC = true
-	defer func() { features.GlobalConfig.EnableGoogleMultiNIC = false }()
+	multinicconfig.GlobalConfig.EnableGoogleMultiNIC = true
+	defer func() {
+		multinicconfig.GlobalConfig.EnableGoogleMultiNIC = false
+	}()
 
 	denyAllEgressNP := &slim_networkingv1.NetworkPolicy{
 		Spec: slim_networkingv1.NetworkPolicySpec{

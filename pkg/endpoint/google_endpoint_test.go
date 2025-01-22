@@ -5,6 +5,7 @@ import (
 
 	"github.com/cilium/cilium/pkg/gke/features"
 	multinicep "github.com/cilium/cilium/pkg/gke/multinic/endpoint"
+	"github.com/cilium/cilium/pkg/gke/multinic/multinicconfig"
 	"github.com/cilium/cilium/pkg/labels"
 	"github.com/cilium/cilium/pkg/testutils"
 )
@@ -69,9 +70,9 @@ func TestGenerateCEPName(t *testing.T) {
 	for _, tc := range testcases {
 		t.Run(tc.desc, func(t *testing.T) {
 			if tc.endpoint.GetDeviceType() != multinicep.EndpointDeviceVETH {
-				features.GlobalConfig.EnableGoogleMultiNIC = true
+				multinicconfig.GlobalConfig.EnableGoogleMultiNIC = true
 				defer func() {
-					features.GlobalConfig.EnableGoogleMultiNIC = false
+					multinicconfig.GlobalConfig.EnableGoogleMultiNIC = false
 				}()
 			}
 			got := tc.endpoint.GenerateCEPName()

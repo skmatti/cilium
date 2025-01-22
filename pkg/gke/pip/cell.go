@@ -6,6 +6,7 @@ import (
 
 	networkv1 "github.com/GoogleCloudPlatform/gke-networking-api/apis/network/v1"
 	"github.com/cilium/cilium/pkg/endpointmanager"
+	"github.com/cilium/cilium/pkg/gke/multinic/multinicconfig"
 	config "github.com/cilium/cilium/pkg/gke/pip/config"
 	k8sClient "github.com/cilium/cilium/pkg/k8s/client"
 	"github.com/cilium/cilium/pkg/logging"
@@ -36,11 +37,11 @@ var Cell = cell.Module(
 
 type persistentIPParams struct {
 	cell.In
-	Lifecycle cell.Lifecycle
-	Clientset k8sClient.Clientset
-	Config    config.Config
-
-	EmPromise promise.Promise[endpointmanager.EndpointManager]
+	Lifecycle      cell.Lifecycle
+	Clientset      k8sClient.Clientset
+	Config         config.Config
+	GoogleMultiNIC multinicconfig.Config
+	EmPromise      promise.Promise[endpointmanager.EndpointManager]
 }
 
 // TODO(b/301965594) - Migrate controller off of controller runtime
@@ -72,9 +73,10 @@ func setupPersistentIPCtrl(params persistentIPParams) error {
 				return err
 			}
 			if err := (&GKEIPRouteReconciler{
-				Client: mgr.GetClient(),
-				em:     endpointManager,
-				Log:    piplog,
+				Client:                mgr.GetClient(),
+				em:                    endpointManager,
+				Log:                   piplog,
+				googleMultiNICEnabled: params.GoogleMultiNIC.EnableGoogleMultiNIC,
 			}).SetupWithManager(mgr); err != nil {
 				return fmt.Errorf("failed to setup persistent ip controller manager: %v", err)
 			}
