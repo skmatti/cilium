@@ -73,8 +73,6 @@ var (
 		Infrastructure,
 		ControlPlane,
 		datapath.Cell,
-
-		googleCell,
 	)
 
 	// Infrastructure provides access and services to the outside.
@@ -293,6 +291,10 @@ var (
 		// configuration to describe, in form of prometheus metrics, which
 		// features are enabled on the agent.
 		features.Cell,
+
+		// googleCell is responsible for Google internal features. Keep it to the end to make sure all upstream cells get
+		// executed first.
+		googleCell,
 	)
 )
 
