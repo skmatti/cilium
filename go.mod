@@ -135,17 +135,17 @@ require (
 	google.golang.org/protobuf v1.36.5
 	gopkg.in/ini.v1 v1.67.0
 	gopkg.in/yaml.v3 v3.0.1
-	k8s.io/api v0.31.1
+	k8s.io/api v0.31.2
 	k8s.io/apiextensions-apiserver v0.30.2
-	k8s.io/apimachinery v0.31.1
-	k8s.io/client-go v0.31.1
+	k8s.io/apimachinery v0.31.2
+	k8s.io/client-go v0.31.2
 	k8s.io/code-generator v0.30.2
 	k8s.io/component-base v0.30.2
 	k8s.io/endpointslice v0.30.2
 	k8s.io/klog/v2 v2.130.1
 	k8s.io/utils v0.0.0-20240711033017-18e509b52bc8
 	sigs.k8s.io/controller-runtime v0.18.4
-	sigs.k8s.io/controller-tools v0.16.3
+	sigs.k8s.io/controller-tools v0.16.5
 	sigs.k8s.io/gateway-api v1.1.0
 	sigs.k8s.io/mcs-api v0.1.1-0.20240529200349-2833f83cfbdc
 	sigs.k8s.io/yaml v1.4.0
@@ -299,7 +299,7 @@ require (
 )
 
 require (
-	github.com/GoogleCloudPlatform/gke-networking-api v0.2.0
+	github.com/GoogleCloudPlatform/gke-networking-api v0.2.1-0.20250124205821-d0a60e7ecb50
 	github.com/golang/protobuf v1.5.4
 	gopkg.in/yaml.v2 v2.4.0
 )
