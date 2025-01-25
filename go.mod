@@ -299,7 +299,7 @@ require (
 )
 
 require (
-	github.com/GoogleCloudPlatform/gke-networking-api v0.2.0
+	github.com/GoogleCloudPlatform/gke-networking-api v0.1.2-0.20240806213139-419c796010b0
 	github.com/golang/protobuf v1.5.4
 	gopkg.in/yaml.v2 v2.4.0
 )
