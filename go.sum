@@ -796,8 +796,8 @@ github.com/BurntSushi/toml v1.3.2 h1:o7IhLm0Msx3BaB+n3Ag7L8EVlByGnpq14C4YWiu/gL8
 github.com/BurntSushi/toml v1.3.2/go.mod h1:CxXYINrC8qIiEnFrOxCa7Jy5BFHlXnUU2pbicEuybxQ=
 github.com/BurntSushi/xgb v0.0.0-20160522181843-27f122750802/go.mod h1:IVnqGOEym/WlBOVXweHU+Q+/VP0lqqI8lqeDx9IjBqo=
 github.com/DataDog/datadog-go v3.2.0+incompatible/go.mod h1:LButxg5PwREeZtORoXG3tL4fMGNddJ+vMq1mwgfaqoQ=
-github.com/GoogleCloudPlatform/gke-networking-api v0.2.1-0.20250124205821-d0a60e7ecb50 h1:POZtUl9ymz7hgQ/9IhVm6qXODnkdHzQwY/UTsn1tSj8=
-github.com/GoogleCloudPlatform/gke-networking-api v0.2.1-0.20250124205821-d0a60e7ecb50/go.mod h1:ciiUjcEKPD+87aluRkKlsKhhE6uahL1olD0W5T0z89c=
+github.com/GoogleCloudPlatform/gke-networking-api v0.2.0 h1:LJ1TSl29CxgBPp99z3iSWsjsuszChK9lKxKtZlm+cnY=
+github.com/GoogleCloudPlatform/gke-networking-api v0.2.0/go.mod h1:T+JneNIHlwj0D11Zg/OJaqx02pf4EwF1Nk+t/0Zi01Q=
 github.com/HdrHistogram/hdrhistogram-go v1.1.2/go.mod h1:yDgFjdqOqDEKOvasDdhWNXYg9BVp4O+o5f6V/ehm6Oo=
 github.com/JohnCGriffin/overflow v0.0.0-20211019200055-46fa312c352c/go.mod h1:X0CRv0ky0k6m906ixxpzmDRLvX58TFUKS2eePweuyxk=
 github.com/Masterminds/semver/v3 v3.2.1 h1:RN9w6+7QoMeJVGyfmbcgs28Br8cvmnucEXnY0rYXWg0=

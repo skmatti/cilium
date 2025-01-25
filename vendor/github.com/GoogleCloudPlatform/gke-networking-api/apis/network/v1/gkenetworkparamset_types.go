@@ -180,6 +180,9 @@ type GKENetworkParamSetStatus struct {
 	NetworkName string `json:"networkName"`
 }
 
+// +genclient
+// +genclient:nonNamespaced
+// +genclient:onlyVerbs=get
 // +kubebuilder:object:root=true
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
