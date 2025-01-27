@@ -31,6 +31,7 @@ spec:
                 test: "${GDCH_E2E_TESTS}"
                 plan: "${GDCH_E2E_TEST_PLAN}"
                 start_at: "${GDCH_E2E_START_AT_TEST}"
+                latest_build_filter: "gce-mt silver UNET"
                 use_stored_entities: "true"
                 run_post_diagnose: "true"
                 run_per_diagnose: "false"
