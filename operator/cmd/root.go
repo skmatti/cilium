@@ -14,7 +14,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/cilium/cilium/operator/pkg/ciliumidentity"
 	"github.com/cilium/hive/cell"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
@@ -24,6 +23,8 @@ import (
 	"k8s.io/apimachinery/pkg/util/rand"
 	"k8s.io/client-go/tools/leaderelection"
 	"k8s.io/client-go/tools/leaderelection/resourcelock"
+
+	"github.com/cilium/cilium/operator/pkg/ciliumidentity"
 
 	operatorApi "github.com/cilium/cilium/api/v1/operator/server"
 	troubleshoot "github.com/cilium/cilium/cilium-dbg/cmd/troubleshoot"
@@ -157,6 +158,7 @@ var (
 		) ciliumendpointslice.SharedConfig {
 			return ciliumendpointslice.SharedConfig{
 				EnableCiliumEndpointSlice: daemonCfg.EnableCiliumEndpointSlice,
+				DisableNetworkPolicy:      !option.NetworkPolicyEnabled(daemonCfg),
 			}
 		}),
 
@@ -175,6 +177,7 @@ var (
 		) ciliumidentity.SharedConfig {
 			return ciliumidentity.SharedConfig{
 				EnableCiliumEndpointSlice: daemonCfg.EnableCiliumEndpointSlice,
+				DisableNetworkPolicy:      !option.NetworkPolicyEnabled(daemonCfg),
 			}
 		}),
 

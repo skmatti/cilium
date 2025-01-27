@@ -58,7 +58,7 @@ type testData struct {
 func newTestData() *testData {
 	td := &testData{
 		sc:   testNewSelectorCache(nil),
-		repo: NewPolicyRepository(nil, nil, nil, api.NewPolicyMetricsNoop()),
+		repo: NewPolicyRepository(nil, nil, nil, nil, api.NewPolicyMetricsNoop()),
 
 		testPolicyContext: &testPolicyContextType{
 			defaultDenyIngress: true,
@@ -86,7 +86,7 @@ func newTestData() *testData {
 // resetRepo clears only the policy repository.
 // Some tests rely on the accumulated state, but a clean repo.
 func (td *testData) resetRepo() *Repository {
-	td.repo = NewPolicyRepository(nil, nil, nil, api.NewPolicyMetricsNoop())
+	td.repo = NewPolicyRepository(nil, nil, nil, nil, api.NewPolicyMetricsNoop())
 	td.repo.selectorCache = td.sc
 	return td.repo
 }

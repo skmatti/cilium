@@ -8,11 +8,13 @@ import (
 	"net/netip"
 	"sort"
 
+	"github.com/sirupsen/logrus"
+	"k8s.io/apimachinery/pkg/types"
+
 	"github.com/cilium/cilium/api/v1/models"
 	"github.com/cilium/cilium/pkg/controller"
 	"github.com/cilium/cilium/pkg/identity"
 	"github.com/cilium/cilium/pkg/identity/cache"
-	"github.com/cilium/cilium/pkg/identity/identitymanager"
 	identitymodel "github.com/cilium/cilium/pkg/identity/model"
 	cilium_v2 "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2"
 	slim_corev1 "github.com/cilium/cilium/pkg/k8s/slim/k8s/api/core/v1"
@@ -23,8 +25,6 @@ import (
 	"github.com/cilium/cilium/pkg/option"
 	"github.com/cilium/cilium/pkg/time"
 	"github.com/cilium/cilium/slim-daemon/k8s"
-	"github.com/sirupsen/logrus"
-	"k8s.io/apimachinery/pkg/types"
 )
 
 type EndpointManager struct {
@@ -517,12 +517,16 @@ func (e *Endpoint) SetIdentity(identity *identity.Identity, newEndpoint bool) {
 	// Current security identity for endpoint is its old identity - delete its
 	// reference from global identity manager, add add a reference to the new
 	// identity for the endpoint.
-	if newEndpoint {
-		// TODO - GH-9354.
-		identitymanager.Add(identity)
-	} else {
-		identitymanager.RemoveOldAddNew(e.SecurityIdentity, identity)
-	}
+	//
+	// [Google internal] Commented out because of go/dpv2-flex backports from
+	// OSS Cilium 1.17 that moved identitymanager to hive/cell, while
+	// slim-daemon is still using legacy global variables.
+	// if newEndpoint {
+	// 	// TODO - GH-9354.
+	// 	identitymanager.Add(identity)
+	// } else {
+	// 	identitymanager.RemoveOldAddNew(e.SecurityIdentity, identity)
+	// }
 	e.SecurityIdentity = identity
 	e.replaceIdentityLabels(labels.LabelSourceAny, identity.Labels)
 
@@ -670,9 +674,13 @@ func (mgr *EndpointManager) removeSecurityIdentity(e *Endpoint) error {
 		// Restored endpoint may be created with a reserved identity of 5
 		// (init), which is not registered in the identity manager and
 		// therefore doesn't need to be removed.
-		if e.SecurityIdentity.ID != identity.ReservedIdentityInit {
-			identitymanager.Remove(e.SecurityIdentity)
-		}
+		//
+		// [Google internal] Commented out because of go/dpv2-flex backports from
+		// OSS Cilium 1.17 that moved identitymanager to hive/cell, while
+		// slim-daemon is still using legacy global variables.
+		// if e.SecurityIdentity.ID != identity.ReservedIdentityInit {
+		// 	identitymanager.Remove(e.SecurityIdentity)
+		// }
 
 		releaseCtx, cancel := context.WithTimeout(context.Background(), 2*time.Minute) // KVstoreConnectivityTimeout
 		defer cancel()

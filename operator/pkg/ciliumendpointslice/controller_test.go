@@ -46,6 +46,7 @@ func TestRegisterController(t *testing.T) {
 		cell.Provide(func() SharedConfig {
 			return SharedConfig{
 				EnableCiliumEndpointSlice: true,
+				DisableNetworkPolicy:      false,
 			}
 		}),
 		metrics.Metric(NewMetrics),
@@ -99,6 +100,7 @@ func TestNotRegisterControllerWithCESDisabled(t *testing.T) {
 		cell.Provide(func() SharedConfig {
 			return SharedConfig{
 				EnableCiliumEndpointSlice: false,
+				DisableNetworkPolicy:      false,
 			}
 		}),
 		metrics.Metric(NewMetrics),

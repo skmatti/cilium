@@ -39,7 +39,6 @@ import (
 	"github.com/cilium/cilium/pkg/fqdn/restore"
 	"github.com/cilium/cilium/pkg/identity"
 	"github.com/cilium/cilium/pkg/identity/cache"
-	"github.com/cilium/cilium/pkg/identity/identitymanager"
 	ippkg "github.com/cilium/cilium/pkg/ip"
 	ipamOption "github.com/cilium/cilium/pkg/ipam/option"
 	slim_corev1 "github.com/cilium/cilium/pkg/k8s/slim/k8s/api/core/v1"
@@ -475,7 +474,7 @@ type namedPortsGetter interface {
 }
 
 type policyRepoGetter interface {
-	GetPolicyRepository() *policy.Repository
+	GetPolicyRepository() policy.PolicyRepository
 }
 
 // EndpointSyncControllerName returns the controller name to synchronize
@@ -1254,7 +1253,7 @@ func (e *Endpoint) leaveLocked(proxyWaitGroup *completion.WaitGroup, conf Delete
 		// (init), which is not registered in the identity manager and
 		// therefore doesn't need to be removed.
 		if e.SecurityIdentity.ID != identity.ReservedIdentityInit {
-			identitymanager.Remove(e.SecurityIdentity)
+			e.owner.RemoveIdentity(e.SecurityIdentity)
 		}
 
 		releaseCtx, cancel := context.WithTimeout(context.Background(), option.Config.KVstoreConnectivityTimeout)

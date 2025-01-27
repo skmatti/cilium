@@ -3425,11 +3425,22 @@ func (c *DaemonConfig) Populate(vp *viper.Viper) {
 		log.WithError(err).Fatalf("Unable to parse excluded local addresses")
 	}
 
+	// To support K8s NetworkPolicy
+	c.EnableK8sNetworkPolicy = vp.GetBool(EnableK8sNetworkPolicy)
+	c.PolicyCIDRMatchMode = vp.GetStringSlice(PolicyCIDRMatchMode)
+	c.EnableNodeSelectorLabels = vp.GetBool(EnableNodeSelectorLabels)
+	c.NodeLabels = vp.GetStringSlice(NodeLabels)
+
+	c.EnableCiliumNetworkPolicy = vp.GetBool(EnableCiliumNetworkPolicy)
+	c.EnableCiliumClusterwideNetworkPolicy = vp.GetBool(EnableCiliumClusterwideNetworkPolicy)
+
 	// Ensure CiliumEndpointSlice is enabled only if CiliumEndpointCRD is enabled too.
 	c.EnableCiliumEndpointSlice = vp.GetBool(EnableCiliumEndpointSlice)
 	if c.EnableCiliumEndpointSlice && c.DisableCiliumEndpointCRD {
-		log.Fatalf("Running Cilium with %s=%t requires %s set to false to enable CiliumEndpoint CRDs.",
-			EnableCiliumEndpointSlice, c.EnableCiliumEndpointSlice, DisableCiliumEndpointCRDName)
+		log.Warningf("Running Cilium with %s=%t requires %s set to false to enable CiliumEndpoint CRDs. Changing %s to %t",
+			EnableCiliumEndpointSlice, c.EnableCiliumEndpointSlice, DisableCiliumEndpointCRDName, EnableCiliumEndpointSlice, false)
+
+		c.EnableCiliumEndpointSlice = false
 	}
 
 	c.IdentityAllocationMode = vp.GetString(IdentityAllocationMode)
@@ -3447,8 +3458,8 @@ func (c *DaemonConfig) Populate(vp *viper.Viper) {
 			log.Warningf("Running Cilium with %q=%q requires identity allocation via CRDs. Changing %s to %q", KVStore, c.KVStore, IdentityAllocationMode, IdentityAllocationModeCRD)
 			c.IdentityAllocationMode = IdentityAllocationModeCRD
 		}
-		if c.DisableCiliumEndpointCRD {
-			log.Warningf("Running Cilium with %q=%q requires endpoint CRDs. Changing %s to %t", KVStore, c.KVStore, DisableCiliumEndpointCRDName, false)
+		if c.DisableCiliumEndpointCRD && NetworkPolicyEnabled(c) {
+			log.Warningf("Running Cilium with %q=%q requires endpoint CRDs when network policy enforcement system is enabled. Changing %s to %t", KVStore, c.KVStore, DisableCiliumEndpointCRDName, false)
 			c.DisableCiliumEndpointCRD = false
 		}
 	}
@@ -3573,15 +3584,6 @@ func (c *DaemonConfig) Populate(vp *viper.Viper) {
 
 	// Enable BGP control plane features
 	c.EnableBGPControlPlane = vp.GetBool(EnableBGPControlPlane)
-
-	// To support K8s NetworkPolicy
-	c.EnableK8sNetworkPolicy = vp.GetBool(EnableK8sNetworkPolicy)
-	c.PolicyCIDRMatchMode = vp.GetStringSlice(PolicyCIDRMatchMode)
-	c.EnableNodeSelectorLabels = vp.GetBool(EnableNodeSelectorLabels)
-	c.NodeLabels = vp.GetStringSlice(NodeLabels)
-
-	c.EnableCiliumNetworkPolicy = vp.GetBool(EnableCiliumNetworkPolicy)
-	c.EnableCiliumClusterwideNetworkPolicy = vp.GetBool(EnableCiliumClusterwideNetworkPolicy)
 
 	// Parse node label patterns
 	nodeLabelPatterns := vp.GetStringSlice(ExcludeNodeLabelPatterns)

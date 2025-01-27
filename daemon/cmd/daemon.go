@@ -12,7 +12,6 @@ import (
 	"net/netip"
 	"os"
 	"runtime"
-	"strings"
 	"sync"
 	"sync/atomic"
 
@@ -47,10 +46,10 @@ import (
 	"github.com/cilium/cilium/pkg/endpoint/regeneration"
 	"github.com/cilium/cilium/pkg/endpointmanager"
 	"github.com/cilium/cilium/pkg/envoy"
-	"github.com/cilium/cilium/pkg/eventqueue"
 	"github.com/cilium/cilium/pkg/fqdn"
 	"github.com/cilium/cilium/pkg/hubble/observer"
 	"github.com/cilium/cilium/pkg/identity"
+	identitycell "github.com/cilium/cilium/pkg/identity/cache/cell"
 	"github.com/cilium/cilium/pkg/identity/identitymanager"
 	"github.com/cilium/cilium/pkg/ipam"
 	ipamOption "github.com/cilium/cilium/pkg/ipam/option"
@@ -62,7 +61,6 @@ import (
 	"github.com/cilium/cilium/pkg/k8s/watchers"
 	"github.com/cilium/cilium/pkg/labels"
 	"github.com/cilium/cilium/pkg/lock"
-	"github.com/cilium/cilium/pkg/logging"
 	"github.com/cilium/cilium/pkg/logging/logfields"
 	"github.com/cilium/cilium/pkg/maps/ctmap"
 	"github.com/cilium/cilium/pkg/maps/lbmap"
@@ -86,16 +84,11 @@ import (
 	serviceStore "github.com/cilium/cilium/pkg/service/store"
 	"github.com/cilium/cilium/pkg/status"
 	"github.com/cilium/cilium/pkg/time"
-	"github.com/cilium/cilium/pkg/trigger"
 )
 
 const (
 	// AutoCIDR indicates that a CIDR should be allocated
 	AutoCIDR = "auto"
-
-	// ConfigModifyQueueSize is the size of the event queue for serializing
-	// configuration updates to the daemon
-	ConfigModifyQueueSize = 10
 )
 
 // Daemon is the cilium daemon that is in charge of perform all necessary plumbing,
@@ -109,7 +102,8 @@ type Daemon struct {
 	envoyXdsServer   envoy.XDSServer
 	svc              service.ServiceManager
 	rec              *recorder.Recorder
-	policy           *policy.Repository
+	policy           policy.PolicyRepository
+	idmgr            *identitymanager.IdentityManager
 
 	statusCollectMutex lock.RWMutex
 	statusResponse     models.StatusResponse
@@ -135,8 +129,6 @@ type Daemon struct {
 
 	mtuConfig mtu.MTU
 
-	datapathRegenTrigger *trigger.Trigger
-
 	// datapath is the underlying datapath implementation to use to
 	// implement all aspects of an agent
 	datapath datapath.Datapath
@@ -152,7 +144,7 @@ type Daemon struct {
 
 	endpointRestoreComplete chan struct{}
 
-	identityAllocator CachingIdentityAllocator
+	identityAllocator identitycell.CachingIdentityAllocator
 
 	ipcache *ipcache.IPCache
 
@@ -176,9 +168,6 @@ type Daemon struct {
 	cgroupManager manager.CGroupManager
 
 	apiLimiterSet *rate.APILimiterSet
-
-	// event queue for serializing configuration updates to the daemon.
-	configModifyQueue *eventqueue.EventQueue
 
 	// CIDRs for which identities were restored during bootstrap
 	restoredCIDRs map[netip.Prefix]identity.NumericIdentity
@@ -207,7 +196,7 @@ type Daemon struct {
 }
 
 // GetPolicyRepository returns the policy repository of the daemon
-func (d *Daemon) GetPolicyRepository() *policy.Repository {
+func (d *Daemon) GetPolicyRepository() policy.PolicyRepository {
 	return d.policy
 }
 
@@ -417,6 +406,7 @@ func newDaemon(ctx context.Context, cleaner *daemonCleanup, params *daemonParams
 		identityAllocator: params.IdentityAllocator,
 		ipcache:           params.IPCache,
 		policy:            params.Policy,
+		idmgr:             params.IdentityManager,
 		cniConfigManager:  params.CNIConfigManager,
 		clusterInfo:       params.ClusterInfo,
 		clustermesh:       params.ClusterMesh,
@@ -445,9 +435,6 @@ func newDaemon(ctx context.Context, cleaner *daemonCleanup, params *daemonParams
 		d.endpointRestoreComplete = make(chan struct{})
 	}
 
-	d.configModifyQueue = eventqueue.NewEventQueueBuffered("config-modify-queue", ConfigModifyQueueSize)
-	d.configModifyQueue.Run()
-
 	// Collect CIDR identities from the "old" bpf ipcache and restore them
 	// in to the metadata layer.
 	if option.Config.RestoreState && !option.Config.DryMode {
@@ -457,10 +444,6 @@ func newDaemon(ctx context.Context, cleaner *daemonCleanup, params *daemonParams
 		if err != nil {
 			log.WithError(err).Warn("Failed to restore existing identities from the previous ipcache. This may cause policy interruptions during restart.")
 		}
-	}
-
-	if err := d.initPolicy(); err != nil {
-		return nil, nil, fmt.Errorf("error while initializing policy subsystem: %w", err)
 	}
 
 	bootstrapStats.daemonInit.End(true)
@@ -919,10 +902,7 @@ func newDaemon(ctx context.Context, cleaner *daemonCleanup, params *daemonParams
 
 // Close shuts down a daemon
 func (d *Daemon) Close() {
-	if d.datapathRegenTrigger != nil {
-		d.datapathRegenTrigger.Shutdown()
-	}
-	identitymanager.RemoveAll()
+	d.idmgr.RemoveAll()
 
 	// Ensures all controllers are stopped!
 	d.controllers.RemoveAllAndWait()
@@ -948,46 +928,6 @@ func (d *Daemon) TriggerReload(reason string) (*sync.WaitGroup, error) {
 		RegenerationLevel: regeneration.RegenerateWithDatapath,
 	}
 	return d.endpointManager.RegenerateAllEndpoints(regenRequest), nil
-}
-
-func (d *Daemon) datapathRegen(reasons []string) {
-	reason := strings.Join(reasons, ", ")
-
-	regenerationMetadata := &regeneration.ExternalRegenerationMetadata{
-		Reason:            reason,
-		RegenerationLevel: regeneration.RegenerateWithDatapath,
-	}
-	d.endpointManager.RegenerateAllEndpoints(regenerationMetadata)
-}
-
-// TriggerDatapathRegen triggers datapath rewrite for every daemon's endpoint.
-// This is only called after agent configuration changes for now. Policy revision
-// needs to be increased on PolicyEnforcement mode change.
-func (d *Daemon) TriggerDatapathRegen(force bool, reason string) {
-	if force {
-		log.Debug("PolicyEnforcement mode changed, increasing policy revision to enforce policy recalculation")
-		d.policy.BumpRevision()
-	}
-	d.datapathRegenTrigger.TriggerWithReason(reason)
-}
-
-func changedOption(key string, value option.OptionSetting, data interface{}) {
-	d := data.(*Daemon)
-	if key == option.Debug {
-		// Set the log level of the agent (this can be a no-op)
-		if option.Config.Opts.IsEnabled(option.Debug) {
-			logging.SetLogLevelToDebug()
-		} else {
-			logging.SetDefaultLogLevel()
-		}
-
-		// Reflect log level change to proxies
-		// Might not be initialized yet
-		if option.Config.EnableL7Proxy {
-			d.l7Proxy.ChangeLogLevel(logging.GetLevel(logging.DefaultLogger))
-		}
-	}
-	d.policy.BumpRevision() // force policy recalculation
 }
 
 // numWorkerThreads returns the number of worker threads with a minimum of 2.

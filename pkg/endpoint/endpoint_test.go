@@ -23,6 +23,7 @@ import (
 	"github.com/cilium/cilium/pkg/eventqueue"
 	"github.com/cilium/cilium/pkg/fqdn/restore"
 	"github.com/cilium/cilium/pkg/identity/cache"
+	"github.com/cilium/cilium/pkg/identity/identitymanager"
 	ciliumio "github.com/cilium/cilium/pkg/k8s/apis/cilium.io"
 	corev1 "github.com/cilium/cilium/pkg/k8s/slim/k8s/api/core/v1"
 	metav1 "github.com/cilium/cilium/pkg/k8s/slim/k8s/apis/meta/v1"
@@ -44,12 +45,12 @@ import (
 
 type EndpointSuite struct {
 	regeneration.Owner
-	repo     *policy.Repository
+	repo     policy.PolicyRepository
 	datapath datapath.Datapath
 	mgr      *cache.CachingIdentityAllocator
 
 	// Owners interface mock
-	OnGetPolicyRepository     func() *policy.Repository
+	OnGetPolicyRepository     func() policy.PolicyRepository
 	OnGetNamedPorts           func() (npm types.NamedPortMultiMap)
 	OnQueueEndpointBuild      func(ctx context.Context, epID uint64) (func(), error)
 	OnRemoveFromEndpointQueue func(epID uint64)
@@ -61,7 +62,11 @@ func setupEndpointSuite(tb testing.TB) *EndpointSuite {
 	testutils.IntegrationTest(tb)
 
 	s := &EndpointSuite{}
-	s.repo = policy.NewPolicyRepository(nil, nil, nil, api.NewPolicyMetricsNoop())
+	s.repo = policy.NewPolicyRepository(nil, nil, nil, nil, api.NewPolicyMetricsNoop())
+	s.Owner = &DummyOwner{
+		repo:  s.repo,
+		idmgr: identitymanager.NewIdentityManager(),
+	}
 	// GetConfig the default labels prefix filter
 	err := labelsfilter.ParseLabelPrefixCfg(nil, nil, "")
 	if err != nil {
@@ -89,7 +94,7 @@ func setupEndpointSuite(tb testing.TB) *EndpointSuite {
 	return s
 }
 
-func (s *EndpointSuite) GetPolicyRepository() *policy.Repository {
+func (s *EndpointSuite) GetPolicyRepository() policy.PolicyRepository {
 	return s.repo
 }
 

@@ -41,7 +41,7 @@ import (
 
 func testNewPolicyRepository() *policy.Repository {
 	identityCache := identity.IdentityMap{}
-	repo := policy.NewPolicyRepository(identityCache, nil, nil, api.NewPolicyMetricsNoop())
+	repo := policy.NewPolicyRepository(identityCache, nil, nil, nil, api.NewPolicyMetricsNoop())
 	repo.GetSelectorCache().SetLocalIdentityNotifier(testidentity.NewDummyIdentityNotifier())
 	return repo
 }

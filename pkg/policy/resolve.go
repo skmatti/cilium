@@ -238,7 +238,7 @@ func (p *EndpointPolicy) ConsumeMapChanges() (adds, deletes Keys) {
 }
 
 // NewEndpointPolicy returns an empty EndpointPolicy stub.
-func NewEndpointPolicy(repo *Repository) *EndpointPolicy {
+func NewEndpointPolicy(repo PolicyRepository) *EndpointPolicy {
 	return &EndpointPolicy{
 		selectorPolicy: newSelectorPolicy(repo.GetSelectorCache()),
 		policyMapState: NewMapState(nil),

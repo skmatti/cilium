@@ -56,6 +56,7 @@ cilium-operator-generic [flags]
       --enable-node-ipam                                     Enable Node IPAM
       --enable-node-port                                     Enable NodePort type services by Cilium
       --enable-node-selector-labels                          Enable use of node label based identity
+      --enable-policy string                                 Enable policy enforcement (default "default")
       --enforce-ingress-https                                Enforces https for host having matching TLS host in Ingress. Incoming traffic to http listener will return 308 http error code with respective location in header. (default true)
       --gateway-api-hostnetwork-enabled                      Exposes Gateway listeners on the host network.
       --gateway-api-hostnetwork-nodelabelselector string     Label selector that matches the nodes where the gateway listeners should be exposed. It's a list of comma-separated key-value label pairs. e.g. 'kubernetes.io/os=linux,kubernetes.io/hostname=kind-worker'

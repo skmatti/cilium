@@ -380,7 +380,7 @@ func LaunchAsEndpoint(baseCtx context.Context,
 }
 
 type policyRepoGetter interface {
-	GetPolicyRepository() *policy.Repository
+	GetPolicyRepository() policy.PolicyRepository
 }
 
 type routingConfigurer interface {

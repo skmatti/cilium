@@ -28,8 +28,8 @@ import (
 // This is just a helper function for unit testing.
 // Only returns error for signature reasons
 func (p *Repository) mustAdd(r api.Rule) (uint64, map[uint16]struct{}, error) {
-	p.Mutex.Lock()
-	defer p.Mutex.Unlock()
+	p.mutex.Lock()
+	defer p.mutex.Unlock()
 
 	if err := r.Sanitize(); err != nil {
 		panic(err)
@@ -300,9 +300,9 @@ func TestAddSearchDelete(t *testing.T) {
 	nextRevision++
 
 	// rule3 should not be in there yet
-	repo.Mutex.RLock()
+	repo.mutex.RLock()
 	require.EqualValues(t, api.Rules{}, repo.SearchRLocked(lbls2))
-	repo.Mutex.RUnlock()
+	repo.mutex.RUnlock()
 
 	// add rule3
 	rev, _, err = repo.mustAdd(rule3)
@@ -311,10 +311,10 @@ func TestAddSearchDelete(t *testing.T) {
 	nextRevision++
 
 	// search rule1,rule2
-	repo.Mutex.RLock()
+	repo.mutex.RLock()
 	require.ElementsMatch(t, api.Rules{&rule1, &rule2}, repo.SearchRLocked(lbls1))
 	require.ElementsMatch(t, api.Rules{&rule3}, repo.SearchRLocked(lbls2))
-	repo.Mutex.RUnlock()
+	repo.mutex.RUnlock()
 
 	// delete rule1, rule2
 	rev, n := repo.DeleteByLabels(lbls1)
@@ -328,9 +328,9 @@ func TestAddSearchDelete(t *testing.T) {
 	require.Equal(t, nextRevision-1, rev)
 
 	// rule3 can still be found
-	repo.Mutex.RLock()
+	repo.mutex.RLock()
 	require.EqualValues(t, api.Rules{&rule3}, repo.SearchRLocked(lbls2))
-	repo.Mutex.RUnlock()
+	repo.mutex.RUnlock()
 
 	// delete rule3
 	rev, n = repo.DeleteByLabels(lbls2)
@@ -338,9 +338,9 @@ func TestAddSearchDelete(t *testing.T) {
 	require.Equal(t, nextRevision, rev)
 
 	// rule1 is gone
-	repo.Mutex.RLock()
+	repo.mutex.RLock()
 	require.EqualValues(t, api.Rules{}, repo.SearchRLocked(lbls2))
-	repo.Mutex.RUnlock()
+	repo.mutex.RUnlock()
 }
 
 func BenchmarkParseLabel(b *testing.B) {
@@ -372,11 +372,11 @@ func BenchmarkParseLabel(b *testing.B) {
 			}
 		}
 
-		repo.Mutex.RLock()
+		repo.mutex.RLock()
 		for j := 0; j < 100; j++ {
 			cntFound += len(repo.SearchRLocked(lbls[j]))
 		}
-		repo.Mutex.RUnlock()
+		repo.mutex.RUnlock()
 	}
 	b.Log("Added: ", cntAdd)
 	b.Log("found: ", cntFound)
@@ -391,10 +391,10 @@ func TestAllowsIngress(t *testing.T) {
 		To:   labels.ParseSelectLabelArray("bar"),
 	}
 
-	repo.Mutex.RLock()
+	repo.mutex.RLock()
 	// no rules loaded: Allows() => denied
 	require.Equal(t, api.Denied, repo.AllowsIngressRLocked(fooToBar))
-	repo.Mutex.RUnlock()
+	repo.mutex.RUnlock()
 
 	tag1 := labels.LabelArray{labels.ParseLabel("tag1")}
 	rule1 := api.Rule{
@@ -490,10 +490,10 @@ func TestAllowsEgress(t *testing.T) {
 		To:   labels.ParseSelectLabelArray("bar"),
 	}
 
-	repo.Mutex.RLock()
+	repo.mutex.RLock()
 	// no rules loaded: Allows() => denied
 	require.Equal(t, api.Denied, repo.AllowsEgressRLocked(fooToBar))
-	repo.Mutex.RUnlock()
+	repo.mutex.RUnlock()
 
 	tag1 := labels.LabelArray{labels.ParseLabel("tag1")}
 	rule1 := api.Rule{
@@ -732,8 +732,8 @@ func TestWildcardL3RulesIngress(t *testing.T) {
 		To: labels.ParseSelectLabelArray("id=foo"),
 	}
 
-	repo.Mutex.RLock()
-	defer repo.Mutex.RUnlock()
+	repo.mutex.RLock()
+	defer repo.mutex.RUnlock()
 
 	policy, err := repo.ResolveL4IngressPolicy(ctx)
 	require.Nil(t, err)
@@ -929,8 +929,8 @@ func TestWildcardL4RulesIngress(t *testing.T) {
 		To: labels.ParseSelectLabelArray("id=foo"),
 	}
 
-	repo.Mutex.RLock()
-	defer repo.Mutex.RUnlock()
+	repo.mutex.RLock()
+	defer repo.mutex.RUnlock()
 
 	policy, err := repo.ResolveL4IngressPolicy(ctx)
 	require.Nil(t, err)
@@ -1019,8 +1019,8 @@ func TestL3DependentL4IngressFromRequires(t *testing.T) {
 		To: labels.ParseSelectLabelArray("id=foo"),
 	}
 
-	repo.Mutex.RLock()
-	defer repo.Mutex.RUnlock()
+	repo.mutex.RLock()
+	defer repo.mutex.RUnlock()
 
 	policy, err := repo.ResolveL4IngressPolicy(ctx)
 	require.Nil(t, err)
@@ -1093,8 +1093,8 @@ func TestL3DependentL4EgressFromRequires(t *testing.T) {
 		From: labels.ParseSelectLabelArray("id=foo"),
 	}
 
-	repo.Mutex.RLock()
-	defer repo.Mutex.RUnlock()
+	repo.mutex.RLock()
+	defer repo.mutex.RUnlock()
 
 	logBuffer := new(bytes.Buffer)
 	policy, err := repo.ResolveL4EgressPolicy(ctx.WithLogger(logBuffer))
@@ -1270,8 +1270,8 @@ func TestWildcardL3RulesEgress(t *testing.T) {
 		From: labels.ParseSelectLabelArray("id=foo"),
 	}
 
-	repo.Mutex.RLock()
-	defer repo.Mutex.RUnlock()
+	repo.mutex.RLock()
+	defer repo.mutex.RUnlock()
 
 	logBuffer := new(bytes.Buffer)
 	policy, err := repo.ResolveL4EgressPolicy(ctx.WithLogger(logBuffer))
@@ -1458,8 +1458,8 @@ func TestWildcardL4RulesEgress(t *testing.T) {
 		From: labels.ParseSelectLabelArray("id=foo"),
 	}
 
-	repo.Mutex.RLock()
-	defer repo.Mutex.RUnlock()
+	repo.mutex.RLock()
+	defer repo.mutex.RUnlock()
 
 	logBuffer := new(bytes.Buffer)
 	policy, err := repo.ResolveL4EgressPolicy(ctx.WithLogger(logBuffer))
@@ -1584,8 +1584,8 @@ func TestWildcardCIDRRulesEgress(t *testing.T) {
 		From: labels.ParseSelectLabelArray("id=foo"),
 	}
 
-	repo.Mutex.RLock()
-	defer repo.Mutex.RUnlock()
+	repo.mutex.RLock()
+	defer repo.mutex.RUnlock()
 
 	logBuffer := new(bytes.Buffer)
 	policy, err := repo.ResolveL4EgressPolicy(ctx.WithLogger(logBuffer))
@@ -1712,8 +1712,8 @@ func TestWildcardL3RulesIngressFromEntities(t *testing.T) {
 		To: labels.ParseSelectLabelArray("id=foo"),
 	}
 
-	repo.Mutex.RLock()
-	defer repo.Mutex.RUnlock()
+	repo.mutex.RLock()
+	defer repo.mutex.RUnlock()
 
 	policy, err := repo.ResolveL4IngressPolicy(ctx)
 	require.Nil(t, err)
@@ -1864,8 +1864,8 @@ func TestWildcardL3RulesEgressToEntities(t *testing.T) {
 		From: labels.ParseSelectLabelArray("id=foo"),
 	}
 
-	repo.Mutex.RLock()
-	defer repo.Mutex.RUnlock()
+	repo.mutex.RLock()
+	defer repo.mutex.RUnlock()
 
 	policy, err := repo.ResolveL4EgressPolicy(ctx)
 	require.Nil(t, err)
@@ -1954,11 +1954,11 @@ func TestMinikubeGettingStarted(t *testing.T) {
 		To:   labels.ParseSelectLabelArray("id=app1"),
 	}
 
-	repo.Mutex.RLock()
+	repo.mutex.RLock()
 	// no rules loaded: Allows() => denied
 	require.Equal(t, api.Denied, repo.AllowsIngressRLocked(fromApp2))
 	require.Equal(t, api.Denied, repo.AllowsIngressRLocked(fromApp3))
-	repo.Mutex.RUnlock()
+	repo.mutex.RUnlock()
 
 	selFromApp2 := api.NewESFromLabels(
 		labels.ParseSelectLabel("id=app2"),
@@ -2029,8 +2029,8 @@ func TestMinikubeGettingStarted(t *testing.T) {
 	})
 	require.Nil(t, err)
 
-	repo.Mutex.RLock()
-	defer repo.Mutex.RUnlock()
+	repo.mutex.RLock()
+	defer repo.mutex.RUnlock()
 
 	// L4 from app2 is restricted
 	logBuffer := new(bytes.Buffer)
@@ -2116,9 +2116,9 @@ func (repo *Repository) checkTrace(t *testing.T, ctx *SearchContext, trace strin
 	buffer := new(bytes.Buffer)
 	ctx.Logging = stdlog.New(buffer, "", 0)
 
-	repo.Mutex.RLock()
+	repo.mutex.RLock()
 	verdict := repo.AllowsIngressRLocked(ctx)
-	repo.Mutex.RUnlock()
+	repo.mutex.RUnlock()
 
 	expectedOut := "Tracing " + ctx.String() + "\n" + trace
 	require.EqualValues(t, expectedOut, buffer.String())
@@ -2274,9 +2274,9 @@ Ingress verdict: denied
 
 	// Should still be allowed with the new FromRequires constraint
 	ctx = buildSearchCtx("baz", "bar", 80)
-	repo.Mutex.RLock()
+	repo.mutex.RLock()
 	verdict := repo.AllowsIngressRLocked(ctx)
-	repo.Mutex.RUnlock()
+	repo.mutex.RUnlock()
 	require.Equal(t, api.Allowed, verdict)
 }
 
@@ -2344,9 +2344,9 @@ func TestIterate(t *testing.T) {
 
 	require.Equal(t, numRules-numModified, numWithEgress)
 
-	repo.Mutex.Lock()
+	repo.mutex.Lock()
 	_, _, numDeleted := repo.DeleteByLabelsLocked(labels.LabelArray{lbls[0]})
-	repo.Mutex.Unlock()
+	repo.mutex.Unlock()
 	require.Equal(t, 1, numDeleted)
 
 	numWithEgress = 0
@@ -2508,7 +2508,7 @@ func TestDefaultAllow(t *testing.T) {
 func TestReplaceByResource(t *testing.T) {
 	// don't use the full testdata() here, since we want to watch
 	// selectorcache changes carefully
-	repo := NewPolicyRepository(nil, nil, nil, api.NewPolicyMetricsNoop())
+	repo := NewPolicyRepository(nil, nil, nil, nil, api.NewPolicyMetricsNoop())
 	sc := testNewSelectorCache(nil)
 	repo.selectorCache = sc
 	assert.Len(t, sc.selectors, 0)

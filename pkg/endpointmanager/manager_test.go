@@ -19,6 +19,7 @@ import (
 	"github.com/cilium/cilium/pkg/endpoint"
 	endpointid "github.com/cilium/cilium/pkg/endpoint/id"
 	"github.com/cilium/cilium/pkg/fqdn/restore"
+	"github.com/cilium/cilium/pkg/identity"
 	"github.com/cilium/cilium/pkg/labels"
 	"github.com/cilium/cilium/pkg/labelsfilter"
 	monitorAPI "github.com/cilium/cilium/pkg/monitor/api"
@@ -54,17 +55,17 @@ func (mgr *endpointManager) WaitEndpointRemoved(ep *endpoint.Endpoint) {
 }
 
 type EndpointManagerSuite struct {
-	repo *policy.Repository
+	repo policy.PolicyRepository
 }
 
 func setupEndpointManagerSuite(tb testing.TB) *EndpointManagerSuite {
 	s := &EndpointManagerSuite{}
-	s.repo = policy.NewPolicyRepository(nil, nil, nil, api.NewPolicyMetricsNoop())
+	s.repo = policy.NewPolicyRepository(nil, nil, nil, nil, api.NewPolicyMetricsNoop())
 
 	return s
 }
 
-func (s *EndpointManagerSuite) GetPolicyRepository() *policy.Repository {
+func (s *EndpointManagerSuite) GetPolicyRepository() policy.PolicyRepository {
 	return s.repo
 }
 
@@ -92,8 +93,11 @@ func (s *EndpointManagerSuite) GetDNSRules(epID uint16) restore.DNSRules {
 	return nil
 }
 
-func (s *EndpointManagerSuite) RemoveRestoredDNSRules(epID uint16) {
-}
+func (s *EndpointManagerSuite) RemoveRestoredDNSRules(epID uint16) {}
+
+func (s *EndpointManagerSuite) AddIdentity(id *identity.Identity)                   {}
+func (s *EndpointManagerSuite) RemoveIdentity(id *identity.Identity)                {}
+func (s *EndpointManagerSuite) RemoveOldAddNewIdentity(old, new *identity.Identity) {}
 
 type DummyRuleCacheOwner struct{}
 

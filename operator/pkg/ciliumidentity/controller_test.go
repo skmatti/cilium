@@ -10,8 +10,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cilium/cilium/operator/pkg/ciliumconfig"
-	"github.com/cilium/cilium/pkg/gke/features"
 	"github.com/cilium/hive/cell"
 	"github.com/cilium/hive/hivetest"
 	"github.com/cilium/hive/job"
@@ -24,6 +22,9 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	k8sTesting "k8s.io/client-go/testing"
+
+	"github.com/cilium/cilium/operator/pkg/ciliumconfig"
+	"github.com/cilium/cilium/pkg/gke/features"
 
 	"github.com/cilium/cilium/operator/k8s"
 	cestest "github.com/cilium/cilium/operator/pkg/ciliumendpointslice/testutils"
@@ -126,6 +127,7 @@ func initHiveTest(operatorManagingCID bool, enableGoogleMultiNIC bool) (*resourc
 		cell.Provide(func() SharedConfig {
 			return SharedConfig{
 				EnableCiliumEndpointSlice: true,
+				DisableNetworkPolicy:      false,
 			}
 		}),
 		cell.Provide(func() features.Config {

@@ -43,7 +43,7 @@ import (
 )
 
 type DNSProxyTestSuite struct {
-	repo         *policy.Repository
+	repo         policy.PolicyRepository
 	dnsTCPClient *dns.Client
 	dnsServer    *dns.Server
 	proxy        *DNSProxy
@@ -65,7 +65,7 @@ func setupDNSProxyTestSuite(tb testing.TB) *DNSProxyTestSuite {
 	}, nil, wg)
 	wg.Wait()
 
-	s.repo = policy.NewPolicyRepository(nil, nil, nil, api.NewPolicyMetricsNoop())
+	s.repo = policy.NewPolicyRepository(nil, nil, nil, nil, api.NewPolicyMetricsNoop())
 	s.dnsTCPClient = &dns.Client{Net: "tcp", Timeout: time.Second, SingleInflight: true}
 	s.dnsServer = setupServer(tb)
 	require.NotNil(tb, s.dnsServer, "unable to setup DNS server")
@@ -157,7 +157,7 @@ func setupDNSProxyTestSuite(tb testing.TB) *DNSProxyTestSuite {
 	return s
 }
 
-func (s *DNSProxyTestSuite) GetPolicyRepository() *policy.Repository {
+func (s *DNSProxyTestSuite) GetPolicyRepository() policy.PolicyRepository {
 	return s.repo
 }
 
@@ -189,8 +189,11 @@ func (s *DNSProxyTestSuite) GetDNSRules(epID uint16) restore.DNSRules {
 	return nil
 }
 
-func (s *DNSProxyTestSuite) RemoveRestoredDNSRules(epID uint16) {
-}
+func (s *DNSProxyTestSuite) RemoveRestoredDNSRules(epID uint16) {}
+
+func (s *DNSProxyTestSuite) AddIdentity(id *identity.Identity)                   {}
+func (s *DNSProxyTestSuite) RemoveIdentity(id *identity.Identity)                {}
+func (s *DNSProxyTestSuite) RemoveOldAddNewIdentity(old, new *identity.Identity) {}
 
 func setupServer(tb testing.TB) (dnsServer *dns.Server) {
 	waitOnListen := make(chan struct{})

@@ -265,7 +265,7 @@ func (k *K8sPodWatcher) podsInit(asyncControllers *sync.WaitGroup) {
 	// functionality untouched. If we are running with CiliumEndpoint CRD
 	// enabled then it means that we can simply watch for pods that are created
 	// for this node.
-	if !option.Config.DisableCiliumEndpointCRD {
+	if !option.Config.DisableCiliumEndpointCRD || !option.NetworkPolicyEnabled(option.Config) {
 		watchNodePods()
 		return
 	}

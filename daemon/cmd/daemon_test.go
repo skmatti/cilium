@@ -29,6 +29,7 @@ import (
 	fqdnproxy "github.com/cilium/cilium/pkg/fqdn/proxy"
 	"github.com/cilium/cilium/pkg/fqdn/restore"
 	"github.com/cilium/cilium/pkg/hive"
+	"github.com/cilium/cilium/pkg/identity"
 	k8sClient "github.com/cilium/cilium/pkg/k8s/client"
 	k8sSynced "github.com/cilium/cilium/pkg/k8s/synced"
 	"github.com/cilium/cilium/pkg/kvstore"
@@ -58,7 +59,7 @@ type DaemonSuite struct {
 	oldPolicyEnabled string
 
 	// Owners interface mock
-	OnGetPolicyRepository  func() *policy.Repository
+	OnGetPolicyRepository  func() policy.PolicyRepository
 	OnGetNamedPorts        func() (npm types.NamedPortMultiMap)
 	OnQueueEndpointBuild   func(ctx context.Context, epID uint64) (func(), error)
 	OnGetCompilationLock   func() datapath.CompilationLock
@@ -254,7 +255,7 @@ func TestMinimumWorkerThreadsIsSet(t *testing.T) {
 	require.Equal(t, true, numWorkerThreads() >= runtime.NumCPU())
 }
 
-func (ds *DaemonSuite) GetPolicyRepository() *policy.Repository {
+func (ds *DaemonSuite) GetPolicyRepository() policy.PolicyRepository {
 	if ds.OnGetPolicyRepository != nil {
 		return ds.OnGetPolicyRepository()
 	}
@@ -305,8 +306,11 @@ func (ds *DaemonSuite) GetDNSRules(epID uint16) restore.DNSRules {
 	return nil
 }
 
-func (ds *DaemonSuite) RemoveRestoredDNSRules(epID uint16) {
-}
+func (ds *DaemonSuite) RemoveRestoredDNSRules(epID uint16) {}
+
+func (ds *DaemonSuite) AddIdentity(id *identity.Identity)                   {}
+func (ds *DaemonSuite) RemoveIdentity(id *identity.Identity)                {}
+func (ds *DaemonSuite) RemoveOldAddNewIdentity(old, new *identity.Identity) {}
 
 func TestMemoryMap(t *testing.T) {
 	pid := os.Getpid()

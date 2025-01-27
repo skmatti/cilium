@@ -4,19 +4,21 @@
 package ciliumidentity
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"log/slog"
 	"sync"
 	"time"
 
-	"github.com/cilium/cilium/operator/pkg/ciliumconfig"
-	"github.com/cilium/cilium/pkg/gke/features"
 	"github.com/cilium/hive/cell"
 	"github.com/cilium/hive/job"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/util/workqueue"
 	"k8s.io/utils/clock"
+
+	"github.com/cilium/cilium/operator/pkg/ciliumconfig"
+	"github.com/cilium/cilium/pkg/gke/features"
 
 	cilium_api_v2 "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2"
 	"github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2alpha1"
@@ -95,7 +97,11 @@ type Controller struct {
 }
 
 func registerController(p params) {
-	if !p.Clientset.IsEnabled() || !p.Config.EnableOperatorManageCIDs {
+	if cmp.Or(
+		!p.Clientset.IsEnabled(),
+		!p.Config.EnableOperatorManageCIDs,
+		p.SharedCfg.DisableNetworkPolicy,
+	) {
 		return
 	}
 

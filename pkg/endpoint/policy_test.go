@@ -29,7 +29,7 @@ import (
 
 func TestUpdateVisibilityPolicy(t *testing.T) {
 	setupEndpointSuite(t)
-	do := &DummyOwner{repo: policy.NewPolicyRepository(nil, nil, nil, api.NewPolicyMetricsNoop())}
+	do := &DummyOwner{repo: policy.NewPolicyRepository(nil, nil, nil, nil, api.NewPolicyMetricsNoop())}
 	ep := NewTestEndpointWithState(t, do, do, testipcache.NewMockIPCache(), &FakeEndpointProxy{}, testidentity.NewMockIdentityAllocator(nil), 12345, StateReady)
 	ep.UpdateVisibilityPolicy(func(_, _ string) (string, error) {
 		return "", nil
@@ -74,13 +74,15 @@ func TestIncrementalUpdatesDuringPolicyGeneration(t *testing.T) {
 
 	idcache := make(identity.IdentityMap, testfactor)
 	fakeAllocator := testidentity.NewMockIdentityAllocator(idcache)
-	repo := policy.NewPolicyRepository(fakeAllocator.GetIdentityCache(), nil, nil, api.NewPolicyMetricsNoop())
+	repo := policy.NewPolicyRepository(fakeAllocator.GetIdentityCache(), nil, nil, nil, api.NewPolicyMetricsNoop())
 
 	defer func() {
-		repo.RepositoryChangeQueue.Stop()
-		repo.RuleReactionQueue.Stop()
-		repo.RepositoryChangeQueue.WaitToBeDrained()
-		repo.RuleReactionQueue.WaitToBeDrained()
+		repoChangeQueue := repo.GetRepositoryChangeQueue()
+		ruleReactionQueue := repo.GetRuleReactionQueue()
+		repoChangeQueue.Stop()
+		ruleReactionQueue.Stop()
+		repoChangeQueue.WaitToBeDrained()
+		ruleReactionQueue.WaitToBeDrained()
 	}()
 
 	addIdentity := func(labelKeys ...string) *identity.Identity {
@@ -209,9 +211,9 @@ func TestIncrementalUpdatesDuringPolicyGeneration(t *testing.T) {
 }
 
 type mockPolicyGetter struct {
-	repo *policy.Repository
+	repo policy.PolicyRepository
 }
 
-func (m *mockPolicyGetter) GetPolicyRepository() *policy.Repository {
+func (m *mockPolicyGetter) GetPolicyRepository() policy.PolicyRepository {
 	return m.repo
 }

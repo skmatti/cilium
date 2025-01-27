@@ -4,215 +4,31 @@
 package cmd
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
-	"net"
 	"net/netip"
 	"sync"
 
-	"github.com/cilium/hive/cell"
-	"github.com/cilium/stream"
 	"github.com/go-openapi/runtime/middleware"
 	"github.com/google/uuid"
 
 	"github.com/cilium/cilium/api/v1/models"
 	. "github.com/cilium/cilium/api/v1/server/restapi/policy"
 	"github.com/cilium/cilium/pkg/api"
-	"github.com/cilium/cilium/pkg/clustermesh"
-	cmtypes "github.com/cilium/cilium/pkg/clustermesh/types"
-	"github.com/cilium/cilium/pkg/crypto/certificatemanager"
 	"github.com/cilium/cilium/pkg/endpoint"
 	"github.com/cilium/cilium/pkg/endpoint/regeneration"
-	"github.com/cilium/cilium/pkg/endpointmanager"
-	"github.com/cilium/cilium/pkg/envoy"
 	"github.com/cilium/cilium/pkg/eventqueue"
-	"github.com/cilium/cilium/pkg/identity"
-	"github.com/cilium/cilium/pkg/identity/cache"
-	"github.com/cilium/cilium/pkg/ipcache"
 	ipcacheTypes "github.com/cilium/cilium/pkg/ipcache/types"
-	"github.com/cilium/cilium/pkg/k8s/synced"
 	"github.com/cilium/cilium/pkg/labels"
 	"github.com/cilium/cilium/pkg/logging/logfields"
 	"github.com/cilium/cilium/pkg/metrics"
 	monitorAPI "github.com/cilium/cilium/pkg/monitor/api"
-	"github.com/cilium/cilium/pkg/node"
-	"github.com/cilium/cilium/pkg/option"
 	"github.com/cilium/cilium/pkg/policy"
 	policyAPI "github.com/cilium/cilium/pkg/policy/api"
 	"github.com/cilium/cilium/pkg/safetime"
 	"github.com/cilium/cilium/pkg/source"
 	"github.com/cilium/cilium/pkg/time"
-	"github.com/cilium/cilium/pkg/trigger"
 )
-
-// initPolicy initializes the core policy components of the daemon.
-func (d *Daemon) initPolicy() error {
-	// Reuse policy.TriggerMetrics and PolicyTriggerInterval here since
-	// this is only triggered by agent configuration changes for now and
-	// should be counted in pol.TriggerMetrics.
-	rt, err := trigger.NewTrigger(trigger.Parameters{
-		Name:            "datapath-regeneration",
-		MetricsObserver: &policy.TriggerMetrics{},
-		MinInterval:     option.Config.PolicyTriggerInterval,
-		TriggerFunc:     d.datapathRegen,
-	})
-	if err != nil {
-		return fmt.Errorf("failed to create datapath regeneration trigger: %w", err)
-	}
-	d.datapathRegenTrigger = rt
-
-	return nil
-}
-
-type policyParams struct {
-	cell.In
-
-	Lifecycle       cell.Lifecycle
-	EndpointManager endpointmanager.EndpointManager
-	CertManager     certificatemanager.CertificateManager
-	SecretManager   certificatemanager.SecretManager
-	CacheStatus     synced.CacheStatus
-	ClusterInfo     cmtypes.ClusterInfo
-	MetricsManager  policyAPI.PolicyMetrics
-}
-
-type policyOut struct {
-	cell.Out
-
-	IdentityAllocator      CachingIdentityAllocator
-	CacheIdentityAllocator cache.IdentityAllocator
-	RemoteIdentityWatcher  clustermesh.RemoteIdentityWatcher
-	IdentityObservable     stream.Observable[cache.IdentityChange]
-
-	Repository *policy.Repository
-	Updater    *policy.Updater
-	IPCache    *ipcache.IPCache
-}
-
-// newPolicyTrifecta instantiates CachingIdentityAllocator, Repository and IPCache,
-// which in turn creates the SelectorCache and other policy components.
-//
-// The three have a complicated dependency on each other and therefore require
-// special care.
-func newPolicyTrifecta(params policyParams) (policyOut, error) {
-	ctx, cancel := context.WithCancel(context.Background())
-	if option.Config.EnableWellKnownIdentities {
-		// Must be done before calling policy.NewPolicyRepository() below.
-		num := identity.InitWellKnownIdentities(option.Config, params.ClusterInfo)
-		metrics.Identity.WithLabelValues(identity.WellKnownIdentityType).Add(float64(num))
-		identity.WellKnown.ForEach(func(i *identity.Identity) {
-			for labelSource := range i.Labels.CollectSources() {
-				metrics.IdentityLabelSources.WithLabelValues(labelSource).Inc()
-			}
-		})
-	}
-
-	// policy repository: maintains list of active Rules and their subject
-	// security identities. Also constructs the SelectorCache, a precomputed
-	// cache of label selector -> identities for policy peers.
-	repo := policy.NewStoppedPolicyRepository(
-		identity.ListReservedIdentities(), // Load SelectorCache with reserved identities
-		params.CertManager,
-		params.SecretManager,
-		params.MetricsManager,
-	)
-	repo.SetEnvoyRulesFunc(envoy.GetEnvoyHTTPRules)
-
-	// policyUpdater: forces policy recalculation on all endpoints.
-	// Called for various events, such as named port changes
-	// or certain identity updates.
-	policyUpdater := policy.NewUpdater(repo, params.EndpointManager)
-
-	// iao: updates SelectorCache and regenerates endpoints when
-	// identity allocation / deallocation has occurred.
-	iao := &identityAllocatorOwner{
-		policy:        repo,
-		policyUpdater: policyUpdater,
-	}
-
-	// Allocator: allocates local and cluster-wide security identities.
-	idAlloc := cache.NewCachingIdentityAllocator(iao)
-	idAlloc.EnableCheckpointing()
-
-	// IPCache: aggregates node-local prefix labels and allocates
-	// local identities. Generates incremental updates, pushes
-	// to endpoints.
-	ipc := ipcache.NewIPCache(&ipcache.Configuration{
-		Context:           ctx,
-		IdentityAllocator: idAlloc,
-		PolicyHandler:     iao.policy.GetSelectorCache(),
-		DatapathHandler:   params.EndpointManager,
-		CacheStatus:       params.CacheStatus,
-	})
-
-	params.Lifecycle.Append(cell.Hook{
-		OnStart: func(hc cell.HookContext) error {
-			iao.policy.Start()
-			return nil
-		},
-		OnStop: func(hc cell.HookContext) error {
-			cancel()
-
-			// Preserve the order of shutdown but still propagate the error
-			// to hive.
-			err := ipc.Shutdown()
-			policyUpdater.Shutdown()
-			idAlloc.Close()
-
-			return err
-		},
-	})
-
-	return policyOut{
-		IdentityAllocator:      idAlloc,
-		CacheIdentityAllocator: idAlloc,
-		RemoteIdentityWatcher:  idAlloc,
-		IdentityObservable:     idAlloc,
-		Repository:             iao.policy,
-		Updater:                policyUpdater,
-		IPCache:                ipc,
-	}, nil
-}
-
-// identityAllocatorOwner is used to break the circular dependency between
-// CachingIdentityAllocator and policy.Repository.
-type identityAllocatorOwner struct {
-	policy        *policy.Repository
-	policyUpdater *policy.Updater
-}
-
-// UpdateIdentities informs the policy package of all identity changes
-// and also triggers policy updates.
-//
-// The caller is responsible for making sure the same identity is not
-// present in both 'added' and 'deleted'.
-func (iao *identityAllocatorOwner) UpdateIdentities(added, deleted identity.IdentityMap) {
-	wg := &sync.WaitGroup{}
-	iao.policy.GetSelectorCache().UpdateIdentities(added, deleted, wg)
-	// Wait for update propagation to endpoints before triggering policy updates
-	wg.Wait()
-	iao.policyUpdater.TriggerPolicyUpdates(false, "one or more identities created or deleted")
-}
-
-// GetNodeSuffix returns the suffix to be appended to kvstore keys of this
-// agent
-func (iao *identityAllocatorOwner) GetNodeSuffix() string {
-	var ip net.IP
-
-	switch {
-	case option.Config.EnableIPv4:
-		ip = node.GetIPv4()
-	case option.Config.EnableIPv6:
-		ip = node.GetIPv6()
-	}
-
-	if ip == nil {
-		log.Fatal("Node IP not available yet")
-	}
-
-	return ip.String()
-}
 
 // PolicyAddEvent is a wrapper around the parameters for policyAdd.
 type PolicyAddEvent struct {
@@ -246,7 +62,7 @@ func (d *Daemon) PolicyAdd(rules policyAPI.Rules, opts *policy.AddOptions) (newR
 		d:     d,
 	}
 	polAddEvent := eventqueue.NewEvent(p)
-	resChan, err := d.policy.RepositoryChangeQueue.Enqueue(polAddEvent)
+	resChan, err := d.policy.GetRepositoryChangeQueue().Enqueue(polAddEvent)
 	if err != nil {
 		return 0, fmt.Errorf("enqueue of PolicyAddEvent failed: %w", err)
 	}
@@ -282,7 +98,7 @@ func (d *Daemon) policyAdd(sourceRules policyAPI.Rules, opts *policy.AddOptions,
 
 	// No errors past this point!
 
-	d.policy.Mutex.Lock()
+	d.policy.Lock()
 
 	// removedPrefixes tracks prefixes that we replace in the rules. It is used
 	// after we release the policy repository lock.
@@ -373,7 +189,7 @@ func (d *Daemon) policyAdd(sourceRules policyAPI.Rules, opts *policy.AddOptions,
 		addedRules.FindSelectedEndpoints(endpointsToBumpRevision, endpointsToRegen, &policySelectionWG)
 	}
 
-	d.policy.Mutex.Unlock()
+	d.policy.Unlock()
 
 	// Begin tracking the time taken to deploy newRev to the datapath. The start
 	// time is from before the locking above, and thus includes all waits and
@@ -424,7 +240,7 @@ func (d *Daemon) policyAdd(sourceRules policyAPI.Rules, opts *policy.AddOptions,
 	// This event may block if the RuleReactionQueue is full. We don't care
 	// about when it finishes, just that the work it does is done in a serial
 	// order.
-	_, err = d.policy.RuleReactionQueue.Enqueue(ev)
+	_, err = d.policy.GetRuleReactionQueue().Enqueue(ev)
 	if err != nil {
 		log.WithError(err).WithField(logfields.PolicyRevision, newRev).Error("enqueue of RuleReactionEvent failed")
 	}
@@ -555,7 +371,7 @@ func (d *Daemon) PolicyDelete(labels labels.LabelArray, opts *policy.DeleteOptio
 		d:      d,
 	}
 	policyDeleteEvent := eventqueue.NewEvent(p)
-	resChan, err := d.policy.RepositoryChangeQueue.Enqueue(policyDeleteEvent)
+	resChan, err := d.policy.GetRepositoryChangeQueue().Enqueue(policyDeleteEvent)
 	if err != nil {
 		return 0, fmt.Errorf("enqueue of PolicyDeleteEvent failed: %w", err)
 	}
@@ -571,7 +387,7 @@ func (d *Daemon) PolicyDelete(labels labels.LabelArray, opts *policy.DeleteOptio
 func (d *Daemon) policyDelete(labels labels.LabelArray, opts *policy.DeleteOptions, res chan interface{}) {
 	log.WithField(logfields.IdentityLabels, logfields.Repr(labels)).Debug("Policy Delete Request")
 
-	d.policy.Mutex.Lock()
+	d.policy.Lock()
 
 	// policySelectionWG is used to signal when the updating of all of the
 	// caches of allEndpoints in the rules which were added / updated have been
@@ -610,7 +426,7 @@ func (d *Daemon) policyDelete(labels labels.LabelArray, opts *policy.DeleteOptio
 		// not fail if no policies are loaded.
 		if len(deletedRules) == 0 && len(labels) != 0 {
 			rev := d.policy.GetRevision()
-			d.policy.Mutex.Unlock()
+			d.policy.Unlock()
 
 			err := api.New(DeletePolicyNotFoundCode, "policy not found")
 
@@ -631,7 +447,7 @@ func (d *Daemon) policyDelete(labels labels.LabelArray, opts *policy.DeleteOptio
 		err:    nil,
 	}
 
-	d.policy.Mutex.Unlock()
+	d.policy.Unlock()
 
 	// Now that the policies are deleted, we can also attempt to remove
 	// all CIDR identities referenced by the deleted rules.
@@ -659,7 +475,7 @@ func (d *Daemon) policyDelete(labels labels.LabelArray, opts *policy.DeleteOptio
 	// This event may block if the RuleReactionQueue is full. We don't care
 	// about when it finishes, just that the work it does is done in a serial
 	// order.
-	if _, err := d.policy.RuleReactionQueue.Enqueue(ev); err != nil {
+	if _, err := d.policy.GetRuleReactionQueue().Enqueue(ev); err != nil {
 		log.WithError(err).WithField(logfields.PolicyRevision, rev).Error("enqueue of RuleReactionEvent failed")
 	}
 	if err := d.SendNotification(monitorAPI.PolicyDeleteMessage(deleted, labels.GetModel(), rev)); err != nil {
@@ -722,8 +538,8 @@ func putPolicyHandler(d *Daemon, params PutPolicyParams) middleware.Responder {
 
 func getPolicyHandler(d *Daemon, params GetPolicyParams) middleware.Responder {
 	repository := d.policy
-	repository.Mutex.RLock()
-	defer repository.Mutex.RUnlock()
+	repository.RLock()
+	defer repository.RUnlock()
 
 	lbls := labels.ParseSelectLabelArrayFromArray(params.Labels)
 	ruleList := repository.SearchRLocked(lbls)

@@ -59,7 +59,8 @@ func setupRedirectSuite(tb testing.TB) *RedirectSuite {
 		identity.NumericIdentity(identityBar): labelsBar,
 	}
 
-	s.do.repo = policy.NewPolicyRepository(identityCache, nil, nil, api.NewPolicyMetricsNoop())
+	s.do.idmgr = identitymanager.NewIdentityManager()
+	s.do.repo = policy.NewPolicyRepository(identityCache, nil, nil, s.do.idmgr, api.NewPolicyMetricsNoop())
 	s.do.repo.GetSelectorCache().SetLocalIdentityNotifier(testidentity.NewDummyIdentityNotifier())
 
 	s.rsp = &RedirectSuiteProxy{
@@ -76,7 +77,7 @@ func setupRedirectSuite(tb testing.TB) *RedirectSuite {
 	s.stats = new(regenerationStatistics)
 
 	tb.Cleanup(func() {
-		identitymanager.RemoveAll()
+		s.do.idmgr.RemoveAll()
 		s.mgr.Close()
 		policy.SetPolicyEnabled(s.oldPolicyEnable)
 	})
@@ -126,11 +127,12 @@ func (d *DummyIdentityAllocatorOwner) GetNodeSuffix() string {
 
 // DummyOwner implements pkg/endpoint/regeneration/Owner. Used for unit testing.
 type DummyOwner struct {
-	repo *policy.Repository
+	repo  policy.PolicyRepository
+	idmgr *identitymanager.IdentityManager
 }
 
 // GetPolicyRepository returns the policy repository of the owner.
-func (d *DummyOwner) GetPolicyRepository() *policy.Repository {
+func (d *DummyOwner) GetPolicyRepository() policy.PolicyRepository {
 	return d.repo
 }
 
@@ -163,7 +165,12 @@ func (s *DummyOwner) GetDNSRules(epID uint16) restore.DNSRules {
 	return nil
 }
 
-func (s *DummyOwner) RemoveRestoredDNSRules(epID uint16) {
+func (s *DummyOwner) RemoveRestoredDNSRules(epID uint16) {}
+
+func (s *DummyOwner) AddIdentity(id *identity.Identity)    { s.idmgr.Add(id) }
+func (s *DummyOwner) RemoveIdentity(id *identity.Identity) { s.idmgr.Remove(id) }
+func (s *DummyOwner) RemoveOldAddNewIdentity(old, new *identity.Identity) {
+	s.idmgr.RemoveOldAddNew(old, new)
 }
 
 // GetNodeSuffix does nothing.
@@ -197,11 +204,12 @@ func (s *RedirectSuite) NewTestEndpoint(t *testing.T) *Endpoint {
 }
 
 func (s *RedirectSuite) AddRules(rules api.Rules) {
-	s.do.repo.MustAddList(rules)
+	repo := s.do.repo.(*policy.Repository)
+	repo.MustAddList(rules)
 }
 
 func (s *RedirectSuite) TearDownTest(t *testing.T) {
-	identitymanager.RemoveAll()
+	s.do.idmgr.RemoveAll()
 	s.mgr.Close()
 	policy.SetPolicyEnabled(s.oldPolicyEnable)
 }
