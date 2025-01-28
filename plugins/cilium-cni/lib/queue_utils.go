@@ -55,6 +55,22 @@ func QueueFilename(containerID, suffix string) string {
 	return fmt.Sprintf("%x.%s", h.Sum(nil), suffix)
 }
 
+func appendToFile(filePath string, content []byte) error {
+	// Open the file in append mode.  Create it if it doesn't exist.
+	file, err := os.OpenFile(filePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		return err
+	}
+	defer file.Close() // Important to close the file when done
+
+	// Write the content to the file.
+	_, err = file.Write(content)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 func deleteFromQueueIfPresentLocked(epFileFullPath string) (bool, error) {
 	if err := os.Remove(epFileFullPath); err != nil {
 		if os.IsNotExist(err) {

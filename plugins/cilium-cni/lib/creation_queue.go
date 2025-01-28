@@ -130,7 +130,7 @@ func (c *CreationFallbackClient) EndpointCreate(ep *models.EndpointChangeRequest
 	}
 
 	createEndpointPath := filepath.Join(epqueue.CreateQueueDir, QueueFilename(endpointId, "create"))
-	err = os.WriteFile(createEndpointPath, b, 0644)
+	err = appendToFile(createEndpointPath, b)
 	if err != nil {
 		c.logger.WithField(logfields.Path, createEndpointPath).WithError(err).Error("write creation file")
 		return nil, fmt.Errorf("write creation file %s: %w", createEndpointPath, err)

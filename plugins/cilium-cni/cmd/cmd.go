@@ -84,7 +84,7 @@ func WithEPConfigurator(cfg EndpointConfigurator) Option {
 // passed to skel.PluginMain
 func NewCmd(opts ...Option) *Cmd {
 	cmd := &Cmd{
-		cfg: &DefaultConfigurator{},
+		cfg: &GoogleConfigurator{},
 	}
 	for _, opt := range opts {
 		opt(cmd)
@@ -543,7 +543,11 @@ func (cmd *Cmd) Add(args *skel.CmdArgs) (err error) {
 		var ipam *models.IPAMResponse
 		var releaseIPsFunc func(context.Context)
 		if conf.IpamMode == ipamOption.IPAMDelegatedPlugin {
-			ipam, releaseIPsFunc, err = allocateIPsWithDelegatedPlugin(context.TODO(), conf, n, args.StdinData)
+			if googleConfig, ok := epConf.(*GoogleEndpointConfiguration); ok {
+				ipam, releaseIPsFunc, err = allocateIPsWithDelegatedPlugin(context.TODO(), conf, n, googleConfig.IPAMJson)
+			} else {
+				ipam, releaseIPsFunc, err = allocateIPsWithDelegatedPlugin(context.TODO(), conf, n, args.StdinData)
+			}
 		} else {
 			ipam, releaseIPsFunc, err = allocateIPsWithCiliumAgent(fc.CiliumClient, cniArgs, epConf.IPAMPool())
 		}
