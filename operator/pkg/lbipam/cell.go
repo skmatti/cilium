@@ -50,6 +50,8 @@ type Config interface {
 	IsEnabled() bool
 }
 
+type GKEConfig = features.Config
+
 type lbipamCellParams struct {
 	cell.In
 
@@ -69,7 +71,7 @@ type lbipamCellParams struct {
 
 	Config lbipamConfig
 
-	features.Config
+	GKEConfig
 }
 
 func newLBIPAMCell(params lbipamCellParams) *LBIPAM {
@@ -86,7 +88,7 @@ func newLBIPAMCell(params lbipamCellParams) *LBIPAM {
 		lbClasses = append(lbClasses, cilium_api_v2alpha1.L2AnnounceLoadBalancerClass)
 	}
 
-	if !params.Config.EnableLoadBalancerIPAM {
+	if !params.GKEConfig.EnableLoadBalancerIPAM {
 		return nil
 	}
 	lbIPAM := newLBIPAM(lbIPAMParams{
@@ -100,7 +102,7 @@ func newLBIPAMCell(params lbipamCellParams) *LBIPAM {
 		poolClient:   params.Clientset.CiliumV2alpha1().CiliumLoadBalancerIPPools(),
 		svcClient:    params.Clientset.Slim().CoreV1(),
 		jobGroup:     params.JobGroup,
-		Config:       params.Config,
+		Config:       params.GKEConfig,
 	})
 
 	lbIPAM.jobGroup.Add(
