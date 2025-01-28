@@ -2454,27 +2454,6 @@ int handle_policy(struct __ctx_buff *ctx)
 		ret = GOOGLE_HOOK(ctx, ctr_ingress_ct4, CTR_INGRESS_CT4, stage_ctx, &ext_err);
 		if (ret != HOOK_ACT_CONTINUE)
 			goto out;
-#ifdef ENABLE_GOOGLE_SERVICE_STEERING
-		{
-			bool skip_conntrack = false;
-			ret = try_sfc_decap(ctx, &skip_conntrack);
-			if (IS_ERR(ret))
-				break;
-			if (skip_conntrack) {
-				// Mimic how ipv4_policy redircts to endpoint.
-				// TODO(b/304133242): Enable endpoint routes in anthos to avoid
-				// such special handling.
-				bool from_host = ctx_load_meta(ctx, CB_FROM_HOST);
-				bool from_tunnel = ctx_load_meta(ctx, CB_FROM_TUNNEL);
-				int ifindex = ctx_load_meta(ctx, CB_IFINDEX);
-
-				if (ifindex)
-					return redirect_ep(ctx, ifindex, from_host, from_tunnel);
-				ret = DROP_UNROUTABLE;
-				break;
-			}
-		}
-#endif /* ENABLE_GOOGLE_SERVICE_STEERING */
 		ret = invoke_tailcall_if(__and(is_defined(ENABLE_IPV4), is_defined(ENABLE_IPV6)),
 					 CILIUM_CALL_IPV4_CT_INGRESS_POLICY_ONLY,
 					 tail_ipv4_ct_ingress_policy_only, &ext_err);
@@ -2648,14 +2627,6 @@ int cil_to_container(struct __ctx_buff *ctx)
 						  &ext_err);
 		if (ret != HOOK_ACT_CONTINUE)
 			goto out;
-# ifdef ENABLE_GOOGLE_SERVICE_STEERING
-		{
-			bool skip_conntrack = false;
-			ret = try_sfc_decap(ctx, &skip_conntrack);
-			if (IS_ERR(ret) || skip_conntrack)
-				break;
-		}
-# endif /* ENABLE_GOOGLE_SERVICE_STEERING */
 
 #ifdef ENABLE_GOOGLE_PERSISTENT_IP
 		{

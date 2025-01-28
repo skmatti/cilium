@@ -72,7 +72,11 @@ struct goog_ctr_egress_fwd4_ctx {
 };
 
 struct goog_ctr_ingress_ct4_ctx {
-	/* internal use / read only */
+	/* True if this is being executed from cil_to_container (when using
+	 * endpoint routes) and false if being executed from this endpoint's
+	 * handle_policy() program (BPF host routing + no endpoint routes).
+	 *
+ 	 * internal use / read only */
 	bool __cil_to_container;
 };
 

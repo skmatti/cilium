@@ -4,6 +4,7 @@
 #include <bpf/api.h>
 #include <linux/in.h>
 
+#include "lib/google/sfc.h"
 #include "lib/google/plugin.h"
 
 /**
@@ -42,10 +43,10 @@
  * |_____________________|
  */
 static __always_inline int
-pre_ctr_ingress_ct4(struct __ctx_buff *ctx __maybe_unused,
-		    struct goog_ctr_ingress_ct4_ctx *stage_ctx __maybe_unused)
+pre_ctr_ingress_ct4(struct __ctx_buff *ctx,
+		    struct goog_ctr_ingress_ct4_ctx *stage_ctx)
 {
-	return HOOK_ACT_CONTINUE;
+	return goog_sfc_maybe_decap(ctx, stage_ctx);
 }
 
 static __always_inline int
