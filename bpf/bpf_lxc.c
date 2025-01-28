@@ -1553,29 +1553,6 @@ static __always_inline int __tail_handle_ipv4(struct __ctx_buff *ctx,
 	if (!stage_ctx.stage_ctx.goog_ctr_egress_svc4_ctx.disable_sip_validation &&
 	    unlikely(!is_valid_lxc_src_ipv4(ip4)))
 		return DROP_INVALID_SIP;
-#ifdef ENABLE_GOOGLE_SERVICE_STEERING
-	{
-		struct redirect_info redir = {};
-		ret = sfc_existing_flow(ctx, ip4, &redir);
-		if (IS_ERR(ret))
-			return ret;
-		if (redir.path) {
-			ret = sfc_encap(ctx, ip4, &redir);
-			if (unlikely(ret == DROP_FRAG_NEEDED))
-				return sfc_redirect_icmp4(ctx, ip4, 0);
-			if (IS_ERR(ret))
-				return ret;
-			if (!revalidate_data(ctx, &data, &data_end, &ip4))
-				return DROP_INVALID;
-		}
-	}
-#endif /* ENABLE_GOOGLE_SERVICE_STEERING */
-
-/* Do source IP validation after SFC encap. */
-#ifndef ENABLE_GOOGLE_SERVICE_STEERING
-	if (unlikely(!is_valid_lxc_src_ipv4(ip4)))
-		return DROP_INVALID_SIP;
-#endif
 
 #ifdef ENABLE_MULTICAST
 	if (mcast_ipv4_is_igmp(ip4)) {

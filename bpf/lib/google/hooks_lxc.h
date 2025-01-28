@@ -100,11 +100,10 @@ pre_ctr_egress_start4(struct __ctx_buff *ctx __maybe_unused,
 }
 
 static __always_inline int
-pre_ctr_egress_svc4(struct __ctx_buff *ctx __maybe_unused,
-		    struct goog_ctr_egress_svc4_ctx *stage_ctx __maybe_unused)
+pre_ctr_egress_svc4(struct __ctx_buff *ctx,
+		    struct goog_ctr_egress_svc4_ctx *stage_ctx)
 {
-	stage_ctx->disable_sip_validation = true;
-	return HOOK_ACT_CONTINUE;
+	return goog_sfc_maybe_encap_existing(ctx, stage_ctx);
 }
 
 static __always_inline int
