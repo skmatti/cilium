@@ -1604,7 +1604,8 @@ static __always_inline int lb4_local(const void *map, struct __ctx_buff *ctx,
 				     const bool skip_l3_xlate,
 				     __u32 *cluster_id __maybe_unused,
 				     __s8 *ext_err,
-				     __net_cookie netns_cookie __maybe_unused)
+				     __net_cookie netns_cookie __maybe_unused,
+				     __be32 sip_override __maybe_unused)
 {
 	__u32 monitor; /* Deliberately ignored; regular CT will determine monitoring. */
 	__be32 saddr = tuple->saddr;
@@ -1617,6 +1618,8 @@ static __always_inline int lb4_local(const void *map, struct __ctx_buff *ctx,
 	union lb4_affinity_client_id client_id = {
 		.client_ip = saddr,
 	};
+	if(sip_override)
+		client_id.client_ip = sip_override;
 #endif
 #ifdef ENABLE_GOOGLE_SERVICE_STEERING
 {

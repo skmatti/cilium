@@ -592,6 +592,8 @@ enum {
 // The drop reason (-130) is currently not used in Cilium OSS.
 // Reusing the same drop reason can avoid the code changes in hubble flows which
 // may casuse more conflicts in the future.
+#define DROP_GOOGLE_INVALID_FLAGS	-128
+#define DROP_GOOGLE_INVALID_CONTEXT	-129
 #define DROP_GOOGLE_INVALID_SMAC	-130
 #define DROP_UNUSED2		-131 /* unused */
 #define DROP_INVALID_SIP	-132

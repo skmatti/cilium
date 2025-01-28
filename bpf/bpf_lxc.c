@@ -61,6 +61,9 @@
 #include "lib/google_sfc_icmp.h"
 #include "lib/google_pip.h"
 
+#include "lib/google/hooks_common.h"
+#include "lib/google/hooks_lxc.h"
+
 /* Per-packet LB is needed if all LB cases can not be handled in bpf_sock.
  * Most services with L7 LB flag can not be redirected to their proxy port
  * in bpf_sock, so we must check for those via per packet LB as well.
@@ -79,7 +82,8 @@
 
 #ifdef ENABLE_IPV4
 static __always_inline __maybe_unused int __per_packet_lb_svc_xlate_4(void *ctx, struct iphdr *ip4,
-						       __s8 *ext_err)
+						       __s8 *ext_err,
+							struct goog_ctr_stage_ctx *stage_ctx)
 {
 	struct ipv4_ct_tuple tuple = {};
 	struct ct_state ct_state_new = {};
@@ -132,7 +136,8 @@ static __always_inline __maybe_unused int __per_packet_lb_svc_xlate_4(void *ctx,
 #endif  /* ENABLE_GOOGLE_SERVICE_STEERING */
 		ret = lb4_local(get_ct_map4(&tuple), ctx, ipv4_is_fragment(ip4),
 				ETH_HLEN, l4_off, &key, &tuple, svc, &ct_state_new,
-				has_l4_header, false, &cluster_id, ext_err, ENDPOINT_NETNS_COOKIE);
+				has_l4_header, false, &cluster_id, ext_err, ENDPOINT_NETNS_COOKIE,
+				stage_ctx->stage_ctx.goog_ctr_egress_svc4_ctx.sip_override);
 
 #ifdef SERVICE_NO_BACKEND_RESPONSE
 		if (ret == DROP_NO_SERVICE)
@@ -886,6 +891,7 @@ static __always_inline int handle_ipv4_from_lxc(struct __ctx_buff *ctx, __u32 *d
 	__u32 __maybe_unused tunnel_endpoint = 0, zero = 0;
 	__u8 __maybe_unused encrypt_key = 0;
 	bool __maybe_unused skip_tunnel = false;
+	struct goog_ctr_stage_ctx stage_ctx;
 	bool hairpin_flow = false; /* endpoint wants to access itself via service IP */
 	__u8 policy_match_type = POLICY_MATCH_NONE;
 	struct ct_buffer4 *ct_buffer;
@@ -912,6 +918,19 @@ static __always_inline int handle_ipv4_from_lxc(struct __ctx_buff *ctx, __u32 *d
 	}
 }
 #endif /* ENABLE_GOOGLE_SERVICE_STEERING */
+	goog_ctr_init_ctx(&stage_ctx);
+
+	stage_ctx.stage_ctx.goog_ctr_egress_pol4_ctx.ip4 = ip4;
+	ret = GOOGLE_HOOK(ctx, ctr_egress_pol4, CTR_EGRESS_POL4, stage_ctx,
+					  ext_err);
+	switch (ret) {
+	case HOOK_ACT_SKIP:
+		goto skip_egress_policy;
+	case HOOK_ACT_CONTINUE:
+		break;
+	default:
+		return ret;
+	}
 
 #ifdef ENABLE_PER_PACKET_LB
 	/* Restore ct_state from per packet lb handling in the previous tail call. */
@@ -1128,6 +1147,14 @@ ct_recreate4:
 	if (!revalidate_data(ctx, &data, &data_end, &ip4))
 		return DROP_INVALID;
 
+skip_egress_policy:
+	stage_ctx.stage_ctx.goog_ctr_egress_fwd4_ctx.rev_nat_index = ct_state_new.rev_nat_index;
+	stage_ctx.stage_ctx.goog_ctr_egress_fwd4_ctx.ip4 = ip4;
+	ret = GOOGLE_HOOK(ctx, ctr_egress_fwd4, CTR_EGRESS_FWD4, stage_ctx, ext_err);
+	if (ret != HOOK_ACT_CONTINUE)
+		return ret;
+	if (!revalidate_data(ctx, &data, &data_end, &ip4))
+		return DROP_INVALID;
 #ifdef ENABLE_GOOGLE_SERVICE_STEERING
 {
 	struct redirect_info redir = {};
@@ -1473,12 +1500,15 @@ TAIL_CT_LOOKUP4(CILIUM_CALL_IPV4_CT_EGRESS, tail_ipv4_ct_egress, CT_EGRESS,
 static __always_inline int __tail_handle_ipv4(struct __ctx_buff *ctx,
 					      __s8 *ext_err __maybe_unused)
 {
+	struct goog_ctr_stage_ctx stage_ctx;
 	void *data, *data_end;
 	struct iphdr *ip4;
 	int ret __maybe_unused;
 
 	if (!revalidate_data_pull(ctx, &data, &data_end, &ip4))
 		return DROP_INVALID;
+
+	goog_ctr_init_ctx(&stage_ctx);
 
 /* If IPv4 fragmentation is disabled
  * AND a IPv4 fragmented packet is received,
@@ -1514,6 +1544,15 @@ static __always_inline int __tail_handle_ipv4(struct __ctx_buff *ctx,
 	if (!revalidate_data(ctx, &data, &data_end, &ip4))
 		return DROP_INVALID;
 #endif
+	stage_ctx.stage_ctx.goog_ctr_egress_svc4_ctx.ip4 = ip4;
+	ret = GOOGLE_HOOK(ctx, ctr_egress_svc4, CTR_EGRESS_SVC4, stage_ctx, ext_err);
+	if (ret != HOOK_ACT_CONTINUE)
+		return ret;
+	if (!revalidate_data(ctx, &data, &data_end, &ip4))
+		return DROP_INVALID;
+	if (!stage_ctx.stage_ctx.goog_ctr_egress_svc4_ctx.disable_sip_validation &&
+	    unlikely(!is_valid_lxc_src_ipv4(ip4)))
+		return DROP_INVALID_SIP;
 #ifdef ENABLE_GOOGLE_SERVICE_STEERING
 	{
 		struct redirect_info redir = {};
@@ -1560,7 +1599,7 @@ static __always_inline int __tail_handle_ipv4(struct __ctx_buff *ctx,
 defined(ENABLE_GOOGLE_SERVICE_STEERING) || \
 (defined(TUNNEL_MODE) && MULTI_NIC_DEVICE_TYPE == EP_DEV_TYPE_INDEX_MULTI_NIC_VETH))
 	/* will tailcall internally or return error */
-	return __per_packet_lb_svc_xlate_4(ctx, ip4, ext_err);
+	return __per_packet_lb_svc_xlate_4(ctx, ip4, ext_err, &stage_ctx);
 #else
     /* Google: should always tailcall if ENABLE_PER_PACKET_LB. */
     return invoke_tailcall_if(is_defined(ENABLE_PER_PACKET_LB),
@@ -1621,6 +1660,7 @@ int tail_handle_arp(struct __ctx_buff *ctx)
 __section_entry
 int cil_from_container(struct __ctx_buff *ctx)
 {
+	struct goog_ctr_stage_ctx stage_ctx;
 	__u16 proto;
 	__u32 sec_label = SECLABEL;
 	__s8 ext_err = 0;
@@ -1638,6 +1678,8 @@ int cil_from_container(struct __ctx_buff *ctx)
 		goto out;
 	}
 
+	goog_ctr_init_ctx(&stage_ctx);
+
 	switch (proto) {
 #ifdef ENABLE_IPV6
 	case bpf_htons(ETH_P_IPV6):
@@ -1653,6 +1695,10 @@ int cil_from_container(struct __ctx_buff *ctx)
 #ifdef ENABLE_IPV4
 	case bpf_htons(ETH_P_IP):
 		edt_set_aggregate(ctx, LXC_ID);
+		ret = GOOGLE_HOOK(ctx, ctr_egress_start4, CTR_EGRESS_START4, stage_ctx,
+				  &ext_err);
+		if (ret != HOOK_ACT_CONTINUE)
+			return ret;
 		ret = tail_call_internal(ctx, CILIUM_CALL_IPV4_FROM_LXC, &ext_err);
 		sec_label = SECLABEL_IPV4;
 		break;
@@ -2381,6 +2427,7 @@ __section_tail(CILIUM_MAP_POLICY, TEMPLATE_LXC_ID)
 int handle_policy(struct __ctx_buff *ctx)
 {
 	__u32 src_label = ctx_load_meta(ctx, CB_SRC_LABEL);
+	struct goog_ctr_stage_ctx stage_ctx;
 	__u32 sec_label = SECLABEL;
 	__s8 ext_err = 0;
 	__u16 proto;
@@ -2390,6 +2437,8 @@ int handle_policy(struct __ctx_buff *ctx)
 		ret = DROP_UNSUPPORTED_L2;
 		goto out;
 	}
+
+	goog_ctr_init_ctx(&stage_ctx);
 
 	switch (proto) {
 #ifdef ENABLE_IPV6
@@ -2402,6 +2451,9 @@ int handle_policy(struct __ctx_buff *ctx)
 #endif /* ENABLE_IPV6 */
 #ifdef ENABLE_IPV4
 	case bpf_htons(ETH_P_IP):
+		ret = GOOGLE_HOOK(ctx, ctr_ingress_ct4, CTR_INGRESS_CT4, stage_ctx, &ext_err);
+		if (ret != HOOK_ACT_CONTINUE)
+			goto out;
 #ifdef ENABLE_GOOGLE_SERVICE_STEERING
 		{
 			bool skip_conntrack = false;
@@ -2505,6 +2557,7 @@ __section_entry
 int cil_to_container(struct __ctx_buff *ctx)
 {
 	enum trace_point trace = TRACE_FROM_STACK;
+	struct goog_ctr_stage_ctx stage_ctx;
 	__u32 magic, identity = 0;
 	__u32 sec_label = SECLABEL;
 	__s8 ext_err = 0;
@@ -2552,6 +2605,7 @@ int cil_to_container(struct __ctx_buff *ctx)
 	}
 #endif /* ENABLE_HOST_FIREWALL && !ENABLE_ROUTING */
 
+	goog_ctr_init_ctx(&stage_ctx);
 
 	switch (proto) {
 #if defined(ENABLE_ARP_PASSTHROUGH) || defined(ENABLE_ARP_RESPONDER)
@@ -2589,6 +2643,11 @@ int cil_to_container(struct __ctx_buff *ctx)
 #ifdef ENABLE_IPV4
 	case bpf_htons(ETH_P_IP):
 		sec_label = SECLABEL_IPV4;
+		stage_ctx.stage_ctx.goog_ctr_ingress_ct4_ctx.__cil_to_container = true;
+		ret = GOOGLE_HOOK(ctx, ctr_ingress_ct4, CTR_INGRESS_CT4, stage_ctx,
+						  &ext_err);
+		if (ret != HOOK_ACT_CONTINUE)
+			goto out;
 # ifdef ENABLE_GOOGLE_SERVICE_STEERING
 		{
 			bool skip_conntrack = false;
