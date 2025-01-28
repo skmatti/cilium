@@ -127,5 +127,4 @@ func (f *fakeRedirectPolicyManager) GetLocalPodsForPolicy(config *redirectpolicy
 
 func (f *fakeRedirectPolicyManager) OnDeletePod(pod *slim_corev1.Pod) {}
 
-func (f *fakeRedirectPolicyManager) OnDeleteQueuedEndpoint(ep redirectpolicy.DeletedEndpointMetadata) {
-}
+func (f *fakeRedirectPolicyManager) RemoveExistingNLDBackends(lrpConfig *redirectpolicy.LRPConfig) {}

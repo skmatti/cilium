@@ -99,8 +99,6 @@ func (rsm *redirectServiceManager) EndpointDeleted(ep *endpoint.Endpoint, conf e
 	if rsm.redirectServiceController != nil {
 		rsm.redirectServiceController.DelNoTrackForQueuedEndpoint(epMetadata)
 	}
-	rsm.redirectPolicyManager.OnDeleteQueuedEndpoint(epMetadata)
-
 }
 
 // EndpointCreated is a callback to satisfy EndpointManager.Subscriber.

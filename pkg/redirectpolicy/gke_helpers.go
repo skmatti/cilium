@@ -1,7 +1,7 @@
 package redirectpolicy
 
 import (
-	"net"
+	"strings"
 
 	cmtypes "github.com/cilium/cilium/pkg/clustermesh/types"
 	"github.com/cilium/cilium/pkg/k8s"
@@ -116,78 +116,59 @@ func (rpm *Manager) GetLocalPodsForPolicy(config *LRPConfig) ([]string, error) {
 	return ret, nil
 }
 
-func (rpm *Manager) onDeleteQueuedEndpointLocked(ep DeletedEndpointMetadata, dnsPort dnsPort) {
-	for _, policyConfig := range rpm.policyConfigs {
-		for _, feMapping := range policyConfig.frontendMappings {
-			if len(feMapping.podBackends) == 0 {
-				continue
-			}
-			pm := &podMetadata{
-				labels: ep.Labels,
-			}
-			// Select the current polices that the endpoint being deleted is a backend for
-			if (feMapping.fePort != dnsPort.Name) || (feMapping.feAddr.Protocol != dnsPort.Protocol) || (feMapping.feAddr.Port != dnsPort.Port) || !policyConfig.backendSelector.Matches(labels.Set(pm.labels)) {
-				continue
-			}
+// RemoveExistingNLDBackends removes any backends mapped to the node local DNS LRP.
+func (rpm *Manager) RemoveExistingNLDBackends(lrpConfig *LRPConfig) {
 
-			ipAddr := cmtypes.MustAddrClusterFromIP(net.ParseIP(ep.IP))
-
-			// If the endpoint IP is in podBackends, OnDeletePod() would handle this.
-			foundPodinBackends := false
-			for _, be := range feMapping.podBackends {
-				if be.AddrCluster.Equal(ipAddr) {
-					foundPodinBackends = true
-					break
-				}
-			}
-			if foundPodinBackends {
-				continue
-			}
-
-			// At this stage the view of the podBackends in feMapping diverges between
-			// what we have in the policyConfig and what we have in the ebpf service map.
-			// The ebpf service map has an entry for the already terminated (queued
-			// endpoint delete) pod while the policyConfig does not.
-			// To remove the stale backend, we make a copy of the feMapping and add an
-			// entry for stale pod backend making feMapping_copy consistent with what
-			// we have in the ebpf service map.
-			feMapping_copy := *feMapping
-			staleBackend := backend{
-				L3n4Addr: lb.L3n4Addr{
-					AddrCluster: ipAddr,
-					L4Addr: lb.L4Addr{
-						Protocol: dnsPort.Protocol,
-						Port:     dnsPort.Port,
-					},
-				},
-				podID: podID{
-					Name:      ep.Name,
-					Namespace: ep.Namespace,
-				},
-			}
-			feMapping_copy.podBackends = append(feMapping_copy.podBackends, staleBackend)
-
-			// TODO(pkrishn): Revisit this logic. There might be a better way to reconcile.
-			// The upsert call with feMapping_copy moves the stale pod from
-			// restoredBackendHashes to backends in the service map.
-			rpm.upsertService(policyConfig, &feMapping_copy)
-			// The second upsert with feMapping removes
-			// the staleBackend from svc.backends.
-			rpm.upsertService(policyConfig, feMapping)
-		}
-	}
-}
-
-// OnDeleteQueuedEndpoint handles deletion of stale backends when the pod is deleted and the endpoint deletion is queued.
-func (rpm *Manager) OnDeleteQueuedEndpoint(ep DeletedEndpointMetadata) {
-	rpm.mutex.Lock()
-	defer rpm.mutex.Unlock()
-
-	if len(rpm.policyConfigs) == 0 {
+	if !rpm.isNodeLocalDNSLRP(lrpConfig) {
 		return
 	}
 
-	for _, nldPorts := range dnsPorts {
-		rpm.onDeleteQueuedEndpointLocked(ep, nldPorts)
+	serviceIP := rpm.svcCache.GetServiceFrontendIP(*lrpConfig.serviceID, lb.SVCTypeClusterIP)
+	if serviceIP == nil {
+		log.Infof("No service IP found for the local redirect service %s", lrpConfig.id.String())
+		return
 	}
+	if len(lrpConfig.frontendMappings) == 0 {
+		log.Infof("No LRP frontend mappings found for the local redirect service %s", lrpConfig.id.String())
+		return
+	}
+
+	// Since the frontend address is same for all the mappings in NLD LRP config, we can only look at the first one to check for backends.
+	feMCopy := *lrpConfig.frontendMappings[0]
+	if feMCopy.feAddr == nil {
+
+		log.Infof("No frontend found for the local redirect service %s", lrpConfig.id.String())
+		return
+	}
+
+	feMCopy.feAddr.AddrCluster = cmtypes.MustAddrClusterFromIP(serviceIP)
+	if rpm.checkNodeLocalDNSLRP(*feMCopy.feAddr) {
+		log.Infof("Removing existing backends for the local redirect service %s", lrpConfig.id.String())
+		rpm.notifyPolicyBackendDelete(lrpConfig, &feMCopy)
+	}
+}
+
+func (rpm *Manager) isNodeLocalDNSLRP(lrpConfig *LRPConfig) bool {
+	return lrpConfig.backendSelector.Matches(labels.Set(dnsBackendSelector.LabelSelector.MatchLabels))
+}
+
+func (rpm *Manager) checkNodeLocalDNSLRP(frontend lb.L3n4Addr) bool {
+	svc, svcFound := rpm.svcManager.GetDeepCopyServiceByFrontend(frontend)
+	if !svcFound {
+		log.Infof("Node local DNS LRP with frontend %s not found", frontend.String())
+		return false
+	}
+
+	numBackends := 0
+	var beStrings []string
+	for _, be := range svc.Backends {
+		numBackends++
+		beStrings = append(beStrings, be.String())
+	}
+
+	log.WithField("frontends", frontend.String()).WithField("backends", strings.Join(beStrings, ",")).Info("Found Node Local DNS LRP")
+	if numBackends > 1 {
+		log.Warnf("Node local DNS LRP should not have more than 1 backend. Found %d. ", numBackends)
+	}
+	return true
 }

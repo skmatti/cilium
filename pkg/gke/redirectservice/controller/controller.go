@@ -69,7 +69,7 @@ type RedirectPolicyManager interface {
 	DeleteRedirectPolicy(config redirectpolicy.LRPConfig) error
 	GetLocalPodsForPolicy(config *redirectpolicy.LRPConfig) ([]string, error)
 	OnDeletePod(*slim_corev1.Pod)
-	OnDeleteQueuedEndpoint(ep redirectpolicy.DeletedEndpointMetadata)
+	RemoveExistingNLDBackends(lrpConfig *redirectpolicy.LRPConfig)
 }
 
 // Controller for the redirect service controller
@@ -279,6 +279,12 @@ func (c *Controller) installNodeLocalDNSRedirect(o *v1alpha1.RedirectService) {
 		return
 	}
 
+	// Removes any existing NLD backends mapped to the service before processing the redirect policy to eliminate any stale entries. Valid mappings would be re-added when lrpConfig is processed.
+	c.redirectPolicyManager.RemoveExistingNLDBackends(lrpConfig)
+	log.WithFields(logrus.Fields{
+		logfields.K8sNamespace: lrpConfig.GetModel().Namespace,
+		logfields.LRPName:      lrpConfig.GetModel().Name,
+	}).Info("Adding local redirect policy")
 	_, err = c.redirectPolicyManager.AddRedirectPolicy(*lrpConfig)
 	if err != nil {
 		log.Errorf("Error adding LRP %v", err)

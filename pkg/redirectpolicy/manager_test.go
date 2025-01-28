@@ -106,6 +106,10 @@ func (f *fakeSvcManager) TerminateUDPConnectionsToBackend(l3n4Addr *lb.L3n4Addr)
 	}
 }
 
+func (f *fakeSvcManager) GetDeepCopyServiceByFrontend(frontend lb.L3n4Addr) (*lb.SVC, bool) {
+	return nil, false
+}
+
 type fakePodResource struct {
 	store fakePodStore
 }

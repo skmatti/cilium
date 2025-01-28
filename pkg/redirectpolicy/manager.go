@@ -45,6 +45,7 @@ type svcManager interface {
 	DeleteService(frontend lb.L3n4Addr) (bool, error)
 	UpsertService(*lb.SVC) (bool, lb.ID, error)
 	TerminateUDPConnectionsToBackend(l3n4Addr *lb.L3n4Addr)
+	GetDeepCopyServiceByFrontend(frontend lb.L3n4Addr) (*lb.SVC, bool)
 }
 
 type svcCache interface {
@@ -1022,6 +1023,11 @@ func (rpm *Manager) processConfigWithNamedPorts(config *LRPConfig, pods ...*podM
 	}
 	for i := range upsertFes {
 		rpm.upsertPolicyMapping(config, upsertFes[i])
+	}
+	if len(upsertFes) > 0 && upsertFes[0].feAddr != nil &&
+		rpm.isNodeLocalDNSLRP(config) &&
+		!rpm.checkNodeLocalDNSLRP(*upsertFes[0].feAddr) {
+		log.Warnf("Node local redirect LRP not found after upsert")
 	}
 }
 
