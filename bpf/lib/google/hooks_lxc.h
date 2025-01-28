@@ -96,7 +96,7 @@ static __always_inline int
 pre_ctr_egress_start4(struct __ctx_buff *ctx __maybe_unused,
 		      struct goog_ctr_egress_start4_ctx *stage_ctx __maybe_unused)
 {
-	return HOOK_ACT_CONTINUE;
+	return goog_sfc_reset_egress_state();
 }
 
 static __always_inline int
@@ -110,12 +110,12 @@ static __always_inline int
 pre_ctr_egress_pol4(struct __ctx_buff *ctx __maybe_unused,
 		    struct goog_ctr_egress_pol4_ctx *stage_ctx __maybe_unused)
 {
-	return HOOK_ACT_CONTINUE;
+	return goog_sfc_maybe_skip_egress_policy();
 }
 
 static __always_inline int
-pre_ctr_egress_fwd4(struct __ctx_buff *ctx __maybe_unused,
-		    struct goog_ctr_egress_fwd4_ctx *stage_ctx __maybe_unused)
+pre_ctr_egress_fwd4(struct __ctx_buff *ctx,
+		    struct goog_ctr_egress_fwd4_ctx *stage_ctx)
 {
-	return HOOK_ACT_CONTINUE;
+	return goog_sfc_maybe_encap_new(ctx, stage_ctx);
 }

@@ -906,18 +906,6 @@ static __always_inline int handle_ipv4_from_lxc(struct __ctx_buff *ctx, __u32 *d
 	if (!revalidate_data(ctx, &data, &data_end, &ip4))
 		return DROP_INVALID;
 
-#ifdef ENABLE_GOOGLE_SERVICE_STEERING
-{
-	/* TODO (b/277275019): if encapsulation was done earlier (before the tail call to this
-	 * function), then try to use that information instead of checking the packet. Can use a
-	 * similar strategy to how conntrack info is passed into a tail call: via a PERCPU_ARRAY map.
-	 */
-	if (is_sfc_encapped(ctx, ip4)) {
-		ct_state = NULL;
-		goto skip_service_steering;
-	}
-}
-#endif /* ENABLE_GOOGLE_SERVICE_STEERING */
 	goog_ctr_init_ctx(&stage_ctx);
 
 	stage_ctx.stage_ctx.goog_ctr_egress_pol4_ctx.ip4 = ip4;
@@ -1155,30 +1143,16 @@ skip_egress_policy:
 		return ret;
 	if (!revalidate_data(ctx, &data, &data_end, &ip4))
 		return DROP_INVALID;
-#ifdef ENABLE_GOOGLE_SERVICE_STEERING
-{
-	struct redirect_info redir = {};
-	ret = sfc_select4(ctx, ip4, true, &redir);
-	if (IS_ERR(ret))
-		return ret;
-	if (redir.path) {
-		ret = sfc_encap(ctx, ip4, &redir);
-		if (unlikely(ret == DROP_FRAG_NEEDED))
-			return sfc_redirect_icmp4(ctx, ip4, ct_state_new.rev_nat_index);
-		if (IS_ERR(ret))
-			return ret;
-		return tail_call_internal(ctx, CILIUM_CALL_IPV4_FROM_LXC, ext_err);
-	}
-
-skip_service_steering:
-	// !ct_state_new.rev_nat_index: It's LB traffic and we already did source IP validation before lb4_local()
-	// !ct_state->rev_nat_index: LB return traffic of hairpin flow. SIP validation skipped because it must hit a valid contrack entry.
-	if (!ct_state_new.rev_nat_index && !(ct_state && ct_state->rev_nat_index)) {
-		if (unlikely(!is_valid_lxc_src_ipv4(ip4)))
-			return DROP_INVALID_SIP;
-	}
-}
-#endif /* ENABLE_GOOGLE_SERVICE_STEERING */
+// #ifdef ENABLE_GOOGLE_SERVICE_STEERING
+// {
+// 	// !ct_state_new.rev_nat_index: It's LB traffic and we already did source IP validation before lb4_local()
+// 	// !ct_state->rev_nat_index: LB return traffic of hairpin flow. SIP validation skipped because it must hit a valid contrack entry.
+// 	if (!ct_state_new.rev_nat_index && !(ct_state && ct_state->rev_nat_index)) {
+// 		if (unlikely(!is_valid_lxc_src_ipv4(ip4)))
+// 			return DROP_INVALID_SIP;
+// 	}
+// }
+// #endif /* ENABLE_GOOGLE_SERVICE_STEERING */
 
 #if defined(ENABLE_HOST_FIREWALL) && !defined(ENABLE_ROUTING) && !defined(MULTI_NIC_DEVICE_TYPE)
 	/* If the destination is the local host and per-endpoint routes are
