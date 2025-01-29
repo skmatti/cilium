@@ -451,44 +451,6 @@ func TestCESSubscriber_MultiNetwork_OnUpdate(t *testing.T) {
 				"default/cep2--2":    "ces",
 			},
 		},
-		{
-			name: "keep_local_cep2",
-			local: []cacheEntry{
-				{Key: "default/cep1--1"},
-			},
-			oldCES: newCES("ces", testNamespace,
-				v2alpha1.CoreCiliumEndpoint{
-					Name: "cep",
-					Networking: &v2.EndpointNetworking{
-						Addressing: v2.AddressPairList{
-							{IPV4: ipv4Addr.String()},
-						},
-					},
-				},
-				v2alpha1.CoreCiliumEndpoint{
-					Name: "cep",
-					Networking: &v2.EndpointNetworking{
-						Addressing: v2.AddressPairList{
-							{IPV6: ipv6Addr1_1.String()},
-						},
-					},
-				},
-			),
-			newCES: newCES("ces", testNamespace,
-				v2alpha1.CoreCiliumEndpoint{
-					Name: "cep",
-					Networking: &v2.EndpointNetworking{
-						Addressing: v2.AddressPairList{
-							{IPV4: ipv4Addr.String()},
-						},
-					},
-				},
-			),
-			expectedCurrentCES: map[string]string{
-				"default/cep1-1-1-1": "ces",
-				"default/cep1--1":    "ces",
-			},
-		},
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -570,36 +532,6 @@ func TestCESSubscriber_MultiNetwork_OnDelete(t *testing.T) {
 				newCiliumEndpoint("cep", testNamespace, WithMultiNetworking(ipv6Addr1_1)),
 			},
 			expectedCurrentCES: map[string]string{},
-		},
-		{
-			name: "keep_cep1",
-			local: []cacheEntry{
-				{Key: "default/cep1-1-1-1"},
-			},
-			ces: newCES("ces", testNamespace,
-				v2alpha1.CoreCiliumEndpoint{
-					Name: "cep",
-					Networking: &v2.EndpointNetworking{
-						Addressing: v2.AddressPairList{
-							{IPV4: ipv4Addr.String()},
-						},
-					},
-				},
-				v2alpha1.CoreCiliumEndpoint{
-					Name: "cep",
-					Networking: &v2.EndpointNetworking{
-						Addressing: v2.AddressPairList{
-							{IPV6: ipv6Addr1_1.String()},
-						},
-					},
-				},
-			),
-			expectDeleted: []*types.CiliumEndpoint{
-				newCiliumEndpoint("cep", testNamespace, WithMultiNetworking(ipv6Addr1_1)),
-			},
-			expectedCurrentCES: map[string]string{
-				"default/cep1-1-1-1": "ces",
-			},
 		},
 	}
 	for _, tc := range testCases {

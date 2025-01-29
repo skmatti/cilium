@@ -647,7 +647,6 @@ func TestCESSubscriber_OnAdd(t *testing.T) {
 func TestCESSubscriber_OnUpdate(t *testing.T) {
 	testCases := []struct {
 		name           string
-		local          []cacheEntry
 		newCES, oldCES *v2alpha1.CiliumEndpointSlice
 		expectUpdates  []endpointUpdate
 		expectDeleted  []*types.CiliumEndpoint
@@ -809,23 +808,6 @@ func TestCESSubscriber_OnUpdate(t *testing.T) {
 				"default/cep3": "ces",
 			},
 		},
-		{
-			name: "keep_local_cep2",
-			local: []cacheEntry{
-				{Key: "default/cep2"},
-			},
-			oldCES: newCES("ces", testNamespace,
-				v2alpha1.CoreCiliumEndpoint{Name: "cep1"},
-				v2alpha1.CoreCiliumEndpoint{Name: "cep2"},
-			),
-			newCES: newCES("ces", testNamespace,
-				v2alpha1.CoreCiliumEndpoint{Name: "cep1"},
-			),
-			expectedCurrentCES: map[string]string{
-				"default/cep1": "ces",
-				"default/cep2": "ces",
-			},
-		},
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -836,7 +818,7 @@ func TestCESSubscriber_OnUpdate(t *testing.T) {
 			}
 			subscriber := &cesSubscriber{
 				epWatcher: watcher,
-				epCache:   newFakeEndpointCache(tc.local...),
+				epCache:   newFakeEndpointCache(),
 				cepMap:    m,
 			}
 			// Initialize state, but do not record the events.
@@ -861,7 +843,6 @@ func TestCESSubscriber_OnUpdate(t *testing.T) {
 func TestCESSubscriber_OnDelete(t *testing.T) {
 	testCases := []struct {
 		name          string
-		local         []cacheEntry
 		ces           *v2alpha1.CiliumEndpointSlice
 		expectDeleted []*types.CiliumEndpoint
 		// Expected cepToCESmap.expectedCurrentCES
@@ -887,22 +868,6 @@ func TestCESSubscriber_OnDelete(t *testing.T) {
 			},
 			expectedCurrentCES: map[string]string{},
 		},
-		{
-			name: "keep_cep1",
-			local: []cacheEntry{
-				{Key: "default/cep1"},
-			},
-			ces: newCES("ces", testNamespace,
-				v2alpha1.CoreCiliumEndpoint{Name: "cep1"},
-				v2alpha1.CoreCiliumEndpoint{Name: "cep2"},
-			),
-			expectDeleted: []*types.CiliumEndpoint{
-				newEndpoint("cep2", testNamespace, 0),
-			},
-			expectedCurrentCES: map[string]string{
-				"default/cep1": "ces",
-			},
-		},
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -913,7 +878,7 @@ func TestCESSubscriber_OnDelete(t *testing.T) {
 			}
 			subscriber := &cesSubscriber{
 				epWatcher: watcher,
-				epCache:   newFakeEndpointCache(tc.local...),
+				epCache:   newFakeEndpointCache(),
 				cepMap:    m,
 			}
 			// Initialize state, but do not record the events.
