@@ -112,130 +112,6 @@ presubmits:
       - runner.sh
       args:
       - ./google_test/wora/prow_entrypoint.sh
-- name: wora-abm-atl_cilium
-  cluster: build-onprem-atl
-  trigger: /test wora-abm-atl$
-  rerun_command: /test wora-abm-atl
-  always_run: false
-  decorate: true
-  decoration_config:
-    timeout: 240m
-  labels:
-    preset-cookie-file: "true"
-    preset-cookie-file-env: "true"
-    preset-service-account-onprem: "true"
-    preset-dind-enabled: "true"
-  path_alias: gke-internal.googlesource.com/third_party/cilium
-  spec:
-    imagePullSecrets:
-    - name: gcr-secret
-    containers:
-    - image: gcr.io/tailorbird/kubetest2-tailorbird:latest
-      resources:
-        requests:
-          ephemeral-storage: 70Gi
-        limits:
-          ephemeral-storage: 100Gi
-      securityContext:
-        # needed for docker-in-docker
-        privileged: true
-      env:
-      - name: CILIUM_GITREF
-        value: HEAD
-      - name: TBCONFIG
-        value: sut-abm-atl.yaml
-      - name: WORA_CONTROL_PLANE
-        value: atl
-      - name: WORA_CONFIG
-        value: integration-abm-atl_test.yaml
-      command:
-      - runner.sh
-      args:
-      - ./google_test/wora/prow_entrypoint.sh
-- name: wora-conformance-abm-atl_cilium
-  cluster: build-onprem-atl
-  trigger: /test wora-conformance-abm-atl$
-  rerun_command: /test wora-conformance-abm-atl
-  always_run: false
-  decorate: true
-  decoration_config:
-    timeout: 240m
-  labels:
-    preset-cookie-file: "true"
-    preset-cookie-file-env: "true"
-    preset-service-account-onprem: "true"
-    preset-dind-enabled: "true"
-  path_alias: gke-internal.googlesource.com/third_party/cilium
-  spec:
-    imagePullSecrets:
-    - name: gcr-secret
-    containers:
-    - image: gcr.io/tailorbird/kubetest2-tailorbird:latest
-      resources:
-        requests:
-          ephemeral-storage: 70Gi
-        limits:
-          ephemeral-storage: 100Gi
-      securityContext:
-        # needed for docker-in-docker
-        privileged: true
-      env:
-      - name: CILIUM_GITREF
-        value: HEAD
-      - name: TBCONFIG
-        value: sut-abm-atl.yaml
-      - name: WORA_CONFIG
-        value: conformance_test.yaml
-      - name: WORA_CONTROL_PLANE
-        value: atl
-      - name: WORA_DOCKERFILE_DIR
-        value: conformance
-      command:
-      - runner.sh
-      args:
-      - ./google_test/wora/prow_entrypoint.sh
-- name: wora-networking-granular-abm-atl_cilium
-  cluster: build-onprem-atl
-  trigger: /test wora-networking-granular-abm-atl$
-  rerun_command: /test wora-networking-granular-abm-atl
-  always_run: false
-  decorate: true
-  decoration_config:
-    timeout: 240m
-  labels:
-    preset-cookie-file: "true"
-    preset-cookie-file-env: "true"
-    preset-service-account-onprem: "true"
-    preset-dind-enabled: "true"
-  path_alias: gke-internal.googlesource.com/third_party/cilium
-  spec:
-    imagePullSecrets:
-    - name: gcr-secret
-    containers:
-    - image: gcr.io/tailorbird/kubetest2-tailorbird:latest
-      resources:
-        requests:
-          ephemeral-storage: 70Gi
-        limits:
-          ephemeral-storage: 100Gi
-      securityContext:
-        # needed for docker-in-docker
-        privileged: true
-      env:
-      - name: CILIUM_GITREF
-        value: HEAD
-      - name: TBCONFIG
-        value: sut-abm-atl.yaml
-      - name: WORA_CONFIG
-        value: networking_granular_test.yaml
-      - name: WORA_CONTROL_PLANE
-        value: atl
-      - name: WORA_DOCKERFILE_DIR
-        value: conformance
-      command:
-      - runner.sh
-      args:
-      - ./google_test/wora/prow_entrypoint.sh
 - name: wora-abm-mtv_cilium
   cluster: build-onprem-mtv
   trigger: /test wora-abm-mtv$
@@ -257,9 +133,9 @@ presubmits:
     - image: gcr.io/tailorbird/kubetest2-tailorbird:latest
       resources:
         requests:
-          ephemeral-storage: 70Gi
+          ephemeral-storage: 150Gi
         limits:
-          ephemeral-storage: 100Gi
+          ephemeral-storage: 300Gi
       securityContext:
         # needed for docker-in-docker
         privileged: true
@@ -295,9 +171,9 @@ presubmits:
     - image: gcr.io/tailorbird/kubetest2-tailorbird:latest
       resources:
         requests:
-          ephemeral-storage: 70Gi
+          ephemeral-storage: 150Gi
         limits:
-          ephemeral-storage: 100Gi
+          ephemeral-storage: 300Gi
       securityContext:
         # needed for docker-in-docker
         privileged: true
@@ -337,9 +213,9 @@ presubmits:
     - image: gcr.io/tailorbird/kubetest2-tailorbird:latest
       resources:
         requests:
-          ephemeral-storage: 70Gi
+          ephemeral-storage: 150Gi
         limits:
-          ephemeral-storage: 100Gi
+          ephemeral-storage: 300Gi
       securityContext:
         # needed for docker-in-docker
         privileged: true
@@ -452,9 +328,9 @@ presubmits:
     - image: gcr.io/tailorbird/kubetest2-tailorbird:latest
       resources:
         requests:
-          ephemeral-storage: 70Gi
+          ephemeral-storage: 150Gi
         limits:
-          ephemeral-storage: 100Gi
+          ephemeral-storage: 300Gi
       securityContext:
         # needed for docker-in-docker
         privileged: true
@@ -489,9 +365,9 @@ presubmits:
     - image: gcr.io/tailorbird/kubetest2-tailorbird:latest
       resources:
         requests:
-          ephemeral-storage: 70Gi
+          ephemeral-storage: 150Gi
         limits:
-          ephemeral-storage: 100Gi
+          ephemeral-storage: 300Gi
       securityContext:
         # needed for docker-in-docker
         privileged: true
@@ -528,9 +404,9 @@ presubmits:
     - image: gcr.io/tailorbird/kubetest2-tailorbird:latest
       resources:
         requests:
-          ephemeral-storage: 70Gi
+          ephemeral-storage: 150Gi
         limits:
-          ephemeral-storage: 100Gi
+          ephemeral-storage: 300Gi
       securityContext:
         # needed for docker-in-docker
         privileged: true
