@@ -19,9 +19,9 @@ presubmits:
     - image: gcr.io/tailorbird/kubetest2-tailorbird:latest
       resources:
         requests:
-          ephemeral-storage: 70Gi
+          ephemeral-storage: 150Gi
         limits:
-          ephemeral-storage: 100Gi
+          ephemeral-storage: 300Gi
       securityContext:
         # needed for docker-in-docker
         privileged: true
@@ -55,9 +55,9 @@ presubmits:
     - image: gcr.io/tailorbird/kubetest2-tailorbird:latest
       resources:
         requests:
-          ephemeral-storage: 70Gi
+          ephemeral-storage: 150Gi
         limits:
-          ephemeral-storage: 100Gi
+          ephemeral-storage: 300Gi
       securityContext:
         # needed for docker-in-docker
         privileged: true
@@ -93,9 +93,9 @@ presubmits:
     - image: gcr.io/tailorbird/kubetest2-tailorbird:latest
       resources:
         requests:
-          ephemeral-storage: 70Gi
+          ephemeral-storage: 150Gi
         limits:
-          ephemeral-storage: 100Gi
+          ephemeral-storage: 300Gi
       securityContext:
         # needed for docker-in-docker
         privileged: true
