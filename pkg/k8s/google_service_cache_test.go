@@ -365,7 +365,7 @@ func TestIlbConvertService(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.desc, func(t *testing.T) {
 			db, nodeAddrs := newDB(t)
-			cache := NewServiceCache(db, nodeAddrs)
+			cache := NewServiceCache(db, nodeAddrs, NewSVCMetricsNoop())
 
 			// Seed cache
 			id := ServiceID{
@@ -429,7 +429,7 @@ func TestIlbExternalUpdate(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.desc, func(t *testing.T) {
 			db, nodeAddrs := newDB(t)
-			cache := NewServiceCache(db, nodeAddrs)
+			cache := NewServiceCache(db, nodeAddrs, NewSVCMetricsNoop())
 
 			swgSvcs := lock.NewStoppableWaitGroup()
 			tc.want.SWG = swgSvcs
@@ -476,7 +476,7 @@ func TestIlbExternalDelete(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.desc, func(t *testing.T) {
 			db, nodeAddrs := newDB(t)
-			cache := NewServiceCache(db, nodeAddrs)
+			cache := NewServiceCache(db, nodeAddrs, NewSVCMetricsNoop())
 
 			swgSvcs := lock.NewStoppableWaitGroup()
 			tc.want.SWG = swgSvcs
@@ -504,7 +504,7 @@ func TestMergeServiceUpdateAndDeleteForILB(t *testing.T) {
 	defer cancel()
 
 	db, nodeAddrs := newDB(t)
-	cache := NewServiceCache(db, nodeAddrs)
+	cache := NewServiceCache(db, nodeAddrs, NewSVCMetricsNoop())
 
 	enabledBefore := features.GlobalConfig.EnableGDCILB
 	features.GlobalConfig.EnableGDCILB = true
