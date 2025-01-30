@@ -71,6 +71,7 @@ function provision_GKE_cluster {
     --enable-ip-alias \
     --enable-dataplane-v2 \
     --num-nodes=2 \
+    --cluster-version=1.32 \
     --scopes https://www.googleapis.com/auth/cloud-platform
 }
 
@@ -85,8 +86,7 @@ function reclaim_hanging_resources {
     t1=$(date --date "$creation_time" +%s)
     t2=$(date --date "$cur" +%s)
     diff=$((t2 - t1))
-    # Set a lifespan of 1d, which leaves roughly 18h for debugging before reclaiming the resources.
-    lifespan=$((3600 * 24))
+    lifespan=$((3600 * 24 * 7)) # 7 days
     if [ "$diff" -gt "$lifespan" ]; then
       log "Deleting old GKE cluster: " $c
       ${GCLOUD_CONTAINER} clusters delete $c --project $GCP_PROJECT --location $GKE_LOCATION --quiet
@@ -130,7 +130,7 @@ function override_image_in_component {
 
 trap clean_up EXIT INT TERM
 
-reclaim_hanging_resources
+test -z "${DELETE_OLD}" || reclaim_hanging_resources
 
 make_cilium
 
