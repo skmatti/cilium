@@ -8,6 +8,9 @@ ARG CILIUM_RUNTIME_IMAGE=quay.io/cilium/cilium-runtime:dc1734647705f5cd9e02479b3
 #
 ARG CILIUM_ENVOY_IMAGE=quay.io/cilium/cilium-envoy:v1.32.6-1746661844-0f602c28cb2aa57b29078195049fb257d5b5246c@sha256:a04218c6879007d60d96339a441c448565b6f86650358652da27582e0efbf182
 
+# base bash image used by hubble-cli
+ARG BASE_BASH_IMAGE
+
 FROM ${CILIUM_ENVOY_IMAGE} AS cilium-envoy
 
 #
@@ -51,7 +54,10 @@ RUN --mount=type=bind,readwrite,target=/go/src/github.com/cilium/cilium \
     make GOARCH=${BUILDARCH} DESTDIR=/tmp/install/${TARGETOS}/${TARGETARCH} PKG_BUILD=1 ${MODIFIERS} \
     install-bash-completion licenses-all && \
     mv LICENSE.all /tmp/install/${TARGETOS}/${TARGETARCH}/LICENSE.all && \
-    true
+    mkdir -p /tmp/hubble/${TARGETOS}/${TARGETARCH} && \
+    cd hubble && \
+    make GOOS=${TARGETOS} GOARCH=${TARGETARCH} && \
+    mv hubble /tmp/hubble/${TARGETOS}/${TARGETARCH}/hubble
 
 # Extract debug symbols to /tmp/debug and strip the binaries if NOSTRIP is not set.
 RUN set -xe && \
@@ -94,6 +100,17 @@ WORKDIR /home/cilium
 
 ENV INITSYSTEM="SYSTEMD"
 CMD ["/usr/bin/cilium-dbg"]
+
+#
+# Hubble
+#
+FROM ${BASE_BASH_IMAGE} AS hubble
+# TARGETOS is an automatic platform ARG enabled by Docker BuildKit.
+ARG TARGETOS
+# TARGETARCH is an automatic platform ARG enabled by Docker BuildKit.
+ARG TARGETARCH
+COPY --from=builder /tmp/hubble/${TARGETOS}/${TARGETARCH}/hubble /usr/bin/hubble
+ENTRYPOINT ["/usr/bin/hubble"]
 
 #
 # Cilium debug image.
