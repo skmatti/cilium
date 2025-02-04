@@ -23,10 +23,13 @@ import (
 
 	"github.com/cilium/cilium/pkg/gke/apis/redirectservice/v1alpha1"
 	fakeRedirectService "github.com/cilium/cilium/pkg/gke/client/redirectservice/clientset/versioned/fake"
+	"github.com/cilium/cilium/pkg/k8s"
 	slim_corev1 "github.com/cilium/cilium/pkg/k8s/slim/k8s/api/core/v1"
+	slimcorev1 "github.com/cilium/cilium/pkg/k8s/slim/k8s/api/core/v1"
 	slimFlake "github.com/cilium/cilium/pkg/k8s/slim/k8s/client/clientset/versioned/fake"
 	"github.com/cilium/cilium/pkg/redirectpolicy"
 	"github.com/cilium/cilium/pkg/testutils"
+	"github.com/stretchr/testify/require"
 	"k8s.io/client-go/kubernetes/fake"
 )
 
@@ -95,7 +98,7 @@ func TestValidation(t *testing.T) {
 		},
 	} {
 		t.Run(tc.desc, func(t *testing.T) {
-			controller, err := NewController(fake.NewSimpleClientset(), slimFlake.NewSimpleClientset(), fakeRedirectService.NewSimpleClientset(), &fakeRedirectPolicyManager{}, nil)
+			controller, err := NewController(fake.NewSimpleClientset(), slimFlake.NewSimpleClientset(), fakeRedirectService.NewSimpleClientset(), &fakeRedirectPolicyManager{}, nil, nil)
 			if err != nil {
 				t.Fatalf("Cannot instantiate redirect service controller")
 			}
@@ -109,6 +112,43 @@ func TestValidation(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestMetrics(t *testing.T) {
+	testutils.PrivilegedTest(t)
+
+	nldLRPKey := k8s.ServiceID{
+		Name:      "default",
+		Namespace: "kube-system",
+	}
+
+	rs := &v1alpha1.RedirectService{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      nldLRPKey.Name,
+			Namespace: nldLRPKey.Namespace,
+		},
+		Spec: v1alpha1.RedirectServiceSpec{
+			Redirect: v1alpha1.RedirectSpec{
+				Type:     v1alpha1.NodeLocalDNSRedirectServiceType,
+				Provider: v1alpha1.KubeDNSServiceProviderType,
+			},
+		},
+	}
+
+	redirectPolicyMetrics := NewMetrics()
+	controller, err := NewController(fake.NewSimpleClientset(), slimFlake.NewSimpleClientset(), fakeRedirectService.NewSimpleClientset(), &fakeRedirectPolicyManager{}, nil, &redirectPolicyMetrics)
+	require.Empty(t, err)
+
+	_, err = controller.validateObj(rs)
+	require.Empty(t, err)
+
+	backendCountMetric, err := redirectPolicyMetrics.RedirectBackendCount.GetMetricWithLabelValues(nldLRPKey.String())
+	require.Empty(t, err)
+	require.EqualValues(t, backendCountMetric.Get(), 0)
+
+	// Add redirect policy and check backend count
+	controller.updateHandler(rs)
+	require.EqualValues(t, backendCountMetric.Get(), 1)
 }
 
 type fakeRedirectPolicyManager struct{}
@@ -128,3 +168,11 @@ func (f *fakeRedirectPolicyManager) GetLocalPodsForPolicy(config *redirectpolicy
 func (f *fakeRedirectPolicyManager) OnDeletePod(pod *slim_corev1.Pod) {}
 
 func (f *fakeRedirectPolicyManager) RemoveExistingNLDBackends(lrpConfig *redirectpolicy.LRPConfig) {}
+
+func (f *fakeRedirectPolicyManager) GetNodeLocalDNSLRPBackends(lrpConfig *redirectpolicy.LRPConfig) (bool, int) {
+	return true, 1
+}
+
+func (f *fakeRedirectPolicyManager) GetNodeLocalDNSLRPForPod(pod *slimcorev1.Pod) *redirectpolicy.LRPConfig {
+	return nil
+}

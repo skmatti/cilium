@@ -5,10 +5,13 @@ import (
 
 	cmtypes "github.com/cilium/cilium/pkg/clustermesh/types"
 	"github.com/cilium/cilium/pkg/k8s"
+	slimcorev1 "github.com/cilium/cilium/pkg/k8s/slim/k8s/api/core/v1"
 	"github.com/cilium/cilium/pkg/k8s/slim/k8s/apis/labels"
 	slim_metav1 "github.com/cilium/cilium/pkg/k8s/slim/k8s/apis/meta/v1"
 	lb "github.com/cilium/cilium/pkg/loadbalancer"
+	"github.com/cilium/cilium/pkg/logging/logfields"
 	"github.com/cilium/cilium/pkg/policy/api"
+	"github.com/sirupsen/logrus"
 
 	"k8s.io/apimachinery/pkg/types"
 )
@@ -118,8 +121,12 @@ func (rpm *Manager) GetLocalPodsForPolicy(config *LRPConfig) ([]string, error) {
 
 // RemoveExistingNLDBackends removes any backends mapped to the node local DNS LRP.
 func (rpm *Manager) RemoveExistingNLDBackends(lrpConfig *LRPConfig) {
-
 	if !rpm.isNodeLocalDNSLRP(lrpConfig) {
+		return
+	}
+
+	// Make sure the we remove backend mappings for policies yet to be added.
+	if _, ok := rpm.policyConfigs[lrpConfig.id]; ok {
 		return
 	}
 
@@ -136,39 +143,96 @@ func (rpm *Manager) RemoveExistingNLDBackends(lrpConfig *LRPConfig) {
 	// Since the frontend address is same for all the mappings in NLD LRP config, we can only look at the first one to check for backends.
 	feMCopy := *lrpConfig.frontendMappings[0]
 	if feMCopy.feAddr == nil {
-
 		log.Infof("No frontend found for the local redirect service %s", lrpConfig.id.String())
 		return
 	}
 
 	feMCopy.feAddr.AddrCluster = cmtypes.MustAddrClusterFromIP(serviceIP)
-	if rpm.checkNodeLocalDNSLRP(*feMCopy.feAddr) {
-		log.Infof("Removing existing backends for the local redirect service %s", lrpConfig.id.String())
+	if svc, svcFound := rpm.svcManager.GetDeepCopyServiceByFrontend(*feMCopy.feAddr); svcFound && svc.Type == lb.SVCTypeLocalRedirect {
+		var beStrings []string
+		for _, be := range svc.Backends {
+			beStrings = append(beStrings, be.String())
+		}
+		log.WithFields(logrus.Fields{
+			logfields.LRPType:      lrpConfig.lrpType,
+			logfields.K8sNamespace: lrpConfig.id.Namespace,
+			logfields.LRPName:      lrpConfig.id.Name,
+			"frontends":            feMCopy.feAddr.String(),
+			"backends":             strings.Join(beStrings, ","),
+		}).Infof("Found Node Local DNS LRP. Removing existing backends.")
 		rpm.notifyPolicyBackendDelete(lrpConfig, &feMCopy)
 	}
 }
 
-func (rpm *Manager) isNodeLocalDNSLRP(lrpConfig *LRPConfig) bool {
-	return lrpConfig.backendSelector.Matches(labels.Set(dnsBackendSelector.LabelSelector.MatchLabels))
-}
+// GetNodeLocalDNSLRPBackends returns true if there a service associated with NLD LRP and number of backends for the service.
+func (rpm *Manager) GetNodeLocalDNSLRPBackends(lrpConfig *LRPConfig) (bool, int) {
 
-func (rpm *Manager) checkNodeLocalDNSLRP(frontend lb.L3n4Addr) bool {
-	svc, svcFound := rpm.svcManager.GetDeepCopyServiceByFrontend(frontend)
-	if !svcFound {
-		log.Infof("Node local DNS LRP with frontend %s not found", frontend.String())
-		return false
+	scopedLog := log.WithFields(logrus.Fields{
+		logfields.LRPType:      lrpConfig.lrpType,
+		logfields.K8sNamespace: lrpConfig.id.Namespace,
+		logfields.LRPName:      lrpConfig.id.Name,
+	})
+
+	if !rpm.isNodeLocalDNSLRP(lrpConfig) {
+		scopedLog.Info("Not a Node Local DNS LRP")
+		return false, 0
 	}
 
-	numBackends := 0
+	if len(lrpConfig.frontendMappings) == 0 {
+		scopedLog.Warn("No LRP frontend mappings found for the local redirect service")
+		return false, 0
+	}
+
+	// Since the frontend address is same for all the mappings in NLD LRP config, we can only look at the first one to check for backends.
+	frontend := lrpConfig.frontendMappings[0].feAddr
+	if frontend == nil {
+		scopedLog.Warn("No frontend found for the local redirect service")
+		return false, 0
+	}
+
+	svc, svcFound := rpm.svcManager.GetDeepCopyServiceByFrontend(*frontend)
+	if !svcFound {
+		scopedLog.WithField("frontends", frontend.String()).Info("Service not found")
+		return false, 0
+	}
+	if svc.Type != lb.SVCTypeLocalRedirect {
+		scopedLog.WithField("frontends", frontend.String()).Info("Service not local redirect")
+		return false, 0
+	}
+
+	numBackends := len(svc.Backends)
 	var beStrings []string
 	for _, be := range svc.Backends {
-		numBackends++
 		beStrings = append(beStrings, be.String())
 	}
+	scopedLog.WithFields(logrus.Fields{
+		"frontends": frontend.String(),
+		"backends":  strings.Join(beStrings, ","),
+	}).Info("Found Node Local DNS LRP")
 
-	log.WithField("frontends", frontend.String()).WithField("backends", strings.Join(beStrings, ",")).Info("Found Node Local DNS LRP")
 	if numBackends > 1 {
 		log.Warnf("Node local DNS LRP should not have more than 1 backend. Found %d. ", numBackends)
 	}
-	return true
+	return true, numBackends
+}
+
+// GetNodeLocalDNSLRPForPod any Node Local DNS LRP associated with the pod. Returns nil ff there is no associated policy.
+func (rpm *Manager) GetNodeLocalDNSLRPForPod(pod *slimcorev1.Pod) *LRPConfig {
+	if pod == nil || len(rpm.policyConfigs) == 0 {
+		return nil
+	}
+
+	// Check if the pod is selected by a NLD LRP.
+	for _, config := range rpm.policyConfigs {
+		if config.policyConfigSelectsPod(pod) && rpm.isNodeLocalDNSLRP(config) {
+			return config
+		}
+	}
+
+	return nil
+}
+
+// isNodeLocalDNSLRP returns true if the LRP is associated with Node Local DNS.
+func (rpm *Manager) isNodeLocalDNSLRP(lrpConfig *LRPConfig) bool {
+	return lrpConfig.backendSelector.Matches(labels.Set(dnsBackendSelector.LabelSelector.MatchLabels))
 }

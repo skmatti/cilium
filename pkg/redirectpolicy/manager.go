@@ -1024,11 +1024,6 @@ func (rpm *Manager) processConfigWithNamedPorts(config *LRPConfig, pods ...*podM
 	for i := range upsertFes {
 		rpm.upsertPolicyMapping(config, upsertFes[i])
 	}
-	if len(upsertFes) > 0 && upsertFes[0].feAddr != nil &&
-		rpm.isNodeLocalDNSLRP(config) &&
-		!rpm.checkNodeLocalDNSLRP(*upsertFes[0].feAddr) {
-		log.Warnf("Node local redirect LRP not found after upsert")
-	}
 }
 
 // updateFrontendMapping updates policy config internal state and updates

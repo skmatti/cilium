@@ -12,6 +12,7 @@ import (
 	"github.com/cilium/cilium/pkg/labels"
 	"github.com/cilium/cilium/pkg/logging"
 	"github.com/cilium/cilium/pkg/logging/logfields"
+	"github.com/cilium/cilium/pkg/metrics"
 	"github.com/cilium/cilium/pkg/promise"
 	"github.com/cilium/cilium/pkg/redirectpolicy"
 	"github.com/cilium/hive/cell"
@@ -25,6 +26,7 @@ var (
 		"Redirect Service",
 
 		cell.Config(defaultConfig),
+		metrics.Metric(controller.NewMetrics),
 		cell.Invoke(registerRedirectService),
 	)
 	log = logging.DefaultLogger.WithField(logfields.LogSubsys, "gke-redirect-service-controller")
@@ -54,6 +56,7 @@ type redirectServiceParams struct {
 	EndpointManager endpointmanager.EndpointManager
 	RpmPromise      promise.Promise[controller.RedirectPolicyManager]
 	IptablesManager *iptables.Manager
+	Metrics         controller.RedirectServiceMetrics
 }
 
 type Config struct {
@@ -134,7 +137,7 @@ func registerRedirectService(params redirectServiceParams) error {
 				return fmt.Errorf("start IP tables manager: %v", err)
 			}
 
-			c, err := controller.NewController(params.Clientset, params.Clientset.Slim(), redirectServiceClient, redirectPolicyManager, params.IptablesManager)
+			c, err := controller.NewController(params.Clientset, params.Clientset.Slim(), redirectServiceClient, redirectPolicyManager, params.IptablesManager, &params.Metrics)
 			if err != nil {
 				log.Errorf("Error instantiating redirect service controller %v", err)
 				return err

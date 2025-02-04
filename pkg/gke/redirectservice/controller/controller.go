@@ -27,7 +27,7 @@ import (
 	"github.com/cilium/cilium/pkg/gke/client/redirectservice/clientset/versioned/scheme"
 	"github.com/cilium/cilium/pkg/gke/client/redirectservice/informers/externalversions"
 	"github.com/cilium/cilium/pkg/k8s/informer"
-	slim_corev1 "github.com/cilium/cilium/pkg/k8s/slim/k8s/api/core/v1"
+	slimcorev1 "github.com/cilium/cilium/pkg/k8s/slim/k8s/api/core/v1"
 	slimclientset "github.com/cilium/cilium/pkg/k8s/slim/k8s/client/clientset/versioned"
 	"github.com/cilium/cilium/pkg/lock"
 	"github.com/cilium/cilium/pkg/logging"
@@ -68,8 +68,10 @@ type RedirectPolicyManager interface {
 	AddRedirectPolicy(config redirectpolicy.LRPConfig) (bool, error)
 	DeleteRedirectPolicy(config redirectpolicy.LRPConfig) error
 	GetLocalPodsForPolicy(config *redirectpolicy.LRPConfig) ([]string, error)
-	OnDeletePod(*slim_corev1.Pod)
+	OnDeletePod(*slimcorev1.Pod)
 	RemoveExistingNLDBackends(lrpConfig *redirectpolicy.LRPConfig)
+	GetNodeLocalDNSLRPBackends(lrpConfig *redirectpolicy.LRPConfig) (bool, int)
+	GetNodeLocalDNSLRPForPod(pod *slimcorev1.Pod) *redirectpolicy.LRPConfig
 }
 
 // Controller for the redirect service controller
@@ -82,9 +84,10 @@ type Controller struct {
 	eventBroadcaster        record.EventBroadcaster
 	eventRecorder           record.EventRecorder
 
-	redirectPolicyManager RedirectPolicyManager
-	iptablesManager       *iptables.Manager
-	podController         cache.Controller
+	redirectPolicyManager  RedirectPolicyManager
+	iptablesManager        *iptables.Manager
+	podController          cache.Controller
+	redirectServiceMetrics *RedirectServiceMetrics
 
 	stopCh chan struct{}
 	mutex  lock.Mutex
@@ -93,7 +96,7 @@ type Controller struct {
 }
 
 // NewController returns a new controller for redirect service.
-func NewController(kubeClient kubernetes.Interface, slimClient slimclientset.Interface, redirectServiceClient versioned.Interface, redirectPolicyManager RedirectPolicyManager, iptablesManager *iptables.Manager) (*Controller, error) {
+func NewController(kubeClient kubernetes.Interface, slimClient slimclientset.Interface, redirectServiceClient versioned.Interface, redirectPolicyManager RedirectPolicyManager, iptablesManager *iptables.Manager, redirectServiceMetrics *RedirectServiceMetrics) (*Controller, error) {
 
 	broadcaster := record.NewBroadcaster()
 	broadcaster.StartLogging(klog.Infof)
@@ -111,6 +114,7 @@ func NewController(kubeClient kubernetes.Interface, slimClient slimclientset.Int
 		redirectPolicyManager:   redirectPolicyManager,
 		stopCh:                  make(chan struct{}),
 		iptablesManager:         iptablesManager,
+		redirectServiceMetrics:  redirectServiceMetrics,
 	}
 
 	c.redirectServiceInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
@@ -122,7 +126,7 @@ func NewController(kubeClient kubernetes.Interface, slimClient slimclientset.Int
 	_, c.podController = informer.NewInformer(
 		cache.NewListWatchFromClient(slimClient.CoreV1().RESTClient(),
 			"pods", "kube-system", fields.ParseSelectorOrDie("spec.nodeName="+nodeTypes.GetName())),
-		&slim_corev1.Pod{},
+		&slimcorev1.Pod{},
 		0,
 		cache.ResourceEventHandlerFuncs{
 			AddFunc:    func(obj interface{}) { c.addNoTrackHandler(obj) },
@@ -185,7 +189,7 @@ func (c *Controller) addNoTrackHandler(curr interface{}) {
 		return
 	}
 
-	newPod := informer.CastInformerEvent[slim_corev1.Pod](curr)
+	newPod := informer.CastInformerEvent[slimcorev1.Pod](curr)
 	if newPod == nil {
 		return
 	}
@@ -200,6 +204,8 @@ func (c *Controller) addNoTrackHandler(curr interface{}) {
 		c.addNoTrackRules(ip.IP)
 	}
 
+	c.updateRedirectServiceMetrics(c.redirectPolicyManager.GetNodeLocalDNSLRPForPod(newPod))
+
 }
 
 // updateNoTrackHandler handles updating NOTRACK rules on pod updates
@@ -211,8 +217,8 @@ func (c *Controller) updateNoTrackHandler(old, curr interface{}) {
 		return
 	}
 
-	if oldPod := informer.CastInformerEvent[slim_corev1.Pod](old); oldPod != nil {
-		if newPod := informer.CastInformerEvent[slim_corev1.Pod](curr); newPod != nil {
+	if oldPod := informer.CastInformerEvent[slimcorev1.Pod](old); oldPod != nil {
+		if newPod := informer.CastInformerEvent[slimcorev1.Pod](curr); newPod != nil {
 			labels := newPod.ObjectMeta.Labels
 			if val, found := labels[redirectpolicy.KeyNodeLocalDNS]; found && (val == redirectpolicy.LabelNodeLocalDNS || val == redirectpolicy.LabelNodeLocalDNSDPv2) {
 				// pod.Status.PodIPs are supposed to be very short slices
@@ -242,6 +248,8 @@ func (c *Controller) updateNoTrackHandler(old, curr interface{}) {
 						c.removeNoTrackRules(ip.IP)
 					}
 				}
+
+				c.updateRedirectServiceMetrics(c.redirectPolicyManager.GetNodeLocalDNSLRPForPod(newPod))
 			}
 		}
 	}
@@ -291,8 +299,19 @@ func (c *Controller) installNodeLocalDNSRedirect(o *v1alpha1.RedirectService) {
 		return
 	}
 
+	c.updateRedirectServiceMetrics(lrpConfig)
+
 	c.eventRecorder.Eventf(o, v1.EventTypeNormal, UpdateRedirectService,
 		fmt.Sprintf("Updating redirect service (resourceVersion = %s) ", o.ResourceVersion))
+}
+
+func (c *Controller) updateRedirectServiceMetrics(lrpConfig *redirectpolicy.LRPConfig) {
+	if c.redirectServiceMetrics == nil || lrpConfig == nil {
+		return
+	}
+	nldLRPName := fmt.Sprintf("%s/%s", lrpConfig.GetModel().Namespace, lrpConfig.GetModel().Name)
+	_, numBackends := c.redirectPolicyManager.GetNodeLocalDNSLRPBackends(lrpConfig)
+	c.redirectServiceMetrics.RedirectBackendCount.WithLabelValues(nldLRPName).Set(float64(numBackends))
 }
 
 // delNoTrackHandler handles removing NOTRACK rules when nodelocaldns pod is removed.
@@ -304,13 +323,14 @@ func (c *Controller) delNoTrackHandler(obj interface{}) {
 		return
 	}
 
-	if pod := informer.CastInformerEvent[slim_corev1.Pod](obj); pod != nil {
+	if pod := informer.CastInformerEvent[slimcorev1.Pod](obj); pod != nil {
 		labels := pod.ObjectMeta.Labels
 		val, found := labels[redirectpolicy.KeyNodeLocalDNS]
 		if found && (val == redirectpolicy.LabelNodeLocalDNS || val == redirectpolicy.LabelNodeLocalDNSDPv2) {
 			for _, ip := range pod.Status.PodIPs {
 				c.removeNoTrackRules(ip.IP)
 			}
+			c.updateRedirectServiceMetrics(c.redirectPolicyManager.GetNodeLocalDNSLRPForPod(pod))
 		}
 	}
 }
@@ -408,6 +428,8 @@ func (c *Controller) clearNodeLocalDNSRedirect(o *v1alpha1.RedirectService) {
 		log.Errorf("Error deleting LRP %v", err)
 		return
 	}
+
+	c.updateRedirectServiceMetrics(lrpConfig)
 
 	c.eventRecorder.Eventf(o, v1.EventTypeNormal, UpdateRedirectService,
 		fmt.Sprintf("deleted redirect service obj %s", o.Name))
