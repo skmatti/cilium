@@ -487,12 +487,12 @@ should_skip_local_delivery(struct __ctx_buff *ctx)
 		return false;
 #if MULTI_NIC_DEVICE_TYPE == EP_DEV_TYPE_INDEX_MULTI_NIC_VETH
 	{
+#  ifndef TUNNEL_MODE
 		union macaddr *dmac;
 		const struct multi_nic_dev_info *dev;
 
 		dmac = (union macaddr *)&ep->mac;
 		dev = lookup_multi_nic_dev(dmac);
-#ifdef TUNNEL_MODE
 		// Temporary solution for VPC peering in GDCH:
 		// Remove the network isolation between multi NIC endpoint veth
 		// and the default network veth.
@@ -503,14 +503,7 @@ should_skip_local_delivery(struct __ctx_buff *ctx)
 		if (dev != NULL && dev->net_id != NETWORK_ID) {
 			return true;
 		}
-#else
-		// If the destination endpoint is a multi NIC endpoint veth pair,
-		// we want local delivery to be done only between endpoints that
-		// share the same NETWORK_ID.
-		if (dev == NULL || dev->net_id != NETWORK_ID) {
-			return true;
-		}
-#endif /* TUNNEL_MODE */
+#  endif /* !TUNNEL_MODE */
 		return false;
 	}
 #endif /* MULTI_NIC_DEVICE_TYPE == EP_DEV_TYPE_INDEX_MULTI_NIC_VETH */
