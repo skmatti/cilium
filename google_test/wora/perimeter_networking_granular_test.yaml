@@ -33,7 +33,7 @@ spec:
           - --seed=1720648721
           - --skip=should.support.remote.command.execution.over.websockets
           - --skip=should.support.retrieving.logs.from.the.container.over.websockets
-          - --skip=nodePort
+          - --skip=nodePort # b/403146710: GDCH lancer cluster does not support NodePort.
           - --skip=should.function.for.pod-Service:.http
           - --skip=should.function.for.node-Service:.http
           - --skip=should.function.for.service.endpoints.using.hostNetwork

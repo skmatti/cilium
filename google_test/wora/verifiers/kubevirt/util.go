@@ -7,6 +7,7 @@ import (
 	"time" // Do not use pkg/time in test code.
 
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -23,6 +24,8 @@ import (
 	klog "gke-internal.googlesource.com/syllogi/sanitized-klog"
 	gvmv1 "gke-internal.googlesource.com/third_party/cilium/google_test/wora/e2e/pkg/kubevm/vm-controller/api/v1"
 	vmruntimev1 "gke-internal.googlesource.com/third_party/cilium/google_test/wora/e2e/pkg/kubevm/vm-runtime-operator/api/v1"
+
+	waitutil "gke-internal.googlesource.com/third_party/cilium/google_test/wora/e2e/pkg/test/wait"
 
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 )
@@ -335,6 +338,19 @@ func teatDownTestVM(vmConfig VMTestConfig, restClient *rest.RESTClient, virtClie
 		return err
 	}
 	return nil
+}
+
+func waitForVMDeletionWithIntervalAndTimeout(ctx context.Context, vc kubecli.KubevirtClient, ns, name string) error {
+	return waitutil.WaitForSuccessContext(ctx, "VM deletion successful", waitutil.WaitingLong, func(ctx context.Context) error {
+		if _, err := vc.VirtualMachineInstance(ns).Get(ctx, name, metav1.GetOptions{}); err != nil {
+			if apierrors.IsNotFound(err) {
+				klog.Infof("VirtualMachine %s/%s is deleted", ns, name)
+				return nil
+			}
+			return fmt.Errorf("Failed to get VirtualMachine %s/%s: %s", ns, name, err)
+		}
+		return fmt.Errorf("Waiting VirtualMachine %s/%s to be deleted", ns, name)
+	})
 }
 
 // generateDiskName generate a disk name for a  given GVM name.

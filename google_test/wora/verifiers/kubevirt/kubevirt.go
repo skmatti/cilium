@@ -242,6 +242,13 @@ var _ = Describe("Verifiers/Kubevirt", Label("kubevirt"), Ordered, func() {
 		Expect(err).NotTo(HaveOccurred())
 		err = network.TeardownNetwork(ctx, nc, vmNetworkName)
 		Expect(err).NotTo(HaveOccurred())
+
+		err = waitForVMDeletionWithIntervalAndTimeout(ctx, vc, VMTestConfig1.Namespace, VMTestConfig1.Name)
+		Expect(err).NotTo(HaveOccurred())
+		err = waitForVMDeletionWithIntervalAndTimeout(ctx, vc, VMTestConfig2.Namespace, VMTestConfig2.Name)
+		Expect(err).NotTo(HaveOccurred())
+		err = waitForVMDeletionWithIntervalAndTimeout(ctx, vc, VMTestConfig3.Namespace, VMTestConfig3.Name)
+		Expect(err).NotTo(HaveOccurred())
 	})
 
 })

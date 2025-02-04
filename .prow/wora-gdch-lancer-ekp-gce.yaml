@@ -33,58 +33,16 @@ presubmits:
       - name: PATCH_CONTENT_DIR
         value: addon/patch_content/abm-1.31.400-gke.15/overlays/gdch-lancer
       - name: TBCONFIG
-        value: sut-gdch-abm-gce.yaml
+        value: sut-gdch-lancer-abm-gce.yaml
       - name: WORA_CONFIG
-        value: integration-gdch-abm-gce_test.yaml
+        value: integration-gdch-lancer_test.yaml
       command:
       - runner.sh
       args:
       - ./google_test/wora/prow_entrypoint.sh
-- name: wora-conformance-abm-gce-lancer_cilium
-  trigger: /test wora-conformance-abm-gce-lancer$
-  rerun_command: /test wora-conformance-abm-gce-lancer
-  always_run: false
-  decorate: true
-  decoration_config:
-    timeout: 240m
-  labels:
-    preset-cookie-file: "true"
-    preset-cookie-file-env: "true"
-    preset-service-account: "true"
-    preset-dind-enabled: "true"
-    preset-k8s-ssh: "true"
-  path_alias: gke-internal.googlesource.com/third_party/cilium
-  spec:
-    containers:
-    - image: gcr.io/tailorbird/kubetest2-tailorbird:latest
-      resources:
-        requests:
-          ephemeral-storage: 150Gi
-        limits:
-          ephemeral-storage: 300Gi
-      securityContext:
-        # needed for docker-in-docker
-        privileged: true
-      env:
-      - name: ADD_VXLANS_CLUSTER_TYPE
-        value: gdc-ag
-      - name: CILIUM_GITREF
-        value: HEAD
-      - name: PATCH_CONTENT_DIR
-        value: addon/patch_content/abm-1.31.400-gke.15/overlays/gdch-lancer
-      - name: TBCONFIG
-        value: sut-gdch-abm-gce.yaml
-      - name: WORA_CONFIG
-        value: conformance-gdch-abm-gce_test.yaml
-      - name: WORA_DOCKERFILE_DIR
-        value: conformance
-      command:
-      - runner.sh
-      args:
-      - ./google_test/wora/prow_entrypoint.sh
-- name: wora-networking-granular-abm-gce-lancer_cilium
-  trigger: /test wora-networking-granular-abm-gce-lancer$
-  rerun_command: /test wora-networking-granular-abm-gce-lancer
+- name: wora-gdch-abm-gce-lancer-kubevirt_cilium
+  trigger: /test wora-gdch-abm-gce-lancer-kubevirt$
+  rerun_command: /test wora-gdch-abm-gce-lancer-kubevirt
   always_run: true
   decorate: true
   decoration_config:
@@ -109,6 +67,49 @@ presubmits:
         # needed for docker-in-docker
         privileged: true
       env:
+      - name: CILIUM_GITREF
+        value: HEAD
+      # The path for the PATCH_CONTENT_DIR is from the script dir of
+      # prow_entrypoint.sh.
+      - name: PATCH_CONTENT_DIR
+        value: addon/patch_content/abm-1.31.400-gke.15/overlays/gdch-lancer-kubevirt
+      - name: TBCONFIG
+        value: sut-gdch-lancer-kubevirt-abm-gce.yaml
+      - name: WORA_CONFIG
+        value: integration-gdch-lancer-kubevirt_test.yaml
+      command:
+      - runner.sh
+      args:
+      - ./google_test/wora/prow_entrypoint.sh
+- name: wora-conformance-abm-gce-lancer_cilium
+  trigger: /test wora-conformance-abm-gce-lancer$
+  rerun_command: /test wora-conformance-abm-gce-lancer
+  # TODO(b/405213696): enable conformance test after the bug is fixed.
+  # always_run: true
+  decorate: true
+  decoration_config:
+    timeout: 240m
+  labels:
+    preset-cookie-file: "true"
+    preset-cookie-file-env: "true"
+    preset-service-account: "true"
+    preset-dind-enabled: "true"
+    preset-k8s-ssh: "true"
+    # TODO(b/405213696): enable conformance test after the bug is fixed.
+    # prow.k8s.io/gerrit-report-label: "Verified"
+  path_alias: gke-internal.googlesource.com/third_party/cilium
+  spec:
+    containers:
+    - image: gcr.io/tailorbird/kubetest2-tailorbird:latest
+      resources:
+        requests:
+          ephemeral-storage: 150Gi
+        limits:
+          ephemeral-storage: 300Gi
+      securityContext:
+        # needed for docker-in-docker
+        privileged: true
+      env:
       - name: ADD_VXLANS_CLUSTER_TYPE
         value: gdc-ag
       - name: CILIUM_GITREF
@@ -116,7 +117,52 @@ presubmits:
       - name: PATCH_CONTENT_DIR
         value: addon/patch_content/abm-1.31.400-gke.15/overlays/gdch-lancer
       - name: TBCONFIG
-        value: sut-gdch-abm-gce.yaml
+        value: sut-gdch-lancer-abm-gce.yaml
+      - name: WORA_CONFIG
+        value: conformance-gdch-abm-gce_test.yaml
+      - name: WORA_DOCKERFILE_DIR
+        value: conformance
+      command:
+      - runner.sh
+      args:
+      - ./google_test/wora/prow_entrypoint.sh
+- name: wora-networking-granular-abm-gce-lancer_cilium
+  trigger: /test wora-networking-granular-abm-gce-lancer$
+  rerun_command: /test wora-networking-granular-abm-gce-lancer
+  # TODO(b/405213696): enable conformance test after the bug is fixed.
+  # always_run: true
+  decorate: true
+  decoration_config:
+    timeout: 240m
+  labels:
+    preset-cookie-file: "true"
+    preset-cookie-file-env: "true"
+    preset-service-account: "true"
+    preset-dind-enabled: "true"
+    preset-k8s-ssh: "true"
+    # TODO(b/405213696): enable conformance test after the bug is fixed.
+    # prow.k8s.io/gerrit-report-label: "Verified"
+  path_alias: gke-internal.googlesource.com/third_party/cilium
+  spec:
+    containers:
+    - image: gcr.io/tailorbird/kubetest2-tailorbird:latest
+      resources:
+        requests:
+          ephemeral-storage: 150Gi
+        limits:
+          ephemeral-storage: 300Gi
+      securityContext:
+        # needed for docker-in-docker
+        privileged: true
+      env:
+      - name: ADD_VXLANS_CLUSTER_TYPE
+        value: gdc-ag
+      - name: CILIUM_GITREF
+        value: HEAD
+      - name: PATCH_CONTENT_DIR
+        value: addon/patch_content/abm-1.31.400-gke.15/overlays/gdch-lancer
+      - name: TBCONFIG
+        value: sut-gdch-lancer-abm-gce.yaml
       - name: WORA_CONFIG
         value: networking_granular-gdch-abm-gce_test.yaml
       - name: WORA_DOCKERFILE_DIR
@@ -159,7 +205,7 @@ presubmits:
       - name: PATCH_CONTENT_DIR
         value: addon/patch_content/abm-1.31.400-gke.15/overlays/gdch-perimeter
       - name: TBCONFIG
-        value: sut-gdch-abm-gce.yaml
+        value: sut-gdch-perimeter-abm-gce.yaml
       - name: WORA_CONFIG
         value: integration-gdch-perimeter_test.yaml
       command:
@@ -169,7 +215,8 @@ presubmits:
 - name: wora-perimeter-k8s-conformance_cilium
   trigger: /test wora-perimeter-k8s-conformance$
   rerun_command: /test wora-perimeter-k8s-conformance
-  always_run: false
+  # TODO(b/405213696): enable conformance test after the bug is fixed.
+  # always_run: true
   decorate: true
   decoration_config:
     timeout: 240m
@@ -179,6 +226,8 @@ presubmits:
     preset-service-account: "true"
     preset-dind-enabled: "true"
     preset-k8s-ssh: "true"
+    # TODO(b/405213696): enable conformance test after the bug is fixed.
+    # prow.k8s.io/gerrit-report-label: "Verified"
   path_alias: gke-internal.googlesource.com/third_party/cilium
   spec:
     containers:
@@ -199,7 +248,7 @@ presubmits:
       - name: PATCH_CONTENT_DIR
         value: addon/patch_content/abm-1.31.400-gke.15/overlays/gdch-perimeter
       - name: TBCONFIG
-        value: sut-gdch-abm-gce.yaml
+        value: sut-gdch-perimeter-abm-gce.yaml
       - name: WORA_CONFIG
         value: perimeter_conformance_test.yaml
       - name: WORA_DOCKERFILE_DIR
@@ -208,10 +257,11 @@ presubmits:
       - runner.sh
       args:
       - ./google_test/wora/prow_entrypoint.sh
-- name: wora-perimeter-k8s-networking_cilium
-  trigger: /test wora-perimeter-k8s-networking$
-  rerun_command: /test wora-perimeter-k8s-networking
-  always_run: true
+- name: wora-perimeter-k8s-networking-granular_cilium
+  trigger: /test wora-perimeter-k8s-networking-granular$
+  rerun_command: /test wora-perimeter-k8s-networking-granular
+  # TODO(b/405213696): enable conformance test after the bug is fixed.
+  # always_run: true
   decorate: true
   decoration_config:
     timeout: 240m
@@ -221,7 +271,8 @@ presubmits:
     preset-service-account: "true"
     preset-dind-enabled: "true"
     preset-k8s-ssh: "true"
-    prow.k8s.io/gerrit-report-label: "Verified"
+    # TODO(b/405213696): enable conformance test after the bug is fixed.
+    # prow.k8s.io/gerrit-report-label: "Verified"
   path_alias: gke-internal.googlesource.com/third_party/cilium
   spec:
     containers:
@@ -242,7 +293,7 @@ presubmits:
       - name: PATCH_CONTENT_DIR
         value: addon/patch_content/abm-1.31.400-gke.15/overlays/gdch-perimeter
       - name: TBCONFIG
-        value: sut-gdch-abm-gce.yaml
+        value: sut-gdch-perimeter-abm-gce.yaml
       - name: WORA_CONFIG
         value: perimeter_networking_granular_test.yaml
       - name: WORA_DOCKERFILE_DIR

@@ -56,20 +56,23 @@ var (
 )
 
 var _ = Describe("Verifiers/TailCall", Label("tailcall"), Ordered, func() {
+	var nc *networkclientset.Clientset
 	var c client.Interface
+	var kubeconfig string
+	var config *rest.Config
 	var err error
 
-	kubeconfig := os.Getenv("KUBECONFIG")
-	c, err = client.NewClientSet(kubeconfig)
-	Expect(err).NotTo(HaveOccurred())
-
-	config, err := clientcmd.BuildConfigFromFlags("", kubeconfig)
-	Expect(err).NotTo(HaveOccurred())
-
-	nc, err := networkclientset.NewForConfig(config)
-	Expect(err).NotTo(HaveOccurred())
-
 	BeforeAll(func() {
+		kubeconfig = os.Getenv("KUBECONFIG")
+		c, err = client.NewClientSet(kubeconfig)
+		Expect(err).NotTo(HaveOccurred())
+
+		config, err = clientcmd.BuildConfigFromFlags("", kubeconfig)
+		Expect(err).NotTo(HaveOccurred())
+
+		nc, err = networkclientset.NewForConfig(config)
+		Expect(err).NotTo(HaveOccurred())
+
 		// Create the Network object
 		_, err = network.CreateNetwork(context.Background(), nc, &vlanNetwork)
 		Expect(err).NotTo(HaveOccurred(), fmt.Sprintf("Failed to create network: %s", vlanNetworkName))

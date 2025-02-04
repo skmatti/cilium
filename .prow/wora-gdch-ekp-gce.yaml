@@ -32,7 +32,7 @@ presubmits:
       - name: PATCH_CONTENT_DIR
         value: addon/patch_content/abm-1.31.400-gke.15/overlays/gdch-abm
       - name: TBCONFIG
-        value: sut-gdch-abm-gce.yaml
+        value: sut-gdch-lancer-abm-gce.yaml
       - name: WORA_CONFIG
         value: integration-gdch-abm-gce_test.yaml
       command:
@@ -72,7 +72,7 @@ presubmits:
       - name: PATCH_CONTENT_DIR
         value: addon/patch_content/abm-1.31.400-gke.15/overlays/gdch-abm
       - name: TBCONFIG
-        value: sut-gdch-abm-gce.yaml
+        value: sut-gdch-lancer-abm-gce.yaml
       - name: WORA_CONFIG
         value: conformance-gdch-abm-gce_test.yaml
       - name: WORA_DOCKERFILE_DIR
@@ -114,7 +114,7 @@ presubmits:
       - name: PATCH_CONTENT_DIR
         value: addon/patch_content/abm-1.31.400-gke.15/overlays/gdch-abm
       - name: TBCONFIG
-        value: sut-gdch-abm-gce.yaml
+        value: sut-gdch-lancer-abm-gce.yaml
       - name: WORA_CONFIG
         value: networking_granular-gdch-abm-gce_test.yaml
       - name: WORA_DOCKERFILE_DIR

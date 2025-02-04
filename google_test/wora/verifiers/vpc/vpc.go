@@ -40,31 +40,30 @@ const (
 )
 
 var _ = Describe("Verifiers/VPC", Label("vpc"), Ordered, func() {
-	var cl k8sclient.Client
-	var err error
-	var testPods []string
-	var cleanupFuncs []func()
-
-	s := e2escheme.Scheme()
-
-	ctx, _ := context.WithTimeout(context.Background(), 10*time.Minute)
-
-	kubeconfig := os.Getenv("KUBECONFIG")
-
-	config, err := clientcmd.BuildConfigFromFlags("", kubeconfig)
-	Expect(err).NotTo(HaveOccurred())
-
-	// Set QPS and Burst in case of rate limiting the requests.
-	config.QPS = 50
-	config.Burst = 100
-
-	clientset, err := kubernetes.NewForConfig(config)
-	Expect(err).NotTo(HaveOccurred(), "Failed to create Kubernetes clientset")
-
-	cl, err = k8sclient.New(config, k8sclient.Options{Scheme: s})
-	Expect(err).NotTo(HaveOccurred())
+	var (
+		cl           k8sclient.Client
+		err          error
+		testPods     []string
+		cleanupFuncs []func()
+		ctx          context.Context
+		clientset    *kubernetes.Clientset
+	)
 
 	BeforeAll(func() {
+		s := e2escheme.Scheme()
+
+		ctx, _ = context.WithTimeout(context.Background(), 10*time.Minute)
+
+		kubeconfig := os.Getenv("KUBECONFIG")
+
+		config, err := clientcmd.BuildConfigFromFlags("", kubeconfig)
+		Expect(err).NotTo(HaveOccurred())
+
+		clientset, err = kubernetes.NewForConfig(config)
+		Expect(err).NotTo(HaveOccurred(), "Failed to create Kubernetes clientset")
+
+		cl, err = k8sclient.New(config, k8sclient.Options{Scheme: s})
+		Expect(err).NotTo(HaveOccurred())
 		enabled, err := isGoogleVPCEnabled(ctx, cl)
 		Expect(err).NotTo(HaveOccurred(), "Failed to validate Google VPC configuration")
 

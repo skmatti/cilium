@@ -35,31 +35,30 @@ const (
 )
 
 var _ = Describe("Verifiers/L3VM", Label("l3vm"), Ordered, func() {
-	var cl k8sclient.Client
-	var err error
-	var testPods []string
-	var cleanupFuncs []func()
-
-	s := e2escheme.Scheme()
-
-	ctx, _ := context.WithTimeout(context.Background(), 10*time.Minute)
-
-	kubeconfig := os.Getenv("KUBECONFIG")
-
-	config, err := clientcmd.BuildConfigFromFlags("", kubeconfig)
-	Expect(err).NotTo(HaveOccurred())
-
-	// Set QPS and Burst in case of rate limiting the requests.
-	config.QPS = 50
-	config.Burst = 100
-
-	clientset, err := kubernetes.NewForConfig(config)
-	Expect(err).NotTo(HaveOccurred(), "Failed to create Kubernetes clientset")
-
-	cl, err = k8sclient.New(config, k8sclient.Options{Scheme: s})
-	Expect(err).NotTo(HaveOccurred())
+	var (
+		cl           k8sclient.Client
+		err          error
+		testPods     []string
+		cleanupFuncs []func()
+		ctx          context.Context
+		clientset    *kubernetes.Clientset
+	)
 
 	BeforeAll(func() {
+		s := e2escheme.Scheme()
+
+		ctx, _ = context.WithTimeout(context.Background(), 20*time.Minute)
+
+		kubeconfig := os.Getenv("KUBECONFIG")
+
+		config, err := clientcmd.BuildConfigFromFlags("", kubeconfig)
+		Expect(err).NotTo(HaveOccurred())
+
+		clientset, err = kubernetes.NewForConfig(config)
+		Expect(err).NotTo(HaveOccurred(), "Failed to create Kubernetes clientset")
+
+		cl, err = k8sclient.New(config, k8sclient.Options{Scheme: s})
+		Expect(err).NotTo(HaveOccurred())
 		// Create the test namespace
 		err = utils.CreateTestNamespace(ctx, cl, testNamespace)
 		Expect(err).NotTo(HaveOccurred(), "Failed to create test namespace")
@@ -101,7 +100,7 @@ var _ = Describe("Verifiers/L3VM", Label("l3vm"), Ordered, func() {
 				},
 			},
 		}
-		err := cl.Create(context.TODO(), &l3Network)
+		err = cl.Create(ctx, &l3Network)
 		if err != nil && !apierrors.IsAlreadyExists(err) {
 			Expect(err).NotTo(HaveOccurred(), "Failed to create l3 network")
 		}
@@ -114,7 +113,7 @@ var _ = Describe("Verifiers/L3VM", Label("l3vm"), Ordered, func() {
 				Name: networkName,
 			},
 		}
-		err := utils.DeleteIfExists(ctx, cl, network, "network")
+		err := utils.DeleteAndWait(ctx, cl, network, "network")
 		Expect(err).NotTo(HaveOccurred())
 
 		klog.Infof("Deleting test namespace %s", testNamespace)
@@ -128,8 +127,7 @@ var _ = Describe("Verifiers/L3VM", Label("l3vm"), Ordered, func() {
 	})
 
 	AfterEach(func() {
-		testDescription := CurrentGinkgoTestDescription()
-		if testDescription.Failed {
+		if CurrentSpecReport().Failed() {
 			// Collect logs for all test pods if the test failed
 			for _, podName := range testPods {
 				podLogs, err := utils.FetchPodLogs(ctx, clientset, podName, testNamespace)
@@ -147,16 +145,9 @@ var _ = Describe("Verifiers/L3VM", Label("l3vm"), Ordered, func() {
 		}
 		// Validate all pods are deleted before next test
 		for _, podName := range testPods {
-			err = wait.WaitForSuccessContext(ctx, "Delete pod", wait.WaitingMedium, func(ctx context.Context) error {
-				pod := &corev1.Pod{}
-				err = cl.Get(ctx, k8sclient.ObjectKey{Name: podName, Namespace: testNamespace}, pod)
-				if err == nil {
-					return fmt.Errorf("pod %s was not deleted successfully", podName)
-				}
-				klog.Infof("Pod %s deleted successfully", podName)
-				return nil
-			})
+			err = utils.WaitForPodDeletion(ctx, cl, podName, testNamespace)
 		}
+
 		// Reset cleanupFuncs and testPods before next test
 		cleanupFuncs = nil
 		testPods = []string{}
@@ -298,7 +289,7 @@ func createEmulatedL3VMPod(ctx context.Context, cl k8sclient.Client, podName, ns
 		},
 	}
 
-	return utils.CreatePodWithNetworkInterfaces(ctx, cl, podName, ns, networkInfos, opts...)
+	return utils.CreatePodWithNetworkInterfaces(ctx, cl, podName, ns, networkInfos, nil, opts...)
 }
 
 func testConnectivityBetweenPods(ctx context.Context, cl k8sclient.Client, pod1, pod2, pod1IP, pod2IP string, affinity *corev1.Affinity) ([]string, []func(), error) {
@@ -319,7 +310,7 @@ func testConnectivityBetweenPods(ctx context.Context, cl k8sclient.Client, pod1,
 	cleanupFuncs = append(cleanupFuncs, cleanup2)
 
 	klog.Infof("Running curl from pod %s:%s to pod %s:%s", pod1, pod1IP, pod2, pod2IP)
-	err = utils.RunCurlFromPod(ctx, cl, pod1, pod2, pod2IP, utils.ResponderPort, testNamespace)
+	err = utils.VerifyCurlFromPod(ctx, cl, pod1, pod2, pod2IP, utils.ResponderPort, testNamespace, true)
 	if err != nil {
 		return testPods, cleanupFuncs, fmt.Errorf("pod %s is not able to reach pod %s: %v", pod1, pod2, err)
 	}

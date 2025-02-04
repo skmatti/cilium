@@ -30,7 +30,7 @@ spec:
           - --keep-going
           - --timeout=2h
           # TODO(b/399420362): disable the feature tests until the bug is fixed.
-          # - --label-filter=sample||tailcall||kubevirt||l3vm||vpc
+          # - --label-filter=sample||tailcall||kubevirt||l3vm||vpc||egressnat||hostfirewall||loadbalancer
           - --label-filter=sample
           - -vv
           - --no-color

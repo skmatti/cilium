@@ -1,0 +1,47 @@
+apiVersion: sut.tailorbird.io/v1alpha1
+kind: Rookery
+metadata:
+  name: wora-sut-gdch-abm-gce
+  namespace: tailorbird-users
+spec:
+  ttlSeconds: 7200 # 2 hr
+  knests:
+  - apiVersion: sut.tailorbird.io/v1alpha1
+    kind: Knest
+    metadata:
+      name: wora-sut-gdch-abm-gce
+    spec:
+      clusters:
+      - apiVersion: sut.tailorbird.io/v1alpha1
+        kind: Cluster
+        metadata:
+          name: wora-sut-gdch-abm-gce
+          namespace: tailorbird-users
+        spec:
+          distribution: gke
+          provider: baremetal
+          provisionerArgs:
+            # Exact version of ABM is required to generate addon configurations.
+            bmctlVersion: 1.31.400-gke.15
+            # Per yaqs/6581285177727647744 only machine type N2 is supported for
+            # nested-virtualization. The nested virtualization is enabled
+            # through USE_EMULATION ENV. All passthroughEnv supported can be
+            # found
+            # https://source.corp.google.com/h/gke-internal/syllogi/baremetal/+/master:test-infra/api/v1/config.go;drc=921bb69df401eb9da234a009af3e86c0844ef0fc
+            passthroughEnv: |
+              {
+                "MANIFEST_PROFILE_ENV": "staging",
+                "CLUSTER_SIZE": "variable",
+                "NUM_CONTROL": "1",
+                "NUM_WORKER": "2",
+                "NUM_LB": "0",
+                "USE_EMULATION": "false",
+                "NODE_IMAGE_SIZE": "n2-standard-4",
+                "NODE_DISK_SIZE": "150",
+                "PRIVATE_MODE": "true",
+                "NUM_NETWORKS": "2"
+              }
+            project: anthos-networking-ci
+            proxyPort: "8222"
+            username: prowuser
+            serverOS: gdch-rocky

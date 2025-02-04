@@ -29,13 +29,10 @@ spec:
           - --procs=10
           - --focus=\[Conformance\]|\[sig-network\]
           - --skip=Feature|Federation|PerformanceDNS|DualStack|Disruptive|Serial|KubeProxy|kube-proxy|ExternalIP|LoadBalancer|GCE|Netpol|NetworkPolicy|rejected|externalTrafficPolicy|HostPort|same.port.number.but.different.protocols|should.serve.endpoints.on.same.port.and.different.protocols
+          - --skip=Networking.Granular.Checks:.Services # b/380485765: covered in a separate Prow job.
           - --skip=should.support.remote.command.execution.over.websockets
           - --skip=should.support.retrieving.logs.from.the.container.over.websockets
-          - --skip=should.support.have.session.affinity.timeout.work.for.NodePort.service
-          - --skip=should.support.have.session.affinity.work.for.NodePort.service
-          - --skip=should.have.session.affinity.timeout.work.for.NodePort.service
-          - --skip=should.support.be.able.to.switch.session.affinity.for.NodePort.service
-          - --skip=should.support.preserve.source.pod.IP.for.traffic.thru.service.cluster.IP
+          - --skip=NodePort # b/403146710: GDCH lancer cluster does not support NodePort.
           - --keep-going
           - --timeout=2h
           - --no-color
