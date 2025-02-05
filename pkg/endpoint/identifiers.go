@@ -60,6 +60,14 @@ func (e *Endpoint) GetK8sCEPName() string {
 	if e.disableLegacyIdentifiers && e.K8sPodName != "" && e.containerIfName != "" {
 		return e.K8sPodName + "-" + e.containerIfName
 	}
+	// all multinic endpoints prior to release 1.16 have `disableLegacyIdentifiers` set to false.
+	// NOTE: This older naming scheme support will be removed after two releases
+	// after this change is introduced.
+	// TODO(b/394669504) - Remove this after two releases.
+	if e.IsMultiNIC() {
+		suffix := suffix(e.containerIfName, e.K8sPodName)
+		return truncate(e.K8sPodName, maxNameLength-len(suffix)) + suffix
+	}
 	return e.K8sPodName
 }
 

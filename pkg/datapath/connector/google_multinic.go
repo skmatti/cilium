@@ -234,8 +234,8 @@ func addDefaultRoute(gwAddr *net.IP, l netlink.Link) error {
 		return errors.New("default route must have a valid gateway address")
 	}
 	log.WithFields(logrus.Fields{
-		logfields.InterfaceInPod: l.Attrs().Name,
-		"gw":                     gwAddr.String(),
+		logfields.ContainerInterface: l.Attrs().Name,
+		"gw":                         gwAddr.String(),
 	}).Debug("Add default route")
 	dr := &netlink.Route{
 		LinkIndex: l.Attrs().Index,
@@ -505,9 +505,9 @@ func createIPvlanChild(ifName string, parentDevIndex int) error {
 // Otherwise, it returns a function to delete the macvlan interface in the remote network namespace.
 func ConstructCleanupFunc(ifNameInPod, networkNamespace string, podResources map[string][]string, network *networkv1.Network) func() {
 	log.WithFields(logrus.Fields{
-		logfields.InterfaceInPod: ifNameInPod,
-		"networkNamespace":       networkNamespace,
-		"network":                network.Name,
+		logfields.ContainerInterface: ifNameInPod,
+		"networkNamespace":           networkNamespace,
+		"network":                    network.Name,
 	}).Info("Constructing cleanup function")
 
 	parentInterfaceName, _, err := anutils.InterfaceInfo(network, node.GetAnnotations())
@@ -576,12 +576,12 @@ func SetupL2Interface(ifNameInPod, podName string, podResources map[string][]str
 	}
 
 	log.WithFields(logrus.Fields{
-		logfields.DeviceType:     ep.DeviceType,
-		logfields.InterfaceInPod: ifNameInPod,
-		logfields.NetNSName:      ep.NetworkNamespace,
-		"network":                network.Name,
-		"sourceInterface":        srcIfName,
-		"parentInterface":        cfg.ParentInterfaceName,
+		logfields.DeviceType:         ep.DeviceType,
+		logfields.ContainerInterface: ifNameInPod,
+		logfields.NetNSName:          ep.NetworkNamespace,
+		"network":                    network.Name,
+		"sourceInterface":            srcIfName,
+		"parentInterface":            cfg.ParentInterfaceName,
 	}).Info("Set up L2 interface")
 
 	link, err := safenetlink.LinkByName(srcIfName)
@@ -712,11 +712,11 @@ func SetupL3Interface(ifNameInPod, podName string, podResources map[string][]str
 	}
 
 	log.WithFields(logrus.Fields{
-		logfields.DeviceType:     ep.DeviceType,
-		logfields.InterfaceInPod: ifNameInPod,
-		logfields.NetNSName:      ep.NetworkNamespace,
-		"sourceInterface":        peerIfName,
-		"parentInterface":        cfg.ParentInterfaceName,
+		logfields.DeviceType:         ep.DeviceType,
+		logfields.ContainerInterface: ifNameInPod,
+		logfields.NetNSName:          ep.NetworkNamespace,
+		"sourceInterface":            peerIfName,
+		"parentInterface":            cfg.ParentInterfaceName,
 	}).Info("Set up L3 interface")
 
 	ns, err := netns.OpenPinned(ep.NetworkNamespace)
@@ -857,8 +857,8 @@ func SetupDeviceInterface(ifNameInPod, podName string, podResources map[string][
 	// we skip route creation on dpdk device creation
 	isDPDK := true
 	localLog := log.WithFields(logrus.Fields{
-		logfields.InterfaceInPod: ifNameInPod,
-		logfields.NetNSName:      ep.NetworkNamespace,
+		logfields.ContainerInterface: ifNameInPod,
+		logfields.NetNSName:          ep.NetworkNamespace,
 	})
 	localLog.Info("Setting up Device interface")
 	gkeparam, ok := paramsRef.(*networkv1.GKENetworkParamSet)
@@ -974,11 +974,11 @@ func DeleteInterfaceInRemoteNs(ifName, nsPath string) error {
 func SetupNetworkRoutes(ifNameInPod string, intf *networkv1.NetworkInterface, netCR *networkv1.Network, nsPath string,
 	isDefaultInterface bool, podNetworkMTU int, skipInstallation bool) error {
 	log.WithFields(logrus.Fields{
-		logfields.InterfaceInPod: ifNameInPod,
-		logfields.NetNSName:      nsPath,
-		logfields.MTU:            podNetworkMTU,
-		"network":                intf.Spec.NetworkName,
-		"isDefaultInterface":     isDefaultInterface,
+		logfields.ContainerInterface: ifNameInPod,
+		logfields.NetNSName:          nsPath,
+		logfields.MTU:                podNetworkMTU,
+		"network":                    intf.Spec.NetworkName,
+		"isDefaultInterface":         isDefaultInterface,
 	}).Info("Set up network routes")
 
 	var (
@@ -1033,12 +1033,12 @@ func SetupNetworkRoutes(ifNameInPod string, intf *networkv1.NetworkInterface, ne
 				return errors.New("gateway for L3/Device network should not be nil")
 			}
 			log.WithFields(logrus.Fields{
-				logfields.InterfaceInPod: ifNameInPod,
-				logfields.NetNSName:      nsPath,
-				logfields.MTU:            podNetworkMTU,
-				"network":                intf.Spec.NetworkName,
-				"isDefaultInterface":     isDefaultInterface,
-				"gateway":                *gw,
+				logfields.ContainerInterface: ifNameInPod,
+				logfields.NetNSName:          nsPath,
+				logfields.MTU:                podNetworkMTU,
+				"network":                    intf.Spec.NetworkName,
+				"isDefaultInterface":         isDefaultInterface,
+				"gateway":                    *gw,
 			}).Info("Set up route to gateway for L3/Device network")
 			if err := addRoutes([]*net.IPNet{{IP: *gw, Mask: defaults.ContainerIPv4Mask}}, nil, l, mtu); err != nil {
 				return err

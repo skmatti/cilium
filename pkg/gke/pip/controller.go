@@ -322,13 +322,9 @@ func (r *GKEIPRouteReconciler) LookupEndpointByPodNameAndNetwork(name string, ne
 	if !r.googleMultiNICEnabled && networkID != 0 {
 		return nil
 	}
-	// endpoints belonging to default network have a networkID value 0.
-	if !r.googleMultiNICEnabled || networkID == 0 {
-		return r.em.LookupPrimaryEndpointByPodName(name)
-	}
-	eps := r.em.LookupEndpointsByPodName(name)
+	eps := r.em.GetEndpointsByPodName(name)
 	for _, ep := range eps {
-		if ep.DatapathConfiguration.NetworkID == networkID {
+		if ep.GetNetworkID() == networkID {
 			return ep
 		}
 	}

@@ -253,9 +253,6 @@ const (
 	// Interface is an interface id/name on the system
 	Interface = "interface"
 
-	// InterfaceInPod is a interface name inside the pod namespace
-	InterfaceInPod = "interfaceInPod"
-
 	// Ipvlan is a ipvlan object or ID
 	Ipvlan = "ipvlan"
 

@@ -90,7 +90,6 @@ func NewEndpointFromChangeModel(ctx context.Context, owner regeneration.Owner, p
 	if multinicconfig.Enabled() && base.DeviceType != multinicep.EndpointDeviceVETH {
 		ep.parentDevIndex = int(base.ParentDeviceIndex)
 		ep.parentDevName = base.ParentDeviceName
-		ep.ifNameInPod = base.ContainerInterfaceName
 		ep.podStackRedirectIfindex = int(base.PodStackRedirectIfindex)
 		ep.externalDHCP4 = base.ExternalDHCP4
 

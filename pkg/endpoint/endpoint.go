@@ -435,8 +435,6 @@ type Endpoint struct {
 
 	// NetNsCookie is the network namespace cookie of the Endpoint.
 	NetNsCookie uint64
-	// ifNameInPod is the name of the interface inside the pod namespace which connects from endpoint to host
-	ifNameInPod string
 
 	// netNs is the Linux network namespace of the container.
 	netNs string

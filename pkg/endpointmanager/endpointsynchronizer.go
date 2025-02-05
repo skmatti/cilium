@@ -18,7 +18,6 @@ import (
 
 	"github.com/cilium/cilium/pkg/controller"
 	"github.com/cilium/cilium/pkg/endpoint"
-	"github.com/cilium/cilium/pkg/gke/multinic/multinicconfig"
 	"github.com/cilium/cilium/pkg/k8s"
 	cilium_v2 "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2"
 	"github.com/cilium/cilium/pkg/k8s/client"
@@ -44,8 +43,7 @@ var ciliumEndpointToK8sSyncControllerGroup = controller.NewGroup("sync-to-k8s-ci
 // EndpointSynchronizer currently is an empty type, which wraps around syncing
 // of CiliumEndpoint resources.
 type EndpointSynchronizer struct {
-	Clientset            client.Clientset
-	EnableGoogleMultiNIC bool
+	Clientset client.Clientset
 }
 
 // RunK8sCiliumEndpointSync starts a controller that synchronizes the endpoint
@@ -116,16 +114,6 @@ func (epSync *EndpointSynchronizer) RunK8sCiliumEndpointSync(e *endpoint.Endpoin
 					return fmt.Errorf("Kubernetes apiserver is not available")
 				}
 
-				// Regenerate CEP name using Google's naming scheme of endpoints
-				if epSync.EnableGoogleMultiNIC {
-					// K8sPodName and K8sNamespace are not always available when an
-					// endpoint is first created, so we collect them here.
-					cepName = e.GenerateCEPName()
-					if cepName == "" {
-						scopedLog.Debug("Skipping CiliumEndpoint update because it has empty CEP name")
-						return nil
-					}
-				}
 				cepOwner := e.GetCEPOwner()
 				if cepOwner.IsNil() {
 					scopedLog.Debug("Skipping CiliumEndpoint update because it has no k8s namespace")
@@ -449,11 +437,6 @@ func (epSync *EndpointSynchronizer) DeleteK8sCiliumEndpointSync(e *endpoint.Endp
 
 func deleteCEP(ctx context.Context, scopedLog *logrus.Entry, ciliumClient v2.CiliumV2Interface, e *endpoint.Endpoint) error {
 	cepName := e.GetK8sCEPName()
-	if multinicconfig.Enabled() {
-		// K8sPodName and K8sNamespace are not always available when an
-		// endpoint is first created, so we collect them here.
-		cepName = e.GenerateCEPName()
-	}
 	if cepName == "" {
 		scopedLog.Debug("Skipping CiliumEndpoint deletion because it has no k8s cep name")
 		return nil

@@ -95,9 +95,9 @@ func (e *Endpoint) pinDatapathMap() error {
 	return objPin(mapFd, e.BPFMapPath())
 }
 
-// GetInterfaceNameInPod returns the interface name inside the pod namespace.
-func (e *Endpoint) GetInterfaceNameInPod() string {
-	return e.ifNameInPod
+// GetContainerInterfaceName returns the interface name inside the pod namespace.
+func (e *Endpoint) GetContainerInterfaceName() string {
+	return e.containerIfName
 }
 
 // GetNetNS returns the Linux network namespace of the container.
@@ -117,17 +117,6 @@ func truncate(s string, length int) string {
 // with the pod name using CRC-32 which has 8 character length.
 func suffix(ifName, podName string) string {
 	return fmt.Sprintf("-%s-%08x", ifName, crc32.ChecksumIEEE([]byte(podName)))
-}
-
-// GenerateCEPName generates the CEP name for the endpoint.
-// If it's a multi NIC endpoint, the function appends a unique suffix to its pod name.
-// The function honors the maximum character length when appending extra suffix.
-func (e *Endpoint) GenerateCEPName() string {
-	if !e.IsMultiNIC() {
-		return e.K8sPodName
-	}
-	suffix := suffix(e.ifNameInPod, e.K8sPodName)
-	return truncate(e.K8sPodName, maxNameLength-len(suffix)) + suffix
 }
 
 // GetParentDevIndex returns the parent device ifindex.

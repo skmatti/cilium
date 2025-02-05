@@ -278,9 +278,6 @@ func (m *endpointCreationManager) NewCreateRequest(ep *endpoint.Endpoint, cancel
 	}
 
 	cepName := ep.GetK8sNamespaceAndCEPName()
-	if ep.IsMultiNIC() {
-		cepName = fmt.Sprintf("%s-%s", cepName, ep.GetInterfaceNameInPod())
-	}
 
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
@@ -304,9 +301,6 @@ func (m *endpointCreationManager) EndCreateRequest(ep *endpoint.Endpoint) bool {
 	}
 
 	cepName := ep.GetK8sNamespaceAndCEPName()
-	if ep.IsMultiNIC() {
-		cepName = fmt.Sprintf("%s-%s", cepName, ep.GetInterfaceNameInPod())
-	}
 
 	m.mutex.Lock()
 	defer m.mutex.Unlock()

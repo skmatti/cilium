@@ -45,7 +45,6 @@ func (mgr *endpointManager) RemoveAll(t testing.TB) {
 	mgr.epIDAllocator.reallocatePool(t)
 	mgr.endpoints = map[uint16]*endpoint.Endpoint{}
 	mgr.endpointsAux = map[string]*endpoint.Endpoint{}
-	mgr.endpointsMultiNIC = map[string][]*endpoint.Endpoint{}
 }
 
 // WaitEndpointRemoved waits until all operations associated with Remove of

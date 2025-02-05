@@ -63,7 +63,7 @@ func (d *Daemon) CreateEndpoint(ctx context.Context, endpoint *models.EndpointCh
 
 // errorDuringMultiNICCreation deletes all exposed multinic endpoints when an error occurs during creation.
 func (d *Daemon) errorDuringMultiNICCreation(primaryEp *endpoint.Endpoint, code int, err error) ([]*endpoint.Endpoint, int, error) {
-	eps := d.endpointManager.LookupEndpointsByContainerID(primaryEp.GetContainerID())
+	eps := d.endpointManager.GetEndpointsByContainerID(primaryEp.GetContainerID())
 	for _, e := range eps {
 		var errs []error
 		if e.IsMultiNIC() {
@@ -230,14 +230,15 @@ func (d *Daemon) createMultiNICEndpoints(ctx context.Context, multiNICWaitCh cha
 	for _, ref := range interfaceAnnotation {
 		skipEpCreation := false
 		intfLog := log.WithFields(logrus.Fields{
-			logfields.InterfaceInPod: ref.InterfaceName,
-			logfields.K8sPodName:     podID,
+			logfields.ContainerInterface: ref.InterfaceName,
+			logfields.K8sPodName:         podID,
 		})
 		intfLog.Info("Multinic endpoint request")
 
 		multinicTemplate = epTemplate.DeepCopy()
 		multinicTemplate.DatapathConfiguration.DisableSipVerification = disableSourceIPValidation
 		multinicTemplate.DatapathConfiguration.EnableMulticast = enableMulticast
+		multinicTemplate.DisableLegacyIdentifiers = true
 		isDefaultInterface := defaultInterface == ref.InterfaceName
 
 		multinicTemplate.PodStackRedirectIfindex = int64(defaultNetInPodIfIndex)
@@ -387,7 +388,7 @@ func (d *Daemon) createMultiNICEndpoints(ctx context.Context, multiNICWaitCh cha
 
 	if epTemplate.SyncBuildEndpoint {
 		if err := waitForEndpointsFirstRegeneration(ctx,
-			d.endpointManager.LookupEndpointsByContainerID(primaryEp.GetContainerID())); err != nil {
+			d.endpointManager.GetEndpointsByContainerID(primaryEp.GetContainerID())); err != nil {
 			return d.errorDuringMultiNICCreation(primaryEp, PutEndpointIDInvalidCode, err)
 		}
 	}
@@ -609,20 +610,20 @@ func (d *Daemon) deleteMultiNICEndpoint(ep *endpoint.Endpoint, podChanged bool) 
 func (d *Daemon) deleteMultiNICEndpointQuiet(ep *endpoint.Endpoint, conf endpoint.DeleteConfig, podChanged bool) []error {
 	errs := d.endpointManager.RemoveEndpoint(ep, conf)
 	ifName := ep.GetInterfaceName()
-	ifNameInPod := ep.GetInterfaceNameInPod()
+	containerIfName := ep.GetContainerInterfaceName()
 	netNS := ep.GetNetNS()
 	deviceType := ep.GetDeviceType()
 	ep.Logger(daemonSubsys).WithFields(logrus.Fields{
-		logfields.Interface:      ifName,
-		logfields.InterfaceInPod: ifNameInPod,
-		logfields.NetNSName:      netNS,
-		logfields.DeviceType:     deviceType,
+		logfields.Interface:          ifName,
+		logfields.ContainerInterface: containerIfName,
+		logfields.NetNSName:          netNS,
+		logfields.DeviceType:         deviceType,
 	}).Info("Revert multinic endpoint setup")
 
 	if ep.ExternalDHCPEnabled() {
 		// If pod changed, then the interface lease is now maintained by a different pod. The lease should
 		// not released and instead should just expire for this pod.
-		d.dhcpClient.Release(ep.GetContainerID(), netNS, ifNameInPod, podChanged)
+		d.dhcpClient.Release(ep.GetContainerID(), netNS, containerIfName, podChanged)
 	} else {
 		if err := d.releaseMultiNICIP(ep); err != nil {
 			errs = append(errs, err)
@@ -631,13 +632,13 @@ func (d *Daemon) deleteMultiNICEndpointQuiet(ep *endpoint.Endpoint, conf endpoin
 	var err error
 	switch deviceType {
 	case multinicep.EndpointDeviceMACVTAP:
-		err = connector.RevertMacvtapSetup(ifNameInPod, ifName, netNS)
+		err = connector.RevertMacvtapSetup(containerIfName, ifName, netNS)
 	case multinicep.EndpointDeviceMACVLAN:
-		err = connector.DeleteInterfaceInRemoteNs(ifNameInPod, netNS)
+		err = connector.DeleteInterfaceInRemoteNs(containerIfName, netNS)
 	case multinicep.EndpointDeviceIPVLAN:
-		err = connector.DeleteInterfaceInRemoteNs(ifNameInPod, netNS)
+		err = connector.DeleteInterfaceInRemoteNs(containerIfName, netNS)
 	case multinicep.EndpointDeviceMultinicVETH:
-		err = connector.DeleteInterfaceInRemoteNs(ifNameInPod, netNS)
+		err = connector.DeleteInterfaceInRemoteNs(containerIfName, netNS)
 	default:
 		err = fmt.Errorf("unsupported device type %q", deviceType)
 	}
@@ -692,9 +693,9 @@ func (d *Daemon) DeleteEndpointsByID(ctx context.Context, id string) (int, error
 	var eps []*endpoint.Endpoint
 	switch prefix {
 	case endpointid.ContainerIdPrefix:
-		eps = d.endpointManager.LookupEndpointsByContainerID(eid)
+		eps = d.endpointManager.GetEndpointsByContainerID(eid)
 	case endpointid.PodNamePrefix:
-		eps = d.endpointManager.LookupEndpointsByPodName(eid)
+		eps = d.endpointManager.GetEndpointsByPodName(eid)
 	default:
 		return d.DeleteEndpoint(id)
 	}
@@ -707,7 +708,7 @@ func (d *Daemon) DeleteEndpointsByID(ctx context.Context, id string) (int, error
 // DeleteEndpointsByContainerID deletes all the endpoints for the container id.
 // Only called when EnableGoogleMultiNIC is enabled.
 func (d *Daemon) DeleteEndpointsByContainerID(ctx context.Context, id string) (int, error) {
-	eps := d.endpointManager.LookupEndpointsByContainerID(id)
+	eps := d.endpointManager.GetEndpointsByContainerID(id)
 	if len(eps) == 0 {
 		return 0, api.New(DeleteEndpointNotFoundCode, "endpoints for container %q not found", id)
 	}
@@ -773,7 +774,7 @@ func (d *Daemon) deleteEndpoints(ctx context.Context, eps []*endpoint.Endpoint) 
 			return 0, api.Error(DeleteEndpointIDInvalidCode, err)
 		}
 		if ep.IsMultiNIC() {
-			intfCR, ok := ifNameToInterfaceCR[ep.GetInterfaceNameInPod()]
+			intfCR, ok := ifNameToInterfaceCR[ep.GetContainerInterfaceName()]
 			var currentPod string
 			if ok && intfCR == nil {
 				// There is no interface object and pod should never change

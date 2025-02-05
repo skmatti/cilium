@@ -85,7 +85,7 @@ func (ds *EndpointSuite) endpointCreatorMultiNIC(id uint16, secID identity.Numer
 	ep := ds.endpointCreator(id, secID)
 
 	strID := getStrID(id)
-	ep.ifNameInPod = "eth" + strID
+	ep.containerIfName = "eth" + strID
 	ep.netNs = "/proc/" + strID
 	ep.deviceType = multinicep.EndpointDeviceMACVTAP
 	ep.parentDevIndex = int(id)

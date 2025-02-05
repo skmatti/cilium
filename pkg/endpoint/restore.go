@@ -414,7 +414,6 @@ func (e *Endpoint) toSerializedEndpoint() *serializableEndpoint {
 		CiliumEndpointUID:        e.ciliumEndpointUID,
 		Properties:               e.properties,
 		NetnsCookie:              e.NetNsCookie,
-		IfNameInPod:              e.ifNameInPod,
 		NetNs:                    e.netNs,
 		DeviceType:               e.deviceType,
 		ParentDevName:            e.parentDevName,
@@ -631,7 +630,9 @@ func (ep *Endpoint) fromSerializedEndpoint(r *serializableEndpoint) {
 		ep.properties = map[string]interface{}{}
 	}
 	ep.NetNsCookie = r.NetnsCookie
-	ep.ifNameInPod = r.IfNameInPod
+	if ep.containerIfName == "" {
+		ep.containerIfName = r.IfNameInPod
+	}
 	ep.netNs = r.NetNs
 	ep.deviceType = r.DeviceType
 	ep.parentDevName = r.ParentDevName

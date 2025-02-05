@@ -35,7 +35,6 @@ import (
 
 type localEndpointCache interface {
 	LookupCEPName(namespacedName string) *endpoint.Endpoint
-	LookupEndpointsByPodName(name string) []*endpoint.Endpoint
 	GetEndpoints() []*endpoint.Endpoint
 }
 
@@ -157,12 +156,6 @@ func (c *cleanup) cleanStaleCEPs(ctx context.Context) error {
 		return fmt.Errorf("failed to get indexed CiliumEndpointSlice from store: %w", err)
 	}
 	for _, cep := range objs {
-		if c.googleMultiNICEnabled {
-			if err := c.cleanStaleCEPWhenMultiNIC(ctx, c.endpointsCache, cep); err != nil {
-				return fmt.Errorf("could not clean statle CiliumEndpoint when Google MultiNIC is enabled: %w", err)
-			}
-			continue
-		}
 		if cep.Networking.NodeIP == node.GetCiliumEndpointNodeIP() && c.endpointsCache.LookupCEPName(cep.Namespace+"/"+cep.Name) == nil {
 			if err := c.deleteCiliumEndpoint(ctx, cep.Namespace, cep.Name, &cep.ObjectMeta.UID); err != nil {
 				errs = errors.Join(errs, err)
@@ -182,12 +175,6 @@ func (c *cleanup) cleanStaleCESs(ctx context.Context) error {
 	objs, err := store.ByIndex("localNode", node.GetCiliumEndpointNodeIP())
 	if err != nil {
 		return fmt.Errorf("failed to get indexed CiliumEndpointSlice from store: %w", err)
-	}
-	if c.googleMultiNICEnabled {
-		if err := c.cleanStaleCEPinCESWhenMultiNIC(ctx, c.endpointsCache, objs); err != nil {
-			return fmt.Errorf("error while cleaning stale CEPs in CESs: %v", err)
-		}
-		return nil
 	}
 	for _, ces := range objs {
 		for _, cep := range ces.Endpoints {

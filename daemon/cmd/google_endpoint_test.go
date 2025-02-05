@@ -55,7 +55,7 @@ func (ds *DaemonSuite) TestCreateMultiNICEndpointsNoK8sEnabled(t *testing.T) {
 	defer revert()
 	ep, _, err := ds.d.createEndpoint(context.TODO(), ds, epTemplate)
 	require.NoError(t, err)
-	eps := ds.d.endpointManager.LookupEndpointsByContainerID(epTemplate.ContainerID)
+	eps := ds.d.endpointManager.GetEndpointsByContainerID(epTemplate.ContainerID)
 	require.Len(t, eps, 1)
 
 	multiNICCleanupWaitCh := make(chan struct{})
@@ -64,7 +64,7 @@ func (ds *DaemonSuite) TestCreateMultiNICEndpointsNoK8sEnabled(t *testing.T) {
 	require.Equal(t, code, apiEndpoint.PutEndpointIDInvalidCode)
 	// Make sure the primary endpoint is also deleted
 	require.ErrorContains(t, err, "k8s needs to be enabled for multinic endpoint creation")
-	eps = ds.d.endpointManager.LookupEndpointsByContainerID(epTemplate.ContainerID)
+	eps = ds.d.endpointManager.GetEndpointsByContainerID(epTemplate.ContainerID)
 	require.Len(t, eps, 0)
 }
 
@@ -78,7 +78,7 @@ func (ds *DaemonSuite) TestCreateMultiNICEndpointsNoK8sPodName(t *testing.T) {
 	// Create the primary endpoint
 	ep, _, err := ds.d.createEndpoint(context.TODO(), ds, epTemplate)
 	require.NoError(t, err)
-	eps := ds.d.endpointManager.LookupEndpointsByContainerID(epTemplate.ContainerID)
+	eps := ds.d.endpointManager.GetEndpointsByContainerID(epTemplate.ContainerID)
 	require.Len(t, eps, 1)
 
 	multiNICCleanupWaitCh := make(chan struct{})
@@ -87,7 +87,7 @@ func (ds *DaemonSuite) TestCreateMultiNICEndpointsNoK8sPodName(t *testing.T) {
 	require.Equal(t, code, apiEndpoint.PutEndpointIDInvalidCode)
 	// Make sure the primary endpoint is also deleted
 	require.ErrorContains(t, err, "k8s namespace and pod name are required to create multinic endpoints")
-	eps = ds.d.endpointManager.LookupEndpointsByContainerID(epTemplate.ContainerID)
+	eps = ds.d.endpointManager.GetEndpointsByContainerID(epTemplate.ContainerID)
 	require.Len(t, eps, 0)
 }
 
@@ -142,13 +142,13 @@ func (ds *DaemonSuite) TestDeleteEndpointsMissingPod(t *testing.T) {
 	defer revert()
 	ep, _, err := ds.d.createEndpoint(context.TODO(), ds, epTemplate)
 	require.NoError(t, err)
-	eps := ds.d.endpointManager.LookupEndpointsByContainerID(epTemplate.ContainerID)
+	eps := ds.d.endpointManager.GetEndpointsByContainerID(epTemplate.ContainerID)
 	require.Len(t, eps, 1)
 	ds.d.endpointMetadataFetcher = &fakeEndpointMetadataFetcher{&watchers.K8sWatcher{}}
 	_, err = ds.d.deleteEndpoints(context.TODO(), []*endpoint.Endpoint{ep})
 	require.NoError(t, err)
 	// Make sure the primary endpoint is also deleted
-	eps = ds.d.endpointManager.LookupEndpointsByContainerID(epTemplate.ContainerID)
+	eps = ds.d.endpointManager.GetEndpointsByContainerID(epTemplate.ContainerID)
 	require.Len(t, eps, 0)
 }
 

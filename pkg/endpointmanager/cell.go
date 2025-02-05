@@ -253,5 +253,5 @@ type endpointSynchronizerParams struct {
 }
 
 func newEndpointSynchronizer(p endpointSynchronizerParams) EndpointResourceSynchronizer {
-	return &EndpointSynchronizer{Clientset: p.Clientset, EnableGoogleMultiNIC: p.GoogleMultiNIC.EnableGoogleMultiNIC}
+	return &EndpointSynchronizer{Clientset: p.Clientset}
 }

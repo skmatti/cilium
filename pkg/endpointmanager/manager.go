@@ -54,11 +54,6 @@ type endpointManager struct {
 	endpoints    map[uint16]*endpoint.Endpoint
 	endpointsAux map[string]*endpoint.Endpoint
 
-	// endpointsMultiNIC holds IDs of type ContainerIdPrefix and PodNamePrefix to all pods in the container.
-	// This map is only populated if EnableGoogleMultiNIC is true.
-	// mutex must be held to read and write.
-	endpointsMultiNIC map[string][]*endpoint.Endpoint
-
 	// mcastManager handles IPv6 multicast group join/leave for pods. This is required for the
 	// node to receive ICMPv6 NDP messages, especially NS (Neighbor Solicitation) message, so
 	// pod's IPv6 address is discoverable.
@@ -111,7 +106,6 @@ func New(epSynchronizer EndpointResourceSynchronizer, lns *node.LocalNodeStore, 
 		health:                       health,
 		endpoints:                    make(map[uint16]*endpoint.Endpoint),
 		endpointsAux:                 make(map[string]*endpoint.Endpoint),
-		endpointsMultiNIC:            make(map[string][]*endpoint.Endpoint),
 		mcastManager:                 mcastmanager.New(option.Config.IPv6MCastDevice),
 		EndpointResourceSynchronizer: epSynchronizer,
 		subscribers:                  make(map[Subscriber]struct{}),
@@ -535,9 +529,6 @@ func (mgr *endpointManager) updateIDReferenceLocked(ep *endpoint.Endpoint) {
 func (mgr *endpointManager) updateReferencesLocked(ep *endpoint.Endpoint, identifiers endpointid.Identifiers) {
 	for k := range identifiers {
 		id := endpointid.NewID(k, identifiers[k])
-		if mgr.addToMultiNICMapIfNeeded(ep, k, id) {
-			continue
-		}
 		mgr.endpointsAux[id] = ep
 	}
 }
@@ -557,7 +548,6 @@ func (mgr *endpointManager) UpdateReferences(ep *endpoint.Endpoint) error {
 func (mgr *endpointManager) removeReferencesLocked(ep *endpoint.Endpoint, identifiers endpointid.Identifiers) {
 	for prefix := range identifiers {
 		id := endpointid.NewID(prefix, identifiers[prefix])
-		mgr.removeFromMultiNICMapIfNeeded(ep, prefix, id)
 		delete(mgr.endpointsAux, id)
 	}
 }
