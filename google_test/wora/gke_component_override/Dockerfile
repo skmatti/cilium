@@ -1,6 +1,7 @@
-ARG BASE_IMAGE_REGISTRY="us-central1-docker.pkg.dev/anthos-networking-ci/gke-component-images"
-ARG BASE_IMAGE_NAME="advanceddatapath"
-ARG BASE_IMAGE_TAG="0.0.1001"
+# See Makefile for defaults.
+ARG BASE_IMAGE_REGISTRY
+ARG BASE_IMAGE_NAME
+ARG BASE_IMAGE_TAG
 
 FROM "${BASE_IMAGE_REGISTRY}/${BASE_IMAGE_NAME}:${BASE_IMAGE_TAG}" AS base
 # Use reproducible build debian image: go/anthos-baremetal-debian-base-image.
@@ -11,9 +12,9 @@ ARG CILIUM_IMAGE_TAG="nightly"
 ARG CILIUM_OPERATOR_IMAGE_TAG="nightly"
 
 COPY --from=base cilium.yaml.template .
-RUN sed -i 's|image: \"gcr.io\/gke-networking-test-images\/cilium\/cilium:.*\"|image: \"'${CILIUM_IMAGE_REGISTRY}/cilium/cilium:${CILIUM_IMAGE_TAG}'\"|' cilium.yaml.template
+RUN sed -i 's|image: \"{{.AddonsImageRegistry}}\/cilium\/cilium:.*\"|image: \"'${CILIUM_IMAGE_REGISTRY}/cilium/cilium:${CILIUM_IMAGE_TAG}'\"|' cilium.yaml.template
 COPY --from=base cilium-operator.yaml.template .
-RUN sed -i 's|image: \"gcr.io\/gke-networking-test-images\/cilium\/operator:.*\"|image: \"'${CILIUM_IMAGE_REGISTRY}/cilium/operator-generic:${CILIUM_OPERATOR_IMAGE_TAG}'\"|' cilium-operator.yaml.template
+RUN sed -i 's|image: \"{{.KCPAddonsImageRegistry}}\/cilium\/operator:.*\"|image: \"'${CILIUM_IMAGE_REGISTRY}/cilium/operator-generic:${CILIUM_OPERATOR_IMAGE_TAG}'\"|' cilium-operator.yaml.template
 
 FROM "${BASE_IMAGE_REGISTRY}/${BASE_IMAGE_NAME}:${BASE_IMAGE_TAG}"
 COPY --from=runner cilium.yaml.template .
