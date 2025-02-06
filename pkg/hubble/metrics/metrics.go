@@ -12,6 +12,7 @@ import (
 
 	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/collectors"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/sirupsen/logrus"
 	"k8s.io/client-go/util/workqueue"
@@ -142,6 +143,7 @@ func initMetrics(address string, metricsTLSConfig *certloader.WatchedServerConfi
 	}
 	enabledMetrics = e
 
+	registry.MustRegister(collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}))
 	registry.MustRegister(grpcMetrics)
 	registry.MustRegister(LostEvents)
 	registry.MustRegister(RequestsTotal)
