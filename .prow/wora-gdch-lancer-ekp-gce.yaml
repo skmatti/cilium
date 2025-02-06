@@ -354,3 +354,52 @@ presubmits:
       - runner.sh
       args:
       - ./google_test/wora/prow_entrypoint.sh
+- name: wora-gdch-abm-gce-lancer-multicluster_cilium
+  trigger: /test wora-gdch-abm-gce-lancer-multicluster$
+  rerun_command: /test wora-gdch-abm-gce-lancer-multicluster
+  always_run: false
+  skip_fetch_head: true
+  decorate: true
+  decoration_config:
+    timeout: 480m
+  labels:
+    preset-cookie-file: "true"
+    preset-cookie-file-env: "true"
+    preset-service-account: "true"
+    preset-dind-enabled: "true"
+    preset-k8s-ssh: "true"
+    prow.k8s.io/gerrit-report-label: "Verified"
+    prow.k8s.io/pubsub.project: "anthos-baremetal-ci"
+    prow.k8s.io/pubsub.topic: "prow-etl-trigger"
+    prow.k8s.io/pubsub.runID: "row-etl-presubmit-tests"
+  path_alias: gke-internal.googlesource.com/third_party/cilium
+  spec:
+    containers:
+    - image: gcr.io/tailorbird/kubetest2-tailorbird:latest
+      resources:
+        requests:
+          ephemeral-storage: 150Gi
+        limits:
+          ephemeral-storage: 300Gi
+      securityContext:
+        # needed for docker-in-docker
+        privileged: true
+      env:
+      - name: ADD_VXLANS_CLUSTER_TYPE
+        value: gdc-ag
+      - name: CILIUM_GITREF
+        value: HEAD
+      - name: PATCH_CONTENT_DIR
+        value: addon/patch_content/abm-1.31.x-gke/overlays/gdch-lancer
+      - name: TBCONFIG
+        value: sut-gdch-lancer-abm-gce-multicluster.yaml
+      - name: WORA_CONFIG
+        value: multicluster_integration_test.yaml
+      - name: WORA_GINKGO_LABEL_FILTER
+        # TODO: b/384532838 - enable feature tests as features are merged.
+        # egressnat||hostfirewall||l3vm||loadbalancer||sample||tailcall||vpc
+        value: l3vm||sample
+      command:
+      - runner.sh
+      args:
+      - ./google_test/wora/prow_entrypoint.sh

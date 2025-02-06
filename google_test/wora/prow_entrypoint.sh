@@ -134,6 +134,13 @@ if [[ ${PLATFORM} = gdce-gke ]] || [[ ${PLATFORM} = gcp-gke ]]; then
   remove_env "${WORA_CONFIG}" HTTPS_PROXY HTTP_PROXY
 fi
 
+# Check that platform is baremetal-gke when multiple clusters are requested.
+is_multicluster=$(yq '.spec.knests.[0].spec.clusters | length > 1' "${TBCONFIG}")
+if [[ "${is_multicluster}" == true ]] && [[ "${PLATFORM}" != "baremetal-gke" ]]; then
+  echo "Multiple clusters are only supported for baremetal-gke platform." >&2
+  exit 1
+fi
+
 # Set up building and pushing images and add-on configs.
 PROJECT=${GCP_PROJECT:-"anthos-networking-ci"}
 IMAGE_REGISTRY=${IMAGE_REGISTRY:-"gcr.io/${PROJECT}"}

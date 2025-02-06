@@ -92,6 +92,19 @@ function update_cilium_image {
   yq -i '(.spec.template.spec.initContainers[] | select(.image=="*/cilium/cilium:*") | .image) = strenv(image)' "${generated_anet_yaml}"
 }
 
+# Function to update the cluster name & id in cilium config
+function update_cilium_cluster_name_id {
+  local cluster_id="${1:-}"
+  if [[ -n "${cluster_id}" ]]; then
+    local generated_content_tmp_dir="${2:?}"
+    generated_configmap_yaml=${generated_content_tmp_dir}/$(find "${generated_content_tmp_dir}"/ -name '*cilium-config*' | sed "s/.*\///")
+    export cluster_name_suffix="-${cluster_id}"
+    export cluster_id
+    yq -i '.data.cluster-id = strenv(cluster_id)' "${generated_configmap_yaml}"
+    yq -i '.data.cluster-name += strenv(cluster_name_suffix)' "${generated_configmap_yaml}"
+  fi
+}
+
 # Function to attach generated secret to the given sa config.
 function attach_sa_secret {
   local gcr_secret_name="${1:?}"
@@ -120,7 +133,7 @@ function generate_addon_config {
 ' "${SCRIPT_DIR}"/addon/configuration.yaml >"${addon_config_path}"
 
   for file in "${generated_content_tmp_dir}"/*.yaml; do
-    if [ -f "${file}" ]; then
+    if [[ -f "${file}" ]]; then
       api_version=$(yq '.apiVersion' "${file}")
       export api_version
       kind=$(yq '.kind' "${file}")
@@ -142,7 +155,7 @@ function generate_addon_config {
         patch_content=$(cat "${file}")
         export patch_content
       fi
-      if [ "${namespace}" != "null" ]; then
+      if [[ "${namespace}" != "null" ]]; then
         export namespace
         yq -i '.spec.configs += {"apiVersion": strenv(api_version), "kind" : strenv(kind), "name" : strenv(name), "namespace": strenv(namespace), "priority": env(priority), "patchType": strenv(patch_type), "patchContent" : strenv(patch_content)}' "${addon_config_path}"
       else
@@ -194,6 +207,7 @@ function generate_complete_addon_config {
   # addon_config_name is the actually name of the file being uploaded to gcs.
   local addon_config_name="${8:?}"
   local namespace_name="${9:?}"
+  local cluster_id="${10:-}"
   local generated_content_tmp_dir
 
   generated_content_tmp_dir="$(mktemp -d -t generated_content.XXXXX)"
@@ -215,6 +229,7 @@ function generate_complete_addon_config {
 
   update_operator_image "${image_registry}" "${docker_image_tag}" "${generated_content_tmp_dir}"
   update_cilium_image "${image_registry}" "${cilium_docker_image_tag}" "${generated_content_tmp_dir}"
+  update_cilium_cluster_name_id "${cluster_id}" "${generated_content_tmp_dir}"
   if [[ ${create_gcr_secret} = true ]]; then
     generated_serviceaccount_yaml=$(find "${generated_content_tmp_dir}"/ -name '*serviceaccount*')
     if [[ -n ${generated_serviceaccount_yaml} ]]; then
@@ -224,7 +239,7 @@ function generate_complete_addon_config {
   generate_addon_config "${addon_configuration_only_path}" "${namespace_name}" "${patch_content_dir}" "${generated_content_tmp_dir}"
 
   # Remove full addon config if it already exists.
-  if [ -f "${addon_config_name}" ]; then
+  if [[ -f "${addon_config_name}" ]]; then
     rm "${addon_config_name}"
   fi
 
@@ -254,7 +269,10 @@ function generate_complete_addon_config {
 
 rm -rf "${GENERATED_CONFIGS_DIR}"
 mkdir -p "${GENERATED_CONFIGS_DIR}"
-generate_complete_addon_config "${GENERATED_CONFIGS_DIR}" "${PATCH_CONTENT_DIR}" "${CREATE_NAMESPACE}" "${CREATE_GCR_SECRET}" "${IMAGE_REGISTRY}" "${DOCKER_IMAGE_TAG}" "${CILIUM_DOCKER_IMAGE_TAG}" "${WORKDIR}/${ADDON_CONFIG_NAME}" "cluster-${PROW_JOB_ID}-cluster"
+cluster_namespace="${CLUSTER_NAMESPACE:-"cluster-${PROW_JOB_ID}-cluster"}"
+cluster_id=${CLUSTER_ID:-""}
+
+generate_complete_addon_config "${GENERATED_CONFIGS_DIR}" "${PATCH_CONTENT_DIR}" "${CREATE_NAMESPACE}" "${CREATE_GCR_SECRET}" "${IMAGE_REGISTRY}" "${DOCKER_IMAGE_TAG}" "${CILIUM_DOCKER_IMAGE_TAG}" "${WORKDIR}/${ADDON_CONFIG_NAME}" "${cluster_namespace}" "${cluster_id}"
 
 # Push the configuration to gcs bucket.
 gcloud storage cp "${WORKDIR}/${ADDON_CONFIG_NAME}" "${ADDON_CONFIG_BUCKET_URL}/${ADDON_CONFIG_NAME}"
