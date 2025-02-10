@@ -38,6 +38,7 @@ spec:
                 "HERCULES_EXTRA_VLANS": "347,348",
                 "NUM_EXTRA_IPS": "4"
               }
+            project: anthos-networking-ci
             proxyPort: "8218"
             serverOS: ubuntu2004
             username: prowuser

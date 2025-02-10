@@ -32,5 +32,6 @@ spec:
                 "CLUSTER_SIZE": "conformant_cluster",
                 "NUM_NETWORKS": "2"
               }
+            project: anthos-networking-ci
             proxyPort: "8222"
             username: prowuser

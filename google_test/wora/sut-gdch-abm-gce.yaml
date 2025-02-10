@@ -39,6 +39,7 @@ spec:
                 "NODE_IMAGE_SIZE": "n2-standard-4",
                 "NODE_DISK_SIZE": "150"
               }
+            project: anthos-networking-ci
             proxyPort: "8222"
             username: prowuser
             serverOS: gdch-rocky

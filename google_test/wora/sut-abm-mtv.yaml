@@ -34,5 +34,6 @@ spec:
                 "HERCULES_RETRY_INTERVAL": "45m",
                 "CONTAINER_RUNTIME": "containerd"
               }
+            project: anthos-networking-ci
             serverOS: ubuntu2004
             username: prowuser
