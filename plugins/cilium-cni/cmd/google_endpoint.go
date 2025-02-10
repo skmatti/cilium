@@ -63,7 +63,8 @@ func (c *GoogleEndpointConfiguration) PrepareEndpoint(ipam *models.IPAMResponse)
 		DatapathConfiguration:  &models.EndpointDatapathConfiguration{},
 		// Constructs the full path of network namespace on the anetd pod.
 		// /host is the mounted volume of the host's directory
-		NetworkNamespace: filepath.Join("/host", c.Args.Netns),
+		NetworkNamespace:         filepath.Join("/host", c.Args.Netns),
+		DisableLegacyIdentifiers: true,
 	}
 
 	if c.Conf.IpamMode == ipamOption.IPAMDelegatedPlugin {
