@@ -8,8 +8,9 @@ ARG CILIUM_RUNTIME_IMAGE=quay.io/cilium/cilium-runtime:dc1734647705f5cd9e02479b3
 #
 ARG CILIUM_ENVOY_IMAGE=quay.io/cilium/cilium-envoy:v1.32.6-1746661844-0f602c28cb2aa57b29078195049fb257d5b5246c@sha256:a04218c6879007d60d96339a441c448565b6f86650358652da27582e0efbf182
 
-# base bash image used by hubble-cli
-ARG BASE_BASH_IMAGE
+# base bash image used by hubble-cli, set as a never-existing but valid image ref,
+# to be overridden when (and only needed when) building the hubble-cli image.
+ARG BASE_BASH_IMAGE=registry.invalid/repository
 
 FROM ${CILIUM_ENVOY_IMAGE} AS cilium-envoy
 
