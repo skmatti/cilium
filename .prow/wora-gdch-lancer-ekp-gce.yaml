@@ -30,7 +30,7 @@ presubmits:
       # The path for the PATCH_CONTENT_DIR is from the script dir of
       # prow_entrypoint.sh.
       - name: PATCH_CONTENT_DIR
-        value: addon/patch_content/abm-1.31.0-gke.590/overlays/gdch-lancer
+        value: addon/patch_content/abm-1.32.0-gke.566/overlays/gdch-lancer
       - name: TBCONFIG
         value: sut-gdch-abm-gce.yaml
       - name: WORA_CONFIG
@@ -68,7 +68,7 @@ presubmits:
       - name: CILIUM_GITREF
         value: HEAD
       - name: PATCH_CONTENT_DIR
-        value: addon/patch_content/abm-1.31.0-gke.590/overlays/gdch-lancer
+        value: addon/patch_content/abm-1.32.0-gke.566/overlays/gdch-lancer
       - name: TBCONFIG
         value: sut-gdch-abm-gce.yaml
       - name: WORA_CONFIG
@@ -109,7 +109,7 @@ presubmits:
       - name: CILIUM_GITREF
         value: HEAD
       - name: PATCH_CONTENT_DIR
-        value: addon/patch_content/abm-1.31.0-gke.590/overlays/gdch-lancer
+        value: addon/patch_content/abm-1.32.0-gke.566/overlays/gdch-lancer
       - name: TBCONFIG
         value: sut-gdch-abm-gce.yaml
       - name: WORA_CONFIG
@@ -151,7 +151,7 @@ presubmits:
       # The path for the PATCH_CONTENT_DIR is from the script dir of
       # prow_entrypoint.sh.
       - name: PATCH_CONTENT_DIR
-        value: addon/patch_content/abm-1.29.100-gke.76/overlays/gdch-perimeter
+        value: addon/patch_content/abm-1.32.0-gke.566/overlays/gdch-perimeter
       - name: TBCONFIG
         value: sut-gdch-abm-gce.yaml
       - name: WORA_CONFIG
@@ -189,7 +189,7 @@ presubmits:
       - name: CILIUM_GITREF
         value: HEAD
       - name: PATCH_CONTENT_DIR
-        value: addon/patch_content/abm-1.29.100-gke.76/overlays/gdch-perimeter
+        value: addon/patch_content/abm-1.32.0-gke.566/overlays/gdch-perimeter
       - name: TBCONFIG
         value: sut-gdch-abm-gce.yaml
       - name: WORA_CONFIG
@@ -230,7 +230,7 @@ presubmits:
       - name: CILIUM_GITREF
         value: HEAD
       - name: PATCH_CONTENT_DIR
-        value: addon/patch_content/abm-1.29.100-gke.76/overlays/gdch-perimeter
+        value: addon/patch_content/abm-1.32.0-gke.566/overlays/gdch-perimeter
       - name: TBCONFIG
         value: sut-gdch-abm-gce.yaml
       - name: WORA_CONFIG

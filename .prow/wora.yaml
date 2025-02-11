@@ -29,7 +29,7 @@ presubmits:
       - name: CILIUM_GITREF
         value: HEAD
       - name: PATCH_CONTENT_DIR
-        value: addon/patch_content/abm-1.31.0-gke.590/overlays/gdc-so
+        value: addon/patch_content/abm-1.32.0-gke.566/overlays/gdc-so
       - name: TBCONFIG
         value: sut-abm-gce.yaml
       - name: WORA_CONFIG
@@ -67,7 +67,7 @@ presubmits:
       - name: CILIUM_GITREF
         value: HEAD
       - name: PATCH_CONTENT_DIR
-        value: addon/patch_content/abm-1.31.0-gke.590/overlays/gdc-so
+        value: addon/patch_content/abm-1.32.0-gke.566/overlays/gdc-so
       - name: TBCONFIG
         value: sut-abm-gce.yaml
       - name: WORA_CONFIG
@@ -107,7 +107,7 @@ presubmits:
       - name: CILIUM_GITREF
         value: HEAD
       - name: PATCH_CONTENT_DIR
-        value: addon/patch_content/abm-1.31.0-gke.590/overlays/gdc-so
+        value: addon/patch_content/abm-1.32.0-gke.566/overlays/gdc-so
       - name: TBCONFIG
         value: sut-abm-gce.yaml
       - name: WORA_CONFIG
