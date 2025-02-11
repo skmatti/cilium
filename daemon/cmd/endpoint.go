@@ -932,10 +932,15 @@ func deleteEndpointIDHandler(d *Daemon, params DeleteEndpointIDParams) middlewar
 	// Bypass the rate limiter for endpoints that have already been deleted.
 	// Kubelet will generate at minimum 2 delete requests for a Pod, so this
 	// returns in earlier retruns for over half of all delete calls.
-	if ep, err := d.endpointManager.Lookup(params.ID); err != nil {
-		return api.Error(GetEndpointIDInvalidCode, err)
-	} else if ep == nil {
-		return NewGetEndpointIDNotFound()
+	var apiErr *api.APIError
+	if d.googleMultiNICEnabled {
+		apiErr = multiNicEndpointLookup(d, params.ID)
+	} else {
+		apiErr = endpointLookup(d, params.ID)
+	}
+
+	if apiErr != nil {
+		return apiErr
 	}
 
 	r, err := d.apiLimiterSet.Wait(params.HTTPRequest.Context(), restapi.APIRequestEndpointDelete)

@@ -1042,3 +1042,35 @@ func buildPodAnnotation(podIPs networkv1.PodIPsAnnotation, interfaceStatusAnnota
 	ret[networkv1.InterfaceStatusAnnotationKey] = anno
 	return ret, nil
 }
+
+func endpointLookup(d *Daemon, id string) *api.APIError {
+	if ep, err := d.endpointManager.Lookup(id); err != nil {
+		return api.Error(DeleteEndpointIDInvalidCode, err)
+	} else if ep == nil {
+		return api.New(DeleteEndpointIDNotFoundCode, "endpoint not found")
+	} else if err = endpoint.APICanModify(ep); err != nil {
+		return api.Error(DeleteEndpointIDInvalidCode, err)
+	}
+	return nil
+}
+
+func multiNicEndpointLookup(d *Daemon, id string) *api.APIError {
+	prefix, eid, err := endpointid.Parse(id)
+	if err != nil {
+		return api.Error(DeleteEndpointIDInvalidCode, err)
+	}
+	var eps []*endpoint.Endpoint
+	switch prefix {
+	case endpointid.ContainerIdPrefix:
+		eps = d.endpointManager.GetEndpointsByContainerID(eid)
+	case endpointid.PodNamePrefix:
+		eps = d.endpointManager.GetEndpointsByPodName(eid)
+	default:
+		return endpointLookup(d, id)
+	}
+
+	if len(eps) == 0 {
+		return api.New(DeleteEndpointIDNotFoundCode, "endpoints %q not found", id)
+	}
+	return nil
+}
