@@ -95,9 +95,12 @@ func (c *GoogleConfigurator) GetConfigurations(p ConfigurationParams) ([]Endpoin
 		return nil, err
 	}
 
-	epConfigs, err = processNetworks(cniConfig, networkIfaces, p)
-	if err != nil {
-		return nil, err
+	// Process only if a pod has specified networks in its annotations
+	if len(networkIfaces) != 0 {
+		epConfigs, err = processNetworks(cniConfig, networkIfaces, p)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	// We should not return any endpoint configurations if parsing fails at any point.
