@@ -148,6 +148,8 @@ presubmits:
       env:
       - name: CILIUM_GITREF
         value: HEAD
+      - name: PATCH_CONTENT_DIR
+        value: addon/patch_content/abm-1.32.0-gke.566/overlays/gdc-so
       - name: TBCONFIG
         value: sut-abm-mtv.yaml
       - name: WORA_CONTROL_PLANE
@@ -186,6 +188,8 @@ presubmits:
       env:
       - name: CILIUM_GITREF
         value: HEAD
+      - name: PATCH_CONTENT_DIR
+        value: addon/patch_content/abm-1.32.0-gke.566/overlays/gdc-so
       - name: TBCONFIG
         value: sut-abm-mtv.yaml
       - name: WORA_CONFIG
@@ -228,6 +232,8 @@ presubmits:
       env:
       - name: CILIUM_GITREF
         value: HEAD
+      - name: PATCH_CONTENT_DIR
+        value: addon/patch_content/abm-1.32.0-gke.566/overlays/gdc-so
       - name: TBCONFIG
         value: sut-abm-mtv.yaml
       - name: WORA_CONFIG
