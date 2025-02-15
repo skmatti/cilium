@@ -190,6 +190,16 @@ func (rpm *Manager) GetNodeLocalDNSLRPBackends(lrpConfig *LRPConfig) (bool, int)
 		return false, 0
 	}
 
+	// Look up frontend/service IP if its not populated in the LRP config. The frontend IP address could be unpopulated as the redirect manager does not handle update events.
+	if !frontend.AddrCluster.Addr().IsValid() {
+		serviceIP := rpm.svcCache.GetServiceFrontendIP(*lrpConfig.serviceID, lb.SVCTypeClusterIP)
+		if serviceIP == nil {
+			scopedLog.Infof("No service IP found for the local redirect service %s", lrpConfig.id.String())
+			return false, 0
+		}
+		frontend.AddrCluster = cmtypes.MustAddrClusterFromIP(serviceIP)
+	}
+
 	svc, svcFound := rpm.svcManager.GetDeepCopyServiceByFrontend(*frontend)
 	if !svcFound {
 		scopedLog.WithField("frontends", frontend.String()).Info("Service not found")
