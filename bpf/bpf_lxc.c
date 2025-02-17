@@ -832,8 +832,9 @@ static __always_inline int __tail_handle_ipv6(struct __ctx_buff *ctx,
 	/* will tailcall internally or return error */
 	return __per_packet_lb_svc_xlate_6(ctx, ip6, ext_err);
 #else
-	/* won't be a tailcall, see TAIL_CT_LOOKUP6 */
-	return tail_ipv6_ct_egress(ctx);
+	/* Google: should always tailcall if ENABLE_PER_PACKET_LB. */
+    return invoke_tailcall_if(is_defined(ENABLE_PER_PACKET_LB),
+			    CILIUM_CALL_IPV6_CT_EGRESS, tail_ipv6_ct_egress, ext_err);
 #endif /* ENABLE_PER_PACKET_LB && !MULTI_NIC_DEVICE_TYPE */
 }
 
