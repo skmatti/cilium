@@ -34,7 +34,6 @@ const (
 	perimeterVMIP        = "192.168.0.100"
 	allowEgressVM        = "allow-egress-vm"
 	allowEgressVMIP      = "192.168.0.101"
-	curlJobName          = "curl-job"
 	testNamespace        = "egressnat"
 	perimeterNetworkName = "g-org-1-perimeter-cluster"
 	defaultNetworkName   = "g-default-vpc"

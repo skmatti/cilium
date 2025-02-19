@@ -67,6 +67,13 @@ function enable_additional_vxlans {
   remote_execution_from_gce_bootstrapper "docker run --pull=always -v \${PWD}:/workspace '${tool_image}' enable-additional-vxlan --new-vxlan-name vxlan2 --new-vxlan-ID 44 --new-vxlan-network 10.150.0.0/21 --cluster-type '${cluster_type}' --vxlan-dstport ${vxlan_dstport}"
 }
 
+function enable_http_server {
+  local tool_image="us-docker.pkg.dev/anthos-networking-ci/apps/http-server:latest"
+  remote_execution_from_gce_bootstrapper "gcloud auth activate-service-account --key-file=bootstrapper-sa.json"
+  remote_execution_from_gce_bootstrapper "gcloud auth configure-docker us-docker.pkg.dev --quiet"
+  remote_execution_from_gce_bootstrapper "docker run --pull=always -d -p 8080:8080 -v \${PWD}:/workspace '${tool_image}' http-server"
+}
+
 # Revert KUBECONFIG change made by kt2-tb, to avoid control plane login to mess
 # up SUT cluster's kubeconfig.
 if [[ -n "${OLD_KUBECONFIG}" ]] && [[ -n "${ARTIFACTS}" ]] && [[ "${KUBECONFIG#"${ARTIFACTS}"}" != "${KUBECONFIG}" ]]; then
@@ -79,6 +86,11 @@ fi
 
 if [[ -e "${ARTIFACTS}/.kubetest2-tailorbird/tailorbird-request.yaml" ]] && [[ -n "${ADD_VXLANS_CLUSTER_TYPE:-}" ]]; then
   enable_additional_vxlans "${ADD_VXLANS_CLUSTER_TYPE}" "${VXLAN_DSTPORT:-0}"
+fi
+
+# Start http server in bootstapper
+if [[ -e "${ARTIFACTS}/.kubetest2-tailorbird/tailorbird-request.yaml" ]] && [[ -n "${ADD_VXLANS_CLUSTER_TYPE:-}" ]] && [[ "${ADD_VXLANS_CLUSTER_TYPE}" == "gdc-ag" ]]; then
+  enable_http_server
 fi
 
 # This is used to set the cluster artifacts env var.

@@ -68,13 +68,13 @@ var _ = Describe("Verifiers/hostfirewall", Label("hostfirewall"), Ordered, func(
 		err = utils.CreateTestNamespace(ctx, cl, testNamespace2)
 		Expect(err).NotTo(HaveOccurred(), "Failed to create test namespace 2")
 
-		controlplaneNodeIPs, err := utils.GetRequiredNumberOfNodeIPsByLabel(cl, controlPlaneNodeLabel, requiredNumberOfControlPlaneIPs)
+		controlplaneNodeIPs, err := utils.GetRequiredNumberOfNodeIPsByLabel(ctx, cl, controlPlaneNodeLabel, requiredNumberOfControlPlaneIPs)
 		Expect(err).NotTo(HaveOccurred())
 
 		controlplaneip = controlplaneNodeIPs[0]
 		klog.Info("controlplane0 ip is ", controlplaneip)
 
-		workerNodeIPs, err := utils.GetRequiredNumberOfNodeIPsByLabel(cl, workerNodeLabel, requiredNumberOfWorkerNodeIPs)
+		workerNodeIPs, err := utils.GetRequiredNumberOfNodeIPsByLabel(ctx, cl, workerNodeLabel, requiredNumberOfWorkerNodeIPs)
 		Expect(err).NotTo(HaveOccurred())
 
 		worker0ip = workerNodeIPs[0]

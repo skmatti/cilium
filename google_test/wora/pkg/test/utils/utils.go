@@ -347,7 +347,7 @@ func cleanupResources(ctx context.Context, cl k8sclient.Client, podName, namespa
 // RunCurlFromPod executes a curl command from a specific pod to test connectivity
 func RunCurlFromPod(ctx context.Context, cl k8sclient.Client, sourcePodName, targetPodName, targetIP string, port int, namespace string) error {
 	cmd := exec.Command("kubectl", "exec", sourcePodName, "-n", namespace, "--", "curl", fmt.Sprintf("http://%s:%d", targetIP, port))
-	return runCurlCommand(cmd, sourcePodName, targetPodName, targetIP, port)
+	return runCurlCommand(cmd, sourcePodName, targetIP, port, targetPodName)
 }
 
 func RunCurlFromPodWithTimeoutLimit(ctx context.Context, cl k8sclient.Client, sourcePodName, targetPodName, targetIP string, port int, namespace string, timeout int) error {
@@ -355,21 +355,26 @@ func RunCurlFromPodWithTimeoutLimit(ctx context.Context, cl k8sclient.Client, so
 		"kubectl", "exec", sourcePodName, "-n", namespace, "--",
 		"curl", "--max-time", fmt.Sprintf("%d", timeout), fmt.Sprintf("http://%s:%d", targetIP, port),
 	)
-	return runCurlCommand(cmd, sourcePodName, targetPodName, targetIP, port)
+	return runCurlCommand(cmd, sourcePodName, targetIP, port, targetPodName)
 }
 
-func runCurlCommand(cmd *exec.Cmd, sourcePodName, targetPodName, targetIP string, port int) error {
+func runCurlCommand(cmd *exec.Cmd, sourcePodName, targetIP string, port int, expectedResponse string) error {
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("failed to execute curl command: %v, output: %s", err, string(output))
 	}
 
-	if !strings.Contains(string(output), "200 OK") && !strings.Contains(string(output), targetPodName) {
+	if !strings.Contains(string(output), "200 OK") && !strings.Contains(string(output), expectedResponse) {
 		return fmt.Errorf("unexpected curl response: %s", string(output))
 	}
 
 	klog.Infof("Curl command successful from pod %s to %s:%d", sourcePodName, targetIP, port)
 	return nil
+}
+
+func RunCurlCommandWithExpectedResponseFromPod(ctx context.Context, cl k8sclient.Client, sourcePodName, targetIP string, port int, namespace, expectedResponse string) error {
+	cmd := exec.Command("kubectl", "exec", sourcePodName, "-n", namespace, "--", "curl", fmt.Sprintf("http://%s:%d", targetIP, port))
+	return runCurlCommand(cmd, sourcePodName, targetIP, port, expectedResponse)
 }
 
 // VerifyCurlFromPod retry curl command with 1 min timeout and expected 2 consecutive expected connection
@@ -533,26 +538,14 @@ func WaitForPodDeletion(ctx context.Context, cl k8sclient.Client, podName, names
 	})
 }
 
-func GetRequiredNumberOfNodeIPsByLabel(cl k8sclient.Client, labelKey string, requiredNumberOfNodeIPs int) ([]string, error) {
+func GetRequiredNumberOfNodeIPsByLabel(ctx context.Context, cl k8sclient.Client, labelKey string, requiredNumberOfNodeIPs int) ([]string, error) {
 	if requiredNumberOfNodeIPs <= 0 {
-		return nil, fmt.Errorf("Required number of nodeIPs is %v", requiredNumberOfNodeIPs)
+		return nil, fmt.Errorf("required number of nodeIPs is %v", requiredNumberOfNodeIPs)
 	}
-
-	nodeList := &corev1.NodeList{}
-	selector, err := metav1.ParseToLabelSelector(labelKey)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse label selector: %w", err)
-	}
-	labelSelector, err := metav1.LabelSelectorAsSelector(selector)
-	if err != nil {
-		return nil, fmt.Errorf("failed to convert label selector: %w", err)
-	}
-
-	err = cl.List(context.TODO(), nodeList, &k8sclient.ListOptions{LabelSelector: labelSelector})
+	nodeList, err := GetNodeListByLabel(ctx, cl, labelKey)
 	if err != nil {
 		return nil, err
 	}
-
 	var nodeIPs []string
 	currentNodeIPcount := 0
 	for _, node := range nodeList.Items {
@@ -568,7 +561,7 @@ func GetRequiredNumberOfNodeIPsByLabel(cl k8sclient.Client, labelKey string, req
 		}
 	}
 	if len(nodeIPs) < requiredNumberOfNodeIPs {
-		return nil, fmt.Errorf("Required number of nodes: %v less than available number of nodes: %v with lable: %s", requiredNumberOfNodeIPs, len(nodeIPs), labelKey)
+		return nil, fmt.Errorf("required number of nodes: %v less than available number of nodes: %v with lable: %s", requiredNumberOfNodeIPs, len(nodeIPs), labelKey)
 	}
 	return nodeIPs, nil
 }
@@ -618,7 +611,15 @@ func NodePortReadiness(ctx context.Context, c k8sclient.Client, serviceName stri
 	return nil, nodeport
 }
 
-func executeSSHCommandToBootstapper(privateKeyPath, bootstrapperIP, targetIP string, port int) (string, error) {
+func ExecuteCommandFromBootstapper(ctx context.Context, cl k8sclient.Client, command string) (string, error) {
+	kubeconfig := os.Getenv("KUBECONFIG")
+	directory := filepath.Dir(kubeconfig)
+	bootstrapperIP, err := extractBootstrapperIPFromFile(directory)
+	privateKeyPath := fmt.Sprintf("%s/id_rsa", directory)
+
+	if err != nil {
+		return "", err
+	}
 	// Read the private key.
 	privateKey, err := ioutil.ReadFile(privateKeyPath)
 	if err != nil {
@@ -654,9 +655,6 @@ func executeSSHCommandToBootstapper(privateKeyPath, bootstrapperIP, targetIP str
 	}
 	defer session.Close()
 
-	// Construct the command.
-	command := fmt.Sprintf("curl http://%s:%d", targetIP, port)
-
 	// Capture the output.
 	var stdoutBuf bytes.Buffer
 	session.Stdout = &stdoutBuf
@@ -673,17 +671,11 @@ func executeSSHCommandToBootstapper(privateKeyPath, bootstrapperIP, targetIP str
 }
 
 func RunCurlFromBootstrapper(ctx context.Context, cl k8sclient.Client, targetIP string, port int32) error {
-	kubeconfig := os.Getenv("KUBECONFIG")
-	directory := filepath.Dir(kubeconfig)
-	bootstrapperIP, err := extractBootstrapperIPFromFile(directory)
-	privateKeyPath := fmt.Sprintf("%s/id_rsa", directory)
-	if err != nil {
-		return err
-	}
-
+	// Construct the command.
+	command := fmt.Sprintf("curl http://%s:%d", targetIP, port)
 	curlExecuted := func(ctx context.Context) error {
 
-		output, err := executeSSHCommandToBootstapper(privateKeyPath, bootstrapperIP, targetIP, int(port))
+		output, err := ExecuteCommandFromBootstapper(ctx, cl, command)
 		if err != nil {
 			return fmt.Errorf("failed to execute curl command: %v, output: %s", err, output)
 		}
@@ -717,6 +709,24 @@ func extractBootstrapperIPFromFile(directory string) (string, error) {
 		return "", fmt.Errorf("IP address not found in file")
 	}
 	return bootstrapperIP, nil
+}
+
+// Get k8s node Info based on label
+func GetNodeListByLabel(ctx context.Context, cl k8sclient.Client, labelKey string) (*corev1.NodeList, error) {
+	selector, err := metav1.ParseToLabelSelector(labelKey)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse label selector: %w", err)
+	}
+	labelSelector, err := metav1.LabelSelectorAsSelector(selector)
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert label selector: %w", err)
+	}
+	nodeList := &corev1.NodeList{}
+	err = cl.List(ctx, nodeList, &k8sclient.ListOptions{LabelSelector: labelSelector})
+	if err != nil {
+		return nil, err
+	}
+	return nodeList, nil
 }
 
 func KubectlApply(manifest string) error {
