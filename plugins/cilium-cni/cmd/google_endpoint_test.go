@@ -17,6 +17,7 @@ func TestGKEMNEndpointConfiguration(t *testing.T) {
 			"networks": [
 			{
 				"name": "blue-network",
+				"uid": "123",
 				"interface": "eth1",
 				"ipam": {
 				"type": "host-local",
@@ -37,6 +38,7 @@ func TestGKEMNEndpointConfiguration(t *testing.T) {
 			},
 			{
 				"name": "green-network",
+				"uid": "456",
 				"interface": "eth2",
 				"ipam": {
 				"type": "host-local",

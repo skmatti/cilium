@@ -8,9 +8,14 @@ import (
 	"strings"
 
 	"github.com/cilium/cilium/api/v1/models"
+	"github.com/cilium/cilium/pkg/datapath/connector"
 	"github.com/cilium/cilium/pkg/datapath/linux/route"
+	"github.com/cilium/cilium/pkg/datapath/linux/safenetlink"
+	multinicep "github.com/cilium/cilium/pkg/gke/multinic/endpoint"
 	gkeTypes "github.com/cilium/cilium/pkg/gke/types"
 	ipamOption "github.com/cilium/cilium/pkg/ipam/option"
+	"github.com/cilium/cilium/pkg/labels"
+	"k8s.io/apimachinery/pkg/types"
 )
 
 // GoogleConfigurator is the default endpoint configurator. It configures a
@@ -24,16 +29,21 @@ type GoogleEndpointConfiguration struct {
 	ConfigurationParams
 	// NetworkName is the name of the network.
 	NetworkName string
+	// NetworkUID is the UID of the network object.
+	NetworkUID types.UID
 	// IPAMJson is the JSON representation of the network to be passed to the IPAM plugin.
 	IPAMJson []byte
-	//  is the name of the interface.
+	// Interface represents the network interface in the pod's namespace.
 	Interface Interface
+	// ParentInterfaceName is the name of the parent interface.
+	ParentInterfaceName string
 	// Routes is the list of routes to be added to the interface.
 	Routes []route.Route
 }
 
+// Interface represents the network interface in the pod's namespace.
 type Interface struct {
-	// InterfaceName is the name of the interface.
+	// InterfaceName is the name of the interface in the pod's namespace.
 	InterfaceName string `json:"interfaceName"`
 	// Network is the name of the network which the interface belongs to.
 	Network string `json:"network"`
@@ -66,6 +76,18 @@ func (c *GoogleEndpointConfiguration) PrepareEndpoint(ipam *models.IPAMResponse)
 		NetworkNamespace:         filepath.Join("/host", c.Args.Netns),
 		DisableLegacyIdentifiers: true,
 	}
+
+	// We only support L3 multinic-veth device type for multinic endpoints in cilium-cni for now.
+	parentDevLink, err := safenetlink.LinkByName(c.ParentInterfaceName)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to lookup parent interface %q: %v", c.ParentInterfaceName, err)
+	}
+	ep.ParentDeviceMac = parentDevLink.Attrs().HardwareAddr.String()
+	ep.ParentDeviceIndex = int64(parentDevLink.Attrs().Index)
+	ep.ParentDeviceName = parentDevLink.Attrs().Name
+	ep.DeviceType = multinicep.EndpointDeviceMultinicVETH
+	ep.DatapathConfiguration.NetworkID = connector.GenerateNetworkIDFromUID(c.NetworkUID)
+	ep.Labels = append(ep.Labels, labels.GetMultiNICNetworkLabel(c.NetworkName))
 
 	if c.Conf.IpamMode == ipamOption.IPAMDelegatedPlugin {
 		// Prevent cilium agent from trying to release the IP when the endpoint is deleted.
@@ -147,7 +169,6 @@ func processNetworks(cniConfig gkeTypes.CNIConfig, networkIfaces map[string]stri
 	for _, network := range cniConfig.GCP.Networks {
 		// Set the fields that are needed for IPAMJSON consumed by host-local
 		network.CNIVersion = cniConfig.CNIVersion
-		network.Interface = ""
 		network.Type = "cilium-cni"
 		ep_config, err := createEndpointConfiguration(network, networkIfaces, p)
 		if err != nil {
@@ -162,24 +183,30 @@ func processNetworks(cniConfig gkeTypes.CNIConfig, networkIfaces map[string]stri
 // createEndpointConfiguration creates an endpoint configuration for a network.
 func createEndpointConfiguration(network gkeTypes.Network, containerInterface map[string]string, p ConfigurationParams) (*GoogleEndpointConfiguration, error) {
 	if iface, ok := containerInterface[network.Name]; ok {
-		outputJSON, err := marshalNetworks(network)
-		if err != nil {
-			return nil, err
-		}
 		routes, err := parseIPRoutes(network.IPAM.Routes)
 		if err != nil {
 			return nil, err
 		}
-		return &GoogleEndpointConfiguration{
+		epConfig := &GoogleEndpointConfiguration{
 			NetworkName:         network.Name,
-			IPAMJson:            outputJSON,
+			NetworkUID:          network.UID,
 			ConfigurationParams: p,
 			Interface: Interface{
 				InterfaceName: iface,
 				Network:       network.Name,
 			},
-			Routes: routes,
-		}, nil
+			ParentInterfaceName: network.Interface,
+			Routes:              routes,
+		}
+
+		// only pass the required information to the IPAM plugin
+		network.Interface = ""
+		network.UID = ""
+		epConfig.IPAMJson, err = marshalNetworks(network)
+		if err != nil {
+			return nil, err
+		}
+		return epConfig, nil
 	}
 	return nil, fmt.Errorf("network interface not found for network %s", network.Name)
 }

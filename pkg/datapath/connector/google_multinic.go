@@ -176,8 +176,14 @@ func getInterfaceConfiguration(intf *networkv1.NetworkInterface, network *networ
 	return &cfg, nil
 }
 
+// GenerateNetworkID generates a network ID based on the uid of the network object
 func GenerateNetworkID(network *networkv1.Network) uint32 {
 	return crc32.ChecksumIEEE([]byte(network.UID))
+}
+
+// GenerateNetworkIDFromUID generates a network ID basd on the uid
+func GenerateNetworkIDFromUID(uid types.UID) uint32 {
+	return crc32.ChecksumIEEE([]byte(uid))
 }
 
 func applyIPToLink(ipAddr *net.IPNet, l netlink.Link) error {

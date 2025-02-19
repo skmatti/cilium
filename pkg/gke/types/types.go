@@ -1,5 +1,7 @@
 package types
 
+import "k8s.io/apimachinery/pkg/types"
+
 type IPAM struct {
 	// Type is the IPAM plugin to be used.
 	Type string `json:"type"`
@@ -28,7 +30,9 @@ type Network struct {
 	Type string `json:"type"`
 	// Name is the name of the network.
 	Name string `json:"name"`
-	// Interface is the name of the interface to be created.
+	// UID is the UID of the network object.
+	UID types.UID `json:"uid,omitempty"`
+	// Interface is the name of the interface on the host.
 	Interface string `json:"interface,omitempty"`
 	// IPAM is the IPAM configuration for the network.
 	IPAM IPAM `json:"ipam"`
