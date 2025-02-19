@@ -437,7 +437,7 @@ func runHeartbeat(log logrus.FieldLogger, heartBeat func(context.Context) error,
 
 // isConnReady returns the err for the kube-system namespace get
 func isConnReady(c kubernetes.Interface) error {
-	_, err := c.CoreV1().Namespaces().Get(context.TODO(), "kube-system", metav1.GetOptions{})
+	_, err := c.CoreV1().Namespaces().List(context.TODO(), metav1.ListOptions{})
 	return err
 }
 

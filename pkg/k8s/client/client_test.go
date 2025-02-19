@@ -235,7 +235,7 @@ func Test_client(t *testing.T) {
 	require.NoError(t, hive.Start(tlog, ctx))
 
 	// Check that we see the connection probe and version check
-	require.NotNil(t, getRequest("/api/v1/namespaces/kube-system"))
+	require.NotNil(t, getRequest("/api/v1/namespaces"))
 	require.NotNil(t, getRequest("/version"))
 	semVer := k8sversion.Version()
 	require.Equal(t, uint64(99), semVer.Minor)
