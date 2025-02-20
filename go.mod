@@ -312,7 +312,7 @@ require (
 )
 
 replace (
-	gke-internal.googlesource.com/anthos-networking/apis/v2 => gke-internal.googlesource.com/anthos-networking.git/apis/v2 v2.10.2
+	gke-internal.googlesource.com/anthos-networking/apis/v2 => gke-internal.googlesource.com/anthos-networking.git/apis/v2 v2.11.28
 	gke-internal.googlesource.com/kon/pkg => gke-internal.googlesource.com/kon.git/pkg v0.0.0-20240702092033-e9d7919db158
 )
 

@@ -46,6 +46,12 @@ type GKEIPRouteSpec struct {
 	//
 	// +kubebuilder:validation:MinItems=1
 	Addresses []gatewayv1beta1.GatewayAddress `json:"addresses"`
+
+	// LoadBalancing defines the fields required to use a GKEIPRoute in a
+	// load-balancing setup.
+	//
+	// +optional
+	LoadBalancing *LoadBalancing `json:"loadBalancing,omitempty"`
 }
 
 // GKEIPRouteStatus defines the observed state of IPRoute.
@@ -95,4 +101,14 @@ type GKEIPRouteList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
 	Items           []GKEIPRoute `json:"items"`
+}
+
+type LoadBalancing struct {
+	// HealthCheckName is the name of the health check that will
+	// be used to determine which endpoints associated with the
+	// GKEIPRoute are healthy, and route traffic accordingly. Must be
+	// in the same project and region as the cluster.
+	//
+	// +kubebuilder:validation:Required
+	HealthCheckName string `json:"healthCheckName"`
 }

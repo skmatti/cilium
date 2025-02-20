@@ -15,6 +15,8 @@ import (
 	"github.com/cilium/cilium/pkg/time"
 	"github.com/cilium/hive/cell"
 	pipv1 "gke-internal.googlesource.com/anthos-networking/apis/v2/persistent-ip/v1"
+	discoveryv1 "k8s.io/api/discovery/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/rest"
@@ -57,6 +59,7 @@ func setupPersistentIPCtrl(params persistentIPParams) error {
 			scheme := runtime.NewScheme()
 			utilruntime.Must(pipv1.AddToScheme(scheme))
 			utilruntime.Must(networkv1.AddToScheme(scheme))
+			utilruntime.Must(discoveryv1.AddToScheme(scheme))
 			restConfig := params.Clientset.RestConfig()
 			mgr, err := ctrl.NewManager(restConfig, ctrl.Options{
 				Scheme: scheme,
@@ -110,6 +113,9 @@ func filteredCache(config *rest.Config, scheme *runtime.Scheme) cache.NewCacheFu
 		ByObject: map[client.Object]cache.ByObject{
 			&networkv1.Network{}: {},
 			&pipv1.GKEIPRoute{}:  {},
+			&discoveryv1.EndpointSlice{}: {
+				Label: labels.SelectorFromSet(labels.Set{discoveryv1.LabelManagedBy: pipv1.ControllerName}),
+			},
 		},
 	}
 	return func(config *rest.Config, opts cache.Options) (cache.Cache, error) {

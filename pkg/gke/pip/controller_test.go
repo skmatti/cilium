@@ -10,19 +10,19 @@ import (
 func TestNeedsUpdate(t *testing.T) {
 	testCases := []struct {
 		description string
-		dpv2Ready1  metav1.Condition
-		dpv2Ready2  metav1.Condition
+		dpv2Ready1  *metav1.Condition
+		dpv2Ready2  *metav1.Condition
 		wantResp    bool
 	}{
 		{
 			description: "equal fields in dpv2Ready condition should return false",
-			dpv2Ready1: metav1.Condition{
+			dpv2Ready1: &metav1.Condition{
 				Type:               string(pipv1.IPRouteDPV2Ready),
 				ObservedGeneration: 1,
 				Message:            "dummyMessage",
 				Status:             metav1.ConditionTrue,
 			},
-			dpv2Ready2: metav1.Condition{
+			dpv2Ready2: &metav1.Condition{
 				Type:               string(pipv1.IPRouteDPV2Ready),
 				ObservedGeneration: 1,
 				Message:            "dummyMessage",
@@ -32,19 +32,25 @@ func TestNeedsUpdate(t *testing.T) {
 		},
 		{
 			description: "unequal fields in dpv2Ready condition should return true",
-			dpv2Ready1: metav1.Condition{
+			dpv2Ready1: &metav1.Condition{
 				Type:               string(pipv1.IPRouteDPV2Ready),
 				ObservedGeneration: 1,
 				Message:            "dummyMessage",
 				Status:             metav1.ConditionTrue,
 			},
-			dpv2Ready2: metav1.Condition{
+			dpv2Ready2: &metav1.Condition{
 				Type:               string(pipv1.IPRouteDPV2Ready),
 				ObservedGeneration: 1,
 				Message:            "dummyMessage",
 				Status:             metav1.ConditionFalse,
 			},
 			wantResp: true,
+		},
+		{
+			description: "nil condition should return false",
+			dpv2Ready1:  nil,
+			dpv2Ready2:  nil,
+			wantResp:    false,
 		},
 	}
 	r := GKEIPRouteReconciler{}
@@ -56,13 +62,14 @@ func TestNeedsUpdate(t *testing.T) {
 	}
 }
 
-func gkeIPRoute(dpv2Ready metav1.Condition) *pipv1.GKEIPRoute {
-	return &pipv1.GKEIPRoute{
+func gkeIPRoute(dpv2Ready *metav1.Condition) *pipv1.GKEIPRoute {
+	ipr := &pipv1.GKEIPRoute{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "test",
 		},
-		Status: pipv1.GKEIPRouteStatus{
-			Conditions: []metav1.Condition{dpv2Ready},
-		},
 	}
+	if dpv2Ready != nil {
+		ipr.Status.Conditions = []metav1.Condition{*dpv2Ready}
+	}
+	return ipr
 }

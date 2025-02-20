@@ -1834,8 +1834,8 @@ github.com/zeebo/errs v1.3.0/go.mod h1:sgbWHsvVuTPHcqJJGQ1WhI5KbWlHYz+2+2C/LSEtC
 github.com/zeebo/xxh3 v1.0.2/go.mod h1:5NWz9Sef7zIDm2JHfFlcQvNekmcEl9ekUZQQKCYaDcA=
 gitlab.com/golang-commonmark/puny v0.0.0-20191124015043-9f83538fa04f h1:Wku8eEdeJqIOFHtrfkYUByc4bCaTeA6fL0UJgfEiFMI=
 gitlab.com/golang-commonmark/puny v0.0.0-20191124015043-9f83538fa04f/go.mod h1:Tiuhl+njh/JIg0uS/sOJVYi0x2HEa5rc1OAaVsb5tAs=
-gke-internal.googlesource.com/anthos-networking.git/apis/v2 v2.10.2 h1:qfuiybxIOIDuVB1knuNJIcnNDVLQuMbS8MnaV10HsyI=
-gke-internal.googlesource.com/anthos-networking.git/apis/v2 v2.10.2/go.mod h1:d0uX85ZkvMxhd0qpTYQoPyY0BGL6/I9ahhgo8vYQ7N8=
+gke-internal.googlesource.com/anthos-networking.git/apis/v2 v2.11.28 h1:peo6Wk4ORKtrJPGSNwQXGSM0JJ26IQjNU9VedZjrtE4=
+gke-internal.googlesource.com/anthos-networking.git/apis/v2 v2.11.28/go.mod h1:kMxZFlzPKPA/1PUptG9M1Kb6/Qq6+LOnxK15Mu+FZBQ=
 gke-internal.googlesource.com/kon.git/pkg v0.0.0-20240702092033-e9d7919db158 h1:vIE7wCmdiuVS5sqDmXKkWZUhbkyHMYFBhiZYdzWkRE4=
 gke-internal.googlesource.com/kon.git/pkg v0.0.0-20240702092033-e9d7919db158/go.mod h1:qRHNz8vefBP1QyTgC+8ckixgjSzRYT2wx3PDN0dQAJU=
 gke-internal.googlesource.com/kubernetes/gke-node-firewall.git v0.0.20 h1:1dNXjmCaKXzmYSJ4XbKCwU88xAfvkhLc18fd/ComnXA=

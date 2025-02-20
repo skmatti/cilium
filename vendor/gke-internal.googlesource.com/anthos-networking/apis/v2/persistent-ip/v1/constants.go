@@ -1,12 +1,13 @@
 package v1
 
 const (
-	ControllerName          = "persistent-ip-controller"
+	ControllerName          = "gkeiproute-controller"
 	GKEIPRouteFinalizer     = "networking.gke.io/gke-ipr-controller"
 	NetworkEndpointGroupKey = "networking.gke.io/pip-neg"
 	BackendServiceKey       = "networking.gke.io/pip-bs"
 	ForwardingRuleKey       = "networking.gke.io/pip-fr"
 	FirewallKey             = "networking.gke.io/pip-fw"
+	GKEIPRouteKey           = "networking.gke.io/gkeiproute"
 )
 
 // GatewayClasses
@@ -21,6 +22,10 @@ const (
 	FastExternalManaged GatewayClass = "gke-persistent-fast-regional-external-managed"
 	// FastInternalManaged supports internal IPs as persistent IPs with fast convergence.
 	FastInternalManaged GatewayClass = "gke-persistent-fast-regional-internal-managed"
+	// LBExternalManaged supports load balancing external IPs.
+	LBExternalManaged GatewayClass = "gke-passthrough-lb-external-managed"
+	// LBInternalManaged supports load balancing internal IPs.
+	LBInternalManaged GatewayClass = "gke-passthrough-lb-internal-managed"
 )
 
 // IPRouteConditionType is the type for status conditions on
@@ -122,5 +127,7 @@ func SupportedClasses() map[GatewayClass]bool {
 		InternalManaged:     true,
 		FastExternalManaged: true,
 		FastInternalManaged: true,
+		LBExternalManaged:   true,
+		LBInternalManaged:   true,
 	}
 }
