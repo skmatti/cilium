@@ -22,8 +22,19 @@ import (
 )
 
 const (
-	TenantAccessControlLabel                = "tenancy.gke.io/access-control"
-	TenantAccessControlAllTenantsVisibility = "all-tenants"
+	Domain = "tenancy.gke.io"
+
+	AccessLevelLabel = Domain + "/access-level"
+	// AccessLevelTenant is the tenant access level.
+	AccessLevelTenant = "tenant"
+
+	ProjectLabel = Domain + "/project"
+	// NoProject declares the object as agnostic to the project.
+	NoProject = "no-project"
+
+	TenantLabel = Domain + "/tenant"
+	// NoTenant declares the object as agnostic to the tenant.
+	NoTenant = "no-tenant"
 )
 
 // SupportedCRDs returns a list of CRDs supported in GKE Multi-tenancy mode.

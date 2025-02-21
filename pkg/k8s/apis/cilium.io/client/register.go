@@ -418,7 +418,9 @@ func constructV1CRD(
 	}
 
 	if features.GlobalConfig.EnableGKEMultiTenancy {
-		crd.Labels[multitenancyconfig.TenantAccessControlLabel] = multitenancyconfig.TenantAccessControlAllTenantsVisibility
+		crd.Labels[multitenancyconfig.AccessLevelLabel] = multitenancyconfig.AccessLevelTenant
+		crd.Labels[multitenancyconfig.ProjectLabel] = multitenancyconfig.NoProject
+		crd.Labels[multitenancyconfig.TenantLabel] = multitenancyconfig.NoTenant
 	}
 
 	return crd
