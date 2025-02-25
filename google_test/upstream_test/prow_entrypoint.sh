@@ -175,14 +175,12 @@ function create_gce_instance_with_os {
       --machine-type="${test_vm_machine_type}" \
       --boot-disk-size=256GB
   fi
-  wait_for_vm
-  wait_for_config_ssh
 }
 
 function wait_for_vm {
   local count=0
   until gcloud compute ssh --quiet "${TEST_VM_NAME}" --command="echo ready" 2>/dev/null; do
-    if ((count++ >= 5)); then
+    if ((count++ >= 20)); then
       error "Failed to create ${TEST_VM_NAME}, reached the retry limit"
     fi
     log "Waiting $count second(s) for ${TEST_VM_NAME} to be ready"
@@ -240,6 +238,9 @@ allow_ssh
 create_gce_instance_with_os
 
 trap clean_up_gce_instance EXIT
+
+wait_for_vm
+wait_for_config_ssh
 
 # For gdch-rocky, the permission for the created directory needs to be set to 777.
 rexec "sudo mkdir -p ${TEST_VM_INTERNAL_SOURCE_CODE_PATH}; sudo mount -o size=8G -t tmpfs none ${TEST_VM_INTERNAL_SOURCE_CODE_PATH}; sudo chmod -R 777 ${TEST_VM_WORKDIR}"
