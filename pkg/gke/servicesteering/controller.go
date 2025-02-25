@@ -537,7 +537,7 @@ func (r *ServiceSteeringReconciler) extractNetwork(ctx context.Context, selector
 	if err := r.Get(ctx, types.NamespacedName{Name: networkName}, &network); err != nil {
 		return fmt.Errorf("unable to get Network %q: %v", networkName, err)
 	}
-	selector.networkID = connector.GenerateNetworkID(&network)
+	selector.networkID = connector.GenerateNetworkIDFromUID(network.UID)
 	return nil
 }
 

@@ -96,7 +96,7 @@ func (r *NetworkReconciler) UpdateMultiNetMetrics(reasons []string) {
 	nwList := nwStore.List()
 	// For each network, export the number of endpoints
 	for _, network := range nwList {
-		id := connector.GenerateNetworkID(network)
+		id := connector.GenerateNetworkIDFromUID(network.UID)
 		netType := string(network.Spec.Type)
 		epCount := netEpCount[id]
 		metrics.MultiNetworkEndpoint.WithLabelValues(network.Name, netType).Set(float64(epCount))

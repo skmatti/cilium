@@ -399,7 +399,7 @@ func (r *GKEIPRouteReconciler) networkInfo(ctx context.Context, networkName stri
 		return 0, "", err
 	}
 
-	return connector.GenerateNetworkID(&network), network.Spec.Type, nil
+	return connector.GenerateNetworkIDFromUID(network.UID), network.Spec.Type, nil
 }
 
 func (r *GKEIPRouteReconciler) isGKEIPRouteEndpoint(key gkeIPRoutePod) bool {
