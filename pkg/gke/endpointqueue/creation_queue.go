@@ -198,7 +198,7 @@ func processCreateQueue(ctx context.Context, s EndpointCreationSink, config Queu
 }
 
 func createQueuedEndpoints(ctx context.Context, lf *lockfile.Lockfile, createQueueDir string, s EndpointCreationSink, metrics createQueueMetrics, reconcileType string) error {
-
+	// get the list of queued endpoint files. Each file is identified by a CNI attachment ID
 	epQueueFiles, err := getQueuedEndpointFileList(ctx, lf, createQueueDir)
 	if err != nil {
 		return err
@@ -239,6 +239,7 @@ func createEndpointFromFile(ctx context.Context, lf *lockfile.Lockfile, s Endpoi
 		}
 		return fmt.Errorf("read queued endpoint creation entry: %v", err)
 	}
+
 	ep := models.EndpointChangeRequest{}
 	err = ep.UnmarshalBinary(b)
 	if err != nil {

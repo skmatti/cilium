@@ -78,9 +78,10 @@ func (k *CreateQueueTestSuite) queueEndpoint(pod_name string) error {
 	}
 
 	ep := &models.EndpointChangeRequest{
-		ContainerID:  pod_name,
-		K8sPodName:   pod_name,
-		K8sNamespace: "default",
+		ContainerID:            pod_name,
+		K8sPodName:             pod_name,
+		K8sNamespace:           "default",
+		ContainerInterfaceName: "eth0",
 	}
 
 	b, err := ep.MarshalBinary()
@@ -88,7 +89,7 @@ func (k *CreateQueueTestSuite) queueEndpoint(pod_name string) error {
 		return fmt.Errorf("write creation file: %w", err)
 	}
 
-	id := endpointid.NewID(endpointid.ContainerIdPrefix, ep.ContainerID)
+	id := endpointid.NewCNIAttachmentID(ep.ContainerID, ep.ContainerInterfaceName)
 	h := sha256.New()
 	h.Write([]byte(id))
 	filename := fmt.Sprintf("%x.%s", h.Sum(nil), "create")
@@ -97,6 +98,38 @@ func (k *CreateQueueTestSuite) queueEndpoint(pod_name string) error {
 	if err = os.WriteFile(path, b, 0644); err != nil {
 		return fmt.Errorf("write creation file %s: %w", path, err)
 	}
+	return nil
+}
+
+func (k *CreateQueueTestSuite) queueMultiNICEndpoints(pod_name string, infs int) error {
+
+	if err := os.MkdirAll(testCreateQueueDir, 0755); err != nil {
+		return fmt.Errorf("ensure creation queue directory exists: %v", err)
+	}
+
+	for i := 0; i < infs; i++ {
+		ep := &models.EndpointChangeRequest{
+			ContainerID:            pod_name,
+			K8sPodName:             pod_name,
+			K8sNamespace:           "default",
+			ContainerInterfaceName: fmt.Sprintf("eth%d", i),
+		}
+
+		b, err := ep.MarshalBinary()
+		if err != nil {
+			return fmt.Errorf("write creation file: %w", err)
+		}
+
+		id := endpointid.NewCNIAttachmentID(ep.ContainerID, ep.ContainerInterfaceName)
+		h := sha256.New()
+		h.Write([]byte(id))
+		filename := fmt.Sprintf("%x.%s", h.Sum(nil), "create")
+		path := filepath.Join(testCreateQueueDir, filename)
+		if err = os.WriteFile(path, b, 0644); err != nil {
+			return fmt.Errorf("write creation file %s: %w", path, err)
+		}
+	}
+
 	return nil
 }
 
@@ -237,5 +270,23 @@ func TestFileWatcherProcessing(t *testing.T) {
 
 	require.Empty(t, pollCreateQueueDir(testCreateQueueDir, 0, 10*time.Second))
 	require.EqualValues(t, k.d.numEndpointsProcessed, 4)
+	require.Empty(t, k.hive.Stop(tlog, context.Background()))
+}
+
+func TestMultiNICQueuedProcessing(t *testing.T) {
+	k := setupEndpointQueueTestSuite(t)
+	k.queueMultiNICEndpoints("ep1", 2)
+	k.queueMultiNICEndpoints("ep2", 3)
+
+	tlog := hivetest.Logger(t)
+	require.Empty(t, k.hive.Start(tlog, context.Background()))
+	_, err := os.ReadDir(testCreateQueueDir)
+	require.Empty(t, err)
+
+	_, err = os.ReadFile(testCreateQueueLockfile)
+	require.Empty(t, err)
+
+	require.Empty(t, pollCreateQueueDir(testCreateQueueDir, 0, 10*time.Second))
+	require.EqualValues(t, k.d.numEndpointsProcessed, 5)
 	require.Empty(t, k.hive.Stop(tlog, context.Background()))
 }

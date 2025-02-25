@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	networkv1 "github.com/GoogleCloudPlatform/gke-networking-api/apis/network/v1"
 	"github.com/cilium/cilium/api/v1/models"
 	"github.com/cilium/cilium/pkg/datapath/connector"
 	"github.com/cilium/cilium/pkg/datapath/linux/route"
@@ -18,9 +19,8 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 )
 
-// GoogleConfigurator is the default endpoint configurator. It configures a
-// single endpoint for the interface name provided by the CNI ADD invocation,
-// using an auto-selected IPAM pool.
+// GoogleConfigurator is the Google endpoint configurator. It could configure
+// endpoints for GKE multi NIC.
 type GoogleConfigurator struct {
 }
 
@@ -148,6 +148,10 @@ func extractNetworkInterfaces(rt gkeTypes.RuntimeConfig) (map[string]string, err
 		return networkIfaces, nil
 	}
 
+	if rt.PodAnnotations.NetworkingGKEIODefaultInterface == "" {
+		return nil, fmt.Errorf("%s annotation must be set", networkv1.DefaultInterfaceAnnotationKey)
+	}
+
 	ifaceString := strings.ReplaceAll(rt.PodAnnotations.NetworkingGKEIOInterfaces, "\n", "")
 	var interfaces []Interface
 	if err := json.Unmarshal([]byte(ifaceString), &interfaces); err != nil {
@@ -155,6 +159,9 @@ func extractNetworkInterfaces(rt gkeTypes.RuntimeConfig) (map[string]string, err
 	}
 
 	for _, iface := range interfaces {
+		if iface.InterfaceName == "" || (iface.Network != networkv1.DefaultPodNetworkName && iface.InterfaceName == multinicep.DefaultContainerInterfaceName) {
+			return nil, fmt.Errorf("additional interface name cannot be empty nor %q", multinicep.DefaultContainerInterfaceName)
+		}
 		networkIfaces[iface.Network] = iface.InterfaceName
 	}
 

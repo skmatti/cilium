@@ -28,6 +28,8 @@ import (
 	endpointid "github.com/cilium/cilium/pkg/endpoint/id"
 	"github.com/cilium/cilium/pkg/endpoint/regeneration"
 	"github.com/cilium/cilium/pkg/fqdn/restore"
+	multinicep "github.com/cilium/cilium/pkg/gke/multinic/endpoint"
+	"github.com/cilium/cilium/pkg/gke/multinic/multinicconfig"
 	"github.com/cilium/cilium/pkg/ipam"
 	"github.com/cilium/cilium/pkg/k8s"
 	"github.com/cilium/cilium/pkg/k8s/client"
@@ -649,7 +651,8 @@ func putEndpointIDHandler(d *Daemon, params PutEndpointIDParams) (resp middlewar
 		log.WithField(logfields.Params, logfields.Repr(params)).Debug("PUT /endpoint/{id} request")
 	}
 	epTemplate := params.Endpoint
-	if d.googleMultiNICEnabled {
+	if d.googleMultiNICEnabled && epTemplate.ContainerInterfaceName == multinicep.DefaultContainerInterfaceName {
+		// We only add the default network label if the container interface name is the default one, i.e. eth0.
 		addNetworkLabel(epTemplate, networkv1.DefaultPodNetworkName)
 	}
 
@@ -667,7 +670,8 @@ func putEndpointIDHandler(d *Daemon, params PutEndpointIDParams) (resp middlewar
 
 	ep.Logger(daemonSubsys).Info("Successful endpoint creation")
 
-	if d.googleMultiNICEnabled {
+	// When Multi-Nic L3 Migration is enabled, we rely on cilium-cni to create veths, IPAM, and EP construction.
+	if d.googleMultiNICEnabled && !(multinicconfig.L3MigrationEnabled() && ep.GetDeviceType() == multinicep.EndpointDeviceMultinicVETH) {
 		multiNICCleanupWaitCh := make(chan struct{})
 		defer close(multiNICCleanupWaitCh)
 

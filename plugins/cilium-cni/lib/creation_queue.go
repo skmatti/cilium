@@ -111,13 +111,13 @@ func (c *CreationFallbackClient) EndpointCreate(ep *models.EndpointChangeRequest
 		return nil, fmt.Errorf("creation queue directory %s has too many entries(%d); aborting queueing", epqueue.CreateQueueDir, numQueued)
 	}
 
-	endpointId := endpointid.NewID(endpointid.ContainerIdPrefix, ep.ContainerID)
+	cniID := endpointid.NewCNIAttachmentID(ep.ContainerID, ep.ContainerInterfaceName)
 
 	// Prevent queueing both creation and deletion requests for the same container.
 	// This is needed here to prevent having synchronization mechanisms in the
 	// cilium agent to guarantee correct processing order for pod creation and deletion queues.
 	removed := false
-	if removed, err = DeleteFromQueueIfPresent(QueueFilename(endpointId, "delete"), defaults.DeleteQueueDir, defaults.DeleteQueueLockfile, lockAcquireTimeout); err != nil {
+	if removed, err = DeleteFromQueueIfPresent(QueueFilename(cniID, "delete"), defaults.DeleteQueueDir, defaults.DeleteQueueLockfile, lockAcquireTimeout); err != nil {
 		return nil, fmt.Errorf("check delete queue before queueing create: %w", err)
 	}
 	if removed {
@@ -129,8 +129,8 @@ func (c *CreationFallbackClient) EndpointCreate(ep *models.EndpointChangeRequest
 		return nil, fmt.Errorf("write creation file: %w", err)
 	}
 
-	createEndpointPath := filepath.Join(epqueue.CreateQueueDir, QueueFilename(endpointId, "create"))
-	err = appendToFile(createEndpointPath, b)
+	createEndpointPath := filepath.Join(epqueue.CreateQueueDir, QueueFilename(cniID, "create"))
+	err = os.WriteFile(createEndpointPath, b, 0644)
 	if err != nil {
 		c.logger.WithField(logfields.Path, createEndpointPath).WithError(err).Error("write creation file")
 		return nil, fmt.Errorf("write creation file %s: %w", createEndpointPath, err)

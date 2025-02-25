@@ -143,6 +143,62 @@ func TestGKEMNEndpointConfiguration(t *testing.T) {
 
 }
 
+// TestGKEMNEndpointConfigurationWrongDefaultInterfaceName tests the case where the user-specified additional interface name is eth0.
+func TestGKEMNEndpointConfigurationWrongDefaultInterfaceName(t *testing.T) {
+	inputJSON := []byte(`
+	{
+		"cniVersion": "0.3.1",
+		"type": "cilium-cni",
+		"gcp": {
+			"networks": [
+			{
+				"name": "blue-network",
+				"uid": "123",
+				"interface": "eth1",
+				"ipam": {
+				"type": "host-local",
+				"ranges": [
+					[
+					{
+						"subnet": "10.92.1.0/26"
+					}
+					]
+				],
+				"routes": [
+					{
+					"dst": "10.0.0.0/24"
+					}
+				],
+				"dataDir": "/tmp/blue-network"
+				}
+			}
+			]
+		},
+		"runtimeConfig": {
+			"io.kubernetes.cri.pod-annotations": {
+			"kubernetes.io/config.seen": "2025-01-22T22:50:00.990826542Z",
+			"kubernetes.io/config.source": "api",
+			"networking.gke.io/default-interface": "eth0",
+			"networking.gke.io/interfaces": "[\n { \"interfaceName\":\"eth0\", \"network\":\"blue-network\" }\n, { \"interfaceName\":\"eth2\", \"network\":\"green-network\" }\n]"
+			}
+		}
+	}
+	`)
+
+	cfg := GoogleConfigurator{}
+
+	_, err := cfg.GetConfigurations(ConfigurationParams{
+		Args: &skel.CmdArgs{
+			StdinData: inputJSON,
+		},
+	})
+
+	if err == nil {
+		t.Fatalf("Expected error from GetConfiguration, but got none")
+	}
+
+}
+
 // TestGKEMNEndpointConfigurationNoNetworksInPods tests the case where no network interfaces are specified in pods' annotation, but the node have the corresponding networks available.
 func TestGKEMNEndpointConfigurationNoNetworksInPods(t *testing.T) {
 	inputJSON := []byte(`

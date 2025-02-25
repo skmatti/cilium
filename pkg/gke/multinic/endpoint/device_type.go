@@ -15,6 +15,8 @@ const (
 	EndpointDeviceMACVLAN = "macvlan"
 	// EndpointDeviceIPVLAN is an IPVLAN device.
 	EndpointDeviceIPVLAN = "ipvlan"
+	// DefaultContainerInterfaceName is the default interface name for a container.
+	DefaultContainerInterfaceName = "eth0"
 )
 
 // Corresponding int values to the device types.
