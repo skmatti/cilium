@@ -1,4 +1,33 @@
 presubmits:
+- name: gke-advanced-datapath-presubmit-ebpf-ubuntu2404
+  trigger: /test ebpf-ubuntu2404
+  rerun_command: /test ebpf-ubuntu2404
+  always_run: true
+  decorate: true
+  decoration_config:
+    timeout: 240m
+  labels:
+    preset-cookie-file: "true"
+    preset-cookie-file-env: "true"
+    preset-service-account: "true"
+    preset-k8s-ssh: "true"
+    prow.k8s.io/gerrit-report-label: Unit-Verified
+  path_alias: gke-internal.googlesource.com/third_party/cilium
+  spec:
+    containers:
+    - image: gcr.io/gke-test-infra/kubekins-e2e:v20240104-dc2c09a68a-1.29
+      env:
+      - name: GCP_PROJECT
+        value: anthos-networking-ci
+      - name: TEST_TYPE
+        value: ebpf
+      - name: IMAGE_PROJECT
+        value: anthos-baremetal-ci
+      - name: IMAGE_FAMILY
+        value: ubuntu-2404-docker
+      command:
+      - runner.sh
+      - ./google_test/upstream_test/prow_entrypoint.sh
 - name: gke-advanced-datapath-presubmit-ebpf-ubuntu2204
   trigger: /test ebpf-ubuntu2204
   rerun_command: /test ebpf-ubuntu2204
