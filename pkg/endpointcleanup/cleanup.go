@@ -19,7 +19,6 @@ import (
 	"github.com/cilium/cilium/pkg/endpoint"
 	"github.com/cilium/cilium/pkg/endpointmanager"
 	"github.com/cilium/cilium/pkg/endpointstate"
-	"github.com/cilium/cilium/pkg/gke/multinic/multinicconfig"
 	cilium_v2a1 "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2alpha1"
 	k8sClient "github.com/cilium/cilium/pkg/k8s/client"
 	cilium_v2 "github.com/cilium/cilium/pkg/k8s/client/clientset/versioned/typed/cilium.io/v2"
@@ -53,8 +52,6 @@ type params struct {
 	Cfg                 Config
 	DaemonCfg           *option.DaemonConfig
 	EndpointManager     endpointmanager.EndpointManager
-
-	GoogleMultiNIC multinicconfig.Config
 }
 
 type cleanup struct {
@@ -66,7 +63,6 @@ type cleanup struct {
 	endpointsCache             localEndpointCache
 	ciliumEndpointSliceEnabled bool
 	storeReleaseFn             func()
-	googleMultiNICEnabled      bool
 }
 
 func registerCleanup(p params) {
@@ -83,7 +79,6 @@ func registerCleanup(p params) {
 		restorerPromise:            p.RestorerPromise,
 		endpointsCache:             p.EndpointsCache,
 		ciliumEndpointSliceEnabled: p.DaemonCfg.EnableCiliumEndpointSlice,
-		googleMultiNICEnabled:      p.GoogleMultiNIC.EnableGoogleMultiNIC,
 	}
 
 	p.JobGroup.Add(

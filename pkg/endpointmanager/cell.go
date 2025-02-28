@@ -248,8 +248,7 @@ func newDefaultEndpointManager(p endpointManagerParams) endpointManagerOut {
 type endpointSynchronizerParams struct {
 	cell.In
 
-	Clientset      client.Clientset
-	GoogleMultiNIC multinicconfig.Config
+	Clientset client.Clientset
 }
 
 func newEndpointSynchronizer(p endpointSynchronizerParams) EndpointResourceSynchronizer {
