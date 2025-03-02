@@ -124,16 +124,6 @@ static __always_inline __maybe_unused int __per_packet_lb_svc_xlate_4(void *ctx,
 		if (unlikely(lb4_svc_is_localredirect(svc)))
 			goto skip_service_lookup;
 #endif /* ENABLE_LOCAL_REDIRECT_POLICY && ENABLE_SOCKET_LB_FULL */
-#ifdef ENABLE_GOOGLE_SERVICE_STEERING
-{
-		// Do source IP validation before service LB for traffic to service.
-		// Service LB may change source IP for hairpin traffic
-		// so source IP validation has to be done before.
-		// This means SFC doesn't support talking to service IP from IPs different from the orgin pod.
-		if (unlikely(!is_valid_lxc_src_ipv4(ip4)))
-			return DROP_INVALID_SIP;
-}
-#endif  /* ENABLE_GOOGLE_SERVICE_STEERING */
 		ret = lb4_local(get_ct_map4(&tuple), ctx, ipv4_is_fragment(ip4),
 				ETH_HLEN, l4_off, &key, &tuple, svc, &ct_state_new,
 				has_l4_header, false, &cluster_id, ext_err, ENDPOINT_NETNS_COOKIE,
@@ -1143,16 +1133,6 @@ skip_egress_policy:
 		return ret;
 	if (!revalidate_data(ctx, &data, &data_end, &ip4))
 		return DROP_INVALID;
-// #ifdef ENABLE_GOOGLE_SERVICE_STEERING
-// {
-// 	// !ct_state_new.rev_nat_index: It's LB traffic and we already did source IP validation before lb4_local()
-// 	// !ct_state->rev_nat_index: LB return traffic of hairpin flow. SIP validation skipped because it must hit a valid contrack entry.
-// 	if (!ct_state_new.rev_nat_index && !(ct_state && ct_state->rev_nat_index)) {
-// 		if (unlikely(!is_valid_lxc_src_ipv4(ip4)))
-// 			return DROP_INVALID_SIP;
-// 	}
-// }
-// #endif /* ENABLE_GOOGLE_SERVICE_STEERING */
 
 #if defined(ENABLE_HOST_FIREWALL) && !defined(ENABLE_ROUTING) && !defined(MULTI_NIC_DEVICE_TYPE)
 	/* If the destination is the local host and per-endpoint routes are
