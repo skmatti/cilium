@@ -3098,9 +3098,12 @@ skip_service_lookup:
 				// This cannot occur within nodeport_extract_dsr_v4
 				// because that function is used in other contexts.
 				if (__lookup_ip4_endpoint(ip4->daddr)) {
+					void *data, *data_end;
 					ret = remove_dsr_ip_opt_v4(ctx, ip4);
 					if (IS_ERR(ret))
 						return ret;
+					if (!revalidate_data(ctx, &data, &data_end, &ip4))
+						return DROP_INVALID;
 				}
 #endif /* REMOVE_DSR_IP_OPTION */
 				/* Packet continues on its way to local backend: */
