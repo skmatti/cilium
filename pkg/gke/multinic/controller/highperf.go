@@ -3,13 +3,9 @@ package controller
 import (
 	"context"
 	"fmt"
-	"reflect"
-	"sort"
-	"strings"
 
 	networkv1 "github.com/GoogleCloudPlatform/gke-networking-api/apis/network/v1"
 	"github.com/cilium/cilium/pkg/datapath/linux/safenetlink"
-	"github.com/cilium/cilium/pkg/datapath/tables"
 	"github.com/cilium/cilium/pkg/gke/multinic/nic"
 	"github.com/cilium/cilium/pkg/k8s/resource"
 	slim_corev1 "github.com/cilium/cilium/pkg/k8s/slim/k8s/api/core/v1"
@@ -52,11 +48,6 @@ func (r *NetworkReconciler) handleHighPerfNetworks(ctx context.Context, node *sl
 // and one of networks that should not be in network-status.
 // oldNode is read-only
 func (r *NetworkReconciler) reconcileHighPerfNetworks(ctx context.Context, node *slim_corev1.Node) ([]string, []string, error) {
-	links, err := safenetlink.LinkList()
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to list links: %v", err)
-	}
-
 	northInterfaces, err := getNorthInterfaces(node)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to get north interfaces: %v", err)
@@ -80,13 +71,7 @@ func (r *NetworkReconciler) reconcileHighPerfNetworks(ctx context.Context, node 
 	// network names. Will return to indicate what needs updating on the network-status annotation
 	toAdd := make([]string, 0)
 	toRemove := make([]string, 0)
-	// device names. Just for us to track
-	ownedDevices := make([]string, 0)
-	selectedDevices, _ := tables.SelectedDevices(r.Devices, r.DB.ReadTxn())
-	devs := tables.DeviceNames(selectedDevices)
-	oldCiliumDevices := copySlice(devs)
-	sort.Strings(oldCiliumDevices)
-	newCiliumDevices := append(make([]string, 0), oldCiliumDevices...)
+	aliveDevicePCIAddrs := map[string]any{}
 	nwStore, err := r.Networks.Store(ctx)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to fetch networks store: %v", err)
@@ -111,62 +96,29 @@ func (r *NetworkReconciler) reconcileHighPerfNetworks(ctx context.Context, node 
 			r.Log.Infof("Skipped Network %s that is not alive", network.Name)
 			continue
 		}
-		// we delete all entries corresponding to *any* alive Network, not just a Device network
 		info, exists := nicInfo[ipAddr]
 		if !exists {
 			return nil, nil, fmt.Errorf("IP address %s not found in nic-info annotation: %v", ipAddr, nicInfo)
 		}
-		devName := info.birthName
-		if err := r.takeDevice(ctx, devName, &newCiliumDevices); err != nil {
-			return nil, nil, fmt.Errorf("failed to take devcie %s: %v", devName, err)
-		}
+		aliveDevicePCIAddrs[info.pciAddress] = info.birthName
 		toAdd = append(toAdd, network.Name)
-		ownedDevices = append(ownedDevices, devName)
 	}
-	for _, link := range links {
-		dev := link.Attrs().Name
-		isVirt, err := nic.IsVirtual(dev)
+	r.Log.Infof("Excluding Device typed networks from cilium management: %v", aliveDevicePCIAddrs)
+	needReload, err := r.GoogleDeviceManager.ExcludeDevices(aliveDevicePCIAddrs)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to exclude devices: %v", err)
+	}
+	if needReload {
+		r.Log.Info("Reloading datapath")
+		wg, err := r.DeviceMgr.TriggerReload("device-network-exclusion")
 		if err != nil {
-			return nil, nil, fmt.Errorf("unable to find interface %s in sysfs: %v", dev, err)
+			return nil, nil, fmt.Errorf("failed to reload datapath: %v", err)
 		}
-		if isVirt || dev == nic.LoopbackDevName || strings.HasPrefix(dev, nic.TempDevPrefix) {
-			continue
-		}
-		// TODO(pnaduthota): CNI_DEL could fail and dump an interface with a weird name
-		// into our root namespace. Check and rename here
-		if findInSlice(ownedDevices, dev) == -1 {
-			err := r.returnDevice(ctx, dev, &newCiliumDevices)
-			if err != nil {
-				return nil, nil, err
-			}
-		}
-	}
-	// the existing codepaths sort the cilium devices, so we do too
-	sort.Strings(newCiliumDevices)
-	// only update if we've made a change
-	if !reflect.DeepEqual(newCiliumDevices, oldCiliumDevices) {
-		r.Log.Infof("Setting cilium devices from %v to %v", oldCiliumDevices, newCiliumDevices)
-		r.DeviceMgr.ReloadOnDeviceChange(newCiliumDevices)
+		wg.Wait()
 	}
 
 	r.Log.Infof("returning from reconcileHighPerfNetworks. toAdd %v, toRemove: %v.", toAdd, toRemove)
 	return toAdd, toRemove, nil
-}
-
-// takeDevice adds device to controller map if called with device not already in map.
-// Checks if device is in links.
-// Only call with devices in the nic-info annotation.
-// Idempotent.
-func (r *NetworkReconciler) takeDevice(ctx context.Context, dev string, ciliumDevs *[]string) error {
-	idx := findInSlice(*ciliumDevs, dev)
-	// this check should be unnecessary, as we should never be trying
-	// to remove something from the list twice. However, getting it wrong would
-	// break us pretty bad so we play it safe here
-	if idx != -1 {
-		*ciliumDevs = append((*ciliumDevs)[:idx], (*ciliumDevs)[idx+1:]...)
-		r.Log.Infof("removed %s from cilium devs: %v", dev, *ciliumDevs)
-	}
-	return nil
 }
 
 // Init renames all devices found to their birthname and sets the anetd devices list. Does *not*
@@ -181,11 +133,6 @@ func (r *NetworkReconciler) RestoreDevices(ctx context.Context, nicInfoAnn *netw
 		return fmt.Errorf("failed to get nic-info: %v", err)
 	}
 
-	// we take a copy of the list so we can make one atomic change
-	selectedDevices, _ := tables.SelectedDevices(r.Devices, r.DB.ReadTxn())
-	devs := tables.DeviceNames(selectedDevices)
-	ciliumDevicesList := copySlice(devs)
-	r.Log.Infof("Existing cilium devices during RestoreDevices: %v", ciliumDevicesList)
 	devsToRename := map[string]netlink.Link{}
 	for _, link := range links {
 		dev := link.Attrs().Name
@@ -214,9 +161,6 @@ func (r *NetworkReconciler) RestoreDevices(ctx context.Context, nicInfoAnn *netw
 				return err
 			}
 			devsToRename[birthname] = link
-			if idx := findInSlice(ciliumDevicesList, dev); idx != -1 {
-				ciliumDevicesList[idx] = birthname
-			}
 		}
 	}
 	for birthname, link := range devsToRename {
@@ -227,23 +171,6 @@ func (r *NetworkReconciler) RestoreDevices(ctx context.Context, nicInfoAnn *netw
 		if err = netlink.LinkSetUp(link); err != nil {
 			return fmt.Errorf("unable to turn device %s up, err: %v", link, err)
 		}
-	}
-
-	sort.Strings(ciliumDevicesList)
-	r.Log.Infof("Updating cilium devices during RestoreDevices: %v", ciliumDevicesList)
-	// option.Config.SetDevices(ciliumDevicesList)
-
-	return nil
-}
-
-// returnDevice adds device to controller map if called with device not already in map.
-// Only call with devices in the nic-info annotation.
-// Idempotent.
-func (r *NetworkReconciler) returnDevice(ctx context.Context, dev string, ciliumDevs *[]string) error {
-	idx := findInSlice(*ciliumDevs, dev)
-	if idx == -1 {
-		*ciliumDevs = append(*ciliumDevs, dev)
-		r.Log.Infof("added %s into cilium devs: %v", dev, *ciliumDevs)
 	}
 	return nil
 }

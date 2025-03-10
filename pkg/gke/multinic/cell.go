@@ -2,6 +2,7 @@ package multinic
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 
@@ -10,6 +11,7 @@ import (
 	networkv1 "github.com/GoogleCloudPlatform/gke-networking-api/apis/network/v1"
 	agentK8s "github.com/cilium/cilium/daemon/k8s"
 	"github.com/cilium/cilium/pkg/backoff"
+	linuxdatapath "github.com/cilium/cilium/pkg/datapath/linux"
 	"github.com/cilium/cilium/pkg/datapath/linux/safenetlink"
 	"github.com/cilium/cilium/pkg/datapath/tables"
 	"github.com/cilium/cilium/pkg/endpoint"
@@ -59,7 +61,7 @@ type Params struct {
 	Lifecycle                cell.Lifecycle
 	Config                   multinicconfig.Config
 	IPAMMgrPromise           promise.Promise[types.MultiNetworkIPAMManager]
-	HighPerfDeviceMgrPromise promise.Promise[types.HighPerfDeviceManager]
+	HighPerfDeviceMgrPromise promise.Promise[types.DatapathReloader]
 	HostEPMgrPromise         promise.Promise[types.HostEndpointManager]
 	EmPromise                promise.Promise[endpointmanager.EndpointManager]
 	// Write-only clients required by multinetwork reconciler to update
@@ -70,14 +72,18 @@ type Params struct {
 	GKENetworkParamSets resource.Resource[*networkv1.GKENetworkParamSet]
 	NetworkInterfaces   resource.Resource[*networkv1.NetworkInterface]
 	// Handle to local node object required by multinic reconciler
-	LocalNodeResource agentK8s.LocalNodeResource
-	DB                *statedb.DB
-	DeviceTable       statedb.Table[*tables.Device]
+	LocalNodeResource   agentK8s.LocalNodeResource
+	DB                  *statedb.DB
+	DeviceTable         statedb.Table[*tables.Device]
+	GoogleDeviceManager *linuxdatapath.GoogleDeviceManager `optional:"true"`
 }
 
 func initMultinetworking(p Params) error {
 	if !p.Config.EnableGoogleMultiNIC {
 		return nil
+	}
+	if p.GoogleDeviceManager == nil {
+		return errors.New("GoogleDeviceManager must be provided")
 	}
 	multinicconfig.GlobalConfig = p.Config
 	if !p.K8sClient.IsEnabled() {
@@ -127,6 +133,7 @@ func initMultinetworking(p Params) error {
 				Devices:             p.DeviceTable,
 				Log:                 log,
 				LocalNodeResource:   p.LocalNodeResource,
+				GoogleDeviceManager: p.GoogleDeviceManager,
 			}
 
 			if err := r.SetupMultiNetworkingIPAMAllocators(r.IPAMMgr, r.EndpointManager.GetEndpoints()); err != nil {

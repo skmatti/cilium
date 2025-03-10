@@ -986,34 +986,3 @@ func (d *Daemon) SendNotification(notification monitorAPI.AgentNotifyMessage) er
 type endpointMetadataFetcher interface {
 	Fetch(nsName, podName string) (*slim_corev1.Namespace, *slim_corev1.Pod, error)
 }
-
-// ReloadOnDeviceChange regenerates device related information and reloads the datapath.
-// The devices is the new set of devices that replaces the old set.
-// This is here for google multinic and needs to be removed when MN is moved to a cell.
-func (d *Daemon) ReloadOnDeviceChange(devices []string) {
-	// option.Config.SetDevices(devices)
-
-	if option.Config.MasqueradingEnabled() && option.Config.EnableBPFMasquerade {
-		if err := node.InitBPFMasqueradeAddrs(devices); err != nil {
-			log.Warnf("InitBPFMasqueradeAddrs failed: %s", err)
-		}
-	}
-
-	if d.l2announcer != nil {
-		d.l2announcer.DevicesChanged(devices)
-	}
-
-	if option.Config.EnableNodePort {
-		// Synchronize services and endpoints to reflect new addresses onto lbmap.
-		// d.svc.SyncNodePortFrontends(d.Datapath().LocalNodeAddressing())
-		d.controllers.TriggerController(syncHostIPsController)
-	}
-
-	// Reload the datapath.
-	wg, err := d.TriggerReload("devices changed")
-	if err != nil {
-		log.WithError(err).Warn("Failed to reload datapath")
-		return
-	}
-	wg.Wait()
-}

@@ -62,7 +62,7 @@ var googleCell = cell.Module(
 	trafficsteering.Cell,
 
 	cell.Provide(newMultiNetworkIPAMManagerPromise),
-	cell.Provide(newMultiNetworkHighPerfDeviceManagerPromise),
+	cell.Provide(newMultiNetworkDatapathReloaderPromise),
 	cell.Provide(newMultiNetworkHostEndpointManagerPromise),
 	multinicclients.Cell,
 	multinic.Cell,
@@ -116,8 +116,8 @@ func newMultiNetworkIPAMManagerPromise(dp promise.Promise[*Daemon], lc cell.Life
 }
 
 // Converts Daemon promise into a multinetwork highperf device manager promise
-func newMultiNetworkHighPerfDeviceManagerPromise(dp promise.Promise[*Daemon], lc cell.Lifecycle) promise.Promise[multinictypes.HighPerfDeviceManager] {
-	pmResolver, pmPromise := promise.New[multinictypes.HighPerfDeviceManager]()
+func newMultiNetworkDatapathReloaderPromise(dp promise.Promise[*Daemon], lc cell.Lifecycle) promise.Promise[multinictypes.DatapathReloader] {
+	pmResolver, pmPromise := promise.New[multinictypes.DatapathReloader]()
 	lc.Append(cell.Hook{
 		OnStart: func(hc cell.HookContext) error {
 			daemon, err := dp.Await(hc)

@@ -3,6 +3,7 @@ package controller
 import (
 	networkv1 "github.com/GoogleCloudPlatform/gke-networking-api/apis/network/v1"
 	agentK8s "github.com/cilium/cilium/daemon/k8s"
+	linuxdatapath "github.com/cilium/cilium/pkg/datapath/linux"
 	"github.com/cilium/cilium/pkg/datapath/tables"
 	"github.com/cilium/cilium/pkg/endpoint"
 	"github.com/cilium/cilium/pkg/gke/multinic/types"
@@ -26,13 +27,14 @@ type NetworkReconciler struct {
 	EndpointManager     types.EndpointManager
 	NodeName            string
 	IPAMMgr             types.MultiNetworkIPAMManager
-	DeviceMgr           types.HighPerfDeviceManager
+	DeviceMgr           types.DatapathReloader
 	HostEndpointManager types.HostEndpointManager
 	RestoredHostEPs     []*endpoint.Endpoint
 	MetricsTrigger      *trigger.Trigger
 	Log                 *logrus.Entry
 	Devices             statedb.Table[*tables.Device]
 	DB                  *statedb.DB
+	GoogleDeviceManager *linuxdatapath.GoogleDeviceManager
 }
 
 type nicMapValue struct {

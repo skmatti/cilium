@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net"
 	"strings"
+	"sync"
 
 	networkv1 "github.com/GoogleCloudPlatform/gke-networking-api/apis/network/v1"
 	"github.com/cilium/cilium/pkg/cidr"
@@ -35,8 +36,8 @@ type MultiNetworkIPAMManager interface {
 	GetMultiNetworkIPAMAllocators() map[string]ipam.Allocator
 }
 
-type HighPerfDeviceManager interface {
-	ReloadOnDeviceChange(devices []string)
+type DatapathReloader interface {
+	TriggerReload(reason string) (*sync.WaitGroup, error)
 }
 
 // HostEndpointManager specifies the methods to manage multi nic endpoints.

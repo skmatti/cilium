@@ -14,6 +14,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/cilium/cilium/pkg/lock"
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/asm"
 	"github.com/cilium/hive/cell"
@@ -61,6 +62,7 @@ var DevicesControllerCell = cell.Module(
 	cell.Provide(
 		newDevicesController,
 		newDeviceManager,
+		newGoogleDeviceManager,
 	),
 	cell.Config(DevicesConfig{}),
 
@@ -115,6 +117,9 @@ type devicesControllerParams struct {
 
 	// netlinkFuncs is optional and used by tests to verify error handling behavior.
 	NetlinkFuncs *netlinkFuncs `optional:"true"`
+
+	// GoogleDeviceFuncs is optional and used by tests to mock functions.
+	GoogleDeviceFuncs *googleDeviceFuncs `optional:"true"`
 }
 
 type devicesController struct {
@@ -132,6 +137,10 @@ type devicesController struct {
 	deadLinkIndexes sets.Set[int]
 
 	cancel context.CancelFunc // controller's context is cancelled when stopped.
+
+	// Google: exclude these devices with PCI addresses
+	mu           lock.Mutex
+	excludedPCIs map[string]any
 }
 
 func newDevicesController(lc cell.Lifecycle, p devicesControllerParams) (*devicesController, statedb.Table[*tables.Device], statedb.Table[*tables.Route]) {
@@ -148,6 +157,9 @@ func newDevicesController(lc cell.Lifecycle, p devicesControllerParams) (*device
 }
 
 func (dc *devicesController) Start(startCtx cell.HookContext) error {
+	if dc.params.GoogleDeviceFuncs == nil {
+		dc.params.GoogleDeviceFuncs = makeGoogleDeviceFuncs()
+	}
 	if dc.params.NetlinkFuncs == nil {
 		var err error
 		dc.params.NetlinkFuncs, err = makeNetlinkFuncs()
@@ -379,10 +391,13 @@ func (dc *devicesController) processUpdates(
 
 		case <-ticker.C:
 			if len(batch) > 0 {
+				// Google: Make it atomic so we can update the device table and dc.excludedPCIs
+				dc.mu.Lock()
 				txn := dc.params.DB.WriteTxn(dc.params.DeviceTable, dc.params.RouteTable)
 				dc.processBatch(txn, batch)
 				txn.Commit()
 				batch = map[int][]any{}
+				dc.mu.Unlock()
 			}
 		}
 	}
@@ -615,6 +630,17 @@ func (dc *devicesController) isSelectedDevice(d *tables.Device, txn statedb.Writ
 
 	if !hasGlobalRoute(d.Index, dc.params.RouteTable, txn) {
 		return false, "no global unicast routes"
+	}
+
+	if len(dc.excludedPCIs) > 0 {
+		pciAddr, err := dc.params.GoogleDeviceFuncs.ToPCIAddr(d.Name)
+		if err != nil {
+			dc.log.Warn("Failed to get PCI address. Continuing to allow cilium management.", "NICName", d.Name, "error", err)
+		} else {
+			if _, ok := dc.excludedPCIs[pciAddr]; ok {
+				return false, googleDeviceExclusionReason
+			}
+		}
 	}
 
 	return true, ""
