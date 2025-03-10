@@ -14,31 +14,21 @@ import (
 	"github.com/cilium/cilium/pkg/datapath/tables"
 	"github.com/cilium/cilium/pkg/endpoint"
 	"github.com/cilium/cilium/pkg/gke/features"
-	"github.com/cilium/cilium/pkg/gke/multinic/multinicconfig"
+	"github.com/cilium/cilium/pkg/k8s/resource"
+	slim_corev1 "github.com/cilium/cilium/pkg/k8s/slim/k8s/api/core/v1"
 	"github.com/cilium/cilium/pkg/logging"
 	"github.com/cilium/cilium/pkg/logging/logfields"
 	"github.com/cilium/cilium/pkg/time"
-	"github.com/cilium/cilium/pkg/trigger"
 	"github.com/sirupsen/logrus"
 	"github.com/vishvananda/netlink"
-	"go.uber.org/multierr"
-	corev1 "k8s.io/api/core/v1"
-	k8sErrors "k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/types"
-	ctrl "sigs.k8s.io/controller-runtime"
-	"sigs.k8s.io/controller-runtime/pkg/builder"
-	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/event"
-	"sigs.k8s.io/controller-runtime/pkg/handler"
-	"sigs.k8s.io/controller-runtime/pkg/manager"
-	"sigs.k8s.io/controller-runtime/pkg/predicate"
-
 	anutils "gke-internal.googlesource.com/anthos-networking/apis/v2/utils"
+	"go.uber.org/multierr"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 )
 
 const (
 	listNetworkTimeout = time.Second * 5
-	minTriggerInternal = time.Second * 5
 	// Directory to store all object files for multinic parent devices.
 	multinicObjDir = "/var/run/cilium/state/multinic"
 )
@@ -47,156 +37,52 @@ var (
 	logger = logging.DefaultLogger.WithField(logfields.LogSubsys, "gke-multinic-network-controller")
 )
 
-func (r *NetworkReconciler) Reconcile(ctx context.Context, req ctrl.Request) (_ ctrl.Result, rerr error) {
-	if !multinicconfig.Enabled() {
-		return ctrl.Result{}, nil
-	}
-	r.Log = logger.WithField("namespacedName", req.NamespacedName)
+func (r *NetworkReconciler) reconcile(ctx context.Context, nwName string) (rerr error) {
+	r.Log = logger.WithField("namespacedName", nwName)
 
-	r.metricsTrigger.Trigger()
+	r.MetricsTrigger.Trigger()
 
-	r.Log.Info("Reconciling")
-	oldNode := &corev1.Node{}
-	if err := r.Get(ctx, types.NamespacedName{Name: r.NodeName}, oldNode); err != nil {
-		return ctrl.Result{}, fmt.Errorf("failed to get k8s node %q: %v", r.NodeName, err)
+	r.Log.Infof("Reconciling network %s", nwName)
+	oldNode, err := r.LocalNode(ctx)
+	if err != nil {
+		return err
 	}
-	node := oldNode.DeepCopy()
+	desiredNode := oldNode.DeepCopy()
 
 	defer func() {
-		err := r.patchNodeAnnotations(ctx, oldNode, node)
+		err := r.patchNodeAnnotations(ctx, oldNode, desiredNode)
 		rerr = multierr.Append(rerr, err)
 	}()
 	if features.GlobalConfig.PopulateGCENICInfo {
-		if err := r.handleHighPerfNetworks(ctx, node, oldNode); err != nil {
-			return ctrl.Result{}, err
+		if err := r.handleHighPerfNetworks(ctx, desiredNode, oldNode); err != nil {
+			return err
 		}
 	}
-	network := &networkv1.Network{}
-	if err := r.Get(ctx, req.NamespacedName, network); err != nil {
-		if k8sErrors.IsNotFound(err) {
-			r.Log.Info("Network not found. Ignoring because it was probably deleted.")
-			// If Network IsNotFound, remove it from status
-			if err := deleteFromNetworkStatus(ctx, node, req.NamespacedName.Name, "", "", r.Log); err != nil {
-				r.Log.WithError(err).Errorf("Failed to update node network status annotation")
-				return ctrl.Result{}, err
-			}
-			return ctrl.Result{}, nil
+	nwStore, err := r.Networks.Store(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to fetch networks store: %v", err)
+	}
+	network, exists, err := nwStore.GetByKey(resource.Key{Name: nwName})
+	if err != nil {
+		return fmt.Errorf("failed to fetch network %s: from store %v", nwName, err)
+	}
+	if !exists {
+		r.Log.Info("Network not found. Ignoring because it was probably deleted.")
+		// If Network IsNotFound, remove it from status
+		if err := deleteFromNetworkStatus(ctx, desiredNode, nwName, "", "", r.Log); err != nil {
+			r.Log.WithError(err).Errorf("Failed to update node network status annotation")
+			return err
 		}
-		r.Log.WithError(err).Error("Unable to get network object")
-		return ctrl.Result{}, err
+		return nil
 	}
 	if !network.ObjectMeta.DeletionTimestamp.IsZero() {
-		return r.reconcileNetworkDelete(ctx, node, network)
+		return r.reconcileNetworkDelete(ctx, desiredNode, network)
 	}
-
-	return r.reconcileNetwork(ctx, node, network)
-}
-
-// SetupWithManager configures this controller in the manager.
-func (r *NetworkReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	if err := os.MkdirAll(multinicObjDir, os.ModePerm); err != nil {
-		return err
-	}
-	t, err := trigger.NewTrigger(trigger.Parameters{
-		Name:        "multi-network-endpoint-metrics",
-		MinInterval: minTriggerInternal,
-		TriggerFunc: r.updateMultiNetMetrics,
-	})
-	if err != nil {
-		return fmt.Errorf("unable to initialize endpoint trigger function: %v", err)
-	}
-	r.metricsTrigger = t
-	// Only subscribe to endpoint manager when manager is started
-	mgr.Add(manager.RunnableFunc(func(context.Context) error {
-		r.EndpointManager.Subscribe(r)
-		return nil
-	}))
-	return ctrl.NewControllerManagedBy(mgr).
-		For(&networkv1.Network{}, builder.WithPredicates(
-			predicate.Funcs{
-				UpdateFunc: func(e event.UpdateEvent) bool {
-					oldNet := e.ObjectOld.(*networkv1.Network)
-					newNet := e.ObjectNew.(*networkv1.Network)
-					if !reflect.DeepEqual(oldNet.Spec, newNet.Spec) {
-						return true
-					}
-					if !reflect.DeepEqual(oldNet.Status, newNet.Status) {
-						return true
-					}
-					if !reflect.DeepEqual(oldNet.Finalizers, newNet.Finalizers) {
-						return true
-					}
-					if !reflect.DeepEqual(oldNet.DeletionTimestamp, newNet.DeletionTimestamp) {
-						return true
-					}
-					return false
-				},
-			})).
-		Watches(&corev1.Node{},
-			handler.EnqueueRequestsFromMapFunc(r.mapNodeToNetwork),
-			builder.WithPredicates(
-				predicate.Funcs{
-					UpdateFunc: func(e event.UpdateEvent) bool {
-						if e.ObjectOld.GetAnnotations()[networkv1.NorthInterfacesAnnotationKey] != e.ObjectNew.GetAnnotations()[networkv1.NorthInterfacesAnnotationKey] {
-							return true
-						}
-						if e.ObjectOld.GetAnnotations()[networkv1.MultiNetworkAnnotationKey] != e.ObjectNew.GetAnnotations()[networkv1.MultiNetworkAnnotationKey] {
-							return true
-						}
-						return false
-					},
-				})).
-		Complete(r)
-}
-
-func (r *NetworkReconciler) mapNodeToNetwork(ctx context.Context, obj client.Object) []ctrl.Request {
-	node := obj.(*corev1.Node)
-	log := logger.WithField("name", client.ObjectKeyFromObject(node))
-	// The default pod-network is always expected to be present. Hence, we reconcile on the default pod-network
-	// whenever multi-network annotation changes. Note that the default pod-network is not a part of multi-network
-	// annotation. The reconciliation flow parses through the multi-network annotation and builds the allocators
-	// accordingly.
-	req := []ctrl.Request{
-		{
-			// TODO(b/269187538): Remove request from the list once DefaultNetworkName is deprecated.
-			NamespacedName: types.NamespacedName{Name: networkv1.DefaultNetworkName},
-		},
-		{
-			NamespacedName: types.NamespacedName{Name: networkv1.DefaultPodNetworkName},
-		},
-	}
-
-	// Add networks from north-interface annotation, if present
-	// we add all since we do not know what was changed.
-	items, err := getNorthInterfaces(node)
-	if err != nil {
-		// getNorthInterfaces() only returns error if it can't be parsed.
-		log.WithError(err).Info("failed to get north interfaces")
-		return req
-	}
-	log.Infof("mapNodeToNetwork with north interfaces: %+v", items)
-	for name := range items {
-		req = append(req, ctrl.Request{NamespacedName: types.NamespacedName{Name: name}})
-	}
-
-	return req
-}
-
-func (r *NetworkReconciler) isCiliumManaged(dev string) bool {
-	selectedDevices, _ := tables.SelectedDevices(r.Devices, r.DB.ReadTxn())
-	devs := tables.DeviceNames(selectedDevices)
-
-	// for _, d := range option.Config.GetDevices() {
-	for _, d := range devs {
-		if d == dev {
-			return true
-		}
-	}
-	return false
+	return r.reconcileNetwork(ctx, desiredNode, network)
 }
 
 // loadEBPFOnParent loads datapath ebpf programs on the parent interface.
-func (r *NetworkReconciler) loadEBPFOnParent(ctx context.Context, network *networkv1.Network, node *corev1.Node) error {
+func (r *NetworkReconciler) loadEBPFOnParent(ctx context.Context, network *networkv1.Network, node *slim_corev1.Node) error {
 	if r.EndpointManager == nil {
 		r.Log.Info("EndpointManager is nil. Please make sure the reconciler is initialized successfully")
 		return nil
@@ -295,7 +181,7 @@ func (r *NetworkReconciler) deleteMultiNICHostEndpoint(network, devToUnload stri
 	return nil
 }
 
-func (r *NetworkReconciler) unloadEBPFOnParent(ctx context.Context, network *networkv1.Network, node *corev1.Node) error {
+func (r *NetworkReconciler) unloadEBPFOnParent(ctx context.Context, network *networkv1.Network, node *slim_corev1.Node) error {
 	devToUnload, _, err := anutils.InterfaceInfo(network, node.GetAnnotations())
 	if err != nil {
 		r.Log.Infof("errored generating interface name for network %s: %s", network.Name, err)
@@ -321,86 +207,7 @@ func (r *NetworkReconciler) unloadEBPFOnParent(ctx context.Context, network *net
 	return nil
 }
 
-// ensureVlanID ensures that an interface named `parentIntName.vlanID` exists with
-// the proper vlan ID
-func ensureVlanID(vlanIntName string, vlanID int, parentLink netlink.Link, log *logrus.Entry) error {
-	// check if tagged interface already exists
-	link, err := safenetlink.LinkByName(vlanIntName)
-	if err == nil {
-		origVlan, ok := link.(*netlink.Vlan)
-		if !ok {
-			return fmt.Errorf("interface %s is not a vlan (%+v)", vlanIntName, origVlan)
-		}
-
-		if origVlan.VlanId != vlanID {
-			return fmt.Errorf("existing interface %s has vlan id %d, expected %d", vlanIntName, origVlan.VlanId, vlanID)
-		}
-		if parentLink.Attrs().Index != origVlan.Attrs().ParentIndex {
-			return fmt.Errorf("existing interface %s has parent interface %s, expected %s", vlanIntName, origVlan.Attrs().Name, parentLink.Attrs().Name)
-		}
-	} else {
-		vlan := netlink.Vlan{
-			LinkAttrs: netlink.LinkAttrs{
-				ParentIndex: parentLink.Attrs().Index,
-				Name:        vlanIntName,
-			},
-			VlanId: vlanID,
-		}
-
-		if err := netlink.LinkAdd(&vlan); err != nil {
-			return fmt.Errorf("failed to create tagged interface %s : %q", vlanIntName, err)
-		}
-
-		link = &vlan
-	}
-
-	if err := netlink.LinkSetUp(link); err != nil {
-		return fmt.Errorf("failed to bring up network vlan interface %q: %v", vlanIntName, err)
-	}
-
-	log.WithField("vlan", vlanIntName).Info("Ensured vlan interface")
-	return nil
-}
-
-func updateNodeNetworkStatusAnnotation(ctx context.Context, node *corev1.Node, networkName string, ipv4, ipv6 string, log *logrus.Entry, isAdd bool) error {
-	netStatusMap, err := getNetworkStatusMap(node)
-	if err != nil {
-		return fmt.Errorf("failed to get network status map from node %q: %v", node.Name, err)
-	}
-
-	oldNetAnnotation, exist := netStatusMap[networkName]
-	if isAdd {
-		if exist && oldNetAnnotation.IPv4Subnet == ipv4 && oldNetAnnotation.IPv6Subnet == ipv6 {
-			return nil
-		}
-		netStatusMap[networkName] = networkv1.NodeNetworkStatus{Name: networkName, IPv4Subnet: ipv4, IPv6Subnet: ipv6}
-	} else {
-		if !exist {
-			return nil
-		}
-		delete(netStatusMap, networkName)
-	}
-	netAnnotations, err := marshalNodeNetworkAnnotation(netStatusMap)
-	if err != nil {
-		return fmt.Errorf("failed to marshal node network annotation %v: %v", netStatusMap, err)
-	}
-
-	if node.Annotations == nil {
-		node.Annotations = make(map[string]string)
-	}
-	node.Annotations[networkv1.NodeNetworkAnnotationKey] = netAnnotations
-	return nil
-}
-
-func addToNodeNetworkStatus(ctx context.Context, node *corev1.Node, networkName string, ipv4, ipv6 string, log *logrus.Entry) error {
-	return updateNodeNetworkStatusAnnotation(ctx, node, networkName, ipv4, ipv6, log, true)
-}
-
-func deleteFromNetworkStatus(ctx context.Context, node *corev1.Node, networkName string, ipv4, ipv6 string, log *logrus.Entry) error {
-	return updateNodeNetworkStatusAnnotation(ctx, node, networkName, ipv4, ipv6, log, false)
-}
-
-func (r *NetworkReconciler) patchNodeAnnotations(ctx context.Context, oldNode, node *corev1.Node) error {
+func (r *NetworkReconciler) patchNodeAnnotations(ctx context.Context, oldNode, node *slim_corev1.Node) error {
 	var oldVal, newVal string
 	if node.Annotations != nil {
 		newVal = node.Annotations[networkv1.NodeNetworkAnnotationKey]
@@ -416,21 +223,21 @@ func (r *NetworkReconciler) patchNodeAnnotations(ctx context.Context, oldNode, n
 			return fmt.Errorf("failed to build patch bytes for multi-networking: %w", err)
 		}
 		patch := []byte(fmt.Sprintf(`{"metadata":{"annotations":%s}}`, raw))
-		if err := r.Client.Patch(ctx, node, client.RawPatch(types.StrategicMergePatchType, patch)); err != nil {
+		if _, err := r.Clientset.CoreV1().Nodes().Patch(ctx, node.Name, types.StrategicMergePatchType, patch, metav1.PatchOptions{}); err != nil {
 			return fmt.Errorf("failed to patch k8s node %q: %v", node.Name, err)
 		}
 	}
 	return nil
 }
 
-func (r *NetworkReconciler) reconcileNetwork(ctx context.Context, node *corev1.Node, network *networkv1.Network) (_ ctrl.Result, rerr error) {
+func (r *NetworkReconciler) reconcileNetwork(ctx context.Context, node *slim_corev1.Node, network *networkv1.Network) (rerr error) {
 	defer func() {
 		if rerr == nil {
 			r.Log.Info("Reconciled successfully")
 		}
 	}()
 	if network.Spec.Type == networkv1.DeviceNetworkType {
-		return ctrl.Result{}, nil
+		return nil
 	}
 
 	var err error
@@ -443,17 +250,17 @@ func (r *NetworkReconciler) reconcileNetwork(ctx context.Context, node *corev1.N
 			// to reconcile. If missing north-interface annotation, new event will be
 			// trigger on that annotation update (used by GKE).
 			r.Log.Errorf("unable to discover interface name for network %s: %v", network.Name, err)
-			return ctrl.Result{}, nil
+			return nil
 		}
 		if err := ensureInterface(network, intfName, r.Log); err != nil {
 			r.Log.WithError(err).Error("Unable to ensure network interface")
-			return ctrl.Result{}, err
+			return err
 		}
 	}
 
 	if err := r.loadEBPFOnParent(ctx, network, node); err != nil {
 		r.Log.WithError(err).Error("Unable to load ebpf on parent interface")
-		return ctrl.Result{}, err
+		return err
 	}
 	// Obtain ip/subnet for node network
 	ipv4, ipv6, err := r.obtainSubnet(network, node)
@@ -462,122 +269,54 @@ func (r *NetworkReconciler) reconcileNetwork(ctx context.Context, node *corev1.N
 	}
 	if err := addToNodeNetworkStatus(ctx, node, network.Name, ipv4, ipv6, r.Log); err != nil {
 		r.Log.WithError(err).Error("Failed to update node network status annotation")
-		return ctrl.Result{}, err
+		return err
 	}
 	if err := r.updateMultiNetworkIPAM(ctx, network); err != nil {
 		r.Log.WithError(err).Error("Failed to update node multi-network IPAM")
-		return ctrl.Result{}, err
+		return err
 	}
 	if err := r.IPAMMgr.ReserveGatewayIP(network); err != nil {
 		r.Log.WithError(err).Error("Failed to reserve gateway IP")
-		return ctrl.Result{}, err
+		return err
 	}
 	if err := r.updateHostDeviceRouting(ctx); err != nil {
 		r.Log.WithError(err).Error("Failed to update host device routing map entries")
-		return ctrl.Result{}, err
+		return err
 	}
 	r.Log.Info("Reconciled successfully")
-	return ctrl.Result{}, nil
+	return nil
 }
 
-func (r *NetworkReconciler) reconcileNetworkDelete(ctx context.Context, node *corev1.Node, network *networkv1.Network) (_ ctrl.Result, rerr error) {
+func (r *NetworkReconciler) reconcileNetworkDelete(ctx context.Context, node *slim_corev1.Node, network *networkv1.Network) (rerr error) {
 	if network.Spec.Type == networkv1.DeviceNetworkType {
-		return ctrl.Result{}, nil
+		return nil
 	}
 	inUseAnn := network.Annotations[networkv1.NetworkInUseAnnotationKey]
 	if inUseAnn == networkv1.NetworkInUseAnnotationValTrue {
 		r.Log.Infof("Network %q is still in use, exit reconciliation", network.Name)
-		return ctrl.Result{}, nil
+		return nil
 	}
 	if err := r.unloadEBPFOnParent(ctx, network, node); err != nil {
 		r.Log.WithError(err).Error("Unable to unload ebpf on parent interface")
-		return ctrl.Result{}, err
+		return err
 	}
 	if err := deleteVlanID(network, node, r.Log); err != nil {
 		r.Log.WithError(err).Errorf("Unable to delete tagged interface")
-		return ctrl.Result{}, err
+		return err
 	}
 	if err := r.updateHostDeviceRouting(ctx); err != nil {
 		r.Log.WithError(err).Error("Failed to update host device routing map entries")
-		return ctrl.Result{}, err
+		return err
 	}
 	if err := deleteFromNetworkStatus(ctx, node, network.Name, "", "", r.Log); err != nil {
 		r.Log.WithError(err).Errorf("Failed to update node network status annotation")
-		return ctrl.Result{}, err
+		return err
 	}
 	r.Log.Info("Reconciled on networkDelete successfully")
-	return ctrl.Result{}, nil
-}
-
-// deleteVlanID deletes the specified vlan tag in the the Network CR if
-// lifecycle is AnthosManaged
-// TODO(b/283301614):
-func deleteVlanID(network *networkv1.Network, node *corev1.Node, log *logrus.Entry) error {
-	if !hasVlanTag(network) {
-		return nil
-	}
-
-	taggedIntName, _, err := anutils.InterfaceInfo(network, node.GetAnnotations())
-	if err != nil {
-		log.Errorf("deleteVlanID: Errored generating interface name for network %s: %s", network.Name, err)
-		return nil
-	}
-
-	link, err := safenetlink.LinkByName(taggedIntName)
-	if err != nil {
-		if _, ok := err.(netlink.LinkNotFoundError); ok {
-			log.Infof("Link for host interface %s for network %s does not exist or was already deleted: %s", taggedIntName, network.Name, err)
-			return nil
-		}
-		return fmt.Errorf("errored getting link for host interface %s for network %s: %w", taggedIntName, network.Name, err)
-	}
-
-	log.Infof("Deleting interface %s for network %s", taggedIntName, network.Name)
-	err = netlink.LinkDel(link)
-	if err != nil {
-		return fmt.Errorf("failed to delete vlan %s for network %s: %w", taggedIntName, network.Name, err)
-	}
-
 	return nil
 }
 
-func hasVlanTag(network *networkv1.Network) bool {
-	if network.Spec.L2NetworkConfig == nil || network.Spec.L2NetworkConfig.VlanID == nil {
-		return false
-	}
-
-	if network.Spec.NetworkLifecycle != nil && *network.Spec.NetworkLifecycle == networkv1.UserManagedLifecycle {
-		return false
-	}
-	return true
-
-}
-
-func ensureInterface(network *networkv1.Network, intfName string, log *logrus.Entry) error {
-	scopedLog := log.WithField(logfields.Interface, intfName)
-	parentIntName := intfName
-	if network.Spec.L2NetworkConfig != nil && network.Spec.L2NetworkConfig.VlanID != nil {
-		parentIntName = *network.Spec.NodeInterfaceMatcher.InterfaceName
-	}
-	link, err := safenetlink.LinkByName(parentIntName)
-	if err != nil {
-		return fmt.Errorf("failed to find parent interface %s: %q", parentIntName, err)
-	}
-	if err := netlink.LinkSetUp(link); err != nil {
-		return fmt.Errorf("failed to bring up network parent interface %q: %v", parentIntName, err)
-	}
-	scopedLog.WithField("parentInterface", parentIntName).Info("Ensured parent interface")
-
-	if hasVlanTag(network) {
-		if err := ensureVlanID(intfName, int(*network.Spec.L2NetworkConfig.VlanID), link, scopedLog); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-func (r *NetworkReconciler) obtainSubnet(network *networkv1.Network, node *corev1.Node) (string, string, error) {
+func (r *NetworkReconciler) obtainSubnet(network *networkv1.Network, node *slim_corev1.Node) (string, string, error) {
 	if networkv1.IsDefaultNetwork(network.Name) {
 		return "", "", nil
 	}
@@ -613,4 +352,133 @@ func (r *NetworkReconciler) obtainSubnet(network *networkv1.Network, node *corev
 	}
 
 	return ipv4, ipv6, nil
+}
+
+func (r *NetworkReconciler) isCiliumManaged(dev string) bool {
+	selectedDevices, _ := tables.SelectedDevices(r.Devices, r.DB.ReadTxn())
+	for _, d := range selectedDevices {
+		if d.Name == dev {
+			return true
+		}
+	}
+	return false
+}
+
+func (r *NetworkReconciler) Run(ctx context.Context, networkChan <-chan resource.Event[*networkv1.Network], localNodeChan <-chan resource.Event[*slim_corev1.Node]) {
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case event, ok := <-networkChan:
+			if !ok {
+				return
+			}
+			r.processNetworkEvent(ctx, event)
+		case event, ok := <-localNodeChan:
+			if !ok {
+				return
+			}
+			r.processNodeEvent(ctx, event)
+		}
+	}
+}
+
+func (r *NetworkReconciler) processNetworkEvent(ctx context.Context, event resource.Event[*networkv1.Network]) {
+	if (event.Kind != resource.Upsert && event.Kind != resource.Delete) || event.Object == nil {
+		event.Done(nil)
+		return
+	}
+	nw := event.Object
+	if r.lastNetworksCache == nil {
+		r.lastNetworksCache = make(map[string]*networkv1.Network)
+	}
+	oldNw, ok := r.lastNetworksCache[nw.Name]
+	if ok && !networkNeedsReconcile(oldNw, nw) {
+		r.lastNetworksCache[nw.Name] = nw.DeepCopy()
+		r.Log.Infof("Received %s event for network %s, skipping reconciliation as there are no differences from old copy", event.Kind, nw.Name)
+		event.Done(nil)
+		return
+	}
+	r.Log.Infof("Received %s event for network: %s", event.Kind, nw.Name)
+	var err error
+	// update local copy of current network upon successfully reconciliation
+	if err = r.reconcile(ctx, nw.Name); err != nil {
+		r.Log.Errorf("error while reconciling network %s: %v", nw.Name, err)
+	} else {
+		r.lastNetworksCache[nw.Name] = nw.DeepCopy()
+	}
+	event.Done(err)
+}
+
+func networkNeedsReconcile(oldNet, newNet *networkv1.Network) bool {
+	if !reflect.DeepEqual(oldNet.Spec, newNet.Spec) {
+		return true
+	}
+	if !reflect.DeepEqual(oldNet.Status, newNet.Status) {
+		return true
+	}
+	if !reflect.DeepEqual(oldNet.Finalizers, newNet.Finalizers) {
+		return true
+	}
+	if !reflect.DeepEqual(oldNet.DeletionTimestamp, newNet.DeletionTimestamp) {
+		return true
+	}
+	return false
+}
+
+func (r *NetworkReconciler) processNodeEvent(ctx context.Context, event resource.Event[*slim_corev1.Node]) {
+	if event.Kind != resource.Upsert || event.Object == nil {
+		event.Done(nil)
+		return
+	}
+	r.Log.Infof("Received %s event for node: %s", event.Kind, event.Object.Name)
+
+	// For every node event after the first one, the received object in the event will be compared to the existing local node within the reconciler.
+	// This helps us to compare old and new versions of the object and reconcile only when there are any differences.
+	if err := r.handleNodeEvent(ctx, event); err != nil {
+		r.Log.Errorf("error while handling node event: %v", err)
+		event.Done(err)
+	} else {
+		event.Done(nil)
+	}
+}
+
+func (r *NetworkReconciler) handleNodeEvent(ctx context.Context, event resource.Event[*slim_corev1.Node]) error {
+	var err error
+	nodeFromEvent := event.Object
+	if r.lastNode != nil && !nodeAnnotationsUpdated(r.lastNode, nodeFromEvent) {
+		r.Log.Infof("No annotations updated, ignoring node event")
+		return err
+	}
+	r.Log.Infof("Node annotations changed from recent event, proceeding with networks reconciliation")
+	// Parse the annotations on the node and extract the networks to reconcile on.
+	nws := mapNodeToNetwork(ctx, event.Object)
+	var rerrs []error
+	for _, nw := range nws {
+		if err := r.reconcile(ctx, nw); err != nil {
+			rerrs = append(rerrs, err)
+		}
+	}
+	if len(rerrs) > 0 {
+		err = fmt.Errorf("error while reconciling one or more networks on node: %s", r.NodeName)
+	} else {
+		// update local node copy with node from latest event
+		r.lastNode = nodeFromEvent
+	}
+	return err
+}
+
+func (r *NetworkReconciler) LocalNode(ctx context.Context) (*slim_corev1.Node, error) {
+	nodeStore, err := r.LocalNodeResource.Store(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch local node store: %v", err)
+	}
+	localNode, exists, err := nodeStore.GetByKey(resource.Key{Name: r.NodeName})
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch local node %s: %v", r.NodeName, err)
+	}
+	if !exists {
+		return nil, fmt.Errorf("local node %s not found", r.NodeName)
+	}
+	return localNode, nil
 }

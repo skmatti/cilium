@@ -287,7 +287,7 @@ func (d *Daemon) createMultiNICEndpoints(ctx context.Context, multiNICWaitCh cha
 			intfCR.Status.PodName = utilpointer.String(primaryEp.GetK8sPodName())
 		} else if intfCR != nil {
 			if netCR.Spec.ParametersRef != nil {
-				if netParamsRef, err = d.multinicClient.GetNetworkParamObject(ctx, netCR.Spec.ParametersRef); err != nil {
+				if netParamsRef, err = d.multinicClient.GetGKENetworkParamSet(ctx, netCR.Spec.ParametersRef); err != nil {
 					intfLog.WithField("network", netCR.Name).Infof("Failed to get network params ref %v", err)
 				}
 			}
@@ -672,7 +672,7 @@ func (d *Daemon) restoreInterfaceIfDeviceNetwork(ctx context.Context, ref networ
 		return nil
 	}
 	log.Infof("Restoring device for Device network %s.", netCR.Name)
-	netParamsRef, err := d.multinicClient.GetNetworkParamObject(ctx, netCR.Spec.ParametersRef)
+	netParamsRef, err := d.multinicClient.GetGKENetworkParamSet(ctx, netCR.Spec.ParametersRef)
 	if err != nil {
 		return fmt.Errorf("Error getting params object %s for network %s: %v", netCR.Spec.ParametersRef.Name, netCR.Name, err)
 	}

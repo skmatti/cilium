@@ -18,7 +18,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/utils/pointer"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 func (ds *DaemonSuite) TestCreateEndpointQueue(t *testing.T) {
@@ -217,6 +216,6 @@ func (m *mockMultiNICClient) PatchNetworkInterfaceStatus(ctx context.Context, ob
 func (m *mockMultiNICClient) PatchPodAnnotation(ctx context.Context, obj *v1.Pod, anno map[string]string) error {
 	return nil
 }
-func (m *mockMultiNICClient) GetNetworkParamObject(ctx context.Context, ref *networkv1.NetworkParametersReference) (client.Object, error) {
+func (m *mockMultiNICClient) GetGKENetworkParamSet(ctx context.Context, ref *networkv1.NetworkParametersReference) (*networkv1.GKENetworkParamSet, error) {
 	return nil, nil
 }

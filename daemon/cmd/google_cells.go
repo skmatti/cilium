@@ -10,6 +10,8 @@ import (
 	"github.com/cilium/cilium/pkg/gke/fqdnnetworkpolicy"
 	"github.com/cilium/cilium/pkg/gke/imds"
 	"github.com/cilium/cilium/pkg/gke/multinic"
+	multinicclients "github.com/cilium/cilium/pkg/gke/multinic/clients"
+	multinictypes "github.com/cilium/cilium/pkg/gke/multinic/types"
 	"github.com/cilium/cilium/pkg/gke/multitenancy"
 	"github.com/cilium/cilium/pkg/gke/networklogging"
 	"github.com/cilium/cilium/pkg/gke/nodefirewall/types"
@@ -58,9 +60,15 @@ var googleCell = cell.Module(
 	networklogging.Cell,
 	fqdnnetworkpolicy.Cell,
 	trafficsteering.Cell,
+
+	cell.Provide(newMultiNetworkIPAMManagerPromise),
+	cell.Provide(newMultiNetworkHighPerfDeviceManagerPromise),
+	cell.Provide(newMultiNetworkHostEndpointManagerPromise),
+	multinicclients.Cell,
+	multinic.Cell,
+
 	pip.Cell,
 	servicesteering.Cell,
-	multinic.Cell,
 
 	imds.Cell,
 
@@ -81,6 +89,66 @@ func newPolicyManagerPromise(dp promise.Promise[*Daemon], lc cell.Lifecycle) pro
 		},
 		OnStop: func(_ cell.HookContext) error {
 			pmResolver.Reject(fmt.Errorf("failed to complete local node discovery"))
+			return nil
+		},
+	})
+	return pmPromise
+}
+
+// Converts Daemon promise into a multinetwork ipam manager promise
+func newMultiNetworkIPAMManagerPromise(dp promise.Promise[*Daemon], lc cell.Lifecycle) promise.Promise[multinictypes.MultiNetworkIPAMManager] {
+	pmResolver, pmPromise := promise.New[multinictypes.MultiNetworkIPAMManager]()
+	lc.Append(cell.Hook{
+		OnStart: func(hc cell.HookContext) error {
+			daemon, err := dp.Await(hc)
+			if err != nil {
+				return err
+			}
+			pmResolver.Resolve(daemon)
+			return nil
+		},
+		OnStop: func(_ cell.HookContext) error {
+			pmResolver.Reject(fmt.Errorf("failed to initialize multinetwork IPAM manager"))
+			return nil
+		},
+	})
+	return pmPromise
+}
+
+// Converts Daemon promise into a multinetwork highperf device manager promise
+func newMultiNetworkHighPerfDeviceManagerPromise(dp promise.Promise[*Daemon], lc cell.Lifecycle) promise.Promise[multinictypes.HighPerfDeviceManager] {
+	pmResolver, pmPromise := promise.New[multinictypes.HighPerfDeviceManager]()
+	lc.Append(cell.Hook{
+		OnStart: func(hc cell.HookContext) error {
+			daemon, err := dp.Await(hc)
+			if err != nil {
+				return err
+			}
+			pmResolver.Resolve(daemon)
+			return nil
+		},
+		OnStop: func(_ cell.HookContext) error {
+			pmResolver.Reject(fmt.Errorf("failed to initialize multinetwork highperf device manager"))
+			return nil
+		},
+	})
+	return pmPromise
+}
+
+// Converts Daemon promise into a multinetwork host endpoint manager promise
+func newMultiNetworkHostEndpointManagerPromise(dp promise.Promise[*Daemon], lc cell.Lifecycle) promise.Promise[multinictypes.HostEndpointManager] {
+	pmResolver, pmPromise := promise.New[multinictypes.HostEndpointManager]()
+	lc.Append(cell.Hook{
+		OnStart: func(hc cell.HookContext) error {
+			daemon, err := dp.Await(hc)
+			if err != nil {
+				return err
+			}
+			pmResolver.Resolve(daemon)
+			return nil
+		},
+		OnStop: func(_ cell.HookContext) error {
+			pmResolver.Reject(fmt.Errorf("failed to initialize multinetwork host endpoint manager"))
 			return nil
 		},
 	})

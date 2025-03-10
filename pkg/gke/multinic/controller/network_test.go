@@ -22,23 +22,30 @@ import (
 	"time"
 
 	networkv1 "github.com/GoogleCloudPlatform/gke-networking-api/apis/network/v1"
+	agentK8s "github.com/cilium/cilium/daemon/k8s"
 	"github.com/cilium/cilium/pkg/endpoint"
+	multinicclients "github.com/cilium/cilium/pkg/gke/multinic/clients"
 	"github.com/cilium/cilium/pkg/gke/multinic/multinicconfig"
-	"github.com/cilium/cilium/pkg/ipam"
+	"github.com/cilium/cilium/pkg/hive"
+	k8sClient "github.com/cilium/cilium/pkg/k8s/client"
+	"github.com/cilium/cilium/pkg/k8s/resource"
+	slim_corev1 "github.com/cilium/cilium/pkg/k8s/slim/k8s/api/core/v1"
+	v1 "github.com/cilium/cilium/pkg/k8s/slim/k8s/apis/meta/v1"
 	"github.com/cilium/cilium/pkg/logging"
 	"github.com/cilium/cilium/pkg/logging/logfields"
 	"github.com/cilium/cilium/pkg/node"
 	"github.com/cilium/cilium/pkg/testutils"
+	"github.com/cilium/hive/cell"
+	"github.com/cilium/hive/hivetest"
 	"github.com/google/go-cmp/cmp"
 	"github.com/vishvananda/netlink"
 	"github.com/vishvananda/netns"
 	anutils "gke-internal.googlesource.com/anthos-networking/apis/v2/utils"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	k8sruntime "k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/types"
 	utilpointer "k8s.io/utils/pointer"
-	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+
+	"github.com/cilium/cilium/pkg/ipam"
 )
 
 const (
@@ -379,7 +386,7 @@ func TestDeleteVlanID(t *testing.T) {
 					t.Fatalf("failed creating tagged interface: %s", err)
 				}
 			}
-			err := deleteVlanID(tc.networkCR, &corev1.Node{}, log)
+			err := deleteVlanID(tc.networkCR, &slim_corev1.Node{}, log)
 			if err != nil {
 				t.Fatalf("encountered unexpected err: %s", err)
 			}
@@ -463,11 +470,30 @@ func cleanupLinks(t *testing.T, linkNames ...string) {
 }
 
 func TestUpdateNodeNetworkStatusAnnotation(t *testing.T) {
-	testutils.PrivilegedTest(t)
-
-	scheme := k8sruntime.NewScheme()
-	corev1.AddToScheme(scheme)
 	ctx := context.Background()
+	var networks resource.Resource[*networkv1.Network]
+	var fakeClient k8sClient.FakeClientset
+	hive := hive.New(
+		cell.Provide(func() multinicconfig.Config {
+			return multinicconfig.Config{
+				EnableGoogleMultiNIC: true,
+			}
+		}),
+		k8sClient.FakeClientCell,
+		multinicclients.FakeMNClientCell,
+		agentK8s.ResourcesCell,
+		cell.Invoke(func(
+			c *k8sClient.FakeClientset,
+			nws resource.Resource[*networkv1.Network],
+			ln agentK8s.LocalNodeResource,
+		) error {
+			fakeClient = *c
+			networks = nws
+			return nil
+		}),
+	)
+	tlog := hivetest.Logger(t)
+	hive.Start(tlog, context.Background())
 	testcases := []struct {
 		desc                string
 		existingAnnotations map[string]string
@@ -647,16 +673,26 @@ func TestUpdateNodeNetworkStatusAnnotation(t *testing.T) {
 					Annotations: tc.existingAnnotations,
 				},
 			}
-			k8sClient := fake.NewClientBuilder().WithScheme(scheme).WithObjects(testNode).Build()
+			fakeClient.CoreV1().Nodes().Create(context.TODO(), testNode, metav1.CreateOptions{})
+			slimTestNode := &slim_corev1.Node{
+				ObjectMeta: v1.ObjectMeta{
+					Name:        nodeName,
+					Annotations: tc.existingAnnotations,
+				},
+			}
+
 			testNode.Name = tc.nodeName
 			testReconciler := NetworkReconciler{
-				Client:   k8sClient,
-				NodeName: tc.nodeName,
-				IPAMMgr:  testIPAMMgr{},
-				Log:      logging.DefaultLogger.WithField(logfields.LogSubsys, "test"),
+				Clientset: &fakeClient,
+				Networks:  networks,
+				NodeName:  tc.nodeName,
+				IPAMMgr:   testIPAMMgr{},
+				Log:       logging.DefaultLogger.WithField(logfields.LogSubsys, "test"),
 			}
-			oldNode := testNode.DeepCopy()
-			gotErr := updateNodeNetworkStatusAnnotation(ctx, testNode, tc.network, tc.ipv4Subnet, tc.ipv6Subnet, logger, tc.isAdd)
+			slimTestNode.Name = tc.nodeName
+			oldNode := slimTestNode.DeepCopy()
+			testReconciler.lastNode = slimTestNode
+			gotErr := updateNodeNetworkStatusAnnotation(ctx, slimTestNode, tc.network, tc.ipv4Subnet, tc.ipv6Subnet, logger, tc.isAdd)
 			if gotErr != nil {
 				if tc.wantErr == "" {
 					t.Fatalf("updateNodeNetworkStatusAnnotation() return error %v but want nil", gotErr)
@@ -667,7 +703,7 @@ func TestUpdateNodeNetworkStatusAnnotation(t *testing.T) {
 				return
 			}
 
-			patchErr := testReconciler.patchNodeAnnotations(ctx, oldNode, testNode)
+			patchErr := testReconciler.patchNodeAnnotations(ctx, oldNode, slimTestNode)
 			if patchErr != nil {
 				if tc.wantPatchErr == "" {
 					t.Fatalf("patchNodeAnnotations() return error %v but want nil", patchErr)
@@ -677,14 +713,16 @@ func TestUpdateNodeNetworkStatusAnnotation(t *testing.T) {
 				}
 				return
 			}
-			gotNode := &corev1.Node{}
-			if err := k8sClient.Get(ctx, types.NamespacedName{Name: tc.nodeName}, gotNode); err != nil {
+			gotNode, err := fakeClient.CoreV1().Nodes().Get(ctx, tc.nodeName, metav1.GetOptions{})
+			if err != nil {
 				t.Fatalf("failed to get k8s node: %v", err)
 			}
 
 			if diff := cmp.Diff(gotNode.Annotations, tc.wantAnnotations); diff != "" {
 				t.Fatalf("updateNodeNetworkAnnotation() return unexpected output (-got, +want):\n%s", diff)
 			}
+
+			fakeClient.CoreV1().Nodes().Delete(ctx, testNode.Name, metav1.DeleteOptions{})
 		})
 	}
 }
@@ -762,13 +800,41 @@ func TestBestAddrMatch(t *testing.T) {
 }
 
 func TestUpdateNodeMultiNetworkIPAM(t *testing.T) {
-	scheme := k8sruntime.NewScheme()
-	corev1.AddToScheme(scheme)
 	ctx := context.Background()
-	multinicconfig.GlobalConfig.EnableGoogleMultiNIC = true
-	defer func() {
-		multinicconfig.GlobalConfig.EnableGoogleMultiNIC = false
-	}()
+	var networks resource.Resource[*networkv1.Network]
+	var fakeClient k8sClient.FakeClientset
+	var localNodeResource agentK8s.LocalNodeResource
+	hive := hive.New(
+		cell.Provide(func() multinicconfig.Config {
+			return multinicconfig.Config{
+				EnableGoogleMultiNIC: true,
+			}
+		}),
+		k8sClient.FakeClientCell,
+		multinicclients.FakeMNClientCell,
+		agentK8s.ResourcesCell,
+		cell.Invoke(func(
+			c *k8sClient.FakeClientset,
+			nws resource.Resource[*networkv1.Network],
+			ln agentK8s.LocalNodeResource,
+		) error {
+			fakeClient = *c
+			networks = nws
+			localNodeResource = ln
+			return nil
+		}),
+	)
+	tlog := hivetest.Logger(t)
+	hive.Start(tlog, ctx)
+	nodeStore, _ := localNodeResource.Store(ctx)
+	testReconciler := NetworkReconciler{
+		Clientset:         &fakeClient,
+		Networks:          networks,
+		IPAMMgr:           testIPAMMgr{},
+		Log:               log,
+		LocalNodeResource: localNodeResource,
+		NodeName:          nodeName,
+	}
 	testNw := networkv1.Network{ObjectMeta: metav1.ObjectMeta{Name: networkName}, Spec: networkv1.NetworkSpec{Type: networkv1.L2NetworkType}}
 	testcases := []struct {
 		desc                string
@@ -783,7 +849,7 @@ func TestUpdateNodeMultiNetworkIPAM(t *testing.T) {
 				networkv1.MultiNetworkAnnotationKey: `[{"name":"foo", "cidrs":["10.0.0.0/21"],"scope":"host-local"}]`,
 			},
 			nodeName: "foo-node",
-			wantErr:  "nodes \"test-node\" not found",
+			wantErr:  "failed to fetch latest local node while updating multinetworking IPAM: local node foo-node not found",
 			network:  &testNw,
 		},
 		{
@@ -811,19 +877,13 @@ func TestUpdateNodeMultiNetworkIPAM(t *testing.T) {
 	for _, tc := range testcases {
 		t.Run(tc.desc, func(t *testing.T) {
 			node.SetAnnotations(nil)
-			testNode := corev1.Node{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:        tc.nodeName,
+			slimTestNode := &slim_corev1.Node{
+				ObjectMeta: v1.ObjectMeta{
+					Name:        nodeName,
 					Annotations: tc.existingAnnotations,
 				},
 			}
-			k8sClient := fake.NewClientBuilder().WithObjects(&testNode).Build()
-			testReconciler := NetworkReconciler{
-				Client:   k8sClient,
-				NodeName: nodeName,
-				IPAMMgr:  testIPAMMgr{},
-				Log:      log,
-			}
+			nodeStore.CacheStore().Add(slimTestNode)
 			gotErr := testReconciler.updateMultiNetworkIPAM(ctx, tc.network)
 			if gotErr != nil {
 				if tc.wantErr == "" {

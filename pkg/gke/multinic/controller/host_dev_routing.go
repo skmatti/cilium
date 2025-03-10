@@ -22,15 +22,15 @@ type hostDevRoutingRecord struct {
 }
 
 func (r *NetworkReconciler) updateHostDeviceRouting(ctx context.Context) error {
-	nwList := networkv1.NetworkList{}
-	if err := r.List(ctx, &nwList); err != nil {
-		return err
+	nwStore, err := r.Networks.Store(ctx)
+	if err != nil {
+		return fmt.Errorf("Failed to fetch network store while updating host device routing entries: %v", err)
 	}
-
+	nwList := nwStore.List()
 	errs := 0
 	desiredRoutingRecs := map[multinet.HostDevRoutingKey]multinet.HostDevRoutingEntry{}
-	for _, n := range nwList.Items {
-		recs, err := r.hostDevRoutingRecords(&n)
+	for _, n := range nwList {
+		recs, err := r.hostDevRoutingRecords(n)
 		if err != nil {
 			errs += 1
 			r.Log.WithError(err).Warnf("error determining host device routing records for network %s", n.Name)

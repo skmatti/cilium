@@ -48,6 +48,14 @@ github.com/Azure/go-autorest/tracing
 # github.com/GoogleCloudPlatform/gke-networking-api v0.1.2-0.20240806213139-419c796010b0
 ## explicit; go 1.22.0
 github.com/GoogleCloudPlatform/gke-networking-api/apis/network/v1
+github.com/GoogleCloudPlatform/gke-networking-api/apis/network/v1alpha1
+github.com/GoogleCloudPlatform/gke-networking-api/client/network/clientset/versioned
+github.com/GoogleCloudPlatform/gke-networking-api/client/network/clientset/versioned/fake
+github.com/GoogleCloudPlatform/gke-networking-api/client/network/clientset/versioned/scheme
+github.com/GoogleCloudPlatform/gke-networking-api/client/network/clientset/versioned/typed/network/v1
+github.com/GoogleCloudPlatform/gke-networking-api/client/network/clientset/versioned/typed/network/v1/fake
+github.com/GoogleCloudPlatform/gke-networking-api/client/network/clientset/versioned/typed/network/v1alpha1
+github.com/GoogleCloudPlatform/gke-networking-api/client/network/clientset/versioned/typed/network/v1alpha1/fake
 # github.com/Masterminds/semver/v3 v3.2.1
 ## explicit; go 1.18
 github.com/Masterminds/semver/v3

@@ -47,7 +47,7 @@ import (
 	"github.com/cilium/cilium/pkg/endpointmanager"
 	"github.com/cilium/cilium/pkg/envoy"
 	"github.com/cilium/cilium/pkg/fqdn"
-	"github.com/cilium/cilium/pkg/gke/multinic"
+	multinicclients "github.com/cilium/cilium/pkg/gke/multinic/clients"
 	dhcp "github.com/cilium/cilium/pkg/gke/multinic/dhcp"
 	"github.com/cilium/cilium/pkg/hubble/observer"
 	"github.com/cilium/cilium/pkg/identity"
@@ -179,13 +179,13 @@ type Daemon struct {
 
 	// client used to query and update Network and NetworkInterface resources
 	// when multinic is enabled
-	multinicClient multinic.K8sClient
+	multinicClient multinicclients.MultiNetworkHelperClient
 
 	// dhcpClient is used to allocate and release IPs from external DHCP server
 	dhcpClient dhcp.DHCPClient
 
 	// kubeletClient is used to query resource information for a given pod
-	kubeletClient *multinic.KubeletClient
+	kubeletClient *multinicclients.KubeletClient
 
 	// CIDRs for which identities were restored during bootstrap
 	restoredCIDRs map[netip.Prefix]identity.NumericIdentity
@@ -448,6 +448,9 @@ func newDaemon(ctx context.Context, cleaner *daemonCleanup, params *daemonParams
 		ipam:                  params.IPAM,
 		lrpManager:            params.LRPManager,
 		googleMultiNICEnabled: params.GoogleMultiNIC.EnableGoogleMultiNIC,
+		multinicClient:        params.GoogleMultinicClient,
+		dhcpClient:            params.GoogleDHCPClient,
+		kubeletClient:         params.KubeletClient,
 	}
 
 	// initialize endpointRestoreComplete channel as soon as possible so that subsystems
@@ -917,17 +920,6 @@ func newDaemon(ctx context.Context, cleaner *daemonCleanup, params *daemonParams
 	// has finished.
 	if err := params.SyncHostIPs.StartAndWaitFirst(ctx); err != nil {
 		return nil, nil, err
-	}
-
-	// Initialize and wait for multinic client cache to sync
-	if d.googleMultiNICEnabled {
-		if !params.Clientset.IsEnabled() {
-			log.Fatal("K8s needs to be enabled for multi nic support")
-		}
-		d.multinicClient, d.kubeletClient, d.dhcpClient, err = multinic.Init(d.ctx, d.endpointManager, &d, params.Clientset, restoredEndpoints.restored, &d, &d, d.devices, d.db)
-		if err != nil {
-			log.WithError(err).Fatal("Unable to init multinic")
-		}
 	}
 
 	// Start watcher for endpoint IP --> identity mappings in key-value store.

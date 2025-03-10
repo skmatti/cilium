@@ -11,12 +11,11 @@ import (
 	"github.com/cilium/cilium/pkg/datapath/linux/safenetlink"
 	"github.com/cilium/cilium/pkg/datapath/tables"
 	"github.com/cilium/cilium/pkg/gke/multinic/nic"
+	"github.com/cilium/cilium/pkg/k8s/resource"
+	slim_corev1 "github.com/cilium/cilium/pkg/k8s/slim/k8s/api/core/v1"
 	"github.com/sirupsen/logrus"
 	"github.com/vishvananda/netlink"
-	corev1 "k8s.io/api/core/v1"
-	k8sErrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
-	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/rand"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 )
@@ -26,7 +25,7 @@ const (
 	highPerfFinalizer = "networking.gke.io/high-perf-finalizer"
 )
 
-func (r *NetworkReconciler) handleHighPerfNetworks(ctx context.Context, node *corev1.Node, oldNode *corev1.Node) (rerr error) {
+func (r *NetworkReconciler) handleHighPerfNetworks(ctx context.Context, node *slim_corev1.Node, oldNode *slim_corev1.Node) (rerr error) {
 	add, remove, err := r.reconcileHighPerfNetworks(ctx, oldNode)
 	if err != nil {
 		r.Log.WithError(err).Error("Failed to reconcile device-typed networks")
@@ -52,7 +51,7 @@ func (r *NetworkReconciler) handleHighPerfNetworks(ctx context.Context, node *co
 // reconcileHighPerfNetworks Returns two lists, one of new networks that should be in network-status,
 // and one of networks that should not be in network-status.
 // oldNode is read-only
-func (r *NetworkReconciler) reconcileHighPerfNetworks(ctx context.Context, node *corev1.Node) ([]string, []string, error) {
+func (r *NetworkReconciler) reconcileHighPerfNetworks(ctx context.Context, node *slim_corev1.Node) ([]string, []string, error) {
 	links, err := safenetlink.LinkList()
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to list links: %v", err)
@@ -63,7 +62,18 @@ func (r *NetworkReconciler) reconcileHighPerfNetworks(ctx context.Context, node 
 		return nil, nil, fmt.Errorf("failed to get north interfaces: %v", err)
 	}
 	r.Log.Infof("Got north interfaces: %v", northInterfaces)
-	nicInfo, err := getNicInfo(node)
+	nicAnnotationString, ok := node.GetAnnotations()[networkv1.NICInfoAnnotationKey]
+	if !ok {
+		return nil, nil, fmt.Errorf("nic-info annotation does not exist, looking for annotation with key %s", networkv1.NICInfoAnnotationKey)
+	}
+	if nicAnnotationString == "" {
+		return nil, nil, fmt.Errorf("nic-info annotation is empty")
+	}
+	nicAnnotation, err := networkv1.ParseNICInfoAnnotation(nicAnnotationString)
+	if err != nil {
+		return nil, nil, fmt.Errorf("error parsing nic-info annotation: %v", err)
+	}
+	nicInfo, err := getNicInfo(nicAnnotation)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to get nic-info: %v", err)
 	}
@@ -77,12 +87,16 @@ func (r *NetworkReconciler) reconcileHighPerfNetworks(ctx context.Context, node 
 	oldCiliumDevices := copySlice(devs)
 	sort.Strings(oldCiliumDevices)
 	newCiliumDevices := append(make([]string, 0), oldCiliumDevices...)
+	nwStore, err := r.Networks.Store(ctx)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to fetch networks store: %v", err)
+	}
 	for netName, ipAddr := range northInterfaces {
-		network := &networkv1.Network{}
-		if err := r.Get(ctx, types.NamespacedName{Name: netName}, network); err != nil {
-			if !k8sErrors.IsNotFound(err) {
-				return nil, nil, fmt.Errorf("failed to fetch network %s: %v", netName, err)
-			}
+		network, exists, err := nwStore.GetByKey(resource.Key{Name: netName})
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to fetch network %s: from store %v", netName, err)
+		}
+		if !exists {
 			// Network was likely deleted, we will deal with the iface in the for loop
 			// below
 			r.Log.WithError(err).Warnf("Network not found but is in north-interfaces, likely deleted")
@@ -157,12 +171,12 @@ func (r *NetworkReconciler) takeDevice(ctx context.Context, dev string, ciliumDe
 
 // Init renames all devices found to their birthname and sets the anetd devices list. Does *not*
 // update the annotations.
-func (r *NetworkReconciler) RestoreDevices(ctx context.Context, node *corev1.Node) error {
+func (r *NetworkReconciler) RestoreDevices(ctx context.Context, nicInfoAnn *networkv1.NICInfoAnnotation) error {
 	links, err := safenetlink.LinkList()
 	if err != nil {
 		return fmt.Errorf("failed to list links: %v", err)
 	}
-	nicInfo, err := getNicInfo(node)
+	nicInfo, err := getNicInfo(*nicInfoAnn)
 	if err != nil {
 		return fmt.Errorf("failed to get nic-info: %v", err)
 	}
@@ -263,19 +277,8 @@ func setLinkName(link netlink.Link, name string) error {
 }
 
 // getNicInfo returns a map from ip to pciaddress, birth name.
-func getNicInfo(node *corev1.Node) (map[string]nicMapValue, error) {
-	nicAnnotationString, ok := node.GetAnnotations()[networkv1.NICInfoAnnotationKey]
-	if !ok {
-		return nil, fmt.Errorf("nic-info annotation does not exist, looking for annotation with key %s", networkv1.NICInfoAnnotationKey)
-	}
+func getNicInfo(nicAnnotation networkv1.NICInfoAnnotation) (map[string]nicMapValue, error) {
 	result := make(map[string]nicMapValue)
-	if nicAnnotationString == "" {
-		return nil, fmt.Errorf("nic-info annotation is empty")
-	}
-	nicAnnotation, err := networkv1.ParseNICInfoAnnotation(nicAnnotationString)
-	if err != nil {
-		return nil, fmt.Errorf("error parsing nic-info annotation: %v", err)
-	}
 	for _, n := range nicAnnotation {
 		result[n.BirthIP] = nicMapValue{n.PCIAddress, n.BirthName}
 	}

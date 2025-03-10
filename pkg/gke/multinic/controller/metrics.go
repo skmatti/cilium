@@ -6,7 +6,6 @@ import (
 	"strconv"
 	"strings"
 
-	networkv1 "github.com/GoogleCloudPlatform/gke-networking-api/apis/network/v1"
 	"github.com/cilium/cilium/pkg/datapath/connector"
 	"github.com/cilium/cilium/pkg/endpoint"
 	"github.com/cilium/cilium/pkg/ipam"
@@ -22,15 +21,15 @@ const (
 )
 
 func (r *NetworkReconciler) EndpointCreated(ep *endpoint.Endpoint) {
-	r.metricsTrigger.Trigger()
+	r.MetricsTrigger.Trigger()
 }
 
 func (r *NetworkReconciler) EndpointDeleted(ep *endpoint.Endpoint, conf endpoint.DeleteConfig) {
-	r.metricsTrigger.Trigger()
+	r.MetricsTrigger.Trigger()
 }
 
 func (r *NetworkReconciler) EndpointRestored(ep *endpoint.Endpoint) {
-	r.metricsTrigger.Trigger()
+	r.MetricsTrigger.Trigger()
 }
 
 // updateIpUsageMetrics updates the IP usage metrics for additional pod networks on the node
@@ -75,7 +74,7 @@ func (r *NetworkReconciler) exportIPUsageForNetwork(networkName string, allocato
 	return nil
 }
 
-func (r *NetworkReconciler) updateMultiNetMetrics(reasons []string) {
+func (r *NetworkReconciler) UpdateMultiNetMetrics(reasons []string) {
 	ctxTimeout, cancel := context.WithTimeout(context.TODO(), listNetworkTimeout)
 	defer cancel()
 
@@ -89,14 +88,15 @@ func (r *NetworkReconciler) updateMultiNetMetrics(reasons []string) {
 		netEpCount[id] += 1
 	}
 
-	var networkList networkv1.NetworkList
-	if err := r.List(ctxTimeout, &networkList); err != nil {
+	nwStore, err := r.Networks.Store(ctxTimeout)
+	if err != nil {
 		logger.WithError(err).Warn("Failed to update multi-network endpoint metrics")
 		return
 	}
+	nwList := nwStore.List()
 	// For each network, export the number of endpoints
-	for _, network := range networkList.Items {
-		id := connector.GenerateNetworkID(&network)
+	for _, network := range nwList {
+		id := connector.GenerateNetworkID(network)
 		netType := string(network.Spec.Type)
 		epCount := netEpCount[id]
 		metrics.MultiNetworkEndpoint.WithLabelValues(network.Name, netType).Set(float64(epCount))

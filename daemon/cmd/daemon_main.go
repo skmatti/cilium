@@ -60,6 +60,8 @@ import (
 	"github.com/cilium/cilium/pkg/envoy"
 	"github.com/cilium/cilium/pkg/flowdebug"
 	"github.com/cilium/cilium/pkg/gke/features"
+	multinicclients "github.com/cilium/cilium/pkg/gke/multinic/clients"
+	"github.com/cilium/cilium/pkg/gke/multinic/dhcp"
 	"github.com/cilium/cilium/pkg/gke/multinic/multinicconfig"
 	"github.com/cilium/cilium/pkg/hive"
 	"github.com/cilium/cilium/pkg/hubble/exporter/exporteroption"
@@ -1766,6 +1768,12 @@ type daemonParams struct {
 	LRPManager          *redirectpolicy.Manager
 	IdentityManager     *identitymanager.IdentityManager
 	GoogleMultiNIC      multinicconfig.Config
+	// client used to query and update Network and NetworkInterface resources
+	// when multinic is enabled
+	GoogleMultinicClient multinicclients.MultiNetworkHelperClient
+	GoogleDHCPClient     dhcp.DHCPClient
+	// KubeletClient is used to query resource information for a given pod
+	KubeletClient *multinicclients.KubeletClient
 }
 
 func newDaemonPromise(params daemonParams) (promise.Promise[*Daemon], promise.Promise[*option.DaemonConfig], promise.Promise[policyK8s.PolicyManager]) {
