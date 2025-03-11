@@ -2624,6 +2624,13 @@ int tail_nodeport_rev_dnat_ingress_ipv4(struct __ctx_buff *ctx)
 	edt_set_aggregate(ctx, 0);
 #endif
 	cilium_capture_out(ctx);
+
+/* Redirect is not supported for ipvlan/macvlan host interfaces: b/235141939 */
+#if defined(MULTI_NIC_DEVICE_TYPE) && MULTI_NIC_DEVICE_TYPE != EP_DEV_TYPE_INDEX_MULTI_NIC_VETH
+	// non-veth type: macvlan
+	return CTX_ACT_OK;
+#endif
+
 	return ret;
 
 drop_err:
