@@ -126,6 +126,7 @@ func setupEgressGatewayTestSuite(t *testing.T) *EgressGatewayTestSuite {
 
 	lc := hivetest.Lifecycle(t)
 	policyMap := egressmap.CreatePrivatePolicyMap(lc, egressmap.DefaultPolicyConfig)
+	egressTimeoutsMap := egressmap.CreatePrivateEgressTimeoutsMap(lc, egressmap.DefaultPolicyConfig)
 
 	k.manager, err = newEgressGatewayManager(Params{
 		Lifecycle:         lc,
@@ -133,6 +134,7 @@ func setupEgressGatewayTestSuite(t *testing.T) *EgressGatewayTestSuite {
 		DaemonConfig:      &option.DaemonConfig{ConfigPatchMutex: new(lock.RWMutex)},
 		IdentityAllocator: identityAllocator,
 		PolicyMap:         policyMap,
+		EgressTimeoutsMap: egressTimeoutsMap,
 		Policies:          k.policies,
 		Nodes:             k.nodes,
 		Endpoints:         k.endpoints,

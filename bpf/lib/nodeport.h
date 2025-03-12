@@ -2517,6 +2517,7 @@ nodeport_rev_dnat_ingress_ipv4(struct __ctx_buff *ctx, struct trace_ctx *trace,
 			.ifindex	= ctx_get_ifindex(ctx),
 		},
 	};
+	struct connection_timeouts *connection_timeouts __maybe_unused = NULL;
 	int ifindex = 0, ret, l3_off = ETH_HLEN, l4_off;
 	struct ipv4_ct_tuple tuple = {};
 	struct ct_state ct_state = {};
@@ -2550,9 +2551,27 @@ nodeport_rev_dnat_ingress_ipv4(struct __ctx_buff *ctx, struct trace_ctx *trace,
 	else if (ret == CTX_ACT_REDIRECT)
 		goto redirect;
 
-	ret = ct_lazy_lookup4(get_ct_map4(&tuple), &tuple, ctx, ipv4_is_fragment(ip4),
-			      l4_off, has_l4_header, CT_INGRESS, SCOPE_REVERSE,
-			      CT_ENTRY_NODEPORT, &ct_state, &monitor);
+	lookup_egress_nat_timeouts(&connection_timeouts, tuple.daddr, tuple.saddr);
+	/* Need to perform NULL check here to avoid verifier issues */
+	if (!connection_timeouts) {
+		ret = ct_lazy_lookup4_w_timeouts(get_ct_map4(&tuple),
+						 &tuple, ctx,
+						 ipv4_is_fragment(ip4),
+						 l4_off, has_l4_header,
+						 CT_INGRESS, SCOPE_REVERSE,
+						 CT_ENTRY_NODEPORT, &ct_state,
+						 &monitor, NULL);
+	} else {
+		ret = ct_lazy_lookup4_w_timeouts(get_ct_map4(&tuple),
+						 &tuple, ctx,
+						 ipv4_is_fragment(ip4),
+						 l4_off, has_l4_header,
+						 CT_INGRESS, SCOPE_REVERSE,
+						 CT_ENTRY_NODEPORT, &ct_state,
+						 &monitor,
+						 connection_timeouts);
+	}
+
 	if (ret == CT_REPLY) {
 		trace->reason = TRACE_REASON_CT_REPLY;
 		trace->monitor = monitor;

@@ -13,6 +13,7 @@
 #include "dbg.h"
 #include "l4.h"
 #include "signal.h"
+#include "google_maps.h"
 
 enum ct_action {
 	ACTION_UNSPEC,
@@ -165,26 +166,46 @@ static __always_inline __u32 __ct_update_timeout(struct ct_entry *entry,
  */
 static __always_inline __u32 ct_update_timeout(struct ct_entry *entry,
 					       bool tcp, enum ct_dir dir,
-					       union tcp_flags seen_flags)
+					       union tcp_flags seen_flags,
+					       struct connection_timeouts *connection_timeouts)
 {
-	__u32 lifetime = dir == CT_SERVICE ?
-			 bpf_sec_to_mono(CT_SERVICE_LIFETIME_NONTCP) :
-			 bpf_sec_to_mono(CT_CONNECTION_LIFETIME_NONTCP);
+	__u32 lifetime;
 	bool syn = seen_flags.value & TCP_FLAG_SYN;
+
+	if (dir == CT_SERVICE) {
+		lifetime = bpf_sec_to_mono(CT_SERVICE_LIFETIME_NONTCP);
+	} else {
+		lifetime =
+			(connection_timeouts &&
+			 connection_timeouts->bpf_ct_timeout_regular_any != 0) ?
+				bpf_sec_to_mono(connection_timeouts->bpf_ct_timeout_regular_any) :
+				bpf_sec_to_mono(CT_CONNECTION_LIFETIME_NONTCP);
+	}
 
 	if (tcp) {
 		entry->seen_non_syn |= !syn;
 		if (entry->seen_non_syn) {
-			lifetime = dir == CT_SERVICE ?
-				   bpf_sec_to_mono(CT_SERVICE_LIFETIME_TCP) :
-				   bpf_sec_to_mono(CT_CONNECTION_LIFETIME_TCP);
+			if (dir == CT_SERVICE) {
+				lifetime = bpf_sec_to_mono(CT_SERVICE_LIFETIME_TCP);
+			} else {
+				lifetime =
+					(connection_timeouts &&
+					 connection_timeouts->bpf_ct_timeout_regular_tcp != 0) ?
+						bpf_sec_to_mono(connection_timeouts
+								->bpf_ct_timeout_regular_tcp) :
+						bpf_sec_to_mono(CT_CONNECTION_LIFETIME_TCP);
+			}
 		} else {
-			lifetime = bpf_sec_to_mono(CT_SYN_TIMEOUT);
+			lifetime =
+				(connection_timeouts &&
+				 connection_timeouts->bpf_ct_timeout_regular_tcp_syn != 0) ?
+					bpf_sec_to_mono(connection_timeouts
+							->bpf_ct_timeout_regular_tcp_syn) :
+					bpf_sec_to_mono(CT_SYN_TIMEOUT);
 		}
 	}
 
-	return __ct_update_timeout(entry, lifetime, dir, seen_flags,
-				   CT_REPORT_FLAGS);
+	return __ct_update_timeout(entry, lifetime, dir, seen_flags, CT_REPORT_FLAGS);
 }
 
 static __always_inline void
@@ -280,10 +301,10 @@ ct_entry_matches_types(const struct ct_entry *entry __maybe_unused,
  * 'ct_state', if not nullptr, will be filled in only if CT_ESTABLISHED is returned.
  */
 static __always_inline enum ct_status
-__ct_lookup(const void *map, struct __ctx_buff *ctx, const void *tuple,
-	    enum ct_action action, enum ct_dir dir, __u32 ct_entry_types,
-	    struct ct_state *ct_state, bool is_tcp, union tcp_flags seen_flags,
-	    __u32 *monitor)
+__ct_lookup_w_timeouts(const void *map, struct __ctx_buff *ctx, const void *tuple,
+		       enum ct_action action, enum ct_dir dir, __u32 ct_entry_types,
+		       struct ct_state *ct_state, bool is_tcp, union tcp_flags seen_flags,
+		       __u32 *monitor, struct connection_timeouts *connection_timeouts)
 {
 	bool syn = seen_flags.value & TCP_FLAG_SYN;
 	struct ct_entry *entry;
@@ -300,7 +321,8 @@ __ct_lookup(const void *map, struct __ctx_buff *ctx, const void *tuple,
 			goto ct_new;
 
 		if (ct_entry_alive(entry))
-			*monitor = ct_update_timeout(entry, is_tcp, dir, seen_flags);
+			*monitor = ct_update_timeout(entry, is_tcp, dir, seen_flags,
+						     connection_timeouts);
 
 		/* For backward-compatibility we need to update reverse NAT
 		 * index in the CT_SERVICE entry for old connections.
@@ -319,7 +341,8 @@ __ct_lookup(const void *map, struct __ctx_buff *ctx, const void *tuple,
 				ct_reset_seen_flags(entry);
 				entry->seen_non_syn = false;
 
-				*monitor = ct_update_timeout(entry, is_tcp, dir, seen_flags);
+				*monitor = ct_update_timeout(entry, is_tcp, dir, seen_flags,
+							     connection_timeouts);
 
 				/* Return CT_NEW so that the caller creates a new entry instead of
 				 * updating the old one. (For policy drops the old entry remains.)
@@ -358,8 +381,18 @@ __ct_lookup(const void *map, struct __ctx_buff *ctx, const void *tuple,
 			*monitor = TRACE_PAYLOAD_LEN;
 			if (ct_entry_alive(entry))
 				break;
-			__ct_update_timeout(entry, bpf_sec_to_mono(CT_CLOSE_TIMEOUT),
-					    dir, seen_flags, CT_REPORT_FLAGS);
+
+			if (connection_timeouts &&
+			    connection_timeouts->bpf_ct_timeout_regular_tcp_fin != 0) {
+				__ct_update_timeout(entry,
+						    bpf_sec_to_mono(connection_timeouts
+						    ->bpf_ct_timeout_regular_tcp_fin),
+						    dir, seen_flags, CT_REPORT_FLAGS);
+				break;
+			}
+
+			__ct_update_timeout(entry, bpf_sec_to_mono(CT_CLOSE_TIMEOUT), dir,
+					    seen_flags, CT_REPORT_FLAGS);
 			break;
 		default:
 			break;
@@ -375,6 +408,20 @@ __ct_lookup(const void *map, struct __ctx_buff *ctx, const void *tuple,
 ct_new: __maybe_unused;
 	*monitor = TRACE_PAYLOAD_LEN;
 	return CT_NEW;
+}
+
+/**
+ * Returns CT_NEW or CT_ESTABLISHED.
+ * 'ct_state', if not nullptr, will be filled in only if CT_ESTABLISHED is returned.
+ */
+static __always_inline enum ct_status
+__ct_lookup(const void *map, struct __ctx_buff *ctx, const void *tuple,
+	    enum ct_action action, enum ct_dir dir, __u32 ct_entry_types,
+	    struct ct_state *ct_state, bool is_tcp, union tcp_flags seen_flags,
+	    __u32 *monitor)
+{
+	return __ct_lookup_w_timeouts(map, ctx, tuple, action, dir, ct_entry_types,
+				      ct_state, is_tcp, seen_flags, monitor, NULL);
 }
 
 static __always_inline __u8
@@ -821,10 +868,11 @@ ct_extract_ports4(struct __ctx_buff *ctx, struct iphdr *ip4, int off,
 DEFINE_FUNC_CT_IS_REPLY(4)
 
 static __always_inline int
-__ct_lookup4(const void *map, struct ipv4_ct_tuple *tuple, struct __ctx_buff *ctx,
-	     int l4_off, bool has_l4_header, bool is_fragment __maybe_unused,
-	     enum ct_dir dir, enum ct_scope scope, __u32 ct_entry_types,
-	     struct ct_state *ct_state, __u32 *monitor)
+__ct_lookup4_w_timeouts(const void *map, struct ipv4_ct_tuple *tuple, struct __ctx_buff *ctx,
+			int l4_off, bool has_l4_header, bool is_fragment __maybe_unused,
+			enum ct_dir dir, enum ct_scope scope, __u32 ct_entry_types,
+			struct ct_state *ct_state, __u32 *monitor,
+			struct connection_timeouts *connection_timeouts)
 {
 	bool is_tcp = tuple->nexthdr == IPPROTO_TCP;
 	union tcp_flags tcp_flags = { .value = 0 };
@@ -856,8 +904,9 @@ __ct_lookup4(const void *map, struct ipv4_ct_tuple *tuple, struct __ctx_buff *ct
 	case SCOPE_REVERSE:
 	case SCOPE_BIDIR:
 		/* Lookup in the reverse direction first: */
-		ret = __ct_lookup(map, ctx, tuple, action, dir, ct_entry_types,
-				  ct_state, is_tcp, tcp_flags, monitor);
+		ret = __ct_lookup_w_timeouts(map, ctx, tuple, action, dir, ct_entry_types,
+					     ct_state, is_tcp, tcp_flags, monitor,
+					     connection_timeouts);
 		if (ret != CT_NEW) {
 			if (unlikely(tuple->flags & TUPLE_F_RELATED))
 				ret = CT_RELATED;
@@ -873,14 +922,41 @@ __ct_lookup4(const void *map, struct ipv4_ct_tuple *tuple, struct __ctx_buff *ct
 		ipv4_ct_tuple_reverse(tuple);
 		fallthrough;
 	case SCOPE_FORWARD:
-		ret = __ct_lookup(map, ctx, tuple, action, dir, ct_entry_types,
-				  ct_state, is_tcp, tcp_flags, monitor);
+		ret = __ct_lookup_w_timeouts(map, ctx, tuple, action, dir, ct_entry_types,
+					     ct_state, is_tcp, tcp_flags, monitor,
+					     connection_timeouts);
 	}
 
 out:
 	cilium_dbg(ctx, DBG_CT_VERDICT, ret,
 		   ct_state ? ct_state->rev_nat_index : 0);
 	return ret;
+}
+
+static __always_inline int
+__ct_lookup4(const void *map, struct ipv4_ct_tuple *tuple, struct __ctx_buff *ctx,
+	     int l4_off, bool has_l4_header, bool is_fragment __maybe_unused,
+	     enum ct_dir dir, enum ct_scope scope, __u32 ct_entry_types,
+	     struct ct_state *ct_state, __u32 *monitor)
+{
+	return __ct_lookup4_w_timeouts(map, tuple, ctx, l4_off, has_l4_header,
+				       is_fragment, dir, scope, ct_entry_types,
+				       ct_state, monitor, NULL);
+}
+
+static __always_inline int
+ct_lazy_lookup4_w_timeouts(const void *map, struct ipv4_ct_tuple *tuple,
+			   struct __ctx_buff *ctx, bool is_fragment,
+			   int l4_off, bool has_l4_header, enum ct_dir dir,
+			   enum ct_scope scope, __u32 ct_entry_types,
+			   struct ct_state *ct_state, __u32 *monitor,
+			   struct connection_timeouts *connection_timeouts)
+{
+	tuple->flags = ct_lookup_select_tuple_type(dir, scope);
+
+	return __ct_lookup4_w_timeouts(map, tuple, ctx, l4_off, has_l4_header,
+				       is_fragment, dir, scope, ct_entry_types,
+				       ct_state, monitor, connection_timeouts);
 }
 
 /** Lookup a CT entry for a fully populated CT tuple
@@ -914,8 +990,8 @@ ct_lazy_lookup4(const void *map, struct ipv4_ct_tuple *tuple, struct __ctx_buff 
 {
 	tuple->flags = ct_lookup_select_tuple_type(dir, scope);
 
-	return __ct_lookup4(map, tuple, ctx, l4_off, has_l4_header, is_fragment,
-			    dir, scope, ct_entry_types, ct_state, monitor);
+	return __ct_lookup4_w_timeouts(map, tuple, ctx, l4_off, has_l4_header, is_fragment,
+				       dir, scope, ct_entry_types, ct_state, monitor, NULL);
 }
 
 /* Offset must point to IPv4 header */
@@ -937,6 +1013,29 @@ static __always_inline int ct_lookup4(const void *map,
 
 	return __ct_lookup4(map, tuple, ctx, off, has_l4_header, is_fragment,
 			    dir, SCOPE_BIDIR, CT_ENTRY_ANY, ct_state, monitor);
+}
+
+static __always_inline int
+ct_lookup4_w_timeouts(const void *map, struct ipv4_ct_tuple *tuple,
+		      struct __ctx_buff *ctx, struct iphdr *ip4, int off,
+		      enum ct_dir dir, struct ct_state *ct_state,
+		      __u32 *monitor,
+		      struct connection_timeouts *connection_timeouts)
+{
+	bool is_fragment = ipv4_is_fragment(ip4);
+	bool has_l4_header = true;
+	int ret;
+
+	tuple->flags = ct_lookup_select_tuple_type(dir, SCOPE_BIDIR);
+
+	ret = ct_extract_ports4(ctx, ip4, off, dir, tuple, &has_l4_header);
+	if (ret < 0)
+		return ret;
+
+	return __ct_lookup4_w_timeouts(map, tuple, ctx, off, has_l4_header,
+				       is_fragment, dir, SCOPE_BIDIR,
+				       CT_ENTRY_ANY, ct_state, monitor,
+				       connection_timeouts);
 }
 
 static __always_inline void
@@ -982,7 +1081,7 @@ static __always_inline int ct_create6(const void *map_main, const void *map_rela
 		ct_create_fill_entry(&entry, ct_state, dir);
 
 	seen_flags.value |= is_tcp ? TCP_FLAG_SYN : 0;
-	ct_update_timeout(&entry, is_tcp, dir, seen_flags);
+	ct_update_timeout(&entry, is_tcp, dir, seen_flags, NULL);
 
 	cilium_dbg3(ctx, DBG_CT_CREATED6, entry.rev_nat_index,
 		    entry.src_sec_id, 0);
@@ -1022,12 +1121,13 @@ err_ct_fill_up:
 	return DROP_CT_CREATE_FAILED;
 }
 
-static __always_inline int ct_create4(const void *map_main,
-				      const void *map_related,
-				      struct ipv4_ct_tuple *tuple,
-				      struct __ctx_buff *ctx, const enum ct_dir dir,
-				      const struct ct_state *ct_state,
-				      __s8 *ext_err)
+static __always_inline int ct_create4_w_timeouts(const void *map_main,
+						 const void *map_related,
+						 struct ipv4_ct_tuple *tuple,
+						 struct __ctx_buff *ctx, const enum ct_dir dir,
+						 const struct ct_state *ct_state,
+						 __s8 *ext_err,
+						 struct connection_timeouts *connection_timeouts)
 {
 	/* Create entry in original direction */
 	struct ct_entry entry = { };
@@ -1039,7 +1139,7 @@ static __always_inline int ct_create4(const void *map_main,
 		ct_create_fill_entry(&entry, ct_state, dir);
 
 	seen_flags.value |= is_tcp ? TCP_FLAG_SYN : 0;
-	ct_update_timeout(&entry, is_tcp, dir, seen_flags);
+	ct_update_timeout(&entry, is_tcp, dir, seen_flags, connection_timeouts);
 
 	cilium_dbg3(ctx, DBG_CT_CREATED4, entry.rev_nat_index,
 		    entry.src_sec_id, 0);
@@ -1080,6 +1180,15 @@ err_ct_fill_up:
 		*ext_err = (__s8)err;
 	send_signal_ct_fill_up(ctx, SIGNAL_PROTO_V4);
 	return DROP_CT_CREATE_FAILED;
+}
+
+static __always_inline int
+ct_create4(const void *map_main, const void *map_related,
+	   struct ipv4_ct_tuple *tuple, struct __ctx_buff *ctx,
+	   const enum ct_dir dir, const struct ct_state *ct_state, __s8 *ext_err)
+{
+	return ct_create4_w_timeouts(map_main, map_related, tuple, ctx, dir,
+				     ct_state, ext_err, NULL);
 }
 
 #ifndef DISABLE_LOOPBACK_LB

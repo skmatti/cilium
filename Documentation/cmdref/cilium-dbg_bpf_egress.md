@@ -22,4 +22,5 @@ Manage the egress routing rules
 
 * [cilium-dbg bpf](cilium-dbg_bpf.md)	 - Direct access to local BPF maps
 * [cilium-dbg bpf egress list](cilium-dbg_bpf_egress_list.md)	 - List egress policy entries
+* [cilium-dbg bpf egress timeouts](cilium-dbg_bpf_egress_timeouts.md)	 - List egress timeout entries
 

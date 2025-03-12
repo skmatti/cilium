@@ -64,6 +64,7 @@
 
 #include "lib/google/hooks_common.h"
 #include "lib/google/hooks_lxc.h"
+#include "lib/google/conntrack.h"
 
 /* Per-packet LB is needed if all LB cases can not be handled in bpf_sock.
  * Most services with L7 LB flag can not be redirected to their proxy port
@@ -2387,10 +2388,10 @@ out:
 	return ret;
 }
 
-TAIL_CT_LOOKUP4(CILIUM_CALL_IPV4_CT_INGRESS_POLICY_ONLY,
-		tail_ipv4_ct_ingress_policy_only, CT_INGRESS,
-		__and(is_defined(ENABLE_IPV4), is_defined(ENABLE_IPV6)),
-		CILIUM_CALL_IPV4_TO_LXC_POLICY_ONLY, tail_ipv4_policy)
+TAIL_CT_LOOKUP4_W_TIMEOUT(CILIUM_CALL_IPV4_CT_INGRESS_POLICY_ONLY,
+			  tail_ipv4_ct_ingress_policy_only, CT_INGRESS,
+			  __and(is_defined(ENABLE_IPV4), is_defined(ENABLE_IPV6)),
+			  CILIUM_CALL_IPV4_TO_LXC_POLICY_ONLY, tail_ipv4_policy)
 
 TAIL_CT_LOOKUP4(CILIUM_CALL_IPV4_CT_INGRESS, tail_ipv4_ct_ingress, CT_INGRESS,
 		1, CILIUM_CALL_IPV4_TO_ENDPOINT, tail_ipv4_to_endpoint)

@@ -18,6 +18,7 @@ import (
 	k8sLabels "github.com/cilium/cilium/pkg/k8s/slim/k8s/apis/labels"
 	slim_metav1 "github.com/cilium/cilium/pkg/k8s/slim/k8s/apis/meta/v1"
 	"github.com/cilium/cilium/pkg/logging/logfields"
+	"github.com/cilium/cilium/pkg/maps/egressmap"
 	nodeTypes "github.com/cilium/cilium/pkg/node/types"
 	"github.com/cilium/cilium/pkg/policy"
 	"github.com/cilium/cilium/pkg/policy/api"
@@ -62,8 +63,9 @@ type PolicyConfig struct {
 
 	policyGwConfig *policyGatewayConfig
 
-	matchedEndpoints map[endpointID]*endpointMetadata
-	gatewayConfig    gatewayConfig
+	matchedEndpoints   map[endpointID]*endpointMetadata
+	gatewayConfig      gatewayConfig
+	connectionTimeouts *egressmap.ConnectionTimeouts
 }
 
 // PolicyID includes policy name and namespace
@@ -208,6 +210,7 @@ func (config *PolicyConfig) forEachEndpointAndCIDR(f func(netip.Addr, netip.Pref
 // ParseCEGP takes a CiliumEgressGatewayPolicy CR and converts to PolicyConfig,
 // the internal representation of the egress gateway policy
 func ParseCEGP(cegp *v2.CiliumEgressGatewayPolicy) (*PolicyConfig, error) {
+	var connectionTimeouts *egressmap.ConnectionTimeouts
 	var endpointSelectorList []api.EndpointSelector
 	var dstCidrList []netip.Prefix
 	var excludedCIDRs []netip.Prefix
@@ -302,6 +305,12 @@ func ParseCEGP(cegp *v2.CiliumEgressGatewayPolicy) (*PolicyConfig, error) {
 		}
 	}
 
+	connectionTimeouts, err := parseConnectionTimeouts(cegp.GetAnnotations())
+	if err != nil {
+		log.WithError(err).WithFields(logrus.Fields{logfields.CiliumEgressGatewayPolicyName: name}).Warn("error parsing ConnectionTimeouts")
+		return nil, fmt.Errorf("Failed to parse CEGP Egress Timeouts Annotations: %w", err)
+	}
+
 	return &PolicyConfig{
 		endpointSelectors: endpointSelectorList,
 		dstCIDRs:          dstCidrList,
@@ -311,6 +320,7 @@ func ParseCEGP(cegp *v2.CiliumEgressGatewayPolicy) (*PolicyConfig, error) {
 		id: types.NamespacedName{
 			Name: name,
 		},
+		connectionTimeouts: connectionTimeouts,
 	}, nil
 }
 

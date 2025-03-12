@@ -41,6 +41,8 @@ struct egressgw_test_ctx {
 	bool tuple_collision;
 	__u64 packets;
 	__u32 status_code;
+	__u16 l4_ack;
+	__u16 l4_fin;
 };
 
 static __always_inline __be16 client_port(__u16 t)
@@ -107,9 +109,13 @@ static __always_inline int egressgw_pktgen(struct __ctx_buff *ctx,
 			return TEST_ERROR;
 		l4->source = EXTERNAL_SVC_PORT;
 		l4->dest = nat_entry->to_sport;
+		l4->fin = test_ctx.l4_fin;
+		l4->ack = test_ctx.l4_ack;
 	} else { /* CT_EGRESS */
 		l4->source = client_port(test_ctx.test);
 		l4->dest = EXTERNAL_SVC_PORT;
+		l4->fin = test_ctx.l4_fin;
+		l4->ack = test_ctx.l4_ack;
 	}
 
 	data = pktgen__push_data(&builder, default_data, sizeof(default_data));

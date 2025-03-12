@@ -78,6 +78,36 @@ struct pip_routing_entry {
 	__u16 pad4;
 };
 
+struct ipv4_redirect_ep {
+	/* Perimeter Node IP address */
+	__u32 ip4;
+} __packed;
+
+/*
+ * connection_timeouts - Per-endpoint connection timeouts for egress NAT.
+ *
+ * This struct defines custom timeout values for different connection states
+ * in egress NAT scenarios.  These timeouts are stored in the
+ * EGRESS_POLICY_TIMEOUTS_MAP, which is keyed by the source endpoint.
+ *
+ * EGRESS_POLICY_TIMEOUTS_MAP is a subset of EGRESS_POLICY_MAP, and
+ * only contains entries for endpoints whose corresponding
+ * CiliumEgressGatewayPolicy defines custom timeouts. If a timeout
+ * value is not specified for a given endpoint, or if there is no
+ * corresponding entry in EGRESS_POLICY_TIMEOUTS_MAP for the endpoint,
+ * the default timeout value from cilium-config will be used.
+ */
+struct connection_timeouts {
+	__u32 bpf_ct_timeout_regular_any;
+	__u32 bpf_ct_timeout_regular_tcp;
+	__u32 bpf_ct_timeout_regular_tcp_fin;
+	__u32 bpf_ct_timeout_regular_tcp_syn;
+};
+
+struct egress_gw_timeouts_entry {
+	struct connection_timeouts egress_connection_timeouts;
+};
+
 #ifdef ENABLE_GOOGLE_MULTI_NIC
 
 #ifndef MULTI_NIC_DEV_MAP_SIZE
@@ -137,3 +167,36 @@ struct {
 } PIP_ROUTING_MAP __section_maps_btf;
 
 #endif /* ENABLE_GOOGLE_PERSISTENT_IP */
+
+#ifdef ENABLE_EGRESS_GATEWAY_REDIRECT
+struct {
+	__uint(type, BPF_MAP_TYPE_HASH);
+	__type(key, __u16);
+	__type(value, struct ipv4_redirect_ep);
+	__uint(pinning, LIBBPF_PIN_BY_NAME);
+	__uint(max_entries, 64);
+	__uint(map_flags, CONDITIONAL_PREALLOC);
+} GOOGLE_REDIRECT_EP_IP_V4_MAP __section_maps_btf;
+
+struct {
+	__uint(type, BPF_MAP_TYPE_HASH);
+	__type(key, struct ipv4_redirect_ep);
+	__type(value, __u16);
+	__uint(pinning, LIBBPF_PIN_BY_NAME);
+	__uint(max_entries, 64);
+	__uint(map_flags, CONDITIONAL_PREALLOC);
+} GOOGLE_REDIRECT_EP_ID_V4_MAP __section_maps_btf;
+
+#endif /* ENABLE_EGRESS_GATEWAY_REDIRECT */
+
+#ifdef ENABLE_EGRESS_GATEWAY
+struct {
+	__uint(type, BPF_MAP_TYPE_LPM_TRIE);
+	__type(key, struct egress_gw_policy_key);
+	__type(value, struct egress_gw_timeouts_entry);
+	__uint(pinning, LIBBPF_PIN_BY_NAME);
+	__uint(max_entries, EGRESS_POLICY_MAP_SIZE);
+	__uint(map_flags, CONDITIONAL_PREALLOC);
+} EGRESS_POLICY_TIMEOUTS_MAP __section_maps_btf;
+
+#endif /* ENABLE_EGRESS_GATEWAY */

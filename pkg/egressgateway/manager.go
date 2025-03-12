@@ -127,6 +127,9 @@ type Manager struct {
 	// policyMap communicates the active policies to the datapath.
 	policyMap egressmap.PolicyMap
 
+	// policyMap communicates the active policies to the datapath.
+	egressTimeoutsMap egressmap.EgressTimeoutsMap
+
 	// reconciliationTriggerInterval is the amount of time between triggers
 	// of reconciliations are invoked
 	reconciliationTriggerInterval time.Duration
@@ -157,6 +160,7 @@ type Params struct {
 	DaemonConfig      *option.DaemonConfig
 	IdentityAllocator identityCache.IdentityAllocator
 	PolicyMap         egressmap.PolicyMap
+	EgressTimeoutsMap egressmap.EgressTimeoutsMap
 	Policies          resource.Resource[*Policy]
 	Nodes             resource.Resource[*cilium_api_v2.CiliumNode]
 	Endpoints         resource.Resource[*k8sTypes.CiliumEndpoint]
@@ -214,6 +218,7 @@ func newEgressGatewayManager(p Params) (*Manager, error) {
 		identityAllocator:             p.IdentityAllocator,
 		reconciliationTriggerInterval: p.Config.EgressGatewayReconciliationTriggerInterval,
 		policyMap:                     p.PolicyMap,
+		egressTimeoutsMap:             p.EgressTimeoutsMap,
 		policies:                      p.Policies,
 		ciliumNodes:                   p.Nodes,
 		endpoints:                     p.Endpoints,
@@ -756,10 +761,12 @@ func (manager *Manager) reconcileLocked() {
 			"This may cause connectivity issues for egress gateway traffic being forwarded through this node for Pods running on the same host. ")
 	}
 
-	// The order of the next 2 function calls matters, as by first adding missing policies and
+	// The order of the next 4 function calls matters, as by first adding missing policies and
 	// only then removing obsolete ones we make sure there will be no connectivity disruption
 	manager.addMissingEgressRules()
 	manager.removeUnusedEgressRules()
+	manager.addMissingEgressTimeouts()
+	manager.removeUnusedEgressTimeouts()
 
 	// clear the events bitmap
 	manager.eventsBitmap = 0

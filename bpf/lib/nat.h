@@ -97,6 +97,9 @@ struct ipv4_nat_target {
 	bool needs_ct;
 };
 
+/* Must be here to depend on struct defined in this file. */
+#include "google_nat.h"
+
 #if defined(ENABLE_IPV4) && defined(ENABLE_NODEPORT)
 struct {
 	__uint(type, BPF_MAP_TYPE_LRU_HASH);
@@ -262,6 +265,7 @@ snat_v4_nat_handle_mapping(struct __ctx_buff *ctx,
 			   struct trace_ctx *trace,
 			   __s8 *ext_err)
 {
+	struct connection_timeouts *connection_timeouts __maybe_unused = NULL;
 	bool needs_ct = target->needs_ct;
 	void *map;
 
@@ -278,19 +282,24 @@ snat_v4_nat_handle_mapping(struct __ctx_buff *ctx,
 		memcpy(&tuple_snat, tuple, sizeof(tuple_snat));
 		/* Lookup with SCOPE_FORWARD. Ports are already in correct layout: */
 		ipv4_ct_tuple_swap_addrs(&tuple_snat);
-
-		ret = ct_lazy_lookup4(get_ct_map4(&tuple_snat), &tuple_snat,
-				      ctx, ipv4_is_fragment(ip4), off, has_l4_header,
-				      CT_EGRESS, SCOPE_FORWARD, CT_ENTRY_ANY,
-				      NULL, &trace->monitor);
+		lookup_egress_nat_timeouts(&connection_timeouts, tuple_snat.daddr,
+					   tuple_snat.saddr);
+		ret = ct_lazy_lookup4_w_timeouts(get_ct_map4(&tuple_snat),
+						 &tuple_snat, ctx,
+						 ipv4_is_fragment(ip4), off,
+						 has_l4_header, CT_EGRESS,
+						 SCOPE_FORWARD, CT_ENTRY_ANY,
+						 NULL, &trace->monitor,
+						 connection_timeouts);
 		if (ret < 0)
 			return ret;
 
 		trace->reason = (enum trace_reason)ret;
 		if (ret == CT_NEW) {
-			ret = ct_create4(get_ct_map4(&tuple_snat), NULL,
-					 &tuple_snat, ctx, CT_EGRESS,
-					 NULL, ext_err);
+			ret = ct_create4_w_timeouts(get_ct_map4(&tuple_snat), NULL,
+						    &tuple_snat, ctx, CT_EGRESS,
+						    NULL, ext_err,
+						    connection_timeouts);
 			if (IS_ERR(ret))
 				return ret;
 		}
@@ -336,6 +345,7 @@ snat_v4_rev_nat_handle_mapping(struct __ctx_buff *ctx,
 			       const struct ipv4_nat_target *target,
 			       struct trace_ctx *trace)
 {
+	struct connection_timeouts *connection_timeouts __maybe_unused = NULL;
 	void *map;
 
 	map = get_cluster_snat_map_v4(target->cluster_id);
@@ -356,11 +366,17 @@ snat_v4_rev_nat_handle_mapping(struct __ctx_buff *ctx,
 		 * while NAT uses normal tuples that match packet headers.
 		 */
 		ipv4_ct_tuple_swap_ports(&tuple_revsnat);
+		lookup_egress_nat_timeouts(&connection_timeouts,
+					   tuple_revsnat.daddr,
+					   tuple_revsnat.saddr);
 
-		ret = ct_lazy_lookup4(get_ct_map4(&tuple_revsnat), &tuple_revsnat,
-				      ctx, ipv4_is_fragment(ip4), off, has_l4_header,
-				      CT_INGRESS, SCOPE_REVERSE, CT_ENTRY_ANY,
-				      NULL, &trace->monitor);
+		ret = ct_lazy_lookup4_w_timeouts(get_ct_map4(&tuple_revsnat),
+						 &tuple_revsnat, ctx,
+						 ipv4_is_fragment(ip4), off,
+						 has_l4_header, CT_INGRESS,
+						 SCOPE_REVERSE, CT_ENTRY_ANY,
+						 NULL, &trace->monitor,
+						 connection_timeouts);
 		if (ret < 0)
 			return ret;
 
