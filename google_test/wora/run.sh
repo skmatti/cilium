@@ -58,13 +58,12 @@ function verify_cilium_overridden {
 }
 
 function enable_additional_vxlans {
-  if grep -q "wora-sut-gdch-abm-gce" "${ARTIFACTS}/.kubetest2-tailorbird/tailorbird-request.yaml"; then
-    TOOL_IMAGE=us-docker.pkg.dev/anthos-networking-ci/apps/enable-additional-vxlan:latest
-    remote_execution_from_gce_bootstrapper "gcloud auth activate-service-account --key-file=bootstrapper-sa.json"
-    remote_execution_from_gce_bootstrapper "gcloud auth configure-docker us-docker.pkg.dev --quiet"
-    remote_execution_from_gce_bootstrapper "docker run --pull=always -v \${PWD}:/workspace ${TOOL_IMAGE} enable-additional-vxlan --new-vxlan-name vxlan1 --new-vxlan-ID 43 --new-vxlan-network 10.100.0.0/21"
-    remote_execution_from_gce_bootstrapper "docker run --pull=always -v \${PWD}:/workspace ${TOOL_IMAGE} enable-additional-vxlan --new-vxlan-name vxlan2 --new-vxlan-ID 44 --new-vxlan-network 10.150.0.0/21"
-  fi
+  local cluster_type="${1:?}"
+  local tool_image="us-docker.pkg.dev/anthos-networking-ci/apps/enable-additional-vxlan:latest"
+  remote_execution_from_gce_bootstrapper "gcloud auth activate-service-account --key-file=bootstrapper-sa.json"
+  remote_execution_from_gce_bootstrapper "gcloud auth configure-docker us-docker.pkg.dev --quiet"
+  remote_execution_from_gce_bootstrapper "docker run --pull=always -v \${PWD}:/workspace '${tool_image}' enable-additional-vxlan --new-vxlan-name vxlan1 --new-vxlan-ID 43 --new-vxlan-network 10.100.0.0/21 --cluster-type '${cluster_type}'"
+  remote_execution_from_gce_bootstrapper "docker run --pull=always -v \${PWD}:/workspace '${tool_image}' enable-additional-vxlan --new-vxlan-name vxlan2 --new-vxlan-ID 44 --new-vxlan-network 10.150.0.0/21 --cluster-type '${cluster_type}'"
 }
 
 # Revert KUBECONFIG change made by kt2-tb, to avoid control plane login to mess
@@ -77,8 +76,8 @@ if [[ -n "${KUBECONFIG}" ]] && [[ -n "${CILIUM_IMAGE_WITH_TAG:-}" ]] && [[ "${DI
   verify_cilium_overridden "${CILIUM_IMAGE_WITH_TAG}"
 fi
 
-if [ -e "${ARTIFACTS}/.kubetest2-tailorbird/tailorbird-request.yaml" ]; then
-  enable_additional_vxlans
+if [[ -e "${ARTIFACTS}/.kubetest2-tailorbird/tailorbird-request.yaml" ]] && [[ -n "${ADD_VXLANS_CLUSTER_TYPE:-}" ]]; then
+  enable_additional_vxlans "${ADD_VXLANS_CLUSTER_TYPE}"
 fi
 
 # This is used to set the cluster artifacts env var.
