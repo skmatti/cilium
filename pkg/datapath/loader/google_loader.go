@@ -4,13 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"path"
 
 	"github.com/cilium/cilium/pkg/bpf"
 	"github.com/cilium/cilium/pkg/datapath/connector"
 	"github.com/cilium/cilium/pkg/datapath/linux/safenetlink"
 	datapath "github.com/cilium/cilium/pkg/datapath/types"
 	"github.com/cilium/cilium/pkg/logging/logfields"
+	"github.com/cilium/cilium/pkg/maps/policymap"
 	"github.com/cilium/cilium/pkg/option"
 	"github.com/cilium/ebpf"
 	"github.com/sirupsen/logrus"
@@ -44,19 +44,11 @@ func setupMultiNICDataPath(ctx context.Context, ep datapath.Endpoint, objPath st
 // by the object path of the host endpoint.
 // The bpf masquerade is always turned on for the parent device.
 // The masquerade address is the first global IPv4 address found on the node.
-func ReloadParentDevDatapath(ctx context.Context, device string, ep datapath.Endpoint) error {
+func (l *loader) ReloadParentDevDatapath(ctx context.Context, device string, ep datapath.Endpoint) error {
 	scopedLog := ep.Logger(subsystem).WithFields(logrus.Fields{
 		logfields.Interface: device,
 	})
 	scopedLog.Info("Loading bpf progs for the parent device")
-
-	// Create a new loader instance with DefaultConfig
-	l := newLoader(Params{
-		Config:          DefaultConfig,
-		Prefilter:       nil,
-		CompilationLock: nil,
-		NodeHandler:     nil,
-	})
 
 	iface, err := safenetlink.LinkByName(device)
 	if err != nil {
@@ -68,9 +60,34 @@ func ReloadParentDevDatapath(ctx context.Context, device string, ep datapath.End
 		return err
 	}
 
-	spec, err := bpf.LoadCollectionSpec(path.Join(ep.StateDir(), hostEndpointObj))
+	dirs := directoryInfo{
+		Library: option.Config.BpfDir,
+		Runtime: option.Config.StateDir,
+		State:   ep.StateDir(),
+		Output:  ep.StateDir(),
+	}
+	cfg := l.getNodeConfig()
+	spec, _, err := l.templateCache.fetchOrCompile(ctx, cfg, ep, &dirs, nil)
 	if err != nil {
 		return fmt.Errorf("loading eBPF ELF: %w", err)
+	}
+	scopedLog.Infof("spec :%+v", spec)
+
+	// Replace all occurrences of the template endpoint ID with the real ID.
+	for _, name := range []string{
+		policymap.PolicyCallMapName,
+		policymap.PolicyEgressCallMapName,
+	} {
+		pm, ok := spec.Maps[name]
+		if !ok {
+			continue
+		}
+
+		for i, kv := range pm.Contents {
+			if kv.Key == (uint32)(templateLxcID) {
+				pm.Contents[i].Key = (uint32)(ep.GetID())
+			}
+		}
 	}
 
 	coll, commit, err := loadDatapath(spec, netdevRenames, netdevConsts)

@@ -5,6 +5,7 @@ import (
 	agentK8s "github.com/cilium/cilium/daemon/k8s"
 	linuxdatapath "github.com/cilium/cilium/pkg/datapath/linux"
 	"github.com/cilium/cilium/pkg/datapath/tables"
+	datapath "github.com/cilium/cilium/pkg/datapath/types"
 	"github.com/cilium/cilium/pkg/endpoint"
 	"github.com/cilium/cilium/pkg/gke/multinic/types"
 	k8sClient "github.com/cilium/cilium/pkg/k8s/client"
@@ -35,6 +36,7 @@ type NetworkReconciler struct {
 	Devices             statedb.Table[*tables.Device]
 	DB                  *statedb.DB
 	GoogleDeviceManager *linuxdatapath.GoogleDeviceManager
+	Loader              datapath.Loader
 }
 
 type nicMapValue struct {

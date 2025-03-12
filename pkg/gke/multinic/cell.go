@@ -14,6 +14,7 @@ import (
 	linuxdatapath "github.com/cilium/cilium/pkg/datapath/linux"
 	"github.com/cilium/cilium/pkg/datapath/linux/safenetlink"
 	"github.com/cilium/cilium/pkg/datapath/tables"
+	datapath "github.com/cilium/cilium/pkg/datapath/types"
 	"github.com/cilium/cilium/pkg/endpoint"
 	"github.com/cilium/cilium/pkg/endpointmanager"
 	"github.com/cilium/cilium/pkg/gke/features"
@@ -52,6 +53,7 @@ var (
 var Cell = cell.Module(
 	"google-multinetworking",
 	"Google Multinetworking",
+
 	cell.Invoke(initMultinetworking),
 )
 
@@ -76,6 +78,7 @@ type Params struct {
 	DB                  *statedb.DB
 	DeviceTable         statedb.Table[*tables.Device]
 	GoogleDeviceManager *linuxdatapath.GoogleDeviceManager `optional:"true"`
+	Datapath            datapath.Datapath
 }
 
 func initMultinetworking(p Params) error {
@@ -134,6 +137,7 @@ func initMultinetworking(p Params) error {
 				Log:                 log,
 				LocalNodeResource:   p.LocalNodeResource,
 				GoogleDeviceManager: p.GoogleDeviceManager,
+				Loader:              p.Datapath.Loader(),
 			}
 
 			if err := r.SetupMultiNetworkingIPAMAllocators(r.IPAMMgr, r.EndpointManager.GetEndpoints()); err != nil {

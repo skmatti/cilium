@@ -21,10 +21,11 @@ import (
 	"github.com/cilium/cilium/pkg/time"
 	"github.com/sirupsen/logrus"
 	"github.com/vishvananda/netlink"
-	anutils "gke-internal.googlesource.com/anthos-networking/apis/v2/utils"
 	"go.uber.org/multierr"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+
+	anutils "gke-internal.googlesource.com/anthos-networking/apis/v2/utils"
 )
 
 const (
@@ -125,7 +126,7 @@ func (r *NetworkReconciler) loadEBPFOnParent(ctx context.Context, network *netwo
 	if err != nil {
 		return fmt.Errorf("failed to get endpoint cache: %v", err)
 	}
-	if err := loader.ReloadParentDevDatapath(ctx, devToLoad, epInfo); err != nil {
+	if err := r.Loader.ReloadParentDevDatapath(ctx, devToLoad, epInfo); err != nil {
 		return fmt.Errorf("datapath reload failed for device %q: %v", devToLoad, err)
 	}
 

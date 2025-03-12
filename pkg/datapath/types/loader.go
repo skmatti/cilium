@@ -26,6 +26,8 @@ type Loader interface {
 	DetachXDP(iface string, bpffsBase, progName string) error
 
 	WriteEndpointConfig(w io.Writer, cfg EndpointConfiguration) error
+
+	ReloadParentDevDatapath(ctx context.Context, device string, ep Endpoint) error
 }
 
 // PreFilter an interface for an XDP pre-filter.
