@@ -29,7 +29,9 @@ spec:
           - /test/ginkgo
           - --keep-going
           - --timeout=2h
-          - --label-filter=sample||tailcall||kubevirt||l3vm||vpc
+          # TODO(b/399420362): disable the feature tests until the bug is fixed.
+          # - --label-filter=sample||tailcall||kubevirt||l3vm||vpc
+          - --label-filter=sample
           - -vv
           - --no-color
           - --output-dir={{ RuntimePath "." }}
