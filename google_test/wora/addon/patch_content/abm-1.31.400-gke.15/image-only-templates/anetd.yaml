@@ -1,0 +1,47 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  labels:
+    k8s-app: cilium
+  name: anetd
+  namespace: kube-system
+spec:
+  template:
+    spec:
+      containers:
+      - name: cilium-agent
+        image: $(REGISTRY)/cilium/cilium:$(CILIUM_TAG)
+        args:
+        - |
+          exec {BASH_XTRACEFD}>&1 && set -x
+
+          if [[ -n "$${CILIUM_CONFIG_MAP}" ]] \
+              && [[ ! -f "$${CILIUM_CONFIG_MAP}/mtu" ]] \
+              && [[ -n "$${MTU_DEVICE_IP}" ]]; then
+            # Get mtu of the interface which has ip address '$${MTU_DEVICE_IP}'
+            mtu="$$(ip addr show to "$${MTU_DEVICE_IP}" | grep mtu | awk '{for (I=1;I<NF;I++) if ($$I == "mtu") print $$(I+1)}')"
+
+            # Check if we could retrieve a number in 'mtu'
+            if [[ "$${mtu}" =~ ^[0-9]+$$ ]]; then
+              mtuArg="--mtu=$${mtu}"
+            fi
+          fi
+
+          exec /usr/bin/cilium-agent \
+            --k8s-kubeconfig-path=/etc/kubernetes/kubelet.conf \
+            --config-dir="$${CILIUM_CONFIG_MAP}" \
+            $${mtuArg:-}
+        command:
+        - bash
+        - -euc
+      initContainers:
+      - name: check-kube-proxy-rules
+        image: $(REGISTRY)/cilium/cilium:$(CILIUM_TAG)
+      - name: mount-cgroup
+        image: $(REGISTRY)/cilium/cilium:$(CILIUM_TAG)
+      - name: clean-cilium-state
+        image: $(REGISTRY)/cilium/cilium:$(CILIUM_TAG)
+      - name: apply-sysctl-overwrites
+        image: $(REGISTRY)/cilium/cilium:$(CILIUM_TAG)
+      - name: install-cni-binaries
+        image: $(REGISTRY)/cilium/cilium:$(CILIUM_TAG)

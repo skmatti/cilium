@@ -1,0 +1,14 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    io.cilium/app: operator
+    name: cilium-operator
+  name: anet-operator
+  namespace: kube-system
+spec:
+  template:
+    spec:
+      containers:
+      - image: $(REGISTRY)/cilium/operator:$(CILIUM_TAG)
+        name: cilium-operator

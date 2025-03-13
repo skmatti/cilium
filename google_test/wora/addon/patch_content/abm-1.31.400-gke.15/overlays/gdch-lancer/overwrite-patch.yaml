@@ -1,0 +1,21 @@
+# The overwrite-patch stores the configurations that are different from the GDC-AG production environment.
+apiVersion: v1
+data:
+  # Enabling ipv4 masquerading to support GKE connect connection.
+  # GKE connect is required for tailorbird to bring up the cluster,
+  # when ABM cluster not in private mode.
+  # TODO(b/399421655): remove after we turn on Private mode.
+  enable-ipv4-masquerade: "true"
+  # Disable k8s-interface-only to support GKE connect connection.
+  # GKE connect is required for tailorbird to bring up the cluster,
+  # when ABM cluster not in private mode.
+  # TODO(b/399421655): remove after we turn on Private mode.
+  k8s-interface-only: "false"
+  # Disable hubble to reduce log noise as we don't need to export the flow logs.
+  enable-hubble: "true"
+  # TODO(b/403341253): remove the configuration once it's updated in GDC-AG repo.
+  kube-proxy-replacement: "false"
+kind: ConfigMap
+metadata:
+  name: cilium-config
+  namespace: kube-system
