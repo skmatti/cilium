@@ -7,6 +7,7 @@
 #include "lib/google/multinic.h"
 #include "lib/google/pip.h"
 #include "lib/google/plugin.h"
+#include "lib/google/geneve.h"
 
 /**
  * This file contains hook implementations for hook points inside the host
@@ -43,10 +44,10 @@
  * |_______________________|
  */
 static __always_inline
-int pre_netdev_ingress_start(struct __ctx_buff *ctx __maybe_unused,
+int pre_netdev_ingress_start(struct __ctx_buff *ctx,
 			     struct goog_netdev_ingress_start_ctx *stage_ctx __maybe_unused)
 {
-	return HOOK_ACT_CONTINUE;
+	return goog_geneve_pre_netdev_ingress_start(ctx);
 }
 
 static __always_inline
@@ -60,8 +61,11 @@ static __always_inline
 int pre_netdev_ingress_fwd4(struct __ctx_buff *ctx,
 			    struct goog_netdev_ingress_fwd4_ctx *stage_ctx)
 {
-
 	int ret;
+
+	ret = goog_geneve_pre_netdev_ingress_fwd4(ctx, stage_ctx);
+	if (ret != HOOK_ACT_CONTINUE)
+		return ret;
 
 	ret = goog_mn_maybe_deliver_to_ep(ctx, &stage_ctx->__common);
 	if (ret == HOOK_ACT_SKIP)
@@ -105,7 +109,7 @@ static __always_inline
 int pre_host_ingress_start(struct __ctx_buff *ctx __maybe_unused,
 			   struct goog_host_ingress_start_ctx *stage_ctx __maybe_unused)
 {
-	return HOOK_ACT_CONTINUE;
+	return goog_geneve_pre_host_ingress_start();
 }
 
 static __always_inline

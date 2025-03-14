@@ -111,4 +111,13 @@ const (
 	// CA certificates to use for TLS with mutual authentication (mTLS) on the
 	// metrics server. The files must contain PEM encoded data.
 	AgentMetricsServerTLSClientCAFiles = "agent-metrics-server-tls-client-ca-files"
+
+	// EnableGoogleBPFGeneve is the name of the option to enable Google BPF Geneve encapsulation.
+	EnableGoogleBPFGeneve = "enable-google-bpf-geneve"
+
+	// XDPMode sets the XDP mode.
+	XDPMode = "xdp-mode"
+
+	// XDPDevices is the name of the option to override XDP device list.
+	XDPDevices = "xdp-devices"
 )

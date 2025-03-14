@@ -33,6 +33,14 @@
 #define HAVE_LPM_TRIE_MAP_TYPE
 #define SRC_NETWORK_ID NETWORK_ID
 #define DEV_INDEX 10
+#define ENABLE_GOOGLE_GENEVE
+#define ENABLE_NODEPORT
+#define HAVE_FIB_NEIGH 1
+#define ENABLE_EGRESS_GATEWAY
+#define ENABLE_DSR
+#define DSR_ENCAP_IPIP 2
+#define DSR_ENCAP_GENEVE 3
+#define DSR_ENCAP_MODE DSR_ENCAP_GENEVE
 
 /* this matches the default node_config.h: */
 static volatile const __u8 *node_mac = mac_three;
@@ -394,6 +402,9 @@ int google_multinic_veth_to_service_remote_setup(struct __ctx_buff *ctx)
 		.flags = SVC_FLAG_ROUTABLE,
 		.rev_nat_index = revnat_id,
 	};
+	const __be32 remote_ip = BACKEND_NODE_IP_REMOTE;
+	const __u8 remote_mac[] = {0x13, 0x37, 0x13, 0x37, 0x13, 0x37};
+
 	map_update_elem(&LB4_SERVICES_MAP_V2, &lb_svc_key, &lb_svc_value, BPF_ANY);
 	/* We need to register both in the external and internal scopes for the
 	 * packet to be redirected to a neighboring node
@@ -409,6 +420,9 @@ int google_multinic_veth_to_service_remote_setup(struct __ctx_buff *ctx)
 	lb_svc_value.backend_id = 125;
 	map_update_elem(&LB4_SERVICES_MAP_V2, &lb_svc_key, &lb_svc_value, BPF_ANY);
 
+	// Fill the FIB lookup table. We don't care about MAC in our test, so any mac
+	// will work.
+	map_update_elem(&NODEPORT_NEIGH4, &remote_ip, remote_mac, BPF_ANY);
 	// Set up remote backend for the service
 	struct lb4_backend backend = {
 		.address = BACKEND_IP_REMOTE,
@@ -462,15 +476,9 @@ int google_multinic_veth_to_service_remote_check(__maybe_unused const struct __c
 	if ((void *)l3 + sizeof(struct iphdr) > data_end)
 		test_fatal("l3 out of bounds");
 
-	// // destination IP should be changed to the remote node IP
-	// if (l3->daddr != BACKEND_NODE_IP_REMOTE)
-	// 	test_fatal("dest IP was not changed to remote node IP");
-
-	// TODO(b/344899787): Correct the test expecation after VPC change is merged.
 	// destination IP should be changed to the remote node IP
-	// after merging GOOGLE VPC datapath change.
-	if (l3->daddr != BACKEND_IP_REMOTE)
-		test_fatal("dest IP should be remote node IP after VPC datapath change");
+	if (l3->daddr != BACKEND_NODE_IP_REMOTE)
+		test_fatal("dest IP was not changed to remote node IP");
 
 	test_finish();
 }

@@ -37,6 +37,9 @@
 #include "lib/eps.h"
 #include "lib/events.h"
 #include "lib/nodeport.h"
+#ifdef ENABLE_GOOGLE_GENEVE
+#include "lib/google/geneve.h"
+#endif
 
 #ifdef ENABLE_PREFILTER
 #ifdef CIDR4_FILTER
@@ -343,6 +346,11 @@ static __always_inline int check_filters(struct __ctx_buff *ctx)
 	switch (proto) {
 #ifdef ENABLE_IPV4
 	case bpf_htons(ETH_P_IP):
+#ifdef ENABLE_GOOGLE_GENEVE
+		ret = geneve_try_decap4(ctx);
+		if (ret != HOOK_ACT_CONTINUE)
+			return ret;
+#endif /* ENABLE_GOOGLE_GENEVE */
 		ret = check_v4(ctx);
 		break;
 #endif /* ENABLE_IPV4 */
@@ -361,6 +369,15 @@ static __always_inline int check_filters(struct __ctx_buff *ctx)
 __section_entry
 int cil_xdp_entry(struct __ctx_buff *ctx)
 {
+#ifdef ENABLE_GOOGLE_GENEVE
+	int ret;
+
+	ret = geneve_reset_state();
+	if (ret != HOOK_ACT_CONTINUE)
+		return ret;
+	if (geneve_set_current_bpf_program(GENEVE_BPF_PROGRAM_ID_FROM_NETDEV_XDP) < 0)
+		return DROP_WRITE_ERROR;
+#endif /* ENABLE_GOOGLE_GENEVE */
 	return check_filters(ctx);
 }
 

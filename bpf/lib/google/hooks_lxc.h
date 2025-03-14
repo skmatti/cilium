@@ -7,6 +7,7 @@
 #include "lib/google/sfc.h"
 #include "lib/google/multinic.h"
 #include "lib/google/pip.h"
+#include "lib/google/geneve.h"
 #include "lib/google/plugin.h"
 #include "lib/google_multinic.h"
 
@@ -115,6 +116,10 @@ static __always_inline int
 pre_ctr_egress_start4(struct __ctx_buff *ctx __maybe_unused,
 		      struct goog_ctr_egress_start4_ctx *stage_ctx __maybe_unused)
 {
+	int ret = goog_geneve_pre_ctr_egress_start4();
+
+	if (ret != HOOK_ACT_CONTINUE)
+		return ret;
 	return goog_sfc_reset_egress_state();
 }
 
@@ -122,7 +127,12 @@ static __always_inline int
 pre_ctr_egress_svc4(struct __ctx_buff *ctx,
 		    struct goog_ctr_egress_svc4_ctx *stage_ctx)
 {
-	int ret = goog_maybe_redirect_if_dhcp(ctx);
+	int ret = geneve_redirect_to_overlay_if_encapped(ctx);
+
+	if (ret != HOOK_ACT_CONTINUE)
+		return ret;
+
+	ret = goog_maybe_redirect_if_dhcp(ctx);
 	if (ret != HOOK_ACT_CONTINUE)
 		return ret;
 
@@ -145,6 +155,7 @@ pre_ctr_egress_fwd4(struct __ctx_buff *ctx,
 		    struct goog_ctr_egress_fwd4_ctx *stage_ctx)
 {
 	int ret = goog_sfc_maybe_encap_new(ctx, stage_ctx);
+
 	if (ret != HOOK_ACT_CONTINUE)
 		return ret;
 	stage_ctx->skip_local_delivery = should_skip_local_delivery(ctx);

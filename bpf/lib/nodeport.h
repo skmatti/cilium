@@ -1686,16 +1686,25 @@ static __always_inline bool
 nodeport_has_nat_conflict_ipv4(const struct iphdr *ip4 __maybe_unused,
 			       struct ipv4_nat_target *target __maybe_unused)
 {
-#if defined(TUNNEL_MODE) && defined(IS_BPF_OVERLAY)
+#if defined(TUNNEL_MODE) && (defined(IS_BPF_OVERLAY) || defined(ENABLE_GOOGLE_GENEVE))
+# ifdef ENABLE_GOOGLE_GENEVE
+	if (geneve_get_current_bpf_program() == GENEVE_BPF_PROGRAM_ID_TO_OVERLAY) {
+# endif /* ENABLE_GOOGLE_GENEVE */
 	if (ip4->saddr == IPV4_GATEWAY) {
 		target->addr = IPV4_GATEWAY;
 		target->needs_ct = true;
 
 		return true;
 	}
+# ifdef ENABLE_GOOGLE_GENEVE
+	}
+# endif /* ENABLE_GOOGLE_GENEVE */
 #endif /* TUNNEL_MODE && IS_BPF_OVERLAY */
 
 #if defined(IS_BPF_HOST)
+# ifdef ENABLE_GOOGLE_GENEVE
+	if (geneve_get_current_bpf_program() != GENEVE_BPF_PROGRAM_ID_TO_OVERLAY) {
+# endif /* ENABLE_GOOGLE_GENEVE */
 	__u32 dr_ifindex = DIRECT_ROUTING_DEV_IFINDEX;
 
 	/* NATIVE_DEV_IFINDEX == DIRECT_ROUTING_DEV_IFINDEX cannot be moved into
@@ -1709,6 +1718,9 @@ nodeport_has_nat_conflict_ipv4(const struct iphdr *ip4 __maybe_unused,
 
 		return true;
 	}
+# ifdef ENABLE_GOOGLE_GENEVE
+	}
+# endif /* ENABLE_GOOGLE_GENEVE */
 #endif /* IS_BPF_HOST */
 
 	return false;
@@ -1995,6 +2007,7 @@ static __always_inline int encap_geneve_dsr_opt4(struct __ctx_buff *ctx, int l3_
 		return DROP_FRAG_NEEDED;
 	}
 
+	// TODO(kxw): revisit xdp dsr logic.
 #if __ctx_is == __ctx_xdp
 	if (has_encap) {
 		int outer_l4_off = ETH_HLEN + ipv4_hdrlen(outer_ip4);
@@ -2147,7 +2160,18 @@ nodeport_extract_dsr_v4(struct __ctx_buff *ctx,
 		}
 	}
 
-#if defined(IS_BPF_OVERLAY)
+#ifdef ENABLE_GOOGLE_GENEVE
+	{
+		const struct geneve_dsr_opt4 *dsr_opt4 = geneve_get_option_from_metadata(geneve_get_metadata(GENEVE_DIR_INGRESS), DSR_GENEVE_OPT_CLASS, DSR_GENEVE_OPT_TYPE);
+
+		if (dsr_opt4) {
+			*dsr = true;
+			*addr = dsr_opt4->addr;
+			*port = dsr_opt4->port;
+			return 0;
+		}
+	}
+#elif defined(IS_BPF_OVERLAY)
 	{
 		struct geneve_dsr_opt4 gopt;
 		int ret = 0;
@@ -2684,6 +2708,14 @@ int tail_nodeport_nat_ingress_ipv4(struct __ctx_buff *ctx)
 #if !defined(ENABLE_DSR) || (defined(ENABLE_DSR) && defined(ENABLE_DSR_HYBRID)) ||	\
     (defined(ENABLE_EGRESS_GATEWAY_COMMON) && !defined(IS_BPF_OVERLAY))
 
+# if defined(ENABLE_EGRESS_GATEWAY_COMMON) && defined(ENABLE_GOOGLE_GENEVE)
+	/* This is to match the above (defined(ENABLE_EGRESS_GATEWAY_COMMON) && !defined(IS_BPF_OVERLAY))
+	 * logic.
+	 */
+	if (geneve_get_current_bpf_program() == GENEVE_BPF_PROGRAM_ID_FROM_OVERLAY)
+		goto recircle;
+# endif /* ENABLE_GOOGLE_GENEVE */
+
 # if defined(ENABLE_HOST_FIREWALL) && defined(IS_BPF_HOST)
 	ret = ipv4_host_policy_ingress(ctx, &src_id, &trace, &ext_err);
 	if (IS_ERR(ret))
@@ -3116,8 +3148,11 @@ skip_service_lookup:
 		ctx_set_xfer(ctx, XFER_PKT_NO_SVC);
 
 #ifdef ENABLE_DSR
-#if (defined(IS_BPF_OVERLAY) && DSR_ENCAP_MODE == DSR_ENCAP_GENEVE) || \
+#if ((defined(IS_BPF_OVERLAY) || defined(ENABLE_GOOGLE_GENEVE)) && DSR_ENCAP_MODE == DSR_ENCAP_GENEVE) || \
 	(!defined(IS_BPF_OVERLAY) && DSR_ENCAP_MODE != DSR_ENCAP_GENEVE)
+# ifdef ENABLE_GOOGLE_GENEVE
+	if (geneve_get_current_bpf_program() == GENEVE_BPF_PROGRAM_ID_FROM_OVERLAY) {
+# endif /* ENABLE_GOOGLE_GENEVE */
 		if (is_svc_proto && nodeport_uses_dsr4(&tuple)) {
 			/* Check if packet has embedded DSR info, or belongs to
 			 * an established DSR connection:
@@ -3148,6 +3183,9 @@ skip_service_lookup:
 								 ext_err);
 		        }
 		}
+# ifdef ENABLE_GOOGLE_GENEVE
+	}
+# endif /* ENABLE_GOOGLE_GENEVE */
 #endif
 #endif /* ENABLE_DSR */
 
@@ -3264,8 +3302,11 @@ skip_fib:
 
 #ifdef ENABLE_DSR
  #if defined(ENABLE_HIGH_SCALE_IPCACHE) &&				\
-     defined(IS_BPF_OVERLAY) &&						\
+     (defined(IS_BPF_OVERLAY) || defined(ENABLE_GOOGLE_GENEVE)) &&						\
      DSR_ENCAP_MODE == DSR_ENCAP_GENEVE
+# ifdef ENABLE_GOOGLE_GENEVE
+	if (geneve_get_current_bpf_program() == GENEVE_BPF_PROGRAM_ID_TO_OVERLAY) {
+# endif /* ENABLE_GOOGLE_GENEVE */
 		/* For HS IPCache, we also need to revDNAT the OuterSrcIP: */
 		if (ct_state.dsr_internal) {
 			struct bpf_tunnel_key key;
@@ -3281,6 +3322,9 @@ skip_fib:
 					       BPF_F_ZERO_CSUM_TX) < 0)
 				return DROP_WRITE_ERROR;
 		}
+# ifdef ENABLE_GOOGLE_GENEVE
+	}
+# endif /* ENABLE_GOOGLE_GENEVE */
  #endif
 #endif
 	}
@@ -3307,6 +3351,11 @@ int tail_handle_snat_fwd_ipv4(struct __ctx_buff *ctx)
 	obs_point = TRACE_TO_NETWORK;
 #endif
 
+#ifdef ENABLE_GOOGLE_GENEVE
+	if (geneve_get_current_bpf_program() == GENEVE_BPF_PROGRAM_ID_TO_OVERLAY)
+		obs_point = TRACE_TO_OVERLAY;
+#endif
+
 	ret = nodeport_snat_fwd_ipv4(ctx, cluster_id, &saddr, &trace, &ext_err);
 	if (IS_ERR(ret))
 		return send_drop_notify_error_ext(ctx, UNKNOWN_ID, ret, ext_err,
@@ -3321,6 +3370,31 @@ int tail_handle_snat_fwd_ipv4(struct __ctx_buff *ctx)
 		send_trace_notify4(ctx, obs_point, UNKNOWN_ID, UNKNOWN_ID, saddr,
 				   TRACE_EP_ID_UNKNOWN, NATIVE_DEV_IFINDEX,
 				   trace.reason, trace.monitor);
+
+#ifdef ENABLE_GOOGLE_GENEVE
+	if (ret == CTX_ACT_OK && geneve_get_current_bpf_program() == GENEVE_BPF_PROGRAM_ID_TO_OVERLAY) {
+		/* Set SNAT done here to avoid the packet going through a loop.
+		 *
+		 * As we are handling packet encapsulation and redirection in the beginning of the
+		 * CILIUM_CALL_IPV4_FROM_NETDEV, the packet will go through the egress SNAT logic
+		 * again later in geneve_redirect_to_overlay_if_encapped().
+		 * This is fine when the packet has already been SNATed, as the SNAT done bit
+		 * will be set in nodeport_snat_fwd_ipv4() and egress SNAT logic will be skipped.
+		 * However, it can also happen that the nodeport_snat_fwd_ipv4() returns DROP_NAT_NOT_NEEDED.
+		 * In this case the SNAT done bit will not be set. The packet will be looped through this logic.
+		 * 
+		 * This logic is not needed in the OSS Cilium implementation because the packet will
+		 * go through bpf_overlay, then get tail called here (CILIUM_CALL_IPV4_NODEPORT_SNAT_FWD),
+		 * when ret is CTX_ACT_OK and SNAT done bit is not set, the packet can still go out
+		 * directly by returning to kernel.
+		 */
+		ctx_snat_done_set(ctx);
+
+		// Tail call back to the interface to prevent the packet going to kernel.
+		// We will do encapsulation and redirect packet there.
+		return tail_call_internal(ctx, CILIUM_CALL_IPV4_FROM_NETDEV, NULL);
+	}
+#endif
 
 #if defined(ENABLE_GOOGLE_MULTI_NIC) && defined(IS_BPF_HOST)
 	return multinic_redirect_ipv4(ctx);
@@ -3344,7 +3418,8 @@ __handle_nat_fwd_ipv4(struct __ctx_buff *ctx, __u32 cluster_id __maybe_unused,
     (defined(ENABLE_DSR) && defined(ENABLE_DSR_HYBRID)) ||		\
      defined(ENABLE_MASQUERADE_IPV4) ||					\
     (defined(ENABLE_CLUSTER_AWARE_ADDRESSING) && defined(ENABLE_INTER_CLUSTER_SNAT))||	\
-	defined(ENABLE_EGRESS_GATEWAY)
+	defined(ENABLE_EGRESS_GATEWAY) || \
+	(defined(ENABLE_GOOGLE_GENEVE) && defined(HAVE_ENCAP))
 	if (!ctx_snat_done(ctx)) {
 		ctx_store_meta(ctx, CB_CLUSTER_ID_EGRESS, cluster_id);
 		ret = tail_call_internal(ctx, CILIUM_CALL_IPV4_NODEPORT_SNAT_FWD,
@@ -3385,6 +3460,11 @@ int tail_handle_nat_fwd_ipv4(struct __ctx_buff *ctx)
 	obs_point = TRACE_TO_OVERLAY;
 #else
 	obs_point = TRACE_TO_NETWORK;
+#endif
+
+#ifdef ENABLE_GOOGLE_GENEVE
+	if (geneve_get_current_bpf_program() == GENEVE_BPF_PROGRAM_ID_TO_OVERLAY)
+		obs_point = TRACE_TO_OVERLAY;
 #endif
 
 	ret = handle_nat_fwd_ipv4(ctx, &trace, &ext_err);

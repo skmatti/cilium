@@ -2,6 +2,7 @@
 /* Copyright Authors of Cilium */
 
 #include <bpf/ctx/skb.h>
+#include "lib/google/skb.h"
 #include <bpf/api.h>
 
 #include <node_config.h>
@@ -39,6 +40,9 @@
 #include "lib/encap.h"
 #include "lib/eps.h"
 #endif /* ENABLE_VTEP */
+
+// This is needed so that google_ctx_redirect can be linked properly.
+#include "lib/google/geneve.h"
 
 #define overlay_ingress_policy_hook(ctx, ip4, identity, ext_err) CTX_ACT_OK
 

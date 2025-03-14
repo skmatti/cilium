@@ -25,6 +25,7 @@ import (
 	"github.com/cilium/cilium/pkg/datapath/tunnel"
 	datapath "github.com/cilium/cilium/pkg/datapath/types"
 	"github.com/cilium/cilium/pkg/defaults"
+	"github.com/cilium/cilium/pkg/gke/features"
 	"github.com/cilium/cilium/pkg/identity"
 	ipamOption "github.com/cilium/cilium/pkg/ipam/option"
 	"github.com/cilium/cilium/pkg/logging/logfields"
@@ -310,9 +311,14 @@ func (l *loader) reinitializeWireguard(ctx context.Context) (err error) {
 }
 
 func (l *loader) reinitializeXDPLocked(ctx context.Context, extraCArgs []string, devices []string) error {
-	l.maybeUnloadObsoleteXDPPrograms(devices, option.Config.XDPMode, bpf.CiliumPath())
+	xdpDevices := features.GlobalConfig.XDPDevices
+	l.maybeUnloadObsoleteXDPPrograms(append(devices, xdpDevices...), option.Config.XDPMode, bpf.CiliumPath())
 	if option.Config.XDPMode == option.XDPModeDisabled {
 		return nil
+	}
+	// Only fall back to default device list when XDP device is not specified.
+	if len(xdpDevices) == 0 {
+		xdpDevices = devices
 	}
 	for _, dev := range devices {
 		// When WG & encrypt-node are on, the devices include cilium_wg0 to attach bpf_host

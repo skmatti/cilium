@@ -3,6 +3,7 @@
 
 #include "bpf/types_mapper.h"
 #include <bpf/ctx/skb.h>
+#include "lib/google/skb.h"
 #include <bpf/api.h>
 #include <linux/in.h>
 

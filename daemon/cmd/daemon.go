@@ -755,6 +755,8 @@ func newDaemon(ctx context.Context, cleaner *daemonCleanup, params *daemonParams
 		close(params.CacheStatus)
 	}
 
+	d.initGoogleModulesBeforeEndpointRestore()
+
 	bootstrapStats.cleanup.Start()
 	err = clearCiliumVeths()
 	bootstrapStats.cleanup.EndError(err)

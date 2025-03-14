@@ -139,7 +139,7 @@ ctx_get_cluster_id_mark(struct __sk_buff *ctx)
 }
 
 static __always_inline __maybe_unused int
-redirect_self(const struct __sk_buff *ctx)
+redirect_self(struct __sk_buff *ctx)
 {
 	/* Looping back the packet into the originating netns. We xmit into the
 	 * hosts' veth device such that we end up on ingress in the peer.

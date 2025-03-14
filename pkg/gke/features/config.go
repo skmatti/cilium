@@ -19,10 +19,8 @@ const (
 	EnableCiliumNodeConfig = "enable-cnc"
 )
 
-var (
-	// Used when config can't be injected by the Hive
-	GlobalConfig = defaultConfig
-)
+// Used when config can't be injected by the Hive
+var GlobalConfig = defaultConfig
 
 var Cell = cell.Module(
 	"features",
@@ -77,6 +75,15 @@ type Config struct {
 	// first Stream ID IP option. This feature ignores packets where the SID
 	// option is not in the first 3 IP options. The default is false.
 	EnableGoogleIPOptionTracing bool `mapstructure:"enable-ip-option-tracing"`
+	// EnableGoogleBPFGeneve determines whether to encap and decap traffic by BPF Geneve. Default is false, which means
+	// encap and decap is done by kernel.
+	EnableGoogleBPFGeneve bool
+	// Sets the XDP mode of each node.
+	XDPMode string
+	// XDPDevices specify a list of interfaces where we want to install XDP program on. By default, XDP programs will
+	// be installed on all devices detected by Cilium. When this is not empty, XDP program will only be installed on these
+	// interfaces.
+	XDPDevices []string `mapstructure:"xdp-devices"`
 }
 
 var defaultConfig = Config{
@@ -101,6 +108,9 @@ var defaultConfig = Config{
 
 	// EnableGoogleIPOptionTracing is disabled by default.
 	EnableGoogleIPOptionTracing: false,
+	EnableGoogleBPFGeneve:       false,
+	XDPMode:                     option.XDPModeDisabled,
+	XDPDevices:                  []string{},
 }
 
 func (cfg Config) Flags(flags *pflag.FlagSet) {
@@ -159,6 +169,15 @@ func (cfg Config) Flags(flags *pflag.FlagSet) {
 
 	flags.Bool(option.EnableGoogleIPOptionTracing, cfg.EnableGoogleIPOptionTracing, "Enables packet tracing using a trace ID in the IP option header")
 	flags.MarkHidden(option.EnableGoogleIPOptionTracing)
+
+	flags.Bool(option.EnableGoogleBPFGeneve, cfg.EnableGoogleBPFGeneve, "Enable Google VPC mode")
+	flags.MarkHidden(option.EnableGoogleBPFGeneve)
+
+	flags.String(option.XDPMode, cfg.XDPMode, "Set XDP mode")
+	flags.MarkHidden(option.XDPMode)
+
+	flags.StringSlice(option.XDPDevices, cfg.XDPDevices, "Override XDP device list")
+	flags.MarkHidden(option.XDPDevices)
 }
 
 func configure(cfg Config) (out struct {
@@ -172,6 +191,9 @@ func configure(cfg Config) (out struct {
 	out.NodeDefines = make(defines.Map)
 	if cfg.EnableGoogleIPOptionTracing {
 		out.NodeDefines["ENABLE_GOOGLE_IP_OPTION_TRACING"] = "1"
+	}
+	if cfg.EnableGoogleBPFGeneve {
+		out.NodeDefines["ENABLE_GOOGLE_GENEVE"] = "1"
 	}
 
 	return

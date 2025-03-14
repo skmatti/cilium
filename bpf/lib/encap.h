@@ -14,6 +14,10 @@
 
 #include "high_scale_ipcache.h"
 
+#ifdef ENABLE_GOOGLE_GENEVE
+#include "google/geneve.h"
+#endif
+
 #ifdef HAVE_ENCAP
 struct {
 	__uint(type, BPF_MAP_TYPE_HASH);

@@ -131,7 +131,7 @@ func NewConfiguration(authKeySize int, encryptEnabled bool, encapEnabled bool, w
 		encryptOverhead = EncryptionIPsecOverhead + (authKeySize - EncryptionDefaultAuthKeyLength)
 	}
 
-	fullTunnelOverhead := TunnelOverhead
+	fullTunnelOverhead := GoogleTunnelOverhead()
 	if hsIpcacheDSRenabled {
 		fullTunnelOverhead += DsrTunnelOverhead
 	}
@@ -194,7 +194,7 @@ func (c *Configuration) GetRouteMTU() int {
 		if c.encryptEnabled {
 			return EthernetMTU - (TunnelOverhead + EncryptionIPsecOverhead)
 		}
-		return EthernetMTU - TunnelOverhead
+		return EthernetMTU - GoogleTunnelOverhead()
 	}
 
 	return c.tunnelMTU

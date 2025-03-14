@@ -3278,6 +3278,7 @@ func (c *DaemonConfig) Populate(vp *viper.Viper) {
 	c.EnableRuntimeDeviceDetection = vp.GetBool(EnableRuntimeDeviceDetection)
 	c.EgressMultiHomeIPRuleCompat = vp.GetBool(EgressMultiHomeIPRuleCompat)
 	c.EnableTrafficSteering = vp.GetBool(EnableTrafficSteering)
+	c.XDPMode = vp.GetString(XDPMode)
 
 	vlanBPFBypassIDs := vp.GetStringSlice(VLANBPFBypass)
 	c.VLANBPFBypass = make([]int, 0, len(vlanBPFBypassIDs))

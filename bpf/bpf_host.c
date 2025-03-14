@@ -2,6 +2,7 @@
 /* Copyright Authors of Cilium */
 
 #include <bpf/ctx/skb.h>
+#include "lib/google/skb.h"
 #include <bpf/api.h>
 
 #include <node_config.h>
@@ -578,6 +579,16 @@ resolve_srcid_ipv4(struct __ctx_buff *ctx, struct iphdr *ip4,
 	 */
 	else if (identity_from_ipcache_ok())
 		src_id = srcid_from_ipcache;
+# ifdef ENABLE_GOOGLE_GENEVE
+	/* GENEVE decap happens in the NETDEV_INGRESS_START hook, which is
+	 * in cil_from_netdev(). CB_SRC_LABEL is set to the source identity
+	 * after GENEVE decap. However, In do_netdev(), the CB_SRC_LABEL is
+	 * cleared by bpf_clear_meta(). So here we need to take the source
+	 * identity from ipcache.
+	 */
+	if (geneve_get_current_bpf_program() == GENEVE_BPF_PROGRAM_ID_FROM_OVERLAY)
+		src_id = srcid_from_ipcache;
+# endif /* ENABLE_GOOGLE_GENEVE */
 	return src_id;
 }
 
@@ -970,6 +981,13 @@ tail_handle_ipv4(struct __ctx_buff *ctx, __u32 ipcache_srcid, const bool from_ho
 	int ret;
 	__s8 ext_err = 0;
 
+#ifdef ENABLE_GOOGLE_GENEVE
+	// TODO(kxw): move this part to plugin when available.
+	ret = geneve_redirect_to_overlay_if_encapped(ctx);
+
+	if (ret != HOOK_ACT_CONTINUE)
+		return ret;
+#endif
 	ret = handle_ipv4(ctx, src_sec_identity, ipcache_srcid, from_host, &ext_err);
 
 	/* TC_ACT_REDIRECT is not an error, but it means we should stop here. */
