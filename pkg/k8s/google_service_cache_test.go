@@ -38,7 +38,9 @@ import (
 	metav1 "github.com/cilium/cilium/pkg/k8s/slim/k8s/apis/meta/v1"
 	"github.com/cilium/cilium/pkg/loadbalancer"
 	"github.com/cilium/cilium/pkg/lock"
+	"github.com/cilium/cilium/pkg/option"
 	"github.com/cilium/cilium/pkg/service/store"
+	serviceStore "github.com/cilium/cilium/pkg/service/store"
 )
 
 func TestIsIlbService(t *testing.T) {
@@ -142,7 +144,7 @@ func TestIsIlbClusterService(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.desc, func(t *testing.T) {
-			if got := isIlbClusterService(tc.svc); got != tc.want {
+			if got := isLocalIlbClusterService(tc.svc); got != tc.want {
 				t.Errorf("isIlbService(%v) = %v, want %v", tc.svc, got, tc.want)
 			}
 		})
@@ -165,7 +167,7 @@ func TestInjectIlbInfo(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.desc, func(t *testing.T) {
 			service := &Service{}
-			injectIlbInfo(tc.svc, service)
+			injectIlbInfo(tc.svc, service, false)
 			if diff := cmp.Diff(tc.want, service.Labels); diff != "" {
 				t.Errorf("got diff for injectIlbInfo(%v, _) %s", tc.svc, diff)
 			}
@@ -382,7 +384,7 @@ func TestIlbConvertService(t *testing.T) {
 				}
 			}
 
-			svc, endpoints := cache.ilbConvertService(tc.clusterService)
+			svc, endpoints := ilbConvertService(tc.clusterService)
 			if diff := cmp.Diff(tc.wantSvc, svc); diff != "" {
 				t.Errorf("cache.ilbConvertService(%v) = (%v, _) diff = %s", tc.clusterService, svc, diff)
 			}
@@ -625,5 +627,337 @@ func TestMergeServiceUpdateAndDeleteForILB(t *testing.T) {
 	case e := <-cache.Events:
 		t.Fatalf("Received unexpected event at end of test: %#v", e)
 	case <-ctx.Done():
+	}
+}
+
+func TestServiceCache_globalILBUpdateLocal(t *testing.T) {
+	tests := []struct {
+		name           string
+		serviceTracker map[ServiceID]map[string]bool
+		svcID          ServiceID
+		wantTracker    map[ServiceID]map[string]bool
+	}{
+		{
+			name: "first service",
+			svcID: ServiceID{
+				Name:      "foo",
+				Namespace: "default",
+			},
+			wantTracker: map[ServiceID]map[string]bool{
+				{
+					Name:      "foo",
+					Namespace: "default",
+				}: {
+					"myCluster": true,
+				},
+			},
+		},
+		{
+			name: "other clusters",
+			svcID: ServiceID{
+				Name:      "foo",
+				Namespace: "default",
+			},
+			serviceTracker: map[ServiceID]map[string]bool{
+				{
+					Name:      "foo",
+					Namespace: "default",
+				}: {
+					"otherCluster": true,
+				},
+			},
+			wantTracker: map[ServiceID]map[string]bool{
+				{
+					Name:      "foo",
+					Namespace: "default",
+				}: {
+					"myCluster":    true,
+					"otherCluster": true,
+				},
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			oldName := option.Config.ClusterName
+			option.Config.ClusterName = "myCluster"
+			if tt.serviceTracker == nil {
+				tt.serviceTracker = map[ServiceID]map[string]bool{}
+			}
+
+			s := &ServiceCache{
+				serviceTracker: tt.serviceTracker,
+			}
+			s.globalILBUpdateLocal(tt.svcID)
+			if !reflect.DeepEqual(tt.wantTracker, s.serviceTracker) {
+				t.Errorf("serviceTracker = %v, want %v", s.serviceTracker, tt.wantTracker)
+			}
+			option.Config.ClusterName = oldName
+		})
+	}
+}
+
+func TestServiceCache_deleteGlobalILBServiceLocal(t *testing.T) {
+	tests := []struct {
+		name           string
+		serviceTracker map[ServiceID]map[string]bool
+		svcID          ServiceID
+		wantTracker    map[ServiceID]map[string]bool
+	}{
+		{
+			name: "not the last service",
+			svcID: ServiceID{
+				Name:      "foo",
+				Namespace: "default",
+			},
+			serviceTracker: map[ServiceID]map[string]bool{
+				{
+					Name:      "foo",
+					Namespace: "default",
+				}: {
+					"myCluster":    true,
+					"otherCluster": true,
+				},
+			},
+			wantTracker: map[ServiceID]map[string]bool{
+				{
+					Name:      "foo",
+					Namespace: "default",
+				}: {
+					"otherCluster": true,
+				},
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			oldName := option.Config.ClusterName
+			option.Config.ClusterName = "myCluster"
+			if tt.serviceTracker == nil {
+				tt.serviceTracker = map[ServiceID]map[string]bool{}
+			}
+
+			s := &ServiceCache{
+				serviceTracker: tt.serviceTracker,
+			}
+
+			s.deleteGlobalILBServiceLocal(tt.svcID, nil)
+			if !reflect.DeepEqual(tt.wantTracker, s.serviceTracker) {
+				t.Errorf("serviceTracker = %v, want %v", s.serviceTracker, tt.wantTracker)
+			}
+			option.Config.ClusterName = oldName
+		})
+	}
+}
+
+func TestServiceCache_globalILBUpdateExternal(t *testing.T) {
+	defaultSvc := &serviceStore.ClusterService{
+		Cluster:   "otherCluster",
+		Name:      "foo",
+		Namespace: "default",
+	}
+	tests := []struct {
+		name           string
+		svc            *serviceStore.ClusterService
+		services       map[ServiceID]*Service
+		serviceTracker map[ServiceID]map[string]bool
+		wantTracker    map[ServiceID]map[string]bool
+		wantServices   map[ServiceID]*Service
+	}{
+		{
+			name: "first service",
+			svc:  defaultSvc,
+			wantTracker: map[ServiceID]map[string]bool{
+				{
+					Name:      "foo",
+					Namespace: "default",
+				}: {
+					"otherCluster": true,
+				},
+			},
+			wantServices: map[ServiceID]*Service{
+				{
+					Name:      "foo",
+					Namespace: "default",
+				}: globalILBConvertService(defaultSvc),
+			},
+		},
+		{
+			name: "different service",
+			svc: &serviceStore.ClusterService{
+				Cluster:   "otherCluster",
+				Name:      "bar",
+				Namespace: "default",
+			},
+			serviceTracker: map[ServiceID]map[string]bool{
+				{
+					Name:      "foo",
+					Namespace: "default",
+				}: {
+					"otherCluster": true,
+				},
+			},
+			services: map[ServiceID]*Service{
+				{
+					Name:      "foo",
+					Namespace: "default",
+				}: globalILBConvertService(defaultSvc),
+			},
+			wantTracker: map[ServiceID]map[string]bool{
+				{
+					Name:      "foo",
+					Namespace: "default",
+				}: {
+					"otherCluster": true,
+				},
+				{
+					Name:      "bar",
+					Namespace: "default",
+				}: {
+					"otherCluster": true,
+				},
+			},
+			wantServices: map[ServiceID]*Service{
+				{
+					Name:      "foo",
+					Namespace: "default",
+				}: globalILBConvertService(defaultSvc),
+				{
+					Name:      "bar",
+					Namespace: "default",
+				}: globalILBConvertService(
+					&serviceStore.ClusterService{
+						Cluster:   "otherCluster",
+						Name:      "bar",
+						Namespace: "default",
+					},
+				),
+			},
+		},
+		{
+			name: "same service in different cluster",
+			svc: &serviceStore.ClusterService{
+				Cluster:   "otherCluster2",
+				Name:      "foo",
+				Namespace: "default",
+			},
+			serviceTracker: map[ServiceID]map[string]bool{
+				{
+					Name:      "foo",
+					Namespace: "default",
+				}: {
+					"otherCluster": true,
+				},
+			},
+			services: map[ServiceID]*Service{
+				{
+					Name:      "foo",
+					Namespace: "default",
+				}: globalILBConvertService(defaultSvc),
+			},
+			wantTracker: map[ServiceID]map[string]bool{
+				{
+					Name:      "foo",
+					Namespace: "default",
+				}: {
+					"otherCluster":  true,
+					"otherCluster2": true,
+				},
+			},
+			wantServices: map[ServiceID]*Service{
+				{
+					Name:      "foo",
+					Namespace: "default",
+				}: globalILBConvertService(defaultSvc),
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			oldName := option.Config.ClusterName
+			option.Config.ClusterName = "myCluster"
+			if tt.services == nil {
+				tt.services = map[ServiceID]*Service{}
+			}
+			if tt.serviceTracker == nil {
+				tt.serviceTracker = map[ServiceID]map[string]bool{}
+			}
+			s := &ServiceCache{
+				services:       tt.services,
+				serviceTracker: tt.serviceTracker,
+			}
+			s.globalILBUpdateExternal(tt.svc)
+
+			if !reflect.DeepEqual(s.serviceTracker, tt.wantTracker) {
+				t.Errorf("serviceTracker = %v, want %v", s.serviceTracker, tt.wantTracker)
+			}
+			if !reflect.DeepEqual(s.services, tt.wantServices) {
+				t.Errorf("services = %v, want %v", s.services, tt.wantServices)
+			}
+			option.Config.ClusterName = oldName
+		})
+	}
+}
+
+func TestServiceCache_globalILBDeleteExternal(t *testing.T) {
+	defaultSvc := &serviceStore.ClusterService{
+		Cluster:   "otherCluster",
+		Name:      "foo",
+		Namespace: "default",
+	}
+	tests := []struct {
+		name           string
+		svc            *serviceStore.ClusterService
+		serviceTracker map[ServiceID]map[string]bool
+		wantTracker    map[ServiceID]map[string]bool
+	}{
+		{
+			name: "last service",
+			svc:  defaultSvc,
+			serviceTracker: map[ServiceID]map[string]bool{
+				{
+					Name:      "foo",
+					Namespace: "default",
+				}: {
+					"otherCluster": true,
+				},
+			},
+			wantTracker: map[ServiceID]map[string]bool{},
+		},
+		{
+			name: "not last service",
+			svc:  defaultSvc,
+			serviceTracker: map[ServiceID]map[string]bool{
+				{
+					Name:      "foo",
+					Namespace: "default",
+				}: {
+					"otherCluster":  true,
+					"otherCluster2": true,
+				},
+			},
+			wantTracker: map[ServiceID]map[string]bool{
+				{
+					Name:      "foo",
+					Namespace: "default",
+				}: {
+					"otherCluster2": true,
+				},
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.serviceTracker == nil {
+				tt.serviceTracker = map[ServiceID]map[string]bool{}
+			}
+			s := &ServiceCache{
+				serviceTracker: tt.serviceTracker,
+			}
+			s.globalILBDeleteExternal(tt.svc)
+			if !reflect.DeepEqual(tt.wantTracker, s.serviceTracker) {
+				t.Errorf("serviceTracker = %v, want %v", s.serviceTracker, tt.wantTracker)
+			}
+		})
 	}
 }

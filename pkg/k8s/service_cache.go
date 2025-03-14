@@ -21,6 +21,7 @@ import (
 
 	cmtypes "github.com/cilium/cilium/pkg/clustermesh/types"
 	datapathTables "github.com/cilium/cilium/pkg/datapath/tables"
+	"github.com/cilium/cilium/pkg/datapath/types"
 	"github.com/cilium/cilium/pkg/gke/features"
 	"github.com/cilium/cilium/pkg/ip"
 	slim_corev1 "github.com/cilium/cilium/pkg/k8s/slim/k8s/api/core/v1"
@@ -140,6 +141,13 @@ type ServiceCache struct {
 	// externalEndpoints is a list of additional service backends derived from source other than the local cluster
 	externalEndpoints map[ServiceID]externalEndpoints
 
+	// serviceTracker is a tracker of clusters that a service is coming from. This is
+	// only populated for Global ILB services when endpoint sharing is allowed even
+	// without a service in the local cluster.
+	serviceTracker map[ServiceID]map[string]bool
+
+	nodeAddressing types.NodeAddressing
+
 	selfNodeZoneLabel string
 
 	ServiceMutators []func(svc *slim_corev1.Service, svcInfo *Service)
@@ -148,6 +156,10 @@ type ServiceCache struct {
 	nodeAddrs statedb.Table[datapathTables.NodeAddress]
 
 	metrics SVCMetrics
+
+	// UseIngressAsFEIP sets the service cache to use the ingress IP as the
+	// frontend IP for ILB. This is required for GDC-H ILB on clustermesh.
+	UseIngressAsFEIP bool
 }
 
 // NewServiceCache returns a new ServiceCache
@@ -161,6 +173,7 @@ func NewServiceCache(db *statedb.DB, nodeAddrs statedb.Table[datapathTables.Node
 		services:              map[ServiceID]*Service{},
 		endpoints:             map[ServiceID]*EndpointSlices{},
 		externalEndpoints:     map[ServiceID]externalEndpoints{},
+		serviceTracker:        map[ServiceID]map[string]bool{},
 		Events:                events,
 		sendEvents:            events,
 		notifications:         notifications,
@@ -348,11 +361,16 @@ func (s *ServiceCache) UpdateService(k8sSvc *slim_corev1.Service, swg *lock.Stop
 	}
 
 	if features.GlobalConfig.EnableGDCILB && isIlbService(k8sSvc) {
-		injectIlbInfo(k8sSvc, newService)
+		injectIlbInfo(k8sSvc, newService, s.UseIngressAsFEIP)
 	}
 
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
+
+	// Regular global service at this point. Simply track and continue.
+	if features.GlobalConfig.EnableGDCILB && isGlobalILBService(k8sSvc) {
+		s.globalILBUpdateLocal(svcID)
+	}
 
 	oldService, ok := s.services[svcID]
 	if ok {
@@ -413,6 +431,11 @@ func (s *ServiceCache) DeleteService(k8sSvc *slim_corev1.Service, swg *lock.Stop
 
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
+
+	if features.GlobalConfig.EnableGDCILB && isGlobalILBService(k8sSvc) {
+		s.deleteGlobalILBServiceLocal(svcID, swg)
+		return
+	}
 
 	oldService, serviceOK := s.services[svcID]
 	endpoints, _ := s.correlateEndpoints(svcID)
@@ -716,7 +739,7 @@ func (s *ServiceCache) MergeExternalServiceUpdate(service *serviceStore.ClusterS
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
-	if features.GlobalConfig.EnableGDCILB && isIlbClusterService(service) && option.Config.ClusterName != service.Cluster {
+	if features.GlobalConfig.EnableGDCILB && isLocalIlbClusterService(service) && option.Config.ClusterName != service.Cluster {
 		// This should only be called for remote ILB services, which will be
 		// have their own unique, cluster-keyed IDs. We return afterwards to
 		// prevent the normal path from creating/deleting a second service which
@@ -725,6 +748,11 @@ func (s *ServiceCache) MergeExternalServiceUpdate(service *serviceStore.ClusterS
 		// More details are in the function comments.
 		s.ilbExternalUpdate(service, swg)
 		return
+	}
+
+	if features.GlobalConfig.EnableGDCILB && isGlobalILBClusterService(service) && option.Config.ClusterName != service.Cluster {
+		// If service does not already exist, create a fake service for it and continue.
+		s.globalILBUpdateExternal(service)
 	}
 
 	s.mergeServiceUpdateLocked(service, nil, swg)
@@ -802,7 +830,7 @@ func (s *ServiceCache) MergeExternalServiceDelete(service *serviceStore.ClusterS
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
-	if features.GlobalConfig.EnableGDCILB && isIlbClusterService(service) && service.Cluster != option.Config.ClusterName {
+	if features.GlobalConfig.EnableGDCILB && isLocalIlbClusterService(service) && service.Cluster != option.Config.ClusterName {
 		// This should only be called for remote ILB services, which will be
 		// have their own unique, cluster-keyed IDs. We return afterwards to
 		// prevent the normal path from creating/deleting a second service which
@@ -811,6 +839,11 @@ func (s *ServiceCache) MergeExternalServiceDelete(service *serviceStore.ClusterS
 		// More details are in the function comments.
 		s.ilbExternalDelete(service, swg)
 		return
+	}
+
+	if features.GlobalConfig.EnableGDCILB && isGlobalILBClusterService(service) && service.Cluster != option.Config.ClusterName {
+		// Remove self from service tracker. We already delete ourselves if there are no more endpoints left.
+		s.globalILBDeleteExternal(service)
 	}
 
 	id := ServiceID{Cluster: service.Cluster, Name: service.Name, Namespace: service.Namespace}
@@ -880,7 +913,7 @@ func (s *ServiceCache) MergeClusterServiceUpdate(service *serviceStore.ClusterSe
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
-	if isIlbClusterService(service) && option.Config.ClusterName != service.Cluster {
+	if isLocalIlbClusterService(service) && option.Config.ClusterName != service.Cluster {
 		// We don't expect this to ever be called but we want visibility if it is.
 		scopedLog.Warningf("Merging a remote ILB service from cluster %s, which is not expected in this code path.", service.Cluster)
 	}
@@ -905,7 +938,7 @@ func (s *ServiceCache) MergeClusterServiceDelete(service *serviceStore.ClusterSe
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
-	if isIlbClusterService(service) && option.Config.ClusterName != service.Cluster {
+	if isLocalIlbClusterService(service) && option.Config.ClusterName != service.Cluster {
 		// We don't expect this to ever be called but we want visibility if it is.
 		scopedLog.Warningf("Deleting a remote ILB service from cluster %s, which is not expected in this code path.", service.Cluster)
 	}

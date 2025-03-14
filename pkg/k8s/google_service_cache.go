@@ -28,11 +28,13 @@ import (
 	"net"
 	"reflect"
 
+	"github.com/cilium/cilium/pkg/annotation"
 	cmtypes "github.com/cilium/cilium/pkg/clustermesh/types"
 	slimv1 "github.com/cilium/cilium/pkg/k8s/slim/k8s/api/core/v1"
 	"github.com/cilium/cilium/pkg/loadbalancer"
 	"github.com/cilium/cilium/pkg/lock"
 	"github.com/cilium/cilium/pkg/logging/logfields"
+	"github.com/cilium/cilium/pkg/option"
 	serviceStore "github.com/cilium/cilium/pkg/service/store"
 	"github.com/sirupsen/logrus"
 )
@@ -41,6 +43,7 @@ const (
 	serviceAnnotationKey   = "networking.gke.io/load-balancer-type"
 	serviceAnnotationValue = "internal"
 	serviceTypeKey         = "serviceType"
+	globalServiceTrue      = "true"
 )
 
 // generateServiceName creates a unique service name by using the cluster name as a prefix.
@@ -80,7 +83,7 @@ func (s *ServiceCache) ilbExternalUpdate(service *serviceStore.ClusterService, s
 	})
 	scopedLog.Debug("Processing remote ILB service update")
 
-	svc, endpoints := s.ilbConvertService(service)
+	svc, endpoints := ilbConvertService(service)
 	scopedLog = scopedLog.WithField("backends", endpoints.Backends)
 	if _, existedBefore := s.services[id]; !existedBefore {
 		scopedLog.Info("Creating new ILB service")
@@ -138,7 +141,7 @@ func (s *ServiceCache) ilbExternalDelete(service *serviceStore.ClusterService, s
 	// Update local caches.
 	_, existedBefore := s.services[id]
 	delete(s.services, id)
-	svc, endpoints := s.ilbConvertService(service)
+	svc, endpoints := ilbConvertService(service)
 	delete(s.externalEndpoints, id)
 
 	if existedBefore {
@@ -159,7 +162,7 @@ func (s *ServiceCache) ilbExternalDelete(service *serviceStore.ClusterService, s
 }
 
 // ilbConvertService() converts the external ClusterService to a local Service
-func (s *ServiceCache) ilbConvertService(externalService *serviceStore.ClusterService) (*Service, *Endpoints) {
+func ilbConvertService(externalService *serviceStore.ClusterService) (*Service, *Endpoints) {
 	id := ServiceID{Name: externalService.Name, Namespace: externalService.Namespace}
 	scopedLog := log.WithFields(logrus.Fields{
 		logfields.K8sSvcName:   id.Name,
@@ -216,19 +219,152 @@ func isIlbService(svc *slimv1.Service) bool {
 	return svc.Spec.Type == slimv1.ServiceTypeLoadBalancer && svc.Annotations[serviceAnnotationKey] == serviceAnnotationValue && len(svc.Status.LoadBalancer.Ingress) == 1
 }
 
-// isIlbClusterService checks if the external ClusterService should be exposed to pods on the local cluster
+// isLocalIlbClusterService checks if the external ClusterService should be exposed to pods on the local cluster
 // This func only works if the info was injected before the ClusterService was updated in etcd
-func isIlbClusterService(svc *serviceStore.ClusterService) bool {
+func isLocalIlbClusterService(svc *serviceStore.ClusterService) bool {
 	if svc == nil {
+		return false
+	}
+	// If this is a global service then need to merge the service with existing
+	// ones. So, ignore such services here.
+	if svc.IncludeExternal {
 		return false
 	}
 	return svc.Labels[serviceAnnotationKey] == serviceAnnotationValue && svc.Labels[serviceTypeKey] == string(slimv1.ServiceTypeLoadBalancer)
 }
 
+// isGlobalILBService checks if the local service should be exposed to remote clusters.
+// This func only works if the info was injected before the Service was updated in etcd
+func isGlobalILBService(svc *slimv1.Service) bool {
+	if svc == nil {
+		return false
+	}
+	// Global ILB services have the following properties:
+	// - Type: LoadBalancer
+	// - networking.gke.io/load-balancer-type: internal
+	// - networking.gke.io/global-service: true
+	// - 1 Ingress
+	return svc.Spec.Type == slimv1.ServiceTypeLoadBalancer && svc.Annotations[annotation.GlobalService] == globalServiceTrue && svc.Annotations[serviceAnnotationKey] == serviceAnnotationValue && len(svc.Status.LoadBalancer.Ingress) == 1
+}
+
+func isGlobalILBClusterService(svc *serviceStore.ClusterService) bool {
+	if svc == nil {
+		return false
+	}
+	if !svc.IncludeExternal {
+		return false
+	}
+	return svc.Labels[serviceAnnotationKey] == serviceAnnotationValue && svc.Labels[serviceTypeKey] == string(slimv1.ServiceTypeLoadBalancer)
+}
+
+func (s *ServiceCache) globalILBUpdateLocal(svcID ServiceID) {
+	scopedLog := log.WithFields(logrus.Fields{
+		logfields.K8sSvcName:   svcID.Name,
+		logfields.K8sNamespace: svcID.Namespace,
+	})
+
+	scopedLog.Debug("Processing local global ILB service update")
+	if s.serviceTracker[svcID] == nil {
+		s.serviceTracker[svcID] = map[string]bool{}
+	}
+	s.serviceTracker[svcID][option.Config.ClusterName] = true
+}
+
+func (s *ServiceCache) deleteGlobalILBServiceLocal(svcID ServiceID, swg *lock.StoppableWaitGroup) {
+	scopedLog := log.WithFields(logrus.Fields{
+		logfields.K8sSvcName:   svcID.Name,
+		logfields.K8sNamespace: svcID.Namespace,
+	})
+
+	if s.serviceTracker[svcID] != nil {
+		delete(s.serviceTracker[svcID], option.Config.ClusterName)
+	}
+
+	// If we are not the last service, do nothing. EndpointSlice update will take care of removing local endpoints.
+	if len(s.serviceTracker[svcID]) != 0 {
+		scopedLog.Debug("Processing local global ILB service delete, not the last service, skipping")
+		return
+	}
+	scopedLog.Debug("Processing local global ILB service delete, last service, deleting")
+	// Delete as normal if last service
+	oldService, serviceOK := s.services[svcID]
+	endpoints, _ := s.correlateEndpoints(svcID)
+	delete(s.services, svcID)
+
+	if serviceOK {
+		swg.Add()
+		s.sendEvents <- ServiceEvent{ // TODO: review here
+			Action:    DeleteService,
+			ID:        svcID,
+			Service:   oldService,
+			Endpoints: endpoints,
+			SWG:       swg,
+		}
+	}
+}
+
+// globalILBConvertService creates a service from an external service in the case there are no local services.
+// This is just a stand in for a real service in the case that no service exists in the local cluster.
+func globalILBConvertService(externalService *serviceStore.ClusterService) *Service {
+	id := ServiceID{Name: externalService.Name, Namespace: externalService.Namespace}
+	scopedLog := log.WithFields(logrus.Fields{
+		logfields.K8sSvcName:   id.Name,
+		logfields.K8sNamespace: id.Namespace,
+		logfields.ClusterName:  externalService.Cluster,
+	})
+
+	svc, _ := ilbConvertService(externalService)
+
+	svc.IncludeExternal = true
+	svc.Shared = true
+
+	scopedLog.Debugf("Converted remote global ILB service: %+v", svc)
+	return svc
+}
+
+func (s *ServiceCache) globalILBUpdateExternal(svc *serviceStore.ClusterService) {
+	svcID := ServiceID{Name: svc.Name, Namespace: svc.Namespace}
+	scopedLog := log.WithFields(logrus.Fields{
+		logfields.K8sSvcName:   svcID.Name,
+		logfields.K8sNamespace: svcID.Namespace,
+		logfields.ClusterName:  svc.Cluster,
+	})
+
+	scopedLog.Debugf("External global ILB update, %+v", svc)
+
+	if len(s.serviceTracker[svcID]) == 0 {
+		s.serviceTracker[svcID] = map[string]bool{}
+	}
+	s.serviceTracker[svcID][svc.Cluster] = true
+	if s.services[svcID] == nil {
+		fakeService := globalILBConvertService(svc)
+		s.services[svcID] = fakeService
+	}
+}
+
+func (s *ServiceCache) globalILBDeleteExternal(svc *serviceStore.ClusterService) {
+	svcID := ServiceID{Name: svc.Name, Namespace: svc.Namespace}
+	scopedLog := log.WithFields(logrus.Fields{
+		logfields.K8sSvcName:   svcID.Name,
+		logfields.K8sNamespace: svcID.Namespace,
+		logfields.ClusterName:  svc.Cluster,
+	})
+
+	scopedLog.Debugf("External global ILB delete, %+v", svc)
+
+	if s.serviceTracker[svcID] == nil {
+		return
+	}
+	delete(s.serviceTracker[svcID], svc.Cluster)
+	if len(s.serviceTracker[svcID]) == 0 {
+		delete(s.serviceTracker, svcID)
+	}
+}
+
 // injectIlbInfo injects the info we need from the kubernetes service into the labels of the internal representation
 // This is done by the clustermesh-apiserver when writing this info to etcd
 // This func should only be used if the svc is an ilb service.
-func injectIlbInfo(svc *slimv1.Service, internalService *Service) {
+func injectIlbInfo(svc *slimv1.Service, internalService *Service, useFEIP bool) {
 	if svc == nil || internalService == nil {
 		return
 	}
@@ -236,14 +372,43 @@ func injectIlbInfo(svc *slimv1.Service, internalService *Service) {
 	log.WithFields(logrus.Fields{
 		logfields.K8sSvcName:   svc.Name,
 		logfields.K8sNamespace: svc.Namespace,
-	}).Debug("Injecting ILB info into service labels")
-
+		"frontEndIPs":          fmt.Sprintf("%v", internalService.FrontendIPs),
+		"useFEIP":              useFEIP,
+		"ingress":              svc.Status.LoadBalancer.Ingress,
+	}).Info("Injecting ILB info into service labels")
 	if internalService.Labels == nil {
 		internalService.Labels = map[string]string{}
+	}
+
+	// In GDC-H, it is possible that `ClusterIP` is different from LoadBalancerIP,
+	// in which case we use the useFEIP flag to instead use the LB VIP as the
+	// frontend. This is only required from the Clustermesh APIServer since it
+	// advertises what other clusters should use to access the service.
+	if len(svc.Status.LoadBalancer.Ingress) > 0 && useFEIP {
+		lbVIP := svc.Status.LoadBalancer.Ingress[0].IP
+		internalService.FrontendIPs = []net.IP{net.ParseIP(lbVIP)}
 	}
 
 	// Inject into labels to avoid modifying the k8s.Service representation
 	// This info is propagated to the ClusterService before it is added to etcd
 	internalService.Labels[serviceAnnotationKey] = serviceAnnotationValue
 	internalService.Labels[serviceTypeKey] = string(svc.Spec.Type)
+}
+
+// injectGlobalILBInfo injects the LB VIP as the frontend IP of the service
+// This is done by the clustermesh-apiserver when writing this info to etcd
+// This func should only be used if the svc is a global ilb service.
+func injectGlobalILBInfo(svc *slimv1.Service, internalService *Service) {
+	if svc == nil || internalService == nil {
+		return
+	}
+	if len(svc.Status.LoadBalancer.Ingress) == 0 {
+		return
+	}
+	lbVIP := svc.Status.LoadBalancer.Ingress[0].IP
+	internalService.FrontendIPs = []net.IP{net.ParseIP(lbVIP)}
+	log.WithFields(logrus.Fields{
+		logfields.K8sSvcName:   svc.Name,
+		logfields.K8sNamespace: svc.Namespace,
+	}).Debugf("Injecting Global ILB Endpoint as Frontend, Backend: %s", lbVIP)
 }
