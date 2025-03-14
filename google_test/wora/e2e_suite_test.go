@@ -8,6 +8,7 @@ import (
 
 	_ "gke-internal.googlesource.com/third_party/cilium/google_test/wora/e2e/verifiers/1n-smoke"
 	_ "gke-internal.googlesource.com/third_party/cilium/google_test/wora/e2e/verifiers/egressnat"
+	_ "gke-internal.googlesource.com/third_party/cilium/google_test/wora/e2e/verifiers/externallb"
 	_ "gke-internal.googlesource.com/third_party/cilium/google_test/wora/e2e/verifiers/hostfirewall"
 	_ "gke-internal.googlesource.com/third_party/cilium/google_test/wora/e2e/verifiers/kubevirt"
 	_ "gke-internal.googlesource.com/third_party/cilium/google_test/wora/e2e/verifiers/l3multinetwork"
@@ -15,6 +16,7 @@ import (
 	_ "gke-internal.googlesource.com/third_party/cilium/google_test/wora/e2e/verifiers/loadbalancer"
 	_ "gke-internal.googlesource.com/third_party/cilium/google_test/wora/e2e/verifiers/multinetwork"
 	_ "gke-internal.googlesource.com/third_party/cilium/google_test/wora/e2e/verifiers/sample"
+	_ "gke-internal.googlesource.com/third_party/cilium/google_test/wora/e2e/verifiers/strict"
 	_ "gke-internal.googlesource.com/third_party/cilium/google_test/wora/e2e/verifiers/tailcall"
 	_ "gke-internal.googlesource.com/third_party/cilium/google_test/wora/e2e/verifiers/vpc"
 )

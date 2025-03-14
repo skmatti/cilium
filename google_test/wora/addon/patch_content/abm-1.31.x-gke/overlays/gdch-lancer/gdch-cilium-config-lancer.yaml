@@ -76,7 +76,7 @@ data:
   enable-remote-node-identity: "true"
   enable-remove-dsr-ip-opt: "true"
   enable-session-affinity: "true"
-  enable-strict-egress-policy-validation: "false"
+  enable-strict-egress-policy-validation: "true"
   enable-traffic-steering: "false"
   enable-well-known-identities: "false"
   enable-xt-socket-fallback: "true"

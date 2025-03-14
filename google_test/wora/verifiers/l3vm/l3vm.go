@@ -13,6 +13,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
 	networkv1 "k8s.io/cloud-provider-gcp/crd/apis/network/v1"
@@ -25,13 +26,19 @@ import (
 )
 
 const (
-	l3VMPodName1  = "vm1"
-	l3VMIP1       = "192.168.0.100"
-	l3VMPodName2  = "vm2"
-	l3VMIP2       = "192.168.0.110"
-	curlJobName   = "curl-job"
-	testNamespace = "l3vm"
-	networkName   = "g-default-vpc"
+	l3VMPodName1      = "vm1"
+	l3VMIP1           = "192.168.0.100"
+	l3VMPodName2      = "vm2"
+	l3VMIP2           = "192.168.0.110"
+	curlJobName       = "curl-job"
+	testNamespace     = "l3vm"
+	networkName       = "g-default-vpc"
+	vpcLBIP           = "10.200.0.21"
+	lbTestPodLabelKey = "app"
+	lbTestPodLabelVal = "l3vm-lb-backend"
+	lbTestServiceName = "l3vm-lb-service"
+	lbTestCurlJobName = "lb-curl-job"
+	lbServicePort     = 80
 )
 
 var _ = Describe("Verifiers/L3VM", Label("l3vm"), Ordered, func() {
@@ -228,6 +235,8 @@ var _ = Describe("Verifiers/L3VM", Label("l3vm"), Ordered, func() {
 
 		err = cl.Create(ctx, job)
 		Expect(err).NotTo(HaveOccurred(), "Failed to create curl job")
+		defer utils.DeleteIfExists(ctx, cl, job, "job")
+
 		err = wait.WaitForSuccessContext(ctx, "Curl job complete", wait.WaitingMedium, func(ctx context.Context) error {
 			if err := cl.Get(ctx, k8sclient.ObjectKeyFromObject(job), job); err != nil {
 				return fmt.Errorf("get curl job: %w", err)
@@ -265,6 +274,8 @@ var _ = Describe("Verifiers/L3VM", Label("l3vm"), Ordered, func() {
 		klog.Infof("Start affinity curl job to IP %s", l3VMIP1)
 		err = cl.Create(ctx, job)
 		Expect(err).NotTo(HaveOccurred(), "Failed to create curl job")
+		defer utils.DeleteIfExists(ctx, cl, job, "job")
+
 		err = wait.WaitForSuccessContext(ctx, "Curl job complete", wait.WaitingMedium, func(ctx context.Context) error {
 			if err := cl.Get(ctx, k8sclient.ObjectKeyFromObject(job), job); err != nil {
 				return fmt.Errorf("get curl job: %w", err)
@@ -272,6 +283,70 @@ var _ = Describe("Verifiers/L3VM", Label("l3vm"), Ordered, func() {
 			return utils.JobComplete(job)
 		})
 		Expect(err).NotTo(HaveOccurred(), "Job didn't complete")
+	})
+
+	It("Verifies LoadBalancer service can target emulated L3 VM pod", func() {
+		testPodName := l3VMPodName1 + "-lb-backend"
+		targetPodIP := l3VMIP1
+		serviceName := lbTestServiceName
+
+		klog.Infof("Creating L3 VM backend pod '%s' with IP %s and label '%s=%s'", testPodName, targetPodIP, lbTestPodLabelKey, lbTestPodLabelVal)
+		cleanupPod, err := createEmulatedL3VMPod(ctx, cl, testPodName, testNamespace, targetPodIP,
+			utils.WithLabel(lbTestPodLabelKey, lbTestPodLabelVal),
+			utils.WithResponderContainer())
+		Expect(err).NotTo(HaveOccurred(), "Failed to create emulated L3 VM pod for LB test")
+		testPods = append(testPods, testPodName)
+		cleanupFuncs = append(cleanupFuncs, cleanupPod)
+		klog.Infof("L3 VM backend pod '%s' created", testPodName)
+
+		ipamConfig := fmt.Sprintf(ipamTemplate, networkName, vpcLBIP+"/32")
+		err = utils.KubectlApply(ipamConfig)
+		Expect(err).NotTo(HaveOccurred(), "Failed to apply IPAM config")
+		defer utils.KubectlDelete(ipamConfig)
+
+		klog.Infof("Creating LoadBalancer service '%s' selecting pods with label '%s=%s'", serviceName, lbTestPodLabelKey, lbTestPodLabelVal)
+		lbService := &corev1.Service{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      serviceName,
+				Namespace: testNamespace,
+			},
+			Spec: corev1.ServiceSpec{
+				Selector: map[string]string{
+					// Multi-network service selects the multinic interface on L3 VM pod.
+					"networking.gke.io/network": networkName,
+					lbTestPodLabelKey:           lbTestPodLabelVal,
+				},
+				Ports: []corev1.ServicePort{
+					{
+						Port:       int32(lbServicePort),
+						TargetPort: intstr.FromInt(utils.ResponderPort),
+						Protocol:   corev1.ProtocolTCP,
+					},
+				},
+				Type: corev1.ServiceTypeLoadBalancer,
+			},
+		}
+		err = cl.Create(ctx, lbService)
+		Expect(err).NotTo(HaveOccurred(), "Failed to create LoadBalancer service")
+		defer utils.DeleteIfExists(ctx, cl, lbService, "service")
+		klog.Infof("LoadBalancer service '%s' created", serviceName)
+
+		jobName := lbTestCurlJobName
+		klog.Infof("Creating curl job '%s' to target LoadBalancer IP %s:%d", jobName, vpcLBIP, lbServicePort)
+		job := utils.NewCurlJob(jobName, vpcLBIP, testNamespace, lbServicePort, testPodName)
+
+		err = cl.Create(ctx, job)
+		Expect(err).NotTo(HaveOccurred(), "Failed to create curl job targeting LoadBalancer")
+		defer utils.DeleteIfExists(ctx, cl, job, "job")
+
+		klog.Infof("Waiting for curl job '%s' targeting LoadBalancer to complete...", jobName)
+		err = wait.WaitForSuccessContext(ctx, fmt.Sprintf("Curl job %s complete", jobName), wait.WaitingMedium, func(ctx context.Context) error {
+			if err := cl.Get(ctx, k8sclient.ObjectKeyFromObject(job), job); err != nil {
+				return fmt.Errorf("get curl job '%s': %w", jobName, err)
+			}
+			return utils.JobComplete(job)
+		})
+		Expect(err).NotTo(HaveOccurred(), fmt.Sprintf("Job '%s' targeting LoadBalancer did not complete successfully", jobName))
 	})
 })
 
@@ -286,6 +361,7 @@ func createEmulatedL3VMPod(ctx context.Context, cl k8sclient.Client, podName, ns
 			InterfaceName: "eth1",
 			NetworkName:   "g-default-vpc",
 			IPAddress:     ip,
+			IsDefault:     true,
 		},
 	}
 

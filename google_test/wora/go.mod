@@ -185,6 +185,7 @@ replace (
 	gke-internal.googlesource.com/third_party/cilium/google_test/wora/e2e/verifiers/egressnat => ./verifiers/egressnat
 	gke-internal.googlesource.com/third_party/cilium/google_test/wora/e2e/verifiers/kubevirt => ./verifiers/kubevirt
 	gke-internal.googlesource.com/third_party/cilium/google_test/wora/e2e/verifiers/l3vm => ./verifiers/l3vm
+	gke-internal.googlesource.com/third_party/cilium/google_test/wora/e2e/verifiers/strict => ./verifiers/strict
 	gke-internal.googlesource.com/third_party/cilium/google_test/wora/e2e/verifiers/multinetwork => ./verifiers/multinetwork
 	gke-internal.googlesource.com/third_party/cilium/google_test/wora/e2e/verifiers/sample => ./verifiers/sample
 	gke-internal.googlesource.com/third_party/cilium/google_test/wora/e2e/verifiers/vpc => ./verifiers/vpc

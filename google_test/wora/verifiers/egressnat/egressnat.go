@@ -407,6 +407,7 @@ func createEmulatedPerimeterVMPod(ctx context.Context, cl k8sclient.Client, podN
 			InterfaceName: "eth1",
 			NetworkName:   perimeterNetworkName,
 			IPAddress:     ip,
+			IsDefault:     true,
 		},
 	}
 	opts = append(opts, utils.WithAnnotation("networking.gke.io/disable-source-ip-validation", "true"))
@@ -424,6 +425,7 @@ func createEmulatedL3VMPod(ctx context.Context, cl k8sclient.Client, podName, ns
 			InterfaceName: "eth1",
 			NetworkName:   defaultNetworkName,
 			IPAddress:     ip,
+			IsDefault:     true,
 		},
 	}
 	return utils.CreatePodWithNetworkInterfaces(ctx, cl, podName, ns, networkInfos, nil, opts...)

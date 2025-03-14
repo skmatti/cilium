@@ -168,6 +168,9 @@ fi
 
 // JobComplete checks whether the job is marked as complete.
 func JobComplete(j *batchv1.Job) error {
+	if j == nil {
+		return fmt.Errorf("empty job")
+	}
 	failed := jobCondition(j, batchv1.JobFailed)
 	if failed != nil && failed.Status == corev1.ConditionTrue {
 		return fmt.Errorf("job condition %q indicates failed: %#v: %w", batchv1.JobFailed, j.Status.Conditions, wait.ErrNotRetriable)
@@ -251,7 +254,7 @@ func CreatePodWithNetworkInterfaces(ctx context.Context, cl k8sclient.Client, po
 	if len(interfaceAnnotations) != 0 {
 		podAnnotations := map[string]string{
 			networkv1.InterfaceAnnotationKey:        fmt.Sprintf("[%s]", strings.Join(interfaceAnnotations, ",")),
-			networkv1.DefaultInterfaceAnnotationKey: "eth1",
+			networkv1.DefaultInterfaceAnnotationKey: defaultIntf,
 		}
 		pod.ObjectMeta.Annotations = podAnnotations
 	}
@@ -714,4 +717,22 @@ func extractBootstrapperIPFromFile(directory string) (string, error) {
 		return "", fmt.Errorf("IP address not found in file")
 	}
 	return bootstrapperIP, nil
+}
+
+func KubectlApply(manifest string) error {
+	return kubectlAction("apply", manifest)
+}
+
+func KubectlDelete(manifest string) error {
+	return kubectlAction("delete", manifest)
+}
+
+func kubectlAction(action, manifest string) error {
+	cmd := exec.Command("kubectl", action, "-f", "-")
+	cmd.Stdin = strings.NewReader(manifest)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("failed to execute curl command: %v, output: %s", err, string(output))
+	}
+	return nil
 }
