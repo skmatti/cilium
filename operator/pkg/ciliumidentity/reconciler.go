@@ -127,10 +127,6 @@ func (r *reconciler) reconcileCID(cidResourceKey resource.Key) error {
 
 	cidKey, existsInDesiredState := r.desiredCIDState.LookupByID(cidName)
 	if !existsInDesiredState && !existsInStore {
-		err := r.makeIDAvailable(cidName)
-		r.logger.Warn("Failed to return CID to pool",
-			logfields.CIDName, cidName,
-			logfields.Error, err)
 		return nil
 	}
 
@@ -155,7 +151,12 @@ func (r *reconciler) reconcileCID(cidResourceKey resource.Key) error {
 		if cidIsUsed {
 			return r.createCID(cidName, cidKey)
 		} else {
-			r.desiredCIDState.Remove(cidName)
+			if err := r.makeIDAvailable(cidName); err != nil {
+				r.logger.Warn("Failed to return CID to pool",
+					logfields.CIDName, cidName,
+					logfields.Labels, cidKey.Labels(),
+					logfields.Error, err)
+			}
 			return nil
 		}
 	}
@@ -207,6 +208,8 @@ func (r *reconciler) makeIDAvailable(cidName string) error {
 	if err != nil {
 		return err
 	}
+
+	r.desiredCIDState.Remove(cidName)
 	return r.idAllocator.ReturnToAvailablePool(idpool.ID(cidNum))
 }
 
