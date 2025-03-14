@@ -120,4 +120,7 @@ const (
 
 	// XDPDevices is the name of the option to override XDP device list.
 	XDPDevices = "xdp-devices"
+
+	// EnableGoogleVPC is the name of the option to enable Google VPC.
+	EnableGoogleVPC = "enable-google-vpc"
 )

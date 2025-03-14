@@ -449,8 +449,12 @@ not_esp:
 	}
 #endif /* ENABLE_EGRESS_GATEWAY_COMMON */
 
+#ifdef ENABLE_GOOGLE_VPC
+	ep = google_vpc_lookup_ip4_endpoint(ip4->daddr);
+#else
 	/* Deliver to local (non-host) endpoint: */
 	ep = lookup_ip4_endpoint(ip4);
+#endif /* ENABLE_GOOGLE_VPC */
 	if (ep && !(ep->flags & ENDPOINT_MASK_HOST_DELIVERY))
 		return ipv4_local_delivery(ctx, ETH_HLEN, *identity, MARK_MAGIC_IDENTITY,
 					   ip4, ep, METRIC_INGRESS, false, true, 0);

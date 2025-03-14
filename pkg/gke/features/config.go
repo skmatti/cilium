@@ -1,6 +1,8 @@
 package features
 
 import (
+	"fmt"
+
 	"github.com/cilium/cilium/pkg/datapath/linux/config/defines"
 	"github.com/cilium/cilium/pkg/gke/multinic/multinicconfig"
 	"github.com/cilium/cilium/pkg/option"
@@ -84,6 +86,8 @@ type Config struct {
 	// be installed on all devices detected by Cilium. When this is not empty, XDP program will only be installed on these
 	// interfaces.
 	XDPDevices []string `mapstructure:"xdp-devices"`
+	// EnableGoogleVPC is the option to enable Google VPC mode.
+	EnableGoogleVPC bool
 }
 
 var defaultConfig = Config{
@@ -111,6 +115,7 @@ var defaultConfig = Config{
 	EnableGoogleBPFGeneve:       false,
 	XDPMode:                     option.XDPModeDisabled,
 	XDPDevices:                  []string{},
+	EnableGoogleVPC:             false,
 }
 
 func (cfg Config) Flags(flags *pflag.FlagSet) {
@@ -178,14 +183,16 @@ func (cfg Config) Flags(flags *pflag.FlagSet) {
 
 	flags.StringSlice(option.XDPDevices, cfg.XDPDevices, "Override XDP device list")
 	flags.MarkHidden(option.XDPDevices)
+
+	flags.Bool(option.EnableGoogleVPC, cfg.EnableGoogleVPC, "Enable Google VPC mode")
+	flags.MarkHidden(option.EnableGoogleVPC)
 }
 
-func configure(cfg Config) (out struct {
+func configure(cfg Config, daemonCfg *option.DaemonConfig) (out struct {
 	cell.Out
 
 	defines.NodeOut
-},
-) {
+}, err error) {
 	GlobalConfig = cfg
 
 	out.NodeDefines = make(defines.Map)
@@ -196,5 +203,12 @@ func configure(cfg Config) (out struct {
 		out.NodeDefines["ENABLE_GOOGLE_GENEVE"] = "1"
 	}
 
+	if cfg.EnableGoogleVPC {
+		if !cfg.EnableGoogleBPFGeneve || !daemonCfg.TunnelingEnabled() {
+			return out, fmt.Errorf("feature Google VPC requires %s set to 'true' (currently %t) and tunnel enabled (currently %t)",
+				option.EnableGoogleBPFGeneve, cfg.EnableGoogleBPFGeneve, daemonCfg.TunnelingEnabled())
+		}
+		out.NodeDefines["ENABLE_GOOGLE_VPC"] = "1"
+	}
 	return
 }

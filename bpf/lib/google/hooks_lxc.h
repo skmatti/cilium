@@ -8,6 +8,7 @@
 #include "lib/google/multinic.h"
 #include "lib/google/pip.h"
 #include "lib/google/geneve.h"
+#include "lib/google/vpc.h"
 #include "lib/google/plugin.h"
 #include "lib/google_multinic.h"
 
@@ -156,6 +157,9 @@ pre_ctr_egress_fwd4(struct __ctx_buff *ctx,
 {
 	int ret = goog_sfc_maybe_encap_new(ctx, stage_ctx);
 
+	if (ret != HOOK_ACT_CONTINUE)
+		return ret;
+	ret = goog_vpc_pre_ctr_egress_fwd4(ctx, stage_ctx);
 	if (ret != HOOK_ACT_CONTINUE)
 		return ret;
 	stage_ctx->skip_local_delivery = should_skip_local_delivery(ctx);

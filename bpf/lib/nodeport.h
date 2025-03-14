@@ -28,6 +28,10 @@
 #include "proxy_hairpin.h"
 #include "fib.h"
 
+#ifdef ENABLE_GOOGLE_VPC
+#include "google/vpc.h"
+#endif
+
 #define nodeport_nat_egress_ipv4_hook(ctx, ip4, info, tuple, l4_off, ext_err) CTX_ACT_OK
 #define nodeport_rev_dnat_ingress_ipv4_hook(ctx, ip4, tuple, tunnel_endpoint, src_sec_identity, \
 		dst_sec_identity) -1
@@ -1978,6 +1982,14 @@ static __always_inline int encap_geneve_dsr_opt4(struct __ctx_buff *ctx, int l3_
 	if (!info || info->tunnel_endpoint == 0)
 		return DROP_NO_TUNNEL_ENDPOINT;
 
+#ifdef ENABLE_GOOGLE_VPC
+	{
+		int ret = google_vpc_lookup_ip4_remote_endpoint(info->tunnel_endpoint, 0, &info);
+
+		if (ret != CTX_ACT_OK)
+			return ret;
+	}
+#endif /* ENABLE_GOOGLE_VPC */
 	tunnel_endpoint = info->tunnel_endpoint;
 	dst_sec_identity = info->sec_identity;
 #endif
@@ -2560,6 +2572,11 @@ nodeport_rev_dnat_ingress_ipv4(struct __ctx_buff *ctx, struct trace_ctx *trace,
 
 			info = lookup_ip4_remote_endpoint(ip4->daddr, 0);
 			if (info && info->tunnel_endpoint && !info->flag_skip_tunnel) {
+# ifdef ENABLE_GOOGLE_VPC
+				ret = google_vpc_lookup_ip4_remote_endpoint(info->tunnel_endpoint, 0, &info);
+				if (IS_ERR(ret))
+					return ret;
+# endif
 				tunnel_endpoint = info->tunnel_endpoint;
 				dst_sec_identity = info->sec_identity;
 			}
@@ -2821,6 +2838,12 @@ int tail_nodeport_nat_egress_ipv4(struct __ctx_buff *ctx)
 	info = lookup_ip4_remote_endpoint(ip4->daddr, cluster_id);
 	if (info && info->tunnel_endpoint != 0 && !info->flag_skip_tunnel) {
 		struct host_dev_routing_entry * entry;
+
+#ifdef ENABLE_GOOGLE_VPC
+		ret = google_vpc_lookup_ip4_remote_endpoint(info->tunnel_endpoint, cluster_id, &info);
+		if (ret != CTX_ACT_OK)
+			return ret;
+#endif /* ENABLE_GOOGLE_VPC */
 		tunnel_endpoint = info->tunnel_endpoint;
 		dst_sec_identity = info->sec_identity;
 	/*
