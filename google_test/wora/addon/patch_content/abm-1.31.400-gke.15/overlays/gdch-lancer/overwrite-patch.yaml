@@ -12,7 +12,7 @@ data:
   # TODO(b/399421655): remove after we turn on Private mode.
   k8s-interface-only: "false"
   # Disable hubble to reduce log noise as we don't need to export the flow logs.
-  enable-hubble: "true"
+  enable-hubble: "false"
   # TODO(b/403341253): remove the configuration once it's updated in GDC-AG repo.
   kube-proxy-replacement: "false"
 kind: ConfigMap
