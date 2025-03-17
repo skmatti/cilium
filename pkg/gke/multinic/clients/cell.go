@@ -13,7 +13,16 @@ import (
 	k8sClient "github.com/cilium/cilium/pkg/k8s/client"
 	"github.com/cilium/cilium/pkg/k8s/resource"
 	"github.com/cilium/cilium/pkg/k8s/utils"
+	"github.com/cilium/cilium/pkg/logging"
+	"github.com/cilium/cilium/pkg/logging/logfields"
+	"github.com/cilium/cilium/pkg/time"
 	"github.com/cilium/hive/cell"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+)
+
+var (
+	log = logging.DefaultLogger.WithField(logfields.LogSubsys, "multinicclients")
 )
 
 var Cell = cell.Module(
@@ -97,9 +106,16 @@ func networkInterfaceResources(lc cell.Lifecycle, conf multinicconfig.Config, c 
 }
 
 // gkeNetworkParamSetResources creates a new resource for GKENetworkParamSet objects.
-// GKENetworkParamSet objects are custom resources defined by the multinetworking feature.
-func gkeNetworkParamSetResources(lc cell.Lifecycle, conf multinicconfig.Config, c nwversioned.Interface) (resource.Resource[*networkv1.GKENetworkParamSet], error) {
+// GKENetworkParamSet objects are custom resources defined by the multinetworking feature and required in GKE.
+func gkeNetworkParamSetResources(lc cell.Lifecycle, conf multinicconfig.Config, clientset k8sClient.Clientset, c nwversioned.Interface) (resource.Resource[*networkv1.GKENetworkParamSet], error) {
 	if !conf.EnableGoogleMultiNIC {
+		return nil, nil
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Minute)
+	defer cancel()
+	err := checkCRD(ctx, clientset, networkv1.SchemeGroupVersion.WithKind("gkenetworkparamsets"))
+	if err != nil {
+		log.Warnf("will not watch gkenetworkparamsets: %v", err)
 		return nil, nil
 	}
 	return resource.New[*networkv1.GKENetworkParamSet](
@@ -135,6 +151,27 @@ func dhcpClient(p Params) dhcp.DHCPClient {
 		return nil
 	}
 	return dhcp.NewDHCPClient()
+}
+
+func checkCRD(ctx context.Context, clientset k8sClient.Clientset, gvk schema.GroupVersionKind) error {
+	if !clientset.IsEnabled() {
+		return nil
+	}
+	crd, err := clientset.ApiextensionsV1().CustomResourceDefinitions().Get(ctx, gvk.GroupKind().String(), metav1.GetOptions{})
+	if err != nil {
+		return err
+	}
+	found := false
+	for _, v := range crd.Spec.Versions {
+		if v.Name == gvk.Version {
+			found = true
+			break
+		}
+	}
+	if !found {
+		return fmt.Errorf("CRD %q does not have version %q", gvk.GroupKind().String(), gvk.Version)
+	}
+	return nil
 }
 
 var FakeMNClientCell = cell.Module(

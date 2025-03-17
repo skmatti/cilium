@@ -368,6 +368,7 @@ func (r *NetworkReconciler) Run(ctx context.Context, networkChan <-chan resource
 	for {
 		select {
 		case <-ctx.Done():
+			r.Log.Info("context is done, shutting down network controller")
 			return
 		case event, ok := <-networkChan:
 			if !ok {
@@ -405,7 +406,11 @@ func (r *NetworkReconciler) processNetworkEvent(ctx context.Context, event resou
 	if err = r.reconcile(ctx, nw.Name); err != nil {
 		r.Log.Errorf("error while reconciling network %s: %v", nw.Name, err)
 	} else {
-		r.lastNetworksCache[nw.Name] = nw.DeepCopy()
+		if event.Kind == resource.Delete {
+			delete(r.lastNetworksCache, nw.Name)
+		} else {
+			r.lastNetworksCache[nw.Name] = nw.DeepCopy()
+		}
 	}
 	event.Done(err)
 }

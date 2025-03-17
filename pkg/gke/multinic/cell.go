@@ -172,14 +172,17 @@ func initMultinetworking(p Params) error {
 			// Optimization for scalablity.
 			// The dumb list call triggers the cache build for GKENetworkParamSet.
 			// Without this, the cache build started on the first MN pod, leading to flood of API calls with many MN pods.
-			gnpStore, err := p.GKENetworkParamSets.Store(ctx)
-			if err != nil {
-				return fmt.Errorf("failed to fetch gkenetworkparamset store during initialisation: %v", err)
+			if p.GKENetworkParamSets != nil {
+				gnpStore, err := p.GKENetworkParamSets.Store(ctx)
+				if err != nil {
+					return fmt.Errorf("failed to fetch gkenetworkparamset store during initialisation: %v", err)
+				}
+				gnpStore.List()
 			}
-			gnpStore.List()
 			// process network and node events -- non-blocking
 			go r.Run(ctrlCtx, p.Networks.Events(ctrlCtx), p.LocalNodeResource.Events(ctrlCtx))
 
+			r.Log.Info("successfully started google multinetworking controller")
 			return nil
 		},
 		OnStop: func(hc cell.HookContext) error {

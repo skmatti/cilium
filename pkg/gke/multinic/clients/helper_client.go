@@ -145,6 +145,9 @@ func (c *MultiNetworkHelperClientImpl) GetGKENetworkParamSet(ctx context.Context
 		// Unsupported params ref kind
 		return nil, fmt.Errorf("unknown paramRef kind: %s/%s", ref.Group, ref.Kind)
 	}
+	if c.GKENetworkParamSets == nil {
+		return nil, fmt.Errorf("gkenetworkparamset store not initialized")
+	}
 
 	gnpStore, err := c.GKENetworkParamSets.Store(ctx)
 	if err != nil {
