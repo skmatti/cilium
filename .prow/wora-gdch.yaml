@@ -25,20 +25,20 @@ presubmits:
         # needed for docker-in-docker
         privileged: true
       env:
-      - name: CILIUM_GITREF
-        value: HEAD
-      - name: TBCONFIG
-        value: sut-gdch-adhoc.yaml
-      - name: OC_UPDATE_TEMPLATE
-        value: cilium_129_update_spec.json.tmpl
-      - name: ENV_TEMPLATE_ID
-        value: c97a9292-975e-47f3-a290-a70df10edc4f
       - name: ADHOC_USERNAME
         value: an-shift-left-legacy-presubmit
-      - name: GDCH_E2E_TESTS
-        value: TestVMSetupV2MT$|TestVMCreateUbuntuVMV2MT$|TestUNETVMSetup$|TestConnectivityMultiTenant$|TestVMNetworkToVMInterProjectV2MT$|TestVMNetworkToVMIntraProjectV2MT$|TestVMEgressNATV2MT$|TestGdcloudNetworkDiagnoseMT$|TestClusterMeshConnectivityMultiTenant$|TestClusterMeshConnectivityNewFrameworkMultiTenant$|TestVMNetworkToPodIntraProjectV2MT$|TestFabricTracingMultiTenant$|TestILBServiceConnectivityMultiTenant$|TestProjectNetworkPolicyEnforcementMultiTenant$|TestEgressNATMultiTenant$|TestExternalLBMultiTenant$|TestClusterMeshHealthMultiTenant$|TestUNETReadyRootAdmin$|TestUNETReadyOrgAdmin$
+      - name: CILIUM_GITREF
+        value: HEAD
+      - name: ENV_TEMPLATE_ID
+        value: c97a9292-975e-47f3-a290-a70df10edc4f
       - name: GDCH_E2E_TEST_PLAN
         value: dynamic
+      - name: GDCH_E2E_TESTS
+        value: TestVMSetupV2MT$|TestVMCreateUbuntuVMV2MT$|TestUNETVMSetup$|TestConnectivityMultiTenant$|TestVMNetworkToVMInterProjectV2MT$|TestVMNetworkToVMIntraProjectV2MT$|TestVMEgressNATV2MT$|TestGdcloudNetworkDiagnoseMT$|TestClusterMeshConnectivityMultiTenant$|TestClusterMeshConnectivityNewFrameworkMultiTenant$|TestVMNetworkToPodIntraProjectV2MT$|TestFabricTracingMultiTenant$|TestILBServiceConnectivityMultiTenant$|TestProjectNetworkPolicyEnforcementMultiTenant$|TestEgressNATMultiTenant$|TestExternalLBMultiTenant$|TestClusterMeshHealthMultiTenant$|TestUNETReadyRootAdmin$|TestUNETReadyOrgAdmin$
+      - name: OC_UPDATE_TEMPLATE
+        value: cilium_129_update_spec.json.tmpl
+      - name: TBCONFIG
+        value: sut-gdch-adhoc.yaml
       - name: WORA_CONFIG
         value: no_op_test.yaml
       command:
@@ -71,20 +71,20 @@ presubmits:
         # needed for docker-in-docker
         privileged: true
       env:
-      - name: CILIUM_GITREF
-        value: HEAD
-      - name: TBCONFIG
-        value: sut-gdch-adhoc.yaml
-      - name: OC_UPDATE_TEMPLATE
-        value: cilium_lancer_update_spec.json.tmpl
-      - name: ENV_TEMPLATE_ID
-        value: b82f9f61-ccbd-4871-9154-085eddc40012
       - name: ADHOC_USERNAME
         value: an-shift-left-lancer-presubmit
-      - name: GDCH_E2E_TESTS
-        value: TestUNETReadyOrgInfra$|TestUNETReadyOrgMgmt$|TestUNETReadyOrgService$|TestUNETReadyVMUser$|TestOrgNetworkPolicyLancer$
+      - name: CILIUM_GITREF
+        value: HEAD
+      - name: ENV_TEMPLATE_ID
+        value: b82f9f61-ccbd-4871-9154-085eddc40012
       - name: GDCH_E2E_TEST_PLAN
         value: dynamic
+      - name: GDCH_E2E_TESTS
+        value: TestUNETReadyOrgInfra$|TestUNETReadyOrgMgmt$|TestUNETReadyOrgService$|TestUNETReadyVMUser$|TestOrgNetworkPolicyLancer$
+      - name: OC_UPDATE_TEMPLATE
+        value: cilium_lancer_update_spec.json.tmpl
+      - name: TBCONFIG
+        value: sut-gdch-adhoc.yaml
       - name: WORA_CONFIG
         value: no_op_test.yaml
       command:
@@ -117,16 +117,16 @@ presubmits:
         # needed for docker-in-docker
         privileged: true
       env:
-      - name: TBCONFIG
-        value: sut-gdch-adhoc.yaml
-      - name: ENV_TEMPLATE_ID
-        value: c97a9292-975e-47f3-a290-a70df10edc4f
       - name: ADHOC_USERNAME
         value: an-shift-left-legacy-nobuild-presubmit
-      - name: GDCH_E2E_TESTS
-        value: TestVMSetupV2MT$|TestVMCreateUbuntuVMV2MT$|TestUNETVMSetup$|TestConnectivityMultiTenant$|TestVMNetworkToVMInterProjectV2MT$|TestVMNetworkToVMIntraProjectV2MT$|TestVMEgressNATV2MT$|TestGdcloudNetworkDiagnoseMT$|TestClusterMeshConnectivityMultiTenant$|TestClusterMeshConnectivityNewFrameworkMultiTenant$|TestVMNetworkToPodIntraProjectV2MT$|TestFabricTracingMultiTenant$|TestILBServiceConnectivityMultiTenant$|TestProjectNetworkPolicyEnforcementMultiTenant$|TestEgressNATMultiTenant$|TestExternalLBMultiTenant$|TestClusterMeshHealthMultiTenant$|TestUNETReadyRootAdmin$|TestUNETReadyOrgAdmin$
+      - name: ENV_TEMPLATE_ID
+        value: c97a9292-975e-47f3-a290-a70df10edc4f
       - name: GDCH_E2E_TEST_PLAN
         value: dynamic
+      - name: GDCH_E2E_TESTS
+        value: TestVMSetupV2MT$|TestVMCreateUbuntuVMV2MT$|TestUNETVMSetup$|TestConnectivityMultiTenant$|TestVMNetworkToVMInterProjectV2MT$|TestVMNetworkToVMIntraProjectV2MT$|TestVMEgressNATV2MT$|TestGdcloudNetworkDiagnoseMT$|TestClusterMeshConnectivityMultiTenant$|TestClusterMeshConnectivityNewFrameworkMultiTenant$|TestVMNetworkToPodIntraProjectV2MT$|TestFabricTracingMultiTenant$|TestILBServiceConnectivityMultiTenant$|TestProjectNetworkPolicyEnforcementMultiTenant$|TestEgressNATMultiTenant$|TestExternalLBMultiTenant$|TestClusterMeshHealthMultiTenant$|TestUNETReadyRootAdmin$|TestUNETReadyOrgAdmin$
+      - name: TBCONFIG
+        value: sut-gdch-adhoc.yaml
       - name: WORA_CONFIG
         value: no_op_test.yaml
       command:
@@ -159,16 +159,16 @@ presubmits:
         # needed for docker-in-docker
         privileged: true
       env:
-      - name: TBCONFIG
-        value: sut-gdch-adhoc.yaml
-      - name: ENV_TEMPLATE_ID
-        value: b82f9f61-ccbd-4871-9154-085eddc40012
       - name: ADHOC_USERNAME
         value: an-shift-left-lancer-nobuild-presubmit
-      - name: GDCH_E2E_TESTS
-        value: TestUNETReadyOrgInfra$|TestUNETReadyOrgMgmt$|TestUNETReadyOrgService$|TestUNETReadyVMUser$|TestOrgNetworkPolicyLancer$
+      - name: ENV_TEMPLATE_ID
+        value: b82f9f61-ccbd-4871-9154-085eddc40012
       - name: GDCH_E2E_TEST_PLAN
         value: dynamic
+      - name: GDCH_E2E_TESTS
+        value: TestUNETReadyOrgInfra$|TestUNETReadyOrgMgmt$|TestUNETReadyOrgService$|TestUNETReadyVMUser$|TestOrgNetworkPolicyLancer$
+      - name: TBCONFIG
+        value: sut-gdch-adhoc.yaml
       - name: WORA_CONFIG
         value: no_op_test.yaml
       command:
