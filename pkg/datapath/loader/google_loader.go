@@ -17,24 +17,49 @@ import (
 	"github.com/vishvananda/netlink"
 )
 
-func setupMultiNICDataPath(ctx context.Context, ep datapath.Endpoint, objPath string) error {
+func loadL2Datapath(spec *ebpf.CollectionSpec, mapPath string, mapRenames map[string]string, constants map[string]uint64) error {
+	spec, err := renameMaps(spec, mapRenames)
+	if err != nil {
+		return err
+	}
 	// Map of programs to be loaded at tail-call map with the index
-	p := map[uint32]string{
+	programs := map[uint32]string{
 		uint32(connector.EgressMapIndex):  "cil_from_container",
 		uint32(connector.IngressMapIndex): "cil_to_container",
 	}
 
-	if err := reloadL2Datapath(ep.MapPath(), objPath, p); err != nil {
-		scopedLog := ep.Logger(subsystem).WithFields(logrus.Fields{
-			logfields.Path: objPath,
-		})
-		// Don't log an error here if the context was canceled or timed out;
-		// this log message should only represent failures with respect to
-		// loading the program.
-		if ctx.Err() == nil {
-			scopedLog.WithError(err).Warn("JoinEP: Failed to load program")
+	pinPath := bpf.TCGlobalsPath()
+	opts := bpf.CollectionOptions{
+		CollectionOptions: ebpf.CollectionOptions{
+			Maps: ebpf.MapOptions{PinPath: pinPath},
+		},
+		Constants: constants,
+	}
+
+	coll, commit, err := bpf.LoadCollection(spec, &opts)
+	var ve *ebpf.VerifierError
+	if errors.As(err, &ve) {
+		return fmt.Errorf("error from bpf verifier: %w verifier log:%+v", err, ve)
+	}
+	defer coll.Close()
+
+	progArr, err := ebpf.LoadPinnedMap(mapPath, nil)
+	if err != nil {
+		return fmt.Errorf("failed to find map object: %s, %v", mapPath, err)
+	}
+
+	for index, progName := range programs {
+		prog, ok := coll.Programs[progName]
+		if !ok {
+			return fmt.Errorf("could not find name of program %s in collection", progName)
 		}
-		return err
+		if err = progArr.Update(index, prog, ebpf.UpdateAny); err != nil {
+			return fmt.Errorf("error updating tail map %s", progName)
+		}
+	}
+
+	if err := commit(); err != nil {
+		return fmt.Errorf("committing bpf pins: %w", err)
 	}
 	return nil
 }

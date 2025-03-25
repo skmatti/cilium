@@ -13,6 +13,7 @@ import (
 	"github.com/cilium/cilium/pkg/controller"
 	"github.com/cilium/cilium/pkg/datapath/loader"
 	"github.com/cilium/cilium/pkg/endpoint"
+	multinicep "github.com/cilium/cilium/pkg/gke/multinic/endpoint"
 	"github.com/cilium/cilium/pkg/logging/logfields"
 	"github.com/cilium/cilium/pkg/promise"
 	"github.com/cilium/cilium/pkg/time"
@@ -105,6 +106,14 @@ func (d *Daemon) checkEndpointBPFPrograms(ctx context.Context, p epBPFProgWatchd
 		}
 		if ep.IsProperty(endpoint.PropertyWithouteBPFDatapath) {
 			// Skip Endpoints without BPF datapath
+			continue
+		}
+		if ep.GetDeviceTypeIndex() == multinicep.EndpointDeviceIndexMACVTAP ||
+			ep.GetDeviceTypeIndex() == multinicep.EndpointDeviceIndexMACVLAN {
+			log.WithFields(logrus.Fields{
+				logfields.EndpointID: ep.ID,
+				logfields.CEPName:    ep.GetK8sNamespaceAndCEPName(),
+			}).Debug("Skip BPF program watchdog for L2 multinic")
 			continue
 		}
 		loaded, err = loader.DeviceHasSKBProgramLoaded(ep.HostInterface(), ep.RequireEgressProg())
