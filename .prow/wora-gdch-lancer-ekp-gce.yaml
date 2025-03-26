@@ -35,7 +35,11 @@ presubmits:
       - name: TBCONFIG
         value: sut-gdch-lancer-abm-gce.yaml
       - name: WORA_CONFIG
-        value: integration-gdch-lancer_test.yaml
+        value: integration_test.yaml
+      - name: WORA_GINKGO_LABEL_FILTER
+        # TODO: b/384532838 - enable feature tests as features are merged.
+        # egressnat||hostfirewall||kubevirt||l3vm||loadbalancer||sample||tailcall||vpc
+        value: sample
       command:
       - runner.sh
       args:
@@ -76,7 +80,11 @@ presubmits:
       - name: TBCONFIG
         value: sut-gdch-lancer-kubevirt-abm-gce.yaml
       - name: WORA_CONFIG
-        value: integration-gdch-lancer-kubevirt_test.yaml
+        value: integration_test.yaml
+      - name: WORA_GINKGO_LABEL_FILTER
+        # TODO: b/384532838 - enable feature tests as features are merged.
+        # value: kubevirt||sample
+        value: sample
       command:
       - runner.sh
       args:
@@ -207,7 +215,11 @@ presubmits:
       - name: TBCONFIG
         value: sut-gdch-perimeter-abm-gce.yaml
       - name: WORA_CONFIG
-        value: integration-gdch-perimeter_test.yaml
+        value: integration_test.yaml
+      - name: WORA_GINKGO_LABEL_FILTER
+        # TODO: b/384532838 - enable feature tests as features are merged.
+        # sample||tailcall
+        value: sample
       command:
       - runner.sh
       args:

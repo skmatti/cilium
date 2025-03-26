@@ -32,7 +32,9 @@ presubmits:
       - name: TBCONFIG
         value: sut-gke.yaml
       - name: WORA_CONFIG
-        value: integration-gke_test.yaml
+        value: integration_test.yaml
+      - name: WORA_GINKGO_LABEL_FILTER
+        value: 1n||sample
       command:
       - runner.sh
       args:

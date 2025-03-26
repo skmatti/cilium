@@ -278,6 +278,14 @@ function insert_control_plane {
     | .controlPlane) = \"${controlPlane}\"" "${config}"
 }
 
+function update_label_filter {
+  local config="${1:?}"
+  local label_filter="${2:?}"
+  yq -i "(.spec.applications[].spec.directives[].spec.args[]
+    | select(. == \"--label-filter=*\"))
+    |= \"--label-filter=${label_filter}\"" "${config}"
+}
+
 # Insert plugin version into WORA_CONFIG.
 insert_plugin_version \
   "${WORA_CONFIG}" \
@@ -289,6 +297,12 @@ insert_control_plane \
   "${WORA_CONFIG}" \
   "${WORA_RESOURCE_NAME:-"anthos-networking-test-workloads"}" \
   "${WORA_CONTROL_PLANE}"
+
+# Update ginkgo label filter in WORA_CONFIG.
+# This function assumes that `--label-filter` is already defined in WORA_CONFIG.
+if [[ -v WORA_GINKGO_LABEL_FILTER ]]; then
+  update_label_filter "${WORA_CONFIG}" "${WORA_GINKGO_LABEL_FILTER:-}"
+fi
 
 if [[ -n "${CILIUM_DOCKER_IMAGE_TAG}" ]]; then
   CILIUM_IMAGE_WITH_TAG=${IMAGE_REGISTRY}/cilium/cilium:${CILIUM_DOCKER_IMAGE_TAG}
