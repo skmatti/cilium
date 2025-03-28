@@ -9,9 +9,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
 	k8sclient "sigs.k8s.io/controller-runtime/pkg/client"
@@ -58,7 +56,7 @@ var _ = Describe("LoadBalancer", Label("loadbalancer"), Ordered, func() {
 		Expect(err).NotTo(HaveOccurred())
 
 		// Create the load balancer service with backend pods
-		err = createService(ctx, cl)
+		err = utils.CreateService(ctx, cl, serviceName, testNamespace, serviceName, servicePort, 8080)
 		Expect(err).NotTo(HaveOccurred())
 	})
 
@@ -194,45 +192,6 @@ func verifyNodePort() error {
 			return err
 		}
 	}
-	return nil
-}
-
-// createService creats a service of type load balancer.
-func createService(ctx context.Context, cl k8sclient.Client) error {
-	singleStack := corev1.IPFamilyPolicySingleStack
-	service := &corev1.Service{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      serviceName,
-			Namespace: testNamespace,
-			Labels: map[string]string{
-				"app": serviceName,
-			},
-		},
-		Spec: corev1.ServiceSpec{
-			IPFamilyPolicy: &singleStack,
-			IPFamilies:     []corev1.IPFamily{corev1.IPv4Protocol},
-			Ports: []corev1.ServicePort{
-				{
-					Port:       servicePort,
-					Protocol:   corev1.ProtocolTCP,
-					TargetPort: intstr.FromInt(8080),
-				},
-			},
-			Selector: map[string]string{
-				"app": serviceName,
-			},
-			SessionAffinity: corev1.ServiceAffinityNone,
-			Type:            corev1.ServiceTypeLoadBalancer,
-		},
-	}
-	if err := cl.Create(ctx, service); err != nil {
-		if apierrors.IsAlreadyExists(err) {
-			klog.Infof("Service already exists.")
-			return nil
-		}
-		return fmt.Errorf("failed to create service: %v", err)
-	}
-	klog.Infof("service %s created successfully", service.Name)
 	return nil
 }
 

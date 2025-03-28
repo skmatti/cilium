@@ -18,6 +18,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/client-go/kubernetes"
 	networkv1 "k8s.io/cloud-provider-gcp/crd/apis/network/v1"
 	"k8s.io/utils/pointer"
@@ -744,5 +745,44 @@ func kubectlAction(action, manifest string) error {
 	if err != nil {
 		return fmt.Errorf("failed to execute curl command: %v, output: %s", err, string(output))
 	}
+	return nil
+}
+
+// createService creates a service of type load balancer.
+func CreateService(ctx context.Context, cl k8sclient.Client, serviceName, serviceNamespace, backendSelector string, servicePort int, targetPort int) error {
+	singleStack := corev1.IPFamilyPolicySingleStack
+	service := &corev1.Service{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      serviceName,
+			Namespace: serviceNamespace,
+			Labels: map[string]string{
+				"app": backendSelector,
+			},
+		},
+		Spec: corev1.ServiceSpec{
+			IPFamilyPolicy: &singleStack,
+			IPFamilies:     []corev1.IPFamily{corev1.IPv4Protocol},
+			Ports: []corev1.ServicePort{
+				{
+					Port:       int32(servicePort),
+					Protocol:   corev1.ProtocolTCP,
+					TargetPort: intstr.FromInt(int(targetPort)),
+				},
+			},
+			Selector: map[string]string{
+				"app": serviceName,
+			},
+			SessionAffinity: corev1.ServiceAffinityNone,
+			Type:            corev1.ServiceTypeLoadBalancer,
+		},
+	}
+	if err := cl.Create(ctx, service); err != nil {
+		if apierrors.IsAlreadyExists(err) {
+			klog.Info("Service already exists.")
+			return nil
+		}
+		return fmt.Errorf("failed to create service: %v", err)
+	}
+	klog.Infof("service %s created successfully", service.Name)
 	return nil
 }
