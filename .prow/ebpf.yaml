@@ -3,6 +3,7 @@ presubmits:
   trigger: /test ebpf-ubuntu2404
   rerun_command: /test ebpf-ubuntu2404
   always_run: true
+  skip_fetch_head: true
   decorate: true
   decoration_config:
     timeout: 240m
@@ -32,6 +33,7 @@ presubmits:
   trigger: /test ebpf-ubuntu2204
   rerun_command: /test ebpf-ubuntu2204
   always_run: true
+  skip_fetch_head: true
   decorate: true
   decoration_config:
     timeout: 240m
@@ -61,6 +63,7 @@ presubmits:
   trigger: /test ebpf-ubuntu2204
   rerun_command: /test ebpf-ubuntu2204
   always_run: false
+  skip_fetch_head: true
   decorate: true
   decoration_config:
     timeout: 240m
@@ -91,6 +94,7 @@ presubmits:
   trigger: /test ebpf-ubuntu2004
   rerun_command: /test ebpf-ubuntu2004
   always_run: false
+  skip_fetch_head: true
   decorate: true
   decoration_config:
     timeout: 240m
@@ -120,6 +124,7 @@ presubmits:
   trigger: /test ebpf-rocky86
   rerun_command: /test ebpf-rocky86
   always_run: false
+  skip_fetch_head: true
   decorate: true
   decoration_config:
     timeout: 240m
@@ -150,6 +155,7 @@ presubmits:
   trigger: /test ebpf-cos117
   rerun_command: /test ebpf-cos117
   always_run: true
+  skip_fetch_head: true
   decorate: true
   decoration_config:
     timeout: 240m
@@ -179,6 +185,7 @@ presubmits:
   trigger: /test ebpf-cos113
   rerun_command: /test ebpf-cos113
   always_run: true
+  skip_fetch_head: true
   decorate: true
   decoration_config:
     timeout: 240m
@@ -208,6 +215,7 @@ presubmits:
   trigger: /test ebpf-cos109
   rerun_command: /test ebpf-cos109
   always_run: true
+  skip_fetch_head: true
   decorate: true
   decoration_config:
     timeout: 240m
@@ -237,6 +245,7 @@ presubmits:
   trigger: /test ebpf-cos105
   rerun_command: /test ebpf-cos105
   always_run: false
+  skip_fetch_head: true
   decorate: true
   decoration_config:
     timeout: 240m
@@ -266,6 +275,7 @@ presubmits:
   trigger: /test ebpf-rhel810
   rerun_command: /test ebpf-rhel810
   always_run: false
+  skip_fetch_head: true
   decorate: true
   decoration_config:
     timeout: 240m
@@ -295,6 +305,7 @@ presubmits:
   trigger: /test ebpf-rhel88
   rerun_command: /test ebpf-rhel88
   always_run: false
+  skip_fetch_head: true
   decorate: true
   decoration_config:
     timeout: 240m
@@ -324,6 +335,7 @@ presubmits:
   trigger: /test ebpf-rhel89
   rerun_command: /test ebpf-rhel89
   always_run: false
+  skip_fetch_head: true
   decorate: true
   decoration_config:
     timeout: 240m
@@ -353,6 +365,7 @@ presubmits:
   trigger: /test ebpf-rhel92
   rerun_command: /test ebpf-rhel92
   always_run: false
+  skip_fetch_head: true
   decorate: true
   decoration_config:
     timeout: 240m
@@ -382,6 +395,7 @@ presubmits:
   trigger: /test ebpf-rhel94
   rerun_command: /test ebpf-rhel94
   always_run: true
+  skip_fetch_head: true
   decorate: true
   decoration_config:
     timeout: 240m
@@ -411,6 +425,7 @@ presubmits:
   trigger: /test ebpf-edgeos
   rerun_command: /test ebpf-edgeos
   always_run: false
+  skip_fetch_head: true
   decorate: true
   decoration_config:
     timeout: 240m
@@ -440,6 +455,7 @@ presubmits:
   trigger: /test ebpf-new-os
   rerun_command: /test ebpf-new-os
   always_run: false
+  skip_fetch_head: true
   decorate: true
   decoration_config:
     timeout: 240m

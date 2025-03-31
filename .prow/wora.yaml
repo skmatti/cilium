@@ -4,6 +4,7 @@ presubmits:
   trigger: /test wora-abm-gce$
   rerun_command: /test wora-abm-gce
   always_run: false
+  skip_fetch_head: true
   decorate: true
   decoration_config:
     timeout: 240m
@@ -44,6 +45,7 @@ presubmits:
   trigger: /test wora-abm-island-mode-gce$
   rerun_command: /test wora-abm-island-mode-gce
   always_run: false
+  skip_fetch_head: true
   decorate: true
   decoration_config:
     timeout: 240m
@@ -86,6 +88,7 @@ presubmits:
   trigger: /test wora-conformance-abm-gce$
   rerun_command: /test wora-conformance-abm-gce
   always_run: false
+  skip_fetch_head: true
   decorate: true
   decoration_config:
     timeout: 240m
@@ -126,6 +129,7 @@ presubmits:
   trigger: /test wora-networking-granular-abm-gce$
   rerun_command: /test wora-networking-granular-abm-gce
   always_run: false
+  skip_fetch_head: true
   decorate: true
   decoration_config:
     timeout: 240m
@@ -167,6 +171,7 @@ presubmits:
   trigger: /test wora-abm-mtv$
   rerun_command: /test wora-abm-mtv
   always_run: false
+  skip_fetch_head: true
   decorate: true
   decoration_config:
     timeout: 240m
@@ -207,6 +212,7 @@ presubmits:
   trigger: /test wora-conformance-abm-mtv$
   rerun_command: /test wora-conformance-abm-mtv
   always_run: false
+  skip_fetch_head: true
   decorate: true
   decoration_config:
     timeout: 240m
@@ -251,6 +257,7 @@ presubmits:
   trigger: /test wora-networking-granular-abm-mtv$
   rerun_command: /test wora-networking-granular-abm-mtv
   always_run: false
+  skip_fetch_head: true
   decorate: true
   decoration_config:
     timeout: 240m

@@ -3,6 +3,7 @@ presubmits:
   trigger: /test wora-gdch-abm-gce$
   rerun_command: /test wora-gdch-abm-gce
   always_run: false
+  skip_fetch_head: true
   decorate: true
   decoration_config:
     timeout: 240m
@@ -45,6 +46,7 @@ presubmits:
   trigger: /test wora-conformance-gdch-abm-gce$
   rerun_command: /test wora-conformance-gdch-abm-gce
   always_run: false
+  skip_fetch_head: true
   decorate: true
   decoration_config:
     timeout: 240m
@@ -87,6 +89,7 @@ presubmits:
   trigger: /test wora-networking-granular-gdch-abm-gce$
   rerun_command: /test wora-networking-granular-gdch-abm-gce
   always_run: false
+  skip_fetch_head: true
   decorate: true
   decoration_config:
     timeout: 240m

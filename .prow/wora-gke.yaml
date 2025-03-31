@@ -4,6 +4,7 @@ presubmits:
   trigger: /test wora-gke$
   rerun_command: /test wora-gke
   always_run: false
+  skip_fetch_head: true
   decorate: true
   decoration_config:
     timeout: 240m
@@ -43,6 +44,7 @@ presubmits:
   trigger: /test wora-conformance-gke$
   rerun_command: /test wora-conformance-gke
   always_run: false
+  skip_fetch_head: true
   decorate: true
   decoration_config:
     timeout: 240m
@@ -82,6 +84,7 @@ presubmits:
   trigger: /test wora-networking-granular-gke$
   rerun_command: /test wora-networking-granular-gke
   always_run: false
+  skip_fetch_head: true
   decorate: true
   decoration_config:
     timeout: 240m

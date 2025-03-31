@@ -1,6 +1,7 @@
 presubmits:
 - name: gke-advanced-datapath-presubmit-unit
   always_run: true
+  skip_fetch_head: true
   decorate: true
   decoration_config:
     timeout: 120m
@@ -24,6 +25,7 @@ presubmits:
   trigger: /test upstream-k8s-conformance
   rerun_command: /test upstream-k8s-conformance
   always_run: true
+  skip_fetch_head: true
   decorate: true
   decoration_config:
     timeout: 240m
@@ -54,6 +56,7 @@ presubmits:
   trigger: /test upstream-connectivity
   rerun_command: /test upstream-connectivity
   always_run: true
+  skip_fetch_head: true
   decorate: true
   decoration_config:
     timeout: 240m

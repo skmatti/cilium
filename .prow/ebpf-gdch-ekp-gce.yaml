@@ -3,6 +3,7 @@ presubmits:
   trigger: /test ebpf-gdch-rocky9
   rerun_command: /test ebpf-gdch-rocky9
   always_run: false
+  skip_fetch_head: true
   decorate: true
   decoration_config:
     timeout: 240m
@@ -32,6 +33,7 @@ presubmits:
   trigger: /test ebpf-gdch-rocky86-v1-13-r82
   rerun_command: /test ebpf-gdch-rocky86-v1-13-r82
   always_run: false
+  skip_fetch_head: true
   decorate: true
   decoration_config:
     timeout: 240m
@@ -61,6 +63,7 @@ presubmits:
   trigger: /test ebpf-gdch-rocky86-v1-14-r41
   rerun_command: /test ebpf-gdch-rocky86-v1-14-r41
   always_run: false
+  skip_fetch_head: true
   decorate: true
   decoration_config:
     timeout: 240m
@@ -90,6 +93,7 @@ presubmits:
   trigger: /test ebpf-gdch-rocky86-v1-12-r143
   rerun_command: /test ebpf-gdch-rocky86-v1-12-r143
   always_run: false
+  skip_fetch_head: true
   decorate: true
   decoration_config:
     timeout: 240m

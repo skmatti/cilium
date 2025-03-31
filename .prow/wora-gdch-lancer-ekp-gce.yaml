@@ -3,6 +3,7 @@ presubmits:
   trigger: /test wora-gdch-abm-gce-lancer$
   rerun_command: /test wora-gdch-abm-gce-lancer
   always_run: true
+  skip_fetch_head: true
   decorate: true
   decoration_config:
     timeout: 240m
@@ -48,6 +49,7 @@ presubmits:
   trigger: /test wora-gdch-abm-gce-lancer-kubevirt$
   rerun_command: /test wora-gdch-abm-gce-lancer-kubevirt
   always_run: true
+  skip_fetch_head: true
   decorate: true
   decoration_config:
     timeout: 240m
@@ -94,6 +96,7 @@ presubmits:
   rerun_command: /test wora-conformance-abm-gce-lancer
   # TODO(b/405213696): enable conformance test after the bug is fixed.
   # always_run: true
+  skip_fetch_head: true
   decorate: true
   decoration_config:
     timeout: 240m
@@ -139,6 +142,7 @@ presubmits:
   rerun_command: /test wora-networking-granular-abm-gce-lancer
   # TODO(b/405213696): enable conformance test after the bug is fixed.
   # always_run: true
+  skip_fetch_head: true
   decorate: true
   decoration_config:
     timeout: 240m
@@ -183,6 +187,7 @@ presubmits:
   trigger: /test wora-perimeter-smoke$
   rerun_command: /test wora-perimeter-smoke
   always_run: true
+  skip_fetch_head: true
   decorate: true
   decoration_config:
     timeout: 240m
@@ -229,6 +234,7 @@ presubmits:
   rerun_command: /test wora-perimeter-k8s-conformance
   # TODO(b/405213696): enable conformance test after the bug is fixed.
   # always_run: true
+  skip_fetch_head: true
   decorate: true
   decoration_config:
     timeout: 240m
@@ -274,6 +280,7 @@ presubmits:
   rerun_command: /test wora-perimeter-k8s-networking-granular
   # TODO(b/405213696): enable conformance test after the bug is fixed.
   # always_run: true
+  skip_fetch_head: true
   decorate: true
   decoration_config:
     timeout: 240m

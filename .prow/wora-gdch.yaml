@@ -3,6 +3,7 @@ presubmits:
   trigger: /test wora-gdch-adhoc-legacy$
   rerun_command: /test wora-gdch-adhoc-legacy
   always_run: false
+  skip_fetch_head: true
   decorate: true
   decoration_config:
     timeout: 12h
@@ -49,6 +50,7 @@ presubmits:
   trigger: /test wora-gdch-adhoc-lancer$
   rerun_command: /test wora-gdch-adhoc-lancer
   always_run: false
+  skip_fetch_head: true
   decorate: true
   decoration_config:
     timeout: 12h
@@ -95,6 +97,7 @@ presubmits:
   trigger: /test wora-gdch-adhoc-legacy-nobuild$
   rerun_command: /test wora-gdch-adhoc-legacy-nobuild
   always_run: false
+  skip_fetch_head: true
   decorate: true
   decoration_config:
     timeout: 12h
@@ -137,6 +140,7 @@ presubmits:
   trigger: /test wora-gdch-adhoc-lancer-nobuild$
   rerun_command: /test wora-gdch-adhoc-lancer-nobuild
   always_run: false
+  skip_fetch_head: true
   decorate: true
   decoration_config:
     timeout: 12h

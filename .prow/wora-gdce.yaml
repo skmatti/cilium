@@ -4,6 +4,7 @@ presubmits:
   trigger: /test wora-gdce$
   rerun_command: /test wora-gdce
   always_run: false
+  skip_fetch_head: true
   decorate: true
   decoration_config:
     timeout: 240m
@@ -38,6 +39,7 @@ presubmits:
   trigger: /test wora-conformance-gdce$
   rerun_command: /test wora-conformance-gdce
   always_run: false
+  skip_fetch_head: true
   decorate: true
   decoration_config:
     timeout: 240m
