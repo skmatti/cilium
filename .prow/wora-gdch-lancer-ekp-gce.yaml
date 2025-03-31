@@ -32,7 +32,7 @@ presubmits:
       - name: CILIUM_GITREF
         value: HEAD
       - name: PATCH_CONTENT_DIR
-        value: addon/patch_content/abm-1.31.400-gke.15/overlays/gdch-lancer
+        value: addon/patch_content/abm-1.31.x-gke/overlays/gdch-lancer
       - name: TBCONFIG
         value: sut-gdch-lancer-abm-gce.yaml
       - name: WORA_CONFIG
@@ -78,7 +78,7 @@ presubmits:
       - name: CILIUM_GITREF
         value: HEAD
       - name: PATCH_CONTENT_DIR
-        value: addon/patch_content/abm-1.31.400-gke.15/overlays/gdch-lancer-kubevirt
+        value: addon/patch_content/abm-1.31.x-gke/overlays/gdch-lancer-kubevirt
       - name: TBCONFIG
         value: sut-gdch-lancer-kubevirt-abm-gce.yaml
       - name: WORA_CONFIG
@@ -126,7 +126,7 @@ presubmits:
       - name: CILIUM_GITREF
         value: HEAD
       - name: PATCH_CONTENT_DIR
-        value: addon/patch_content/abm-1.31.400-gke.15/overlays/gdch-lancer
+        value: addon/patch_content/abm-1.31.x-gke/overlays/gdch-lancer
       - name: TBCONFIG
         value: sut-gdch-lancer-abm-gce.yaml
       - name: WORA_CONFIG
@@ -172,7 +172,7 @@ presubmits:
       - name: CILIUM_GITREF
         value: HEAD
       - name: PATCH_CONTENT_DIR
-        value: addon/patch_content/abm-1.31.400-gke.15/overlays/gdch-lancer
+        value: addon/patch_content/abm-1.31.x-gke/overlays/gdch-lancer
       - name: TBCONFIG
         value: sut-gdch-lancer-abm-gce.yaml
       - name: WORA_CONFIG
@@ -216,9 +216,11 @@ presubmits:
       - name: CILIUM_GITREF
         value: HEAD
       - name: PATCH_CONTENT_DIR
-        value: addon/patch_content/abm-1.31.400-gke.15/overlays/gdch-perimeter
+        value: addon/patch_content/abm-1.31.x-gke/overlays/gdch-perimeter
       - name: TBCONFIG
         value: sut-gdch-perimeter-abm-gce.yaml
+      - name: VXLAN_DSTPORT
+        value: '4790'
       - name: WORA_CONFIG
         value: integration_test.yaml
       - name: WORA_GINKGO_LABEL_FILTER
@@ -264,9 +266,11 @@ presubmits:
       - name: CILIUM_GITREF
         value: HEAD
       - name: PATCH_CONTENT_DIR
-        value: addon/patch_content/abm-1.31.400-gke.15/overlays/gdch-perimeter
+        value: addon/patch_content/abm-1.31.x-gke/overlays/gdch-perimeter
       - name: TBCONFIG
         value: sut-gdch-perimeter-abm-gce.yaml
+      - name: VXLAN_DSTPORT
+        value: '4790'
       - name: WORA_CONFIG
         value: perimeter_conformance_test.yaml
       - name: WORA_DOCKERFILE_DIR
@@ -310,9 +314,11 @@ presubmits:
       - name: CILIUM_GITREF
         value: HEAD
       - name: PATCH_CONTENT_DIR
-        value: addon/patch_content/abm-1.31.400-gke.15/overlays/gdch-perimeter
+        value: addon/patch_content/abm-1.31.x-gke/overlays/gdch-perimeter
       - name: TBCONFIG
         value: sut-gdch-perimeter-abm-gce.yaml
+      - name: VXLAN_DSTPORT
+        value: '4790'
       - name: WORA_CONFIG
         value: perimeter_networking_granular_test.yaml
       - name: WORA_DOCKERFILE_DIR
