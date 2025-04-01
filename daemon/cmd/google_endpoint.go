@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"hash/crc32"
 	"net/netip"
+	"reflect"
 	"slices"
 	"sync"
 
@@ -296,7 +297,16 @@ func (d *Daemon) createMultiNICEndpoints(ctx context.Context, multiNICWaitCh cha
 				// context cancellation or time out. This allows the calling function to handle any necessary
 				// cleanup, even if the setup process fails or times out.
 				cleanup = connector.ConstructCleanupFunc(ref.InterfaceName, multinicTemplate.NetworkNamespace, podResources, netCR)
+				originalIntfCR := intfCR.DeepCopy()
 				if err = connector.SetupL2Interface(ref.InterfaceName, pod.Name, podResources, netCR, intfCR, multinicTemplate, d.dhcpClient, d.ipam); err != nil {
+					if !reflect.DeepEqual(originalIntfCR.Annotations, intfCR.Annotations) {
+						// Patch interface CR annotations via multinicClient
+						if err = d.multinicClient.PatchNetworkInterfaceAnnotations(ctx, intfCR); err != nil {
+							intfLog.WithError(err).Error("Failed to patch interface CR annotations")
+						} else {
+							intfLog.Infof("Successfully updated interface CR %+v", intfCR)
+						}
+					}
 					return d.errorWithMultiNICCleanup(primaryEp, PutEndpointIDInvalidCode, fmt.Errorf("failed setting up layer2 interface %q for pod %q: %v", intfCR.Name, podID, err), cleanup)
 				}
 				// We don't allow different L2 interfaces share the same parent device.

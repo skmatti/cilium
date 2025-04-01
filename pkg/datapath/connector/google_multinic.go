@@ -629,6 +629,7 @@ func SetupL2Interface(ifNameInPod, podName string, podResources map[string][]str
 
 	dhcpResp, err := configureDHCPInfo(network, cfg, dc, clientIP, serverIP, ep.NetworkNamespace, ifNameInPod, ep.ContainerID)
 	if err != nil {
+		delete(intf.Annotations, KubevirtDHCPServerIPAnnotationKey)
 		return fmt.Errorf("failed to query DHCP information: %v", err)
 	}
 
