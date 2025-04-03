@@ -69,6 +69,8 @@ struct goog_ctr_egress_fwd4_ctx {
 	  * here. rev_nat_index is pretty tailored towards service steering's code.
 	  */
 	__u16 rev_nat_index;
+	/* Skip local delivery if set to true. */
+	bool skip_local_delivery;
 };
 
 struct goog_ctr_ingress_ct4_ctx {

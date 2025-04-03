@@ -1198,6 +1198,10 @@ skip_egress_policy:
 			}
 #endif /* ENABLE_HOST_ROUTING || ENABLE_ROUTING */
 
+			if (stage_ctx.stage_ctx.goog_ctr_egress_fwd4_ctx
+				    .skip_local_delivery)
+				goto skip_ipv4_local_delivery;
+
 #if MULTI_NIC_DEVICE_TYPE == EP_DEV_TYPE_INDEX_MULTI_NIC_VETH
 {
 			union macaddr *dmac;
