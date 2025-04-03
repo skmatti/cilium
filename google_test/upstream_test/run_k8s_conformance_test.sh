@@ -20,7 +20,7 @@ set -o pipefail
 
 echo "---------------- Running k8s conformance test ---------------------------"
 
-K8S_VERSION=v1.31.0
+K8S_VERSION=v1.32.2
 echo "KUBECONFIG = ${KUBECONFIG}"
 # Run Kubernetes sig-network conformance test
 # Kubernetes e2e tests use ginkgo and tags to select the tests that should run based on two regex, focus and skip:

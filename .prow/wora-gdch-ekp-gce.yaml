@@ -30,8 +30,10 @@ presubmits:
         value: gdc-ag
       - name: CILIUM_GITREF
         value: HEAD
+      - name: DOCKER_BUILD_EXTRA_ARGS
+        value: --build-arg=K8S_VERSION=v1.31.6
       - name: PATCH_CONTENT_DIR
-        value: addon/patch_content/abm-1.31.x.gke/overlays/gdch-abm
+        value: addon/patch_content/abm-1.31.x-gke/overlays/gdch-legacy
       - name: TBCONFIG
         value: sut-gdch-lancer-abm-gce.yaml
       - name: WORA_CONFIG
@@ -73,8 +75,10 @@ presubmits:
         value: gdc-ag
       - name: CILIUM_GITREF
         value: HEAD
+      - name: DOCKER_BUILD_EXTRA_ARGS
+        value: --build-arg=K8S_VERSION=v1.31.6
       - name: PATCH_CONTENT_DIR
-        value: addon/patch_content/abm-1.31.x.gke/overlays/gdch-abm
+        value: addon/patch_content/abm-1.31.x-gke/overlays/gdch-legacy
       - name: TBCONFIG
         value: sut-gdch-lancer-abm-gce.yaml
       - name: WORA_CONFIG
@@ -116,8 +120,10 @@ presubmits:
         value: gdc-ag
       - name: CILIUM_GITREF
         value: HEAD
+      - name: DOCKER_BUILD_EXTRA_ARGS
+        value: --build-arg=K8S_VERSION=v1.31.6
       - name: PATCH_CONTENT_DIR
-        value: addon/patch_content/abm-1.31.x.gke/overlays/gdch-abm
+        value: addon/patch_content/abm-1.31.x-gke/overlays/gdch-legacy
       - name: TBCONFIG
         value: sut-gdch-lancer-abm-gce.yaml
       - name: WORA_CONFIG

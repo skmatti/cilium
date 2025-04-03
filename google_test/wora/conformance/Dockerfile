@@ -4,7 +4,7 @@ ARG BASE_IMAGE_TAG="latest"
 
 FROM "${BASE_IMAGE_REGISTRY}/${BASE_IMAGE_NAME}:${BASE_IMAGE_TAG}"
 
-ARG K8S_VERSION="v1.29.2"
+ARG K8S_VERSION="v1.32.2"
 
 RUN mkdir -p "/test" && \
     curl -L \
