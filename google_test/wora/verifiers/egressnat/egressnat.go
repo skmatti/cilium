@@ -353,6 +353,13 @@ func testEgressNATFromPod(ctx context.Context, cl k8sclient.Client, allowEgressP
 	}
 	testPods = append(testPods, perimeterVMName)
 	cleanupFuncs = append(cleanupFuncs, cleanup)
+	// Verify Perimeter VM basic connectivity with pod and vm
+	klog.Infof("Running curl from allow egress pod %s:%s directly to Perimeter VM %s:%s", allowEgressPodName, allowEgressIP, perimeterVMName, perimeterVMIP)
+	err = utils.VerifyCurlFromPod(ctx, cl, allowEgressPodName, perimeterVMName, perimeterVMIP, utils.ResponderPort, testNamespace, true)
+	if err != nil {
+		return testPods, cleanupFuncs, fmt.Errorf("pod %s is not able to connect to perimeter vm pod %s: %v", allowEgressPodName, perimeterVMName, err)
+	}
+
 	// Create CiliumEgressGatewayPolicy for egress NAT
 	cleanupCiliumEgressGatewayPolicy, err := createCiliumEgressGatewayPolicy(ctx, cl, testNamespace, egressNATIP, perimeterVMIP)
 	if err != nil {
