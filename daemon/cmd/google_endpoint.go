@@ -161,7 +161,7 @@ func (d *Daemon) createMultiNICEndpoints(ctx context.Context, multiNICWaitCh cha
 	pod, metadata, err := d.fetchK8sMetadataForEndpoint(primaryEp.K8sNamespace, primaryEp.K8sPodName)
 	annotations := metadata.Annotations
 	if err != nil {
-		return d.errorDuringMultiNICCreation(primaryEp, PutEndpointIDInvalidCode, fmt.Errorf("unable to fetch k8s annotations for pod %q", podID))
+		return d.errorDuringMultiNICCreation(primaryEp, PutEndpointIDInvalidCode, fmt.Errorf("unable to fetch k8s annotations for pod %q: %v", podID, err))
 	}
 
 	if pod == nil {
