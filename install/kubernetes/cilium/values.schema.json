@@ -437,6 +437,9 @@
         "bbr": {
           "type": "boolean"
         },
+        "bbrHostNamespaceOnly": {
+          "type": "boolean"
+        },
         "enabled": {
           "type": "boolean"
         }

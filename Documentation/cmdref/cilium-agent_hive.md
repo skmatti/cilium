@@ -33,6 +33,7 @@ cilium-agent hive [flags]
       --enable-active-connection-tracking                         Count open and active connections to services, grouped by zones defined in fixed-zone-mapping.
       --enable-bandwidth-manager                                  Enable BPF bandwidth manager
       --enable-bbr                                                Enable BBR for the bandwidth manager
+      --enable-bbr-hostns-only                                    Enable BBR only in the host network namespace.
       --enable-cilium-api-server-access strings                   List of cilium API APIs which are administratively enabled. Supports '*'. (default [*])
       --enable-cilium-health-api-server-access strings            List of cilium health API APIs which are administratively enabled. Supports '*'. (default [*])
       --enable-gateway-api                                        Enables Envoy secret sync for Gateway API related TLS secrets

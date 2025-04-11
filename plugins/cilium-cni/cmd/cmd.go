@@ -33,6 +33,7 @@ import (
 	"github.com/cilium/cilium/pkg/datapath/linux/safenetlink"
 	"github.com/cilium/cilium/pkg/datapath/linux/sysctl"
 	datapathOption "github.com/cilium/cilium/pkg/datapath/option"
+	"github.com/cilium/cilium/pkg/datapath/tables"
 	"github.com/cilium/cilium/pkg/defaults"
 	endpointid "github.com/cilium/cilium/pkg/endpoint/id"
 	iputil "github.com/cilium/cilium/pkg/ip"
@@ -425,6 +426,17 @@ func reserveLocalIPPorts(conf *models.DaemonConfigurationStatus, sysctl sysctl.S
 	return sysctl.Write(param, reserved)
 }
 
+func configureCongestionControl(conf *models.DaemonConfigurationStatus, sysctl sysctl.Sysctl) error {
+	if !conf.EnableBBRHostNamespaceOnly {
+		return nil
+	}
+
+	// Note: This setting applies to IPv4 and IPv6
+	return sysctl.ApplySettings([]tables.Sysctl{
+		{Name: []string{"net", "ipv4", "tcp_congestion_control"}, Val: "cubic"},
+	})
+}
+
 func (cmd *Cmd) Add(args *skel.CmdArgs) (err error) {
 	n, err := types.LoadNetConf(args.StdinData)
 	if err != nil {
@@ -485,6 +497,14 @@ func (cmd *Cmd) Add(args *skel.CmdArgs) (err error) {
 		}
 	}
 
+	ns, err := netns.OpenPinned(args.Netns)
+	if err != nil {
+		return fmt.Errorf("opening netns pinned at %s: %w", args.Netns, err)
+	}
+	defer ns.Close()
+
+	sysctl := sysctl.NewDirectSysctl(afero.NewOsFs(), "/proc")
+
 	// If CNI ADD gives us a PrevResult, we're a chained plugin and *must* detect a
 	// valid chained mode. If no chained mode we understand is specified, error out.
 	// Otherwise, continue with normal plugin execution.
@@ -506,6 +526,13 @@ func (cmd *Cmd) Add(args *skel.CmdArgs) (err error) {
 				logger.WithError(err).Warn("Chained ADD failed")
 				return err
 			}
+			if conf != nil {
+				if err = ns.Do(func() error {
+					return configureCongestionControl(conf, sysctl)
+				}); err != nil {
+					return fmt.Errorf("unable to configure congestion control: %w", err)
+				}
+			}
 			logger.WithField("result", logfields.Repr(res)).Debugf("Returning result")
 			return cniTypes.PrintResult(res, n.CNIVersion)
 		} else if err != nil {
@@ -523,14 +550,6 @@ func (cmd *Cmd) Add(args *skel.CmdArgs) (err error) {
 	if err != nil {
 		return fmt.Errorf("failed to determine endpoint configuration: %w", err)
 	}
-
-	ns, err := netns.OpenPinned(args.Netns)
-	if err != nil {
-		return fmt.Errorf("opening netns pinned at %s: %w", args.Netns, err)
-	}
-	defer ns.Close()
-
-	sysctl := sysctl.NewDirectSysctl(afero.NewOsFs(), "/proc")
 
 	for _, epConf := range configs {
 		if err = ns.Do(func() error {
@@ -734,6 +753,11 @@ func (cmd *Cmd) Add(args *skel.CmdArgs) (err error) {
 				}
 			}
 			macAddrStr = newEp.Status.Networking.Mac
+		}
+		if err = ns.Do(func() error {
+			return configureCongestionControl(conf, sysctl)
+		}); err != nil {
+			return fmt.Errorf("unable to configure congestion control: %w", err)
 		}
 		res.Interfaces = append(res.Interfaces, &cniTypesV1.Interface{
 			Name:    epConf.IfName(),

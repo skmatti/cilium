@@ -2635,6 +2635,10 @@ func init() {
           "description": "Configured compatibility mode for --egress-multi-home-ip-rule-compat",
           "type": "boolean"
         },
+        "enableBBRHostNamespaceOnly": {
+          "description": "True if BBR is enabled only in the host network namespace",
+          "type": "boolean"
+        },
         "enableRouteMTUForCNIChaining": {
           "description": "Enable route MTU for pod netns when CNI chaining is used",
           "type": "boolean"
@@ -8408,6 +8412,10 @@ func init() {
         },
         "egress-multi-home-ip-rule-compat": {
           "description": "Configured compatibility mode for --egress-multi-home-ip-rule-compat",
+          "type": "boolean"
+        },
+        "enableBBRHostNamespaceOnly": {
+          "description": "True if BBR is enabled only in the host network namespace",
           "type": "boolean"
         },
         "enableRouteMTUForCNIChaining": {
