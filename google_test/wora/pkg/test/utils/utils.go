@@ -13,6 +13,9 @@ import (
 	"path/filepath"
 	"strings"
 
+	gcpnetworkv1 "github.com/GoogleCloudPlatform/gke-networking-api/apis/network/v1"
+	networkclientset "github.com/GoogleCloudPlatform/gke-networking-api/client/network/clientset/versioned"
+	networkutils "gke-internal.googlesource.com/anthos-networking/test-infra/pkg/network"
 	"golang.org/x/crypto/ssh"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -468,7 +471,7 @@ func waitForPodReady(ctx context.Context, c k8sclient.Client, podName, podNamesp
 		if err := c.Get(ctx, k8sclient.ObjectKey{Name: podName, Namespace: podNamespace}, &pod); err != nil {
 			return err
 		}
-		if !isPodReady(&pod.Status) {
+		if !IsPodReady(&pod.Status) {
 			return fmt.Errorf("pod %s is not ready yet", podName)
 		}
 		return nil
@@ -479,7 +482,7 @@ func waitForPodReady(ctx context.Context, c k8sclient.Client, podName, podNamesp
 	return nil
 }
 
-func isPodReady(status *corev1.PodStatus) bool {
+func IsPodReady(status *corev1.PodStatus) bool {
 	if status == nil {
 		return false
 	}
@@ -542,12 +545,10 @@ func DeleteAndWait(ctx context.Context, cl k8sclient.Client, obj k8sclient.Objec
 		err := cl.Get(ctx, k8sclient.ObjectKeyFromObject(obj), obj)
 		if err != nil {
 			if apierrors.IsNotFound(err) {
-				// Object deleted successfully
 				return nil
 			}
 			return fmt.Errorf("failed to get %s: %v", name, err)
 		}
-		// Retry until not found
 		return fmt.Errorf("%s still exists", name)
 	})
 }
@@ -739,7 +740,7 @@ func ExecuteCommandFromBootstapper(ctx context.Context, cl k8sclient.Client, com
 	return stdoutBuf.String(), nil
 }
 
-func RunCurlFromBootstrapper(ctx context.Context, cl k8sclient.Client, targetIP string, port int32) error {
+func RunCurlFromBootstrapper(ctx context.Context, cl k8sclient.Client, targetIP string, port int32, retryConfig wait.Waiting) error {
 	// Construct the command.
 	command := fmt.Sprintf("curl http://%s:%d", targetIP, port)
 	curlExecuted := func(ctx context.Context) error {
@@ -756,8 +757,10 @@ func RunCurlFromBootstrapper(ctx context.Context, cl k8sclient.Client, targetIP 
 		klog.Infof("Curl command successful from bootstapper to %s:%d", targetIP, port)
 		return nil
 	}
-	if err := wait.WaitForSuccessContext(ctx, "Waiting for curl success", wait.WaitingMedium, curlExecuted); err != nil {
-		return fmt.Errorf("unable to connect: %v", err)
+	klog.Infof("Attempting curl from bootstrapper to %s:%d with retry config: Wait=%v, Every=%v, Timeout=%v",
+		targetIP, port, retryConfig.Wait, retryConfig.Every, retryConfig.Timeout)
+	if err := wait.WaitForSuccessContext(ctx, "Waiting for curl success from bootstrapper", retryConfig, curlExecuted); err != nil {
+		return fmt.Errorf("unable to connect from bootstrapper to %s:%d after retries: %w", targetIP, port, err)
 	}
 	return nil
 }
@@ -853,4 +856,32 @@ func CreateService(ctx context.Context, cl k8sclient.Client, serviceName, servic
 	}
 	klog.Infof("service %s created successfully", service.Name)
 	return nil
+}
+
+func CreateL2Network(ctx context.Context, nc *networkclientset.Clientset, ipamModeExternal gcpnetworkv1.IPAMModeType, networkName, interfaceName, testGateway, testNameServer string) error {
+	networkObject := &gcpnetworkv1.Network{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: networkName,
+		},
+		Spec: gcpnetworkv1.NetworkSpec{
+			Type:     gcpnetworkv1.L2NetworkType,
+			IPAMMode: &ipamModeExternal,
+			Gateway4: &testGateway,
+			DNSConfig: &gcpnetworkv1.DNSConfig{
+				Nameservers: []string{testNameServer},
+			},
+			NodeInterfaceMatcher: gcpnetworkv1.NodeInterfaceMatcher{
+				InterfaceName: &interfaceName,
+			},
+			L2NetworkConfig: &gcpnetworkv1.L2NetworkConfig{},
+		},
+	}
+
+	_, err := networkutils.CreateNetwork(ctx, nc, networkObject)
+	if apierrors.IsAlreadyExists(err) {
+		klog.Warningf("Network %s already exists, proceeding with validation", networkName)
+	} else if err == nil {
+		klog.Infof("Network %s creation applied successfully", networkName)
+	}
+	return err
 }

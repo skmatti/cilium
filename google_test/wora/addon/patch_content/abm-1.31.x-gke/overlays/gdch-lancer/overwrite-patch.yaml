@@ -5,6 +5,7 @@ data:
   enable-hubble: "false"
   # TODO(b/403341253): remove the configuration once it's updated in GDC-AG repo.
   kube-proxy-replacement: "false"
+  google-multi-nic-host-mapping: "128=mgmt-network,129=blue-network,130=green-network"
 kind: ConfigMap
 metadata:
   name: cilium-config

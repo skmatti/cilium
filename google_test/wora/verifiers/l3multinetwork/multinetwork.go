@@ -12,6 +12,10 @@ import (
 	networkclientset "github.com/GoogleCloudPlatform/gke-networking-api/client/network/clientset/versioned"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+
+	e2escheme "gke-internal.googlesource.com/third_party/cilium/google_test/wora/e2e/pkg/test/scheme"
+	"gke-internal.googlesource.com/third_party/cilium/google_test/wora/e2e/pkg/test/utils"
+	"gke-internal.googlesource.com/third_party/cilium/google_test/wora/e2e/pkg/test/wait"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -26,8 +30,6 @@ import (
 	"gke-internal.googlesource.com/anthos-networking/test-infra/pkg/client"
 	"gke-internal.googlesource.com/anthos-networking/test-infra/pkg/network"
 	klog "gke-internal.googlesource.com/syllogi/sanitized-klog/third_party/klogv2"
-	e2escheme "gke-internal.googlesource.com/third_party/cilium/google_test/wora/e2e/pkg/test/scheme"
-	"gke-internal.googlesource.com/third_party/cilium/google_test/wora/e2e/pkg/test/utils"
 )
 
 const (
@@ -227,7 +229,7 @@ var _ = Describe("Verifiers/l3multinetwork", Label("l3multinetwork"), Ordered, f
 		Expect(assignedNodePort).To(BeNumerically(">", 0), "NodePort should be assigned and non-zero")
 
 		// run curl from bootstrapper on nodeport service
-		err = utils.RunCurlFromBootstrapper(ctx, cl, additionalNodeNetworkIP, int32(assignedNodePort))
+		err = utils.RunCurlFromBootstrapper(ctx, cl, additionalNodeNetworkIP, int32(assignedNodePort), wait.WaitingMedium)
 		Expect(err).NotTo(HaveOccurred())
 
 		klog.Infof("Successfully tested externalTrafficPolicy: Local behaviour for L3 multinetwork services")
@@ -295,7 +297,7 @@ var _ = Describe("Verifiers/l3multinetwork", Label("l3multinetwork"), Ordered, f
 		Expect(assignedNodePort).To(BeNumerically(">", 0), "NodePort should be assigned and non-zero")
 
 		// run curl from bootstrapper on nodeport service
-		err = utils.RunCurlFromBootstrapper(ctx, cl, additionalNodeNetworkIP, int32(assignedNodePort))
+		err = utils.RunCurlFromBootstrapper(ctx, cl, additionalNodeNetworkIP, int32(assignedNodePort), wait.WaitingMedium)
 		Expect(err).NotTo(HaveOccurred())
 
 		klog.Infof("Successfully tested externalTrafficPolicy: Cluster behaviour for L3 multinetwork services")

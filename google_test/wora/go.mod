@@ -130,7 +130,7 @@ require (
 	github.com/yusufpapurcu/wmi v1.2.2 // indirect
 	gke-internal.googlesource.com/onprem-lab-automation/lib/hercules/public v0.0.0-00010101000000-000000000000 // indirect
 	gke-internal.googlesource.com/onprem-lab-automation/lib/shared v0.0.0-00010101000000-000000000000 // indirect
-	go.mongodb.org/mongo-driver v1.10.0 // indirect
+	go.mongodb.org/mongo-driver v1.17.4 // indirect
 	go.opencensus.io v0.24.0 // indirect
 	go.opentelemetry.io/otel v1.19.0 // indirect
 	go.opentelemetry.io/otel/metric v1.19.0 // indirect

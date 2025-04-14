@@ -8,6 +8,7 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"gke-internal.googlesource.com/third_party/cilium/google_test/wora/e2e/pkg/test/wait"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
@@ -152,7 +153,7 @@ func testLoadBalancerService() error {
 	}
 
 	for _, ingress := range service.Status.LoadBalancer.Ingress {
-		err := utils.RunCurlFromBootstrapper(ctx, cl, ingress.IP, servicePort)
+		err := utils.RunCurlFromBootstrapper(ctx, cl, ingress.IP, servicePort, wait.WaitingMedium)
 		if err != nil {
 			return err
 		}
@@ -187,7 +188,7 @@ func verifyNodePort() error {
 	for _, nodeip := range nodeips {
 		url := fmt.Sprintf("http://%s:%d", nodeip, nodeport)
 		klog.Infof("Attempting to connect to NodePort service via URL: %s", url)
-		err := utils.RunCurlFromBootstrapper(ctx, cl, nodeip, nodeport)
+		err := utils.RunCurlFromBootstrapper(ctx, cl, nodeip, nodeport, wait.WaitingMedium)
 		if err != nil {
 			return err
 		}

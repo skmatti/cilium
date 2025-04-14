@@ -30,6 +30,7 @@ import (
 	klog "gke-internal.googlesource.com/syllogi/sanitized-klog/third_party/klogv2"
 	e2escheme "gke-internal.googlesource.com/third_party/cilium/google_test/wora/e2e/pkg/test/scheme"
 	"gke-internal.googlesource.com/third_party/cilium/google_test/wora/e2e/pkg/test/utils"
+	"gke-internal.googlesource.com/third_party/cilium/google_test/wora/e2e/pkg/test/wait"
 )
 
 const (
@@ -277,7 +278,7 @@ var _ = Describe("Verifiers/multinetwork", Label("multinetwork"), Ordered, func(
 		Expect(assignedNodePort).To(BeNumerically(">", 0), "NodePort should be assigned and non-zero")
 
 		// run curl from bootstrapper on nodeport service
-		err = utils.RunCurlFromBootstrapper(ctx, cl, additionalNodeNetworkIP, int32(assignedNodePort))
+		err = utils.RunCurlFromBootstrapper(ctx, cl, additionalNodeNetworkIP, int32(assignedNodePort), wait.WaitingMedium)
 		Expect(err).NotTo(HaveOccurred())
 
 		klog.Infof("Successfully tested externalTrafficPolicy: Local behaviour for L2 multinetwork nodeport services")
@@ -348,7 +349,7 @@ var _ = Describe("Verifiers/multinetwork", Label("multinetwork"), Ordered, func(
 		Expect(err).NotTo(HaveOccurred())
 
 		// run curl from bootstrapper on nodeport service
-		err = utils.RunCurlFromBootstrapper(ctx, cl, additionalNodeNetworkIP, int32(assignedNodePort))
+		err = utils.RunCurlFromBootstrapper(ctx, cl, additionalNodeNetworkIP, int32(assignedNodePort), wait.WaitingMedium)
 		Expect(err).NotTo(HaveOccurred())
 
 		klog.Infof("Successfully tested externalTrafficPolicy: Cluster behaviour for L2 multinetwork nodeport services")

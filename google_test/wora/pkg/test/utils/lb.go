@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/cenkalti/backoff/v4"
+	"gke-internal.googlesource.com/third_party/cilium/google_test/wora/e2e/pkg/test/wait"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -135,7 +136,7 @@ func TestLoadBalancerService(ctx context.Context, cl k8sclient.Client, serviceNa
 		return err
 	}
 	for _, ingress := range service.Status.LoadBalancer.Ingress {
-		err := RunCurlFromBootstrapper(ctx, cl, ingress.IP, servicePort)
+		err := RunCurlFromBootstrapper(ctx, cl, ingress.IP, servicePort, wait.WaitingMedium)
 		if err != nil {
 			return err
 		}
