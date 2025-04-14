@@ -53,7 +53,7 @@ type CiliumConfig struct {
 
 var ResponderContainer = corev1.Container{
 	Name:  responderContainerName,
-	Image: "gcr.io/anthos-networking-ci/toolbox:wora-test",
+	Image: woraTestImage,
 	Command: []string{
 		"/bin/sh", "-c", `POD_NAME=$(hostname)
 			echo "Serving pod name: $POD_NAME on port 8080"
@@ -257,7 +257,7 @@ func CreatePodWithNetworkInterfaces(ctx context.Context, cl k8sclient.Client, po
 			Containers: []corev1.Container{
 				{
 					Name:            testContainerName,
-					Image:           "gcr.io/anthos-networking-ci/toolbox:wora-test",
+					Image:           woraTestImage,
 					Command:         []string{"/bin/sh", "-c", command},
 					ImagePullPolicy: corev1.PullIfNotPresent,
 					SecurityContext: &corev1.SecurityContext{

@@ -116,7 +116,7 @@ data:
   synchronize-k8s-nodes: "true"
   synchronize-k8s-windows-nodes: "true"
   tofqdns-enable-poller: "false"
-  tunnel: geneve
+  tunnel-protocol: geneve
   vlan-bpf-bypass: "0"
   wait-bpf-mount: "false"
   xdp-mode: disabled

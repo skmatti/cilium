@@ -10,6 +10,7 @@ import (
 	_ "gke-internal.googlesource.com/third_party/cilium/google_test/wora/e2e/verifiers/bpfprog"
 	_ "gke-internal.googlesource.com/third_party/cilium/google_test/wora/e2e/verifiers/egressnat"
 	_ "gke-internal.googlesource.com/third_party/cilium/google_test/wora/e2e/verifiers/externallb"
+	_ "gke-internal.googlesource.com/third_party/cilium/google_test/wora/e2e/verifiers/geneve"
 	_ "gke-internal.googlesource.com/third_party/cilium/google_test/wora/e2e/verifiers/hostfirewall"
 	_ "gke-internal.googlesource.com/third_party/cilium/google_test/wora/e2e/verifiers/internallb"
 	_ "gke-internal.googlesource.com/third_party/cilium/google_test/wora/e2e/verifiers/kubevirt"
@@ -21,7 +22,6 @@ import (
 	_ "gke-internal.googlesource.com/third_party/cilium/google_test/wora/e2e/verifiers/sample"
 	_ "gke-internal.googlesource.com/third_party/cilium/google_test/wora/e2e/verifiers/strict"
 	_ "gke-internal.googlesource.com/third_party/cilium/google_test/wora/e2e/verifiers/tailcall"
-	_ "gke-internal.googlesource.com/third_party/cilium/google_test/wora/e2e/verifiers/vpc"
 )
 
 func TestE2E(t *testing.T) {

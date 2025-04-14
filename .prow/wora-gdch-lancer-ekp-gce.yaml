@@ -40,8 +40,8 @@ presubmits:
         value: integration_test.yaml
       - name: WORA_GINKGO_LABEL_FILTER
         # TODO: b/384532838 - enable feature tests as features are merged.
-        # egressnat||externallb||hostfirewall||internallb||kubevirt||l3vm||loadbalancer||sample||strict||tailcall||vpc
-        value: bpfprog||l3vm||sample
+        # egressnat||externallb||hostfirewall||internallb||kubevirt||l3vm||loadbalancer||sample||strict||tailcall
+        value: bpfprog||geneve||l3vm||sample
       command:
       - runner.sh
       args:
@@ -87,6 +87,52 @@ presubmits:
         value: integration_test.yaml
       - name: WORA_GINKGO_LABEL_FILTER
         value: kubevirt||sample
+      command:
+      - runner.sh
+      args:
+      - ./google_test/wora/prow_entrypoint.sh
+- name: wora-gdch-abm-gce-lancer-xdp_cilium
+  trigger: /test wora-gdch-abm-gce-lancer-xdp$
+  rerun_command: /test wora-gdch-abm-gce-lancer-xdp
+  always_run: true
+  skip_fetch_head: true
+  decorate: true
+  decoration_config:
+    timeout: 240m
+  labels:
+    preset-cookie-file: "true"
+    preset-cookie-file-env: "true"
+    preset-service-account: "true"
+    preset-dind-enabled: "true"
+    preset-k8s-ssh: "true"
+    prow.k8s.io/gerrit-report-label: "Verified"
+  path_alias: gke-internal.googlesource.com/third_party/cilium
+  spec:
+    containers:
+    - image: gcr.io/tailorbird/kubetest2-tailorbird:latest
+      resources:
+        requests:
+          ephemeral-storage: 150Gi
+        limits:
+          ephemeral-storage: 300Gi
+      securityContext:
+        # needed for docker-in-docker
+        privileged: true
+      env:
+      - name: ADD_VXLANS_CLUSTER_TYPE
+        value: gdc-ag
+      - name: CILIUM_GITREF
+        value: HEAD
+      - name: PATCH_CONTENT_DIR
+        value: addon/patch_content/abm-1.31.x-gke/overlays/gdch-lancer-xdp
+      - name: TBCONFIG
+        value: sut-gdch-lancer-abm-gce.yaml
+      - name: WORA_CONFIG
+        value: integration_test.yaml
+      - name: WORA_GINKGO_LABEL_FILTER
+        # TODO: b/384532838 - enable feature tests as features are merged.
+        # egressnat||hostfirewall||kubevirt||l3vm||sample||tailcall
+        value: bpfprog||geneve||l3vm||sample
       command:
       - runner.sh
       args:
@@ -373,6 +419,10 @@ presubmits:
         value: sut-gdch-lancer-abm-gce-multicluster.yaml
       - name: WORA_CONFIG
         value: multicluster_integration_test.yaml
+      - name: WORA_GINKGO_LABEL_FILTER
+        # TODO: b/384532838 - enable feature tests as features are merged.
+        # egressnat||hostfirewall||l3vm||loadbalancer||sample||tailcall
+        value: bpfprog||geneve||l3vm||sample
       command:
       - runner.sh
       args:

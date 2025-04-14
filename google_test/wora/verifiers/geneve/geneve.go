@@ -27,7 +27,7 @@ import (
 )
 
 const (
-	testNamespace = "vpc"
+	testNamespace = "geneve"
 	tcpdumpPod    = "tcpdump"
 	pcapFileDir   = "geneve.pcap"
 
@@ -39,7 +39,7 @@ const (
 	defaultVPCVNI = 0
 )
 
-var _ = Describe("Verifiers/VPC", Label("vpc"), Ordered, func() {
+var _ = Describe("Verifiers/Geneve", Label("geneve"), Ordered, func() {
 	var (
 		cl           k8sclient.Client
 		err          error
@@ -64,7 +64,7 @@ var _ = Describe("Verifiers/VPC", Label("vpc"), Ordered, func() {
 
 		cl, err = k8sclient.New(config, k8sclient.Options{Scheme: s})
 		Expect(err).NotTo(HaveOccurred())
-		enabled, err := isGoogleVPCEnabled(ctx, cl)
+		enabled, err := isGoogleBPFGeneveEnabled(ctx, cl)
 		Expect(err).NotTo(HaveOccurred(), "Failed to validate Google VPC configuration")
 
 		if !enabled {
@@ -331,14 +331,10 @@ func runTCPDump(podName, ns, outputFile string) (func(podName, ns string) error,
 	return stopTCPDumpFunc, nil
 }
 
-func isGoogleVPCEnabled(ctx context.Context, cl k8sclient.Client) (bool, error) {
+func isGoogleBPFGeneveEnabled(ctx context.Context, cl k8sclient.Client) (bool, error) {
 	return utils.ValidateCiliumConfigFlag(ctx, cl, []utils.CiliumConfig{
 		{
 			Key:   "enable-google-bpf-geneve",
-			Value: "true",
-		},
-		{
-			Key:   "enable-google-vpc",
 			Value: "true",
 		},
 	})
