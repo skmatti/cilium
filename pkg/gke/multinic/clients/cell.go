@@ -15,7 +15,6 @@ import (
 	"github.com/cilium/cilium/pkg/k8s/utils"
 	"github.com/cilium/cilium/pkg/logging"
 	"github.com/cilium/cilium/pkg/logging/logfields"
-	"github.com/cilium/cilium/pkg/time"
 	"github.com/cilium/hive/cell"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -111,11 +110,7 @@ func gkeNetworkParamSetResources(lc cell.Lifecycle, conf multinicconfig.Config, 
 	if !conf.EnableGoogleMultiNIC {
 		return nil, nil
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Minute)
-	defer cancel()
-	err := checkCRD(ctx, clientset, networkv1.SchemeGroupVersion.WithKind("gkenetworkparamsets"))
-	if err != nil {
-		log.Warnf("will not watch gkenetworkparamsets: %v", err)
+	if !conf.PopulateGCENICInfo {
 		return nil, nil
 	}
 	return resource.New[*networkv1.GKENetworkParamSet](

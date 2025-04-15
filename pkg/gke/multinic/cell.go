@@ -17,7 +17,6 @@ import (
 	datapath "github.com/cilium/cilium/pkg/datapath/types"
 	"github.com/cilium/cilium/pkg/endpoint"
 	"github.com/cilium/cilium/pkg/endpointmanager"
-	"github.com/cilium/cilium/pkg/gke/features"
 	"github.com/cilium/cilium/pkg/gke/multinic/controller"
 	"github.com/cilium/cilium/pkg/gke/multinic/multinicconfig"
 	"github.com/cilium/cilium/pkg/gke/multinic/nic"
@@ -144,7 +143,7 @@ func initMultinetworking(p Params) error {
 				return fmt.Errorf("failed to initialize multi-network allocators: %v", err)
 			}
 			// Populates nic-info node annotation
-			if features.GlobalConfig.PopulateGCENICInfo {
+			if p.Config.PopulateGCENICInfo {
 				nicInfoAnnotation, existing, err := buildNICInfoAnnotation(ctx)
 				if err != nil {
 					return fmt.Errorf("unable to build nic annotations, high-perf networks will not work: %v", err)

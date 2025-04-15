@@ -61,7 +61,6 @@ type Config struct {
 	EnableGoogleMultiNICHairpin bool
 	// DevicePrefixesToExclude excludes google-managed devices with the provided prefixes.
 	DevicePrefixesToExclude []string
-	PopulateGCENICInfo      bool
 	// EnableGKEMultiTenancy is used to enable GKE Multi-tenancy mode.
 	//
 	// Ref. http://go/dpv2-with-gke-multi-tenancy
@@ -85,7 +84,6 @@ var defaultConfig = Config{
 	EnableGoogleConfigOverride:  false,
 	EnableGoogleMultiNICHairpin: false,
 	DevicePrefixesToExclude:     []string{},
-	PopulateGCENICInfo:          false,
 	EnableMultiPoolIPAM:         false,
 	EnableGKEMultiTenancy:       false,
 
@@ -128,9 +126,6 @@ func (cfg Config) Flags(flags *pflag.FlagSet) {
 
 	flags.StringSlice(option.DevicePrefixesToExclude, []string{}, "(Google-internal) List of prefixes of devices for Cilium to exclude")
 	flags.MarkHidden(option.DevicePrefixesToExclude)
-
-	flags.Bool(option.PopulateGCENICInfo, defaultConfig.PopulateGCENICInfo, "Populate GCE NIC information as node annotation.")
-	flags.MarkHidden(option.PopulateGCENICInfo)
 
 	// The lack of clarity in the description of this flag is deliberate. Aim is
 	// to avoid directly revealing the GKE Multi-tenancy feature to all

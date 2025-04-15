@@ -14,6 +14,7 @@ import (
 	"github.com/cilium/cilium/pkg/datapath/tables"
 	"github.com/cilium/cilium/pkg/endpoint"
 	"github.com/cilium/cilium/pkg/gke/features"
+	"github.com/cilium/cilium/pkg/gke/multinic/multinicconfig"
 	"github.com/cilium/cilium/pkg/k8s/resource"
 	slim_corev1 "github.com/cilium/cilium/pkg/k8s/slim/k8s/api/core/v1"
 	"github.com/cilium/cilium/pkg/logging"
@@ -54,7 +55,7 @@ func (r *NetworkReconciler) reconcile(ctx context.Context, nwName string) (rerr 
 		err := r.patchNodeAnnotations(ctx, oldNode, desiredNode)
 		rerr = multierr.Append(rerr, err)
 	}()
-	if features.GlobalConfig.PopulateGCENICInfo {
+	if multinicconfig.GlobalConfig.PopulateGCENICInfo {
 		if err := r.handleHighPerfNetworks(ctx, desiredNode, oldNode); err != nil {
 			return err
 		}

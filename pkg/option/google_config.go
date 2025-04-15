@@ -58,9 +58,6 @@ const (
 	// DevicePrefixesToExclude excludes google-managed devices with the provided prefixes.
 	DevicePrefixesToExclude = "device-prefixes-to-exclude"
 
-	// PopulateGCENICInfo is the name of the option to populate GCE NIC information as node annotation.
-	PopulateGCENICInfo = "populate-gce-nic-info"
-
 	// EnableGooglePersistentIP is the name of the option to enable google persistent-ip support.
 	EnableGooglePersistentIP = "enable-google-persistent-ip"
 

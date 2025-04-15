@@ -8,6 +8,7 @@ import (
 const (
 	EnableFlag            = "enable-google-multi-nic"
 	EnableL3MigrationFlag = "enable-google-multi-nic-l3-migration"
+	PopulateGCENICInfo    = "populate-gce-nic-info"
 )
 
 var Cell = cell.Config(defaultConfig)
@@ -22,11 +23,13 @@ type Config struct {
 	EnableGoogleMultiNIC bool
 	// EnableGoogleMultiNICL3Migration enables Google multi NIC migration. When enabled, L3 multi-network configuration is migrated to cilium-cni.
 	EnableGoogleMultiNICL3Migration bool
+	PopulateGCENICInfo              bool
 }
 
 var defaultConfig = Config{
 	EnableGoogleMultiNIC:            false,
 	EnableGoogleMultiNICL3Migration: false,
+	PopulateGCENICInfo:              false,
 }
 
 func (cfg Config) Flags(flags *pflag.FlagSet) {
@@ -35,6 +38,9 @@ func (cfg Config) Flags(flags *pflag.FlagSet) {
 
 	flags.Bool(EnableL3MigrationFlag, defaultConfig.EnableGoogleMultiNICL3Migration, "Enable Google multi NIC L3 migration.")
 	flags.MarkHidden(EnableL3MigrationFlag)
+
+	flags.Bool(PopulateGCENICInfo, defaultConfig.PopulateGCENICInfo, "Populate GCE NIC information as node annotation.")
+	flags.MarkHidden(PopulateGCENICInfo)
 }
 
 func Enabled() bool {
