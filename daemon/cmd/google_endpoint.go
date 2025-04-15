@@ -289,7 +289,7 @@ func (d *Daemon) createMultiNICEndpoints(ctx context.Context, multiNICWaitCh cha
 		} else if intfCR != nil {
 			if netCR.Spec.ParametersRef != nil {
 				if netParamsRef, err = d.multinicClient.GetGKENetworkParamSet(ctx, netCR.Spec.ParametersRef); err != nil {
-					intfLog.WithField("network", netCR.Name).Infof("Failed to get network params ref %v", err)
+					return d.errorDuringMultiNICCreation(primaryEp, PutEndpointIDInvalidCode, fmt.Errorf("failed getting GKENetworkParamSet CR for pod %q: %v", podID, err))
 				}
 			}
 			if netCR.Spec.Type == networkv1.L2NetworkType {
