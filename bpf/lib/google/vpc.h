@@ -6,6 +6,7 @@
 
 # include "lib/eps.h"
 # include "lib/l3.h"
+# include "lib/identity.h"
 
 /*
  * google_vpc_lookup_ip4_remote_endpoint performs a nested lookup for the remote endpoint and

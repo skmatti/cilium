@@ -93,6 +93,9 @@ type CompileTimeConfiguration interface {
 	// IsMultiNIC returns true if the endpoint is a MultiNIC endpoint (macvlan/macvtap).
 	IsMultiNIC() bool
 
+	// IsPerimeter returns true if the endpoint is a perimeter networking endpoint.
+	IsPerimeter() bool
+
 	// IsMultiNICHost returns true if the endpoint is a MultiNIC host endpoint.
 	IsMultiNICHost() bool
 

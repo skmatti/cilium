@@ -33,6 +33,7 @@ type TestEndpoint struct {
 	PodRedirectStackIfindex int
 	MultiNic                bool
 	MultiNicHost            bool
+	isPerimeter             bool
 }
 
 func NewTestEndpoint() TestEndpoint {

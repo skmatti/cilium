@@ -225,7 +225,7 @@ tunnel_gen_src_port_v6(struct ipv6_ct_tuple *tuple __maybe_unused)
 #endif
 }
 
-#if defined(ENABLE_DSR) && DSR_ENCAP_MODE == DSR_ENCAP_GENEVE
+#if (defined(ENABLE_DSR) && DSR_ENCAP_MODE == DSR_ENCAP_GENEVE) || defined(ENABLE_GOOGLE_GENEVE)
 static __always_inline int
 __encap_with_nodeid_opt(struct __ctx_buff *ctx, __u32 src_ip, __be16 src_port,
 			__u32 tunnel_endpoint,

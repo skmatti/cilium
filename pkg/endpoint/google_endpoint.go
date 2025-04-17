@@ -34,6 +34,14 @@ func (e *Endpoint) IsMultiNICHost() bool {
 	return e.IsHost() && !e.IsDefaultHost()
 }
 
+// IsPerimeter returns true if the endpoint is a perimeter endpoint.
+func (e *Endpoint) IsPerimeter() bool {
+	alllabels := e.OpLabels.AllLabels()
+	perimeterNetworkLabelStr := labels.GetMultiNICNetworkLabel(features.GlobalConfig.PerimeterEndpointNetwork)
+	perimeterNetworkLabel := labels.ParseLabel(perimeterNetworkLabelStr)
+	return alllabels.Has(perimeterNetworkLabel)
+}
+
 // IsDefaultHost returns true for the default host endpoint.
 func (e *Endpoint) IsDefaultHost() bool {
 	return e.IsHost() && (e.nodeNetworkName == "" || e.nodeNetworkName == identity.DefaultMultiNICNodeNetwork)

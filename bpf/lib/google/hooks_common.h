@@ -75,6 +75,9 @@ struct goog_ctr_egress_fwd4_ctx {
 	  * here. rev_nat_index is pretty tailored towards service steering's code.
 	  */
 	__u16 rev_nat_index;
+
+	__u16 dsr_internal:1, reserved:15; /* TODO: replace with CT State */
+
 	/* Skip local delivery if set to true. */
 	bool skip_local_delivery;
 	enum ct_status ct_status;
@@ -148,6 +151,7 @@ struct goog_netdev_ingress_hfw4_ctx {
 
 struct goog_netdev_ingress_fwd4_ctx {
 	struct goog_host_ingress_fwd4_ctx_common __common;
+	struct endpoint_info *ep;
 };
 
 struct goog_host_ingress_start_ctx {

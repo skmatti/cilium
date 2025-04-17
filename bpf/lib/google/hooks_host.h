@@ -8,6 +8,7 @@
 #include "lib/google/pip.h"
 #include "lib/google/plugin.h"
 #include "lib/google/geneve.h"
+#include "lib/google/google_perimeter_elb.h"
 #include "lib/google/vpc.h"
 
 /**
@@ -83,6 +84,10 @@ int pre_netdev_ingress_fwd4(struct __ctx_buff *ctx,
 		return ret;
 
 	ret = goog_maybe_try_pip_ingress_redirect4(ctx, &stage_ctx->__common);
+	if (ret != HOOK_ACT_CONTINUE)
+		return ret;
+
+	ret = goog_elb_from_netdev(ctx, &stage_ctx->__common);
 	if (ret != HOOK_ACT_CONTINUE)
 		return ret;
 

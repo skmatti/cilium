@@ -636,6 +636,8 @@ var (
 		"cilium_lb4_backends_v3":    "enabled,128,0",
 		"cilium_lb4_source_range":   "enabled,128,0",
 		"cilium_lb4_affinity_match": "enabled,128,0",
+		"google_redirect_ep_ip_v4":  "enabled,128,0",
+		"google_redirect_ep_id_v4":  "enabled,128,0",
 
 		// ip6
 		"cilium_lb6_services_v2":    "enabled,128,0",

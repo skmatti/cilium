@@ -885,7 +885,7 @@ static __always_inline int handle_ipv4_from_lxc(struct __ctx_buff *ctx, __u32 *d
 	struct goog_ctr_stage_ctx stage_ctx;
 	bool hairpin_flow = false; /* endpoint wants to access itself via service IP */
 	__u8 policy_match_type = POLICY_MATCH_NONE;
-	struct ct_buffer4 *ct_buffer;
+	struct ct_buffer4 *ct_buffer = 0;
 	__u8 audited = 0;
 	__u8 auth_type = 0;
 	enum ct_status ct_status = 0;
@@ -1196,7 +1196,13 @@ static __always_inline int goog_handle_ipv4_from_lxc_fwd(struct __ctx_buff *ctx,
 	if (IS_ERR(ret))
 		return ret;
 
+#ifdef ENABLE_EGRESS_GATEWAY_REDIRECT
+	/* TODO: (b/439930232) identify better way to handle this case */
+	stage_ctx.stage_ctx.goog_ctr_egress_fwd4_ctx.rev_nat_index = ct_buffer->ct_state.rev_nat_index;
+	stage_ctx.stage_ctx.goog_ctr_egress_fwd4_ctx.dsr_internal = ct_buffer->ct_state.dsr_internal;
+#else
 	stage_ctx.stage_ctx.goog_ctr_egress_fwd4_ctx.rev_nat_index = ct_state_new.rev_nat_index;
+#endif
 	stage_ctx.stage_ctx.goog_ctr_egress_fwd4_ctx.hairpin_flow = hairpin_flow;
 	stage_ctx.stage_ctx.goog_ctr_egress_fwd4_ctx.tuple = tuple;
 	stage_ctx.stage_ctx.goog_ctr_egress_fwd4_ctx.ct_status = ct_status;

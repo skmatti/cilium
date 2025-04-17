@@ -5,6 +5,7 @@ import (
 
 	"github.com/cilium/cilium/pkg/datapath/linux/config/defines"
 	"github.com/cilium/cilium/pkg/gke/multinic/multinicconfig"
+	perimeterconst "github.com/cilium/cilium/pkg/maps/perimetermap/consts"
 	"github.com/cilium/cilium/pkg/option"
 	"github.com/cilium/hive/cell"
 	"github.com/spf13/pflag"
@@ -95,6 +96,20 @@ type Config struct {
 	// GoogleIPSecMode is the option to set Google IPSec mode. Possible values are "disabled" (default), "software"
 	// Use string instead of bool since we may support more modes in the future. e.g. "hardware-offload".
 	GoogleIPSecMode string
+	// EnableEgressPolicyRemoteEndpointSelection is a feature flag that enables
+	// egress policy to select endpoints from remote clusters.
+	EnableEgressPolicyRemoteEndpointSelection bool `mapstructure:"enable-egress-policy-remote-endpoint-selection"`
+	// EnableGatewayIPFromAnnotation is a feature flag that enables using
+	// gateway IP from CiliumEgressGatewayPolicy annotation
+	EnableGatewayIPFromAnnotation bool `mapstructure:"enable-gateway-ip-from-annotation"`
+	// PerimeterEndpointNetwork is the name of the network the perimeter endpoints are connected to.
+	PerimeterEndpointNetwork string `mapstructure:"perimeter-endpoint-network"`
+	// EnableGooglePerimeterFeatures is a feature flag that enables using
+	// perimeter cluster based egress nat and elb.
+	EnableGooglePerimeterFeatures bool `mapstructure:"enable-google-perimeter-features"`
+	// PerimeterMapsGCIntervalSeconds specifies the number of seconds between successive runs of the perimeter maps GC process.
+	// This value is configurable via the "perimeter-maps-gc-interval-seconds" setting.
+	PerimeterMapsGCIntervalSeconds int `mapstructure:"perimeter-maps-gc-interval-seconds"`
 }
 
 var defaultConfig = Config{
@@ -124,6 +139,13 @@ var defaultConfig = Config{
 	XDPDevices:                  []string{},
 	EnableGoogleVPC:             false,
 	GoogleIPSecMode:             GoogleIPSecModeDisabled,
+
+	// TODO: (b/439930952) move these perimeter elb flags into a cell
+	EnableEgressPolicyRemoteEndpointSelection: false,
+	EnableGatewayIPFromAnnotation:             false,
+	PerimeterEndpointNetwork:                  "g-perimeter-network",
+	EnableGooglePerimeterFeatures:             false,
+	PerimeterMapsGCIntervalSeconds:            1800,
 }
 
 func (cfg Config) Flags(flags *pflag.FlagSet) {
@@ -199,6 +221,21 @@ func (cfg Config) Flags(flags *pflag.FlagSet) {
 		fmt.Sprintf("GoogleIPSecMode is the option to set Google IPSec mode. Possible values are %v. Default value is %q",
 			[]string{GoogleIPSecModeDisabled, GoogleIPSecModeSoftware}, cfg.GoogleIPSecMode))
 	flags.MarkHidden(option.GoogleIPSecMode)
+
+	flags.Bool(option.EnableEgressPolicyRemoteEndpointSelection, false, "Enable egress policy to select endpoints from remote clusters")
+	flags.MarkHidden(option.EnableEgressPolicyRemoteEndpointSelection)
+
+	flags.Bool(option.EnableGatewayIPFromAnnotation, false, "Enable using gateway IP from CiliumEgressGatewayPolicy annotation")
+	flags.MarkHidden(option.EnableGatewayIPFromAnnotation)
+
+	flags.String(option.PerimeterEndpointNetwork, defaultConfig.PerimeterEndpointNetwork, "Name of the network that the perimeter networks belong to.")
+	flags.MarkHidden(option.PerimeterEndpointNetwork)
+
+	flags.Bool(option.EnableGooglePerimeterFeatures, defaultConfig.EnableGooglePerimeterFeatures, "Enable perimeter cluster networking features.")
+	flags.MarkHidden(option.EnableGooglePerimeterFeatures)
+
+	flags.Int(option.PerimeterMapsGCIntervalSeconds, defaultConfig.PerimeterMapsGCIntervalSeconds, "Set the interval in seconds between successive runs of the perimeter maps GC process")
+	flags.MarkHidden(option.PerimeterMapsGCIntervalSeconds)
 }
 
 func configure(cfg Config, daemonCfg *option.DaemonConfig) (out struct {
@@ -232,5 +269,19 @@ func configure(cfg Config, daemonCfg *option.DaemonConfig) (out struct {
 	default:
 		out.NodeDefines["GOOGLE_IPSEC_MODE"] = "0"
 	}
+
+	if cfg.EnableGatewayIPFromAnnotation {
+		if !(daemonCfg.EnableIPv4EgressGateway && cfg.EnableGoogleVPC) {
+			return out, fmt.Errorf("Egress Gateway Redirection requires Google VPC and Gateway IP From Annotation enabled")
+		}
+		out.NodeDefines["ENABLE_EGRESS_GATEWAY_REDIRECT"] = "1"
+		out.NodeDefines["GOOGLE_REDIRECT_EP_IP_V4_MAP"] = perimeterconst.RedirectEPIPMap4Name
+		out.NodeDefines["GOOGLE_REDIRECT_EP_ID_V4_MAP"] = perimeterconst.RedirectEPIDMap4Name
+	}
+
+	if cfg.EnableGooglePerimeterFeatures {
+		out.NodeDefines["GOOGLE_PERIMETER_FEATURES"] = "1"
+	}
+
 	return
 }

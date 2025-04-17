@@ -56,6 +56,7 @@ __id_for_file(const char *const header_name)
 	_strcase_(112, "encap.h");
 	_strcase_(113, "encrypt.h");
 	_strcase_(113, "google_multinic.h");
+	_strcase_(115, "google_perimeter_elb.h");
 
 	/* @@ source files list end */
 

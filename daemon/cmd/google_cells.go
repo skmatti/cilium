@@ -34,6 +34,9 @@ import (
 
 	rsController "github.com/cilium/cilium/pkg/gke/redirectservice/controller"
 	nodeTypes "github.com/cilium/cilium/pkg/node/types"
+
+	gdcmaps "github.com/cilium/cilium/pkg/gdc/maps"
+	"github.com/cilium/cilium/pkg/gdc/perimeter"
 )
 
 var googleCell = cell.Module(
@@ -74,6 +77,10 @@ var googleCell = cell.Module(
 	imds.Cell,
 
 	multitenancy.Cell,
+
+	gdcmaps.Cell,
+
+	perimeter.Cell,
 )
 
 // Converts Daemon promise into a PolicyManager promise

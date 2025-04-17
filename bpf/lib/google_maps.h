@@ -169,6 +169,15 @@ struct {
 #endif /* ENABLE_GOOGLE_PERSISTENT_IP */
 
 #ifdef ENABLE_EGRESS_GATEWAY_REDIRECT
+
+#ifndef GOOGLE_REDIRECT_EP_ID_V4_MAP
+# define GOOGLE_REDIRECT_EP_ID_V4_MAP google_redirect_ep_id_v4
+#endif
+
+#ifndef GOOGLE_REDIRECT_EP_IP_V4_MAP
+# define GOOGLE_REDIRECT_EP_IP_V4_MAP google_redirect_ep_ip_v4
+#endif
+
 struct {
 	__uint(type, BPF_MAP_TYPE_HASH);
 	__type(key, __u16);

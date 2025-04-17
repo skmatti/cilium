@@ -14,6 +14,9 @@ const (
 	// IDNameMultiNICHost is a label key used for reserved multi nic host
 	// identities.
 	IDNameMultiNICHost = "multinic-host"
+
+	// PerimeterEndpoint label signifies that this endpoint handles perimeter networking.
+	PerimeterEndpoint = "networking.gke.io/perimeter-cluster"
 )
 
 // MergeMultiNICLabels merges multinic labels from into to.

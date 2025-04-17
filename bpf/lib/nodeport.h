@@ -2806,7 +2806,7 @@ int tail_nodeport_nat_egress_ipv4(struct __ctx_buff *ctx)
 			.ifindex	= ctx_get_ifindex(ctx),
 		},
 	};
-	struct ipv4_nat_target target = {
+	struct ipv4_nat_target target __maybe_unused = {
 		.min_port = NODEPORT_PORT_MIN_NAT,
 		.max_port = NODEPORT_PORT_MAX_NAT,
 		/* Unfortunately, the bpf_fib_lookup() is not able to set src IP addr.
@@ -2817,13 +2817,13 @@ int tail_nodeport_nat_egress_ipv4(struct __ctx_buff *ctx)
 		.addr = IPV4_DIRECT_ROUTING,
 	};
 	struct ipv4_ct_tuple tuple = {};
-	struct trace_ctx trace = {
+	struct trace_ctx trace __maybe_unused = {
 		.reason = (enum trace_reason)CT_NEW,
 		.monitor = TRACE_PAYLOAD_LEN,
 	};
 	int ret, l4_off, oif = 0;
 	void *data, *data_end;
-	bool has_l4_header;
+	bool has_l4_header __maybe_unused;
 	struct iphdr *ip4;
 	__s8 ext_err = 0;
 	__u32 dst_sec_identity __maybe_unused = 0;
@@ -2899,6 +2899,7 @@ int tail_nodeport_nat_egress_ipv4(struct __ctx_buff *ctx)
 	if (unlikely(ret != CTX_ACT_OK))
 		goto drop_err;
 
+#if !defined(GOOGLE_PERIMETER_FEATURES)
 	ret = __snat_v4_nat(ctx, &tuple, ip4, has_l4_header, l4_off,
 			    true, &target, TCP_SPORT_OFF, &trace, &ext_err);
 	if (IS_ERR(ret))
@@ -2908,6 +2909,7 @@ int tail_nodeport_nat_egress_ipv4(struct __ctx_buff *ctx)
 	 * to-overlay or to-netdev.
 	 */
 	ctx_snat_done_set(ctx);
+#endif /* GOOGLE_PERIMETER_FEATURES */
 
 #ifdef TUNNEL_MODE
 	if (tunnel_endpoint) {

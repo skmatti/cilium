@@ -137,4 +137,23 @@ const (
 
 	// GoogleIPSecMode is the option to set Google IPSec mode. Possible values are "disabled" (default), "software", "hardware-offload".
 	GoogleIPSecMode = "google-ipsec-mode"
+
+	// EnableEgressPolicyRemoteEndpointSelection is a feature flag that enables
+	// egress policy to select endpoints from remote clusters.
+	EnableEgressPolicyRemoteEndpointSelection = "enable-egress-policy-remote-endpoint-selection"
+
+	// EnableGatewayIPFromAnnotation is a feature flag that enables using
+	// gateway IP from CiliumEgressGatewayPolicy annotation
+	EnableGatewayIPFromAnnotation = "enable-gateway-ip-from-annotation"
+
+	// PerimeterEndpointNetwork is the name of the network the perimeter endpoints are connected to.
+	PerimeterEndpointNetwork = "perimeter-endpoint-network"
+
+	// EnableGooglePerimeterFeatures is a feature flag that enables using
+	// perimeter cluster based egress nat and elb.
+	EnableGooglePerimeterFeatures = "enable-google-perimeter-features"
+
+	// PerimeterMapsGCIntervalSeconds is the name of the option to set the interval (in seconds)
+	// between successive runs of the perimeter maps GC process.
+	PerimeterMapsGCIntervalSeconds = "perimeter-maps-gc-interval-seconds"
 )

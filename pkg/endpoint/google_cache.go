@@ -1,6 +1,7 @@
 package endpoint
 
 import (
+	"github.com/cilium/cilium/pkg/gke/features"
 	multinicep "github.com/cilium/cilium/pkg/gke/multinic/endpoint"
 	"github.com/cilium/cilium/pkg/mac"
 )
@@ -22,6 +23,11 @@ func (ep *epInfoCache) GetDeviceTypeIndex() int {
 // IsMultiNICHost returns if the endpoint is a multinic host endpoint.
 func (ep *epInfoCache) IsMultiNICHost() bool {
 	return ep.endpoint.IsMultiNICHost()
+}
+
+// IsPerimeter returns true if the endpoint is a perimeter endpoint.
+func (e *epInfoCache) IsPerimeter() bool {
+	return features.GlobalConfig.EnableGatewayIPFromAnnotation && e.perimeterEndpoint
 }
 
 // GetParentDevIndex returns the parent device ifindex.

@@ -60,6 +60,8 @@ type epInfoCache struct {
 	parentDevIndex          int
 	parentDevMac            mac.MAC
 	podStackRedirectIfindex int
+
+	perimeterEndpoint bool
 }
 
 // Must be called when endpoint is still locked.
@@ -107,6 +109,8 @@ func (e *Endpoint) createEpInfoCache(epdir string) *epInfoCache {
 		parentDevIndex:          e.parentDevIndex,
 		parentDevMac:            e.parentDevMac,
 		podStackRedirectIfindex: e.podStackRedirectIfindex,
+
+		perimeterEndpoint: e.IsPerimeter(),
 	}
 }
 
