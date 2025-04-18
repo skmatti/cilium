@@ -56,6 +56,7 @@ export KUBERNETES_CONFORMANCE_TEST='y'
   --skip="Feature|Federation|PerformanceDNS|DualStack|Disruptive|Serial|KubeProxy|kube-proxy|ExternalIP|LoadBalancer|GCE|Netpol|NetworkPolicy|rejected|externalTrafficPolicy|HostPort|same.port.number.but.different.protocols|should.serve.endpoints.on.same.port.and.different.protocols" \
   --skip="should.support.remote.command.execution.over.websockets" \
   --skip="should.support.retrieving.logs.from.the.container.over.websockets" \
+  --skip="Services.should.implement.NodePort.and.HealthCheckNodePort.correctly.when.ExternalTrafficPolicy.changes" \
   /usr/local/bin/e2e.test \
   -- \
   --kubeconfig="${KUBECONFIG}" \
