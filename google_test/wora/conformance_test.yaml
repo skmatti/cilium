@@ -26,7 +26,7 @@ spec:
             namespace: tailorbird-users
           args: # Compare arguments in ../upstream_test/run_k8s_conformance_test.sh
           - /test/ginkgo
-          - --procs=10
+          - --procs=4
           - --focus=\[Conformance\]|\[sig-network\]
           - --skip=Feature|Federation|PerformanceDNS|DualStack|Disruptive|Serial|KubeProxy|kube-proxy|ExternalIP|LoadBalancer|GCE|Netpol|NetworkPolicy|rejected|externalTrafficPolicy|HostPort|same.port.number.but.different.protocols|should.serve.endpoints.on.same.port.and.different.protocols
           - --skip=Networking.Granular.Checks:.Services # b/380485765: covered in a separate Prow job.
