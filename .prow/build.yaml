@@ -11,6 +11,9 @@ presubmits:
     preset-service-account: "true"
     preset-k8s-ssh: "true"
     prow.k8s.io/gerrit-report-label: Unit-Verified
+    prow.k8s.io/pubsub.project: "anthos-baremetal-ci"
+    prow.k8s.io/pubsub.topic: "prow-etl-trigger"
+    prow.k8s.io/pubsub.runID: "prow-etl-presubmit-tests"
   path_alias: gke-internal.googlesource.com/third_party/cilium
   spec:
     containers:
@@ -36,6 +39,9 @@ presubmits:
     preset-dind-enabled: "true"
     preset-k8s-ssh: "true"
     prow.k8s.io/gerrit-report-label: "Verified"
+    prow.k8s.io/pubsub.project: "anthos-baremetal-ci"
+    prow.k8s.io/pubsub.topic: "prow-etl-trigger"
+    prow.k8s.io/pubsub.runID: "row-etl-presubmit-tests"
   path_alias: gke-internal.googlesource.com/third_party/cilium
   spec:
     containers:
@@ -66,6 +72,9 @@ presubmits:
     preset-service-account: "true"
     preset-dind-enabled: "true"
     preset-k8s-ssh: "true"
+    prow.k8s.io/pubsub.project: "anthos-baremetal-ci"
+    prow.k8s.io/pubsub.topic: "prow-etl-trigger"
+    prow.k8s.io/pubsub.runID: "row-etl-presubmit-tests"
   path_alias: gke-internal.googlesource.com/third_party/cilium
   spec:
     containers:
