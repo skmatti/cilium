@@ -240,7 +240,7 @@ case "${PLATFORM}" in
     # Unset docker image after upgrade to stop failures due to image verification.
     # Image verification is not possible in GDCH due to lack of kubeconfig support.
     DISABLE_UPGRADE_VERIFICATION=true
-    TB_STATUS_CHECK=1200 # set timeout to 10 hours (1200*30s)
+    TB_CLIENT_TIMEOUT=10h
     RUN_ID="${PROW_JOB_ID}"-"${BASHPID:?}"
     ;;
   *)
@@ -317,7 +317,7 @@ CILIUM_IMAGE_WITH_TAG=${CILIUM_IMAGE_WITH_TAG:-} \
   --down="${RUN_DOWN:-true}" \
   --tbconfig="${TBCONFIG}" \
   --tbenv="${TBENV}" \
-  --status-check-retry="${TB_STATUS_CHECK:-140}" \
+  --client-timeout="${TB_CLIENT_TIMEOUT:-3h}" \
   --test=exec \
   -- \
   "${ROOT}/run.sh"
