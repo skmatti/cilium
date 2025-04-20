@@ -1767,6 +1767,17 @@ int cil_to_host(struct __ctx_buff *ctx)
 		traced = true;
 	}
 
+#if defined(ENABLE_GOOGLE_GENEVE) && (GOOGLE_IPSEC_MODE == GOOGLE_IPSEC_MODE_SOFTWARE)
+	/* See the below OSS IPSec section.
+	 * When IPSec mode is software, the node to pod packet (across nodes) will
+	 * be first initiated from cilium_host egress, then, as we return CTX_ACT_OK
+	 * to let the packet go through kernel, the packet will be passed through to
+	 * cilium_net. If we do not modify the packet type to PACKET_HOST, it will
+	 * be dropped in cilium_net with "kfree_skb_reason(SKB_DROP_REASON_OTHERHOST)".
+	 */
+	ctx_change_type(ctx, PACKET_HOST);
+#endif
+
 #ifdef ENABLE_IPSEC
 	/* Encryption stack needs this when IPSec headers are
 	 * rewritten without FIB helper because we do not yet

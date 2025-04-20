@@ -123,4 +123,7 @@ const (
 
 	// EnableGoogleVPC is the name of the option to enable Google VPC.
 	EnableGoogleVPC = "enable-google-vpc"
+
+	// GoogleIPSecMode is the option to set Google IPSec mode. Possible values are "disabled" (default), "software", "hardware-offload".
+	GoogleIPSecMode = "google-ipsec-mode"
 )

@@ -14,7 +14,13 @@
 #  include "lib/fib.h"
 # endif /* __ctx_is == __ctx_skb */
 
-# define GENEVE_VERSION 0
+# define GENEVE_VERSION		    0
+
+# define GOOGLE_IPSEC_MODE_DISABLED 0
+# define GOOGLE_IPSEC_MODE_SOFTWARE 1
+# ifndef GOOGLE_IPSEC_MODE
+#  define GOOGLE_IPSEC_MODE GOOGLE_IPSEC_MODE_DISABLED
+# endif
 
 # ifndef GOOGLE_GENEVE_METADATA
 #  define GOOGLE_GENEVE_METADATA google_geneve_metadata
@@ -862,6 +868,9 @@ static __always_inline int geneve_try_decap4(struct __ctx_buff *ctx)
 	{
 		enum trace_point obs_point = TRACE_FROM_OVERLAY;
 
+#  if GOOGLE_IPSEC_MODE == GOOGLE_IPSEC_MODE_SOFTWARE
+		obs_point = TRACE_FROM_STACK;
+#  endif
 		send_trace_notify(
 			ctx, obs_point, src_sec_identity, UNKNOWN_ID,
 			TRACE_EP_ID_UNKNOWN, ctx->ingress_ifindex,
@@ -896,11 +905,16 @@ static __always_inline int __google_encap_redirect_v4(
 		// ifindex typically should always be ENCAP_IFINDEX for the packet to be redirected to the overlay interface.
 		// However, ifindex is set to zero in some cases in encap.h when __ctx_is == __ctx_xdp
 #  if __ctx_is == __ctx_skb
+#   if GOOGLE_IPSEC_MODE == GOOGLE_IPSEC_MODE_DISABLED
 		ifindex = DIRECT_ROUTING_DEV_IFINDEX;
-#  else	 /* __ctx_is == __ctx_xdp */
+#   else  /* GOOGLE_IPSEC_MODE */
+		// If IPSec is enabled, send the packet back to kernel for IPSec encryption.
+		ret = CTX_ACT_OK;
+#   endif /* GOOGLE_IPSEC_MODE */
+#  else	  /* __ctx_is == __ctx_xdp */
 		ctx_move_xfer(ctx);
 		ifindex = DIRECT_ROUTING_DEV_IFINDEX;
-#  endif /* __ctx_is == __ctx_skb */
+#  endif  /* __ctx_is == __ctx_skb */
 	}
 # else
 	// IPv6 is not supported.
@@ -913,7 +927,11 @@ static __always_inline int __google_encap_redirect_v4(
 		send_trace_notify(
 			ctx, TRACE_TO_NETWORK, SECLABEL, dstid, 0, ifindex,
 			TRACE_REASON_UNKNOWN, 0);
-	} else if (IS_ERR(ret))
+	} else if (ret == CTX_ACT_OK)
+		send_trace_notify(
+			ctx, TRACE_TO_STACK, SECLABEL, dstid, 0, ifindex,
+			TRACE_REASON_UNKNOWN, 0);
+	else if (IS_ERR(ret))
 		return send_drop_notify_error(
 			ctx, 0, ret, CTX_ACT_DROP, METRIC_EGRESS);
 	return ret;
@@ -1166,6 +1184,38 @@ static __always_inline int goog_geneve_pre_netdev_ingress_fwd4(
 	return HOOK_ACT_CONTINUE;
 }
 
+static __always_inline int goog_geneve_pre_netdev_ingress_fwd4_ipsec(
+	struct __ctx_buff *ctx __maybe_unused,
+	struct goog_host_ingress_fwd4_ctx_common *stage_ctx_common __maybe_unused)
+{
+# if GOOGLE_IPSEC_MODE == GOOGLE_IPSEC_MODE_SOFTWARE
+	// In some situation, e.g., the packet got recirculated after IPSec decryption,
+	// it may be marked as OTHERHOST. We need to change it to HOST so that kernel won't drop it.
+	ctx_change_type(ctx, PACKET_HOST);
+
+	/* After geneve tunnel is terminated in cilium, ebpf lacks the API to
+	 * "scrub" the SKB to remove stale XFRM data(skb->sp). This impacts traffic
+	 * destined to node. To workaround this we redirect locally destined traffic
+	 * to cilium host(which forces the kernel to scrub) when N2N encryption is
+	 * enabled.
+	 * TODO(b/383158433): Revert this change once HW offload is available.
+	 */
+	if (geneve_get_current_bpf_program() == GENEVE_BPF_PROGRAM_ID_FROM_OVERLAY &&
+	    stage_ctx_common->ep->flags & ENDPOINT_F_HOST) {
+		union macaddr host_mac = HOST_IFINDEX_MAC;
+		union macaddr router_mac = NODE_MAC;
+
+		ret = ipv4_l3(ctx, ETH_HLEN, (__u8 *)&router_mac.addr,
+			      (__u8 *)&host_mac.addr, ip4);
+		if (ret != CTX_ACT_OK)
+			return ret;
+
+		return ctx_redirect(ctx, HOST_IFINDEX, 0);
+	}
+# endif
+	return HOOK_ACT_CONTINUE;
+}
+
 static __always_inline int
 goog_geneve_pre_netdev_ingress_start(struct __ctx_buff *ctx)
 {
@@ -1251,6 +1301,13 @@ goog_geneve_pre_netdev_ingress_start(struct __ctx_buff *ctx __maybe_unused)
 }
 
 static __always_inline int goog_geneve_pre_host_ingress_start(void)
+{
+	return HOOK_ACT_CONTINUE;
+}
+
+static __always_inline int goog_geneve_pre_netdev_ingress_fwd4_ipsec(
+	struct __ctx_buff *ctx __maybe_unused,
+	struct goog_host_ingress_fwd4_ctx_common *stage_ctx_common __maybe_unused)
 {
 	return HOOK_ACT_CONTINUE;
 }

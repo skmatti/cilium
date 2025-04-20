@@ -19,6 +19,10 @@ const (
 	EnableMultiPoolIPAM = "enable-multipool-ipam"
 	// EnableCiliumNodeConfig enables the CiliumNodeConfig CRD
 	EnableCiliumNodeConfig = "enable-cnc"
+	// GoogleIPSecModeDisabled indicates the node-to-node encryption feature is disabled.
+	GoogleIPSecModeDisabled = "disabled"
+	// GoogleIPSecModeSoftware indicates the node-to-node encryption feature is in software mode.
+	GoogleIPSecModeSoftware = "software"
 )
 
 // Used when config can't be injected by the Hive
@@ -88,6 +92,9 @@ type Config struct {
 	XDPDevices []string `mapstructure:"xdp-devices"`
 	// EnableGoogleVPC is the option to enable Google VPC mode.
 	EnableGoogleVPC bool
+	// GoogleIPSecMode is the option to set Google IPSec mode. Possible values are "disabled" (default), "software"
+	// Use string instead of bool since we may support more modes in the future. e.g. "hardware-offload".
+	GoogleIPSecMode string
 }
 
 var defaultConfig = Config{
@@ -116,6 +123,7 @@ var defaultConfig = Config{
 	XDPMode:                     option.XDPModeDisabled,
 	XDPDevices:                  []string{},
 	EnableGoogleVPC:             false,
+	GoogleIPSecMode:             GoogleIPSecModeDisabled,
 }
 
 func (cfg Config) Flags(flags *pflag.FlagSet) {
@@ -186,6 +194,11 @@ func (cfg Config) Flags(flags *pflag.FlagSet) {
 
 	flags.Bool(option.EnableGoogleVPC, cfg.EnableGoogleVPC, "Enable Google VPC mode")
 	flags.MarkHidden(option.EnableGoogleVPC)
+
+	flags.String(option.GoogleIPSecMode, cfg.GoogleIPSecMode,
+		fmt.Sprintf("GoogleIPSecMode is the option to set Google IPSec mode. Possible values are %v. Default value is %q",
+			[]string{GoogleIPSecModeDisabled, GoogleIPSecModeSoftware}, cfg.GoogleIPSecMode))
+	flags.MarkHidden(option.GoogleIPSecMode)
 }
 
 func configure(cfg Config, daemonCfg *option.DaemonConfig) (out struct {
@@ -209,6 +222,15 @@ func configure(cfg Config, daemonCfg *option.DaemonConfig) (out struct {
 				option.EnableGoogleBPFGeneve, cfg.EnableGoogleBPFGeneve, daemonCfg.TunnelingEnabled())
 		}
 		out.NodeDefines["ENABLE_GOOGLE_VPC"] = "1"
+	}
+
+	switch cfg.GoogleIPSecMode {
+	case GoogleIPSecModeSoftware:
+		out.NodeDefines["GOOGLE_IPSEC_MODE"] = "1"
+	case GoogleIPSecModeDisabled:
+		fallthrough
+	default:
+		out.NodeDefines["GOOGLE_IPSEC_MODE"] = "0"
 	}
 	return
 }

@@ -480,6 +480,10 @@ func (l *loader) reloadDatapath(ep datapath.Endpoint, spec *ebpf.CollectionSpec)
 		}
 	}
 
+	if err := googleReloadDatapath(ep); err != nil {
+		return err
+	}
+
 	if ep.IsHost() {
 		devices := nodeConfig.DeviceNames()
 

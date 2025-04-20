@@ -9,9 +9,12 @@ import (
 	"github.com/cilium/cilium/pkg/datapath/connector"
 	"github.com/cilium/cilium/pkg/datapath/linux/safenetlink"
 	datapath "github.com/cilium/cilium/pkg/datapath/types"
+	"github.com/cilium/cilium/pkg/gke/features"
+	multinicep "github.com/cilium/cilium/pkg/gke/multinic/endpoint"
 	"github.com/cilium/cilium/pkg/logging/logfields"
 	"github.com/cilium/cilium/pkg/maps/policymap"
 	"github.com/cilium/cilium/pkg/option"
+	"github.com/cilium/cilium/pkg/sysctl"
 	"github.com/cilium/ebpf"
 	"github.com/sirupsen/logrus"
 	"github.com/vishvananda/netlink"
@@ -211,5 +214,25 @@ func UnloadParentDevDatapath(ctx context.Context, device string) error {
 		return fmt.Errorf("failed to remove egress filter on device %q: %w", device, err)
 	}
 
+	return nil
+}
+
+// TODO(b/430987735): Move this logic to CNI plugin.
+func googleReloadDatapath(ep datapath.Endpoint) error {
+	featureConfig := features.GlobalConfig
+
+	if !ep.IsHost() && !(ep.GetDeviceTypeIndex() == multinicep.EndpointDeviceIndexMACVLAN || ep.GetDeviceTypeIndex() == multinicep.EndpointDeviceIndexMACVTAP) {
+		if featureConfig.EnableGoogleVPC && featureConfig.GoogleIPSecMode == features.GoogleIPSecModeSoftware {
+			/* When eBPF GENEVE is enabled and the IPSec is in software mode, we must set "accept_local" option for kernel to accept
+			 * the GENEVE encapped packet. Otherwise the packet will be dropped due to "martian source".
+			 */
+			sysSettings := []sysctl.Setting{
+				{Name: fmt.Sprintf("net.ipv4.conf.%s.accept_local", ep.InterfaceName()), Val: "1", IgnoreErr: false},
+			}
+			if err := sysctl.ApplySettings(sysSettings); err != nil {
+				return fmt.Errorf("apply sysctl on endpoint %s: %w", ep.StringID(), err)
+			}
+		}
+	}
 	return nil
 }

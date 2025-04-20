@@ -24,5 +24,8 @@ func GoogleTunnelOverhead() int {
 	if fgc.EnableGoogleBPFGeneve {
 		overhead = googleTunnelOverhead
 	}
+	if fgc.GoogleIPSecMode == features.GoogleIPSecModeSoftware {
+		overhead += EncryptionIPsecOverhead
+	}
 	return overhead
 }

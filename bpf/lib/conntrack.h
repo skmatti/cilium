@@ -801,6 +801,8 @@ ct_extract_ports4(struct __ctx_buff *ctx, struct iphdr *ip4, int off,
 #endif /* MULTI_NIC_DEVICE_TYPE || ENABLE_MULTICAST */
 
 #if defined(ENABLE_HOST_FIREWALL) || defined(MULTI_NIC_DEVICE_TYPE)
+	/* Allow VRRP and ESP protocols in conntrack */
+	case IPPROTO_ESP:
 	case IPPROTO_VRRP:
 		tuple->dport = 0;
 		tuple->sport = 0;

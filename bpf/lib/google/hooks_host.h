@@ -72,6 +72,12 @@ int pre_netdev_ingress_fwd4(struct __ctx_buff *ctx,
 	if (ret != HOOK_ACT_CONTINUE)
 		return ret;
 
+	// This step must happen after the __common.ep is updated to its final state.
+	// e.g. the above VPC step will update it.
+	ret = goog_geneve_pre_netdev_ingress_fwd4_ipsec(ctx, &stage_ctx->__common);
+	if (ret != HOOK_ACT_CONTINUE)
+		return ret;
+
 	ret = goog_mn_maybe_deliver_to_ep(ctx, &stage_ctx->__common);
 	if (ret == HOOK_ACT_SKIP)
 		return HOOK_ACT_CONTINUE;
@@ -131,6 +137,12 @@ int pre_host_ingress_fwd4(struct __ctx_buff *ctx,
 	int ret;
 
 	ret = goog_vpc_pre_host_ingress_fwd4(ctx, &stage_ctx->__common);
+	if (ret != HOOK_ACT_CONTINUE)
+		return ret;
+
+	// This step must happen after the __common.ep is updated to its final state.
+	// e.g. the above VPC step will update it.
+	ret = goog_geneve_pre_netdev_ingress_fwd4_ipsec(ctx, &stage_ctx->__common);
 	if (ret != HOOK_ACT_CONTINUE)
 		return ret;
 
