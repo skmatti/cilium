@@ -97,6 +97,53 @@ presubmits:
       - runner.sh
       args:
       - ./google_test/wora/prow_entrypoint.sh
+- name: wora-gdch-abm-gce-lancer-ipsec_cilium
+  trigger: /test wora-gdch-abm-gce-lancer-ipsec$
+  rerun_command: /test wora-gdch-abm-gce-lancer-ipsec
+  always_run: true
+  skip_fetch_head: true
+  decorate: true
+  decoration_config:
+    timeout: 240m
+  labels:
+    preset-cookie-file: "true"
+    preset-cookie-file-env: "true"
+    preset-service-account: "true"
+    preset-dind-enabled: "true"
+    preset-k8s-ssh: "true"
+    prow.k8s.io/gerrit-report-label: "Verified"
+    prow.k8s.io/pubsub.project: "anthos-baremetal-ci"
+    prow.k8s.io/pubsub.topic: "prow-etl-trigger"
+    prow.k8s.io/pubsub.runID: "row-etl-presubmit-tests"
+  path_alias: gke-internal.googlesource.com/third_party/cilium
+  spec:
+    containers:
+    - image: gcr.io/tailorbird/kubetest2-tailorbird:latest
+      resources:
+        requests:
+          ephemeral-storage: 150Gi
+        limits:
+          ephemeral-storage: 300Gi
+      securityContext:
+        # needed for docker-in-docker
+        privileged: true
+      env:
+      - name: ADD_VXLANS_CLUSTER_TYPE
+        value: gdc-ag
+      - name: CILIUM_GITREF
+        value: HEAD
+      - name: PATCH_CONTENT_DIR
+        value: addon/patch_content/abm-1.31.x-gke/overlays/gdch-lancer-ipsec
+      - name: TBCONFIG
+        value: sut-gdch-lancer-abm-gce.yaml
+      - name: WORA_CONFIG
+        value: integration_test.yaml
+      - name: WORA_GINKGO_LABEL_FILTER
+        value: bpfprog||egressnat||externallb||geneve||hostfirewall||internallb||l3vm||loadbalancer||sample||strict||tailcall
+      command:
+      - runner.sh
+      args:
+      - ./google_test/wora/prow_entrypoint.sh
 - name: wora-gdch-abm-gce-lancer-xdp_cilium
   cluster: anthos-networking-ci-us-west1-b
   trigger: /test wora-gdch-abm-gce-lancer-xdp$
@@ -114,6 +161,9 @@ presubmits:
     preset-cookie-file-env: "true"
     preset-dind-enabled: "true"
     prow.k8s.io/gerrit-report-label: "Verified"
+    prow.k8s.io/pubsub.project: "anthos-baremetal-ci"
+    prow.k8s.io/pubsub.topic: "prow-etl-trigger"
+    prow.k8s.io/pubsub.runID: "row-etl-presubmit-tests"
   path_alias: gke-internal.googlesource.com/third_party/cilium
   spec:
     containers:

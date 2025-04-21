@@ -1,6 +1,5 @@
 apiVersion: v1
 data:
-  enable-ipv4-masquerade: "false"
   ipv4-native-routing-cidr: "10.240.0.0/22"
   agent-health-port: "9876"
   allow-disable-source-ip-validation: "false"
@@ -24,9 +23,13 @@ data:
   cluster-id: "5"
   cluster-name: g-org-1-perimeter-zone1
   cni-exclusive: "false"
+  cni-log-file: /var/run/cilium/cilium-cni.log
   cni-uninstall: "false"
+  conntrack-gc-max-interval: 10m
   custom-cni-conf: "false"
   debug: "false"
+  device-prefixes-to-exclude: vti-anthos+
+  disable-cluster-id-validation: "true"
   disable-cnp-status-updates: "true"
   disable-endpoint-crd: "false"
   disable-envoy-version-check: "true"
@@ -36,6 +39,8 @@ data:
   enable-auto-protect-node-port-range: "true"
   enable-bpf-clock-probe: "true"
   enable-bpf-masquerade: "false"
+  enable-cilium-clusterwide-network-policy: "true"
+  enable-cilium-network-policy: "true"
   enable-egress-policy-remote-endpoint-selection: "true"
   enable-endpoint-health-checking: "true"
   enable-endpoint-routes: "false"
@@ -55,12 +60,13 @@ data:
   enable-host-firewall: "true"
   enable-host-legacy-routing: "true"
   enable-host-port: "true"
-  enable-host-reachable-services: "false"
   enable-hubble: "true"
   enable-hubble-correlate-policies: "true"
   enable-ip-option-tracing: "true"
+  google-ipsec-mode: disabled
   enable-ipv4: "true"
   enable-ipv4-egress-gateway: "true"
+  enable-ipv4-masquerade: "false"
   enable-ipv6: "false"
   enable-ipv6-masquerade: "false"
   enable-ipv6-ndp: "false"
@@ -86,22 +92,26 @@ data:
   k8s-interface-only: "true"
   k8s-require-ipv4-pod-cidr: "true"
   k8s-require-ipv6-pod-cidr: "false"
-  kube-proxy-replacement-healthz-bind-address: ""
   labels: k8s:!.*node\.kubevirt\.io
   monitor-aggregation: medium
   monitor-aggregation-flags: all
   monitor-aggregation-interval: 5s
   node-port-bind-protection: "true"
   preallocate-bpf-maps: "false"
+  remove-cilium-node-taints: "false"
   retry-kube-proxy-healthz-binding: "false"
+  routing-mode: native
+  set-cilium-is-up-condition: "false"
+  set-cilium-node-taints: "false"
   sidecar-istio-proxy-image: cilium/istio_proxy
   skip-cnp-status-startup-clean: "false"
   synchronize-k8s-nodes: "true"
   synchronize-k8s-windows-nodes: "true"
   tofqdns-enable-poller: "false"
-  tunnel: disabled
+  tunnel-protocol: geneve
   vlan-bpf-bypass: "0"
   wait-bpf-mount: "false"
+  write-cni-conf-when-ready: /host/etc/cni/net.d/05-cilium.conflist
 kind: ConfigMap
 metadata:
   name: cilium-config
