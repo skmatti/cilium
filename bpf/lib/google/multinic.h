@@ -63,3 +63,37 @@ goog_mn_maybe_deliver_to_ep(struct __ctx_buff *ctx __maybe_unused,
 #endif /* IS_BPF_HOST */
 
 #endif /* ENABLE_GOOGLE_MULTI_NIC */
+
+#ifdef MULTI_NIC_DEVICE_TYPE
+
+static __always_inline
+int goog_maybe_redirect_if_dhcp(struct __ctx_buff *ctx,
+				struct goog_ctr_egress_svc4_ctx *stage_ctx)
+{
+	void *data, *data_end;
+	int ret;
+
+	/* Examine packet sourcing from multi NIC endpoint. */
+	ret = redirect_if_dhcp(ctx, stage_ctx->ip4->protocol,
+			       ETH_HLEN + ipv4_hdrlen(stage_ctx->ip4),
+			       stage_ctx->ip4->saddr);
+
+	if (!revalidate_data(ctx, &data, &data_end, &stage_ctx->ip4))
+		return DROP_INVALID;
+
+	if (ret != CTX_ACT_OK)
+		return ret;
+
+	return HOOK_ACT_CONTINUE;
+}
+
+#else
+
+static __always_inline
+int goog_maybe_redirect_if_dhcp(struct __ctx_buff *ctx __maybe_unused,
+				struct goog_ctr_egress_svc4_ctx *stage_ctx __maybe_unused)
+{
+	return HOOK_ACT_CONTINUE;
+}
+
+#endif /* MULTI_NIC_DEVICE_TYPE */

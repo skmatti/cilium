@@ -1455,16 +1455,6 @@ static __always_inline int __tail_handle_ipv4(struct __ctx_buff *ctx,
 	// DCHP packets and will fail the mac spoof check.
 	if (unlikely(!is_valid_lxc_src_mac(ctx, ip4->protocol)))
 		return DROP_GOOGLE_INVALID_SMAC;
-#ifdef MULTI_NIC_DEVICE_TYPE
-	// Examine packet sourcing from multi NIC endpoint.
-	ret = redirect_if_dhcp(ctx, ip4->protocol, ETH_HLEN + ipv4_hdrlen(ip4), ip4->saddr);
-	if (ret != CTX_ACT_OK)
-		return ret;
-	// Revalidate data after redirect_if_dhcp to avoid verifier
-	// rejecting the previous dereferenced ip4.
-	if (!revalidate_data(ctx, &data, &data_end, &ip4))
-		return DROP_INVALID;
-#endif /* MULTI_NIC_DEVICE_TYPE */
 
 	stage_ctx.stage_ctx.goog_ctr_egress_svc4_ctx.ip4 = ip4;
 	ret = GOOGLE_HOOK(ctx, ctr_egress_svc4, CTR_EGRESS_SVC4, stage_ctx, ext_err);

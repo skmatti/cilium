@@ -5,6 +5,7 @@
 #include <linux/in.h>
 
 #include "lib/google/sfc.h"
+#include "lib/google/multinic.h"
 #include "lib/google/pip.h"
 #include "lib/google/plugin.h"
 #include "lib/google_multinic.h"
@@ -112,7 +113,11 @@ static __always_inline int
 pre_ctr_egress_svc4(struct __ctx_buff *ctx,
 		    struct goog_ctr_egress_svc4_ctx *stage_ctx)
 {
-	int ret = goog_maybe_try_pip_egress_redirect4(ctx, stage_ctx);
+	int ret = goog_maybe_redirect_if_dhcp(ctx, stage_ctx);
+	if (ret != HOOK_ACT_CONTINUE)
+		return ret;
+
+	ret = goog_maybe_try_pip_egress_redirect4(ctx, stage_ctx);
 	if (ret != HOOK_ACT_CONTINUE)
 		return ret;
 
