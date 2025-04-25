@@ -1,12 +1,15 @@
 package types
 
-import "k8s.io/apimachinery/pkg/types"
+import (
+	cniTypes "github.com/containernetworking/cni/pkg/types"
+	"k8s.io/apimachinery/pkg/types"
+)
 
 type IPAM struct {
 	// Type is the IPAM plugin to be used.
 	Type string `json:"type"`
 	// Ranges is the list of subnet ranges to be used for IP address allocation.
-	Ranges [][]*SubnetRange `json:"ranges"`
+	Ranges [][]SubnetRange `json:"ranges"`
 	// Routes is the list of routes to be added to the interface.
 	Routes []Route `json:"routes"`
 	// DataDir is the directory where IPAM data is stored.
@@ -15,7 +18,7 @@ type IPAM struct {
 
 type SubnetRange struct {
 	// Subnet is the subnet range to be used for IP address allocation.
-	Subnet string `json:"subnet"`
+	Subnet cniTypes.IPNet `json:"subnet"`
 }
 
 type Route struct {
@@ -25,9 +28,11 @@ type Route struct {
 
 type Network struct {
 	// CNIVersion is the CNI version to be used.
-	CNIVersion string `json:"cniVersion"`
-	// TYPE is the CNI plugin type to be used.
-	Type string `json:"type"`
+	CNIVersion string `json:"cniVersion,omitempty"`
+	// NetworkType is the network type to be used.
+	NetworkType string `json:"networkType,omitempty"`
+	// Type is the CNI plugin type to be used.
+	Type string `json:"type,omitempty"`
 	// Name is the name of the network.
 	Name string `json:"name"`
 	// UID is the UID of the network object.
@@ -35,7 +40,7 @@ type Network struct {
 	// Interface is the name of the interface on the host.
 	Interface string `json:"interface,omitempty"`
 	// IPAM is the IPAM configuration for the network.
-	IPAM IPAM `json:"ipam"`
+	IPAM IPAM `json:"ipam,omitempty"`
 }
 
 type RuntimeConfig struct {
@@ -57,19 +62,22 @@ type PodAnnotations struct {
 // GCPSpec is the GCP specific CNI network configuration
 type GCPSpec struct {
 	// DatapathMode is the datapath mode for the interface created by the CNI plugin.
-	DatapathMode string `json:"datapath-mode"`
+	DatapathMode string `json:"datapath-mode,omitempty"`
 	// IpamMode defines the IPAM mode to be used by the CNI plugin (delegated or internal).
-	IpamMode string `json:"ipam-mode"`
+	IpamMode string `json:"ipam-mode,omitempty"`
 	// EnableIPv4 is whether IPv4 addressing is enabled. If enabled, all endpoints are allocated an IPv4 address.
-	EnableIPv4 bool `json:"enable-ipv4"`
+	EnableIPv4 bool `json:"enable-ipv4,omitempty"`
 	// EnableIPv6 is whether IPv6 addressing is enabled. If enabled, all endpoints are allocated an IPv6 address.
-	EnableIPv6 bool `json:"enable-ipv6"`
+	EnableIPv6 bool `json:"enable-ipv6,omitempty"`
 	// LocalRouterIPv4 is the static link-local IPv4 address to be assigned to the Cilium router.
-	LocalRouterIPv4 string `json:"local-router-ipv4"`
+	LocalRouterIPv4 string `json:"local-router-ipv4,omitempty"`
 	// LocalRouterIPv6 is the static link-local IPv6 address to be assigned to the Cilium router.
-	LocalRouterIPv6 string `json:"local-router-ipv6"`
+	LocalRouterIPv6 string `json:"local-router-ipv6,omitempty"`
 	// FastStartNamespaces is a comma-separated list of namespaces for which fast start is enabled. Set to "@all" if enabled for all the namespaces.
-	FastStartNamespaces string `json:"dpv2-fast-start-namespaces"`
+	FastStartNamespaces string `json:"dpv2-fast-start-namespaces,omitempty"`
+	// FastStartHealthCheckDue is the due time CNI status enforces the actual health check to cilium-agent. Before this due, CNI status simply ignores healthcheck failures.
+	// It is in int64 nanoseconds from unix.ClockGettime, which represents the monotonic time from the boot time plus a desired delay.
+	FastStartHealthCheckDue int64 `json:"fast-start-health-check-due,string,omitempty"`
 	// Networks is the list of networks that the CNI plugin should configure for additional interfaces.
 	Networks []Network `json:"networks,omitempty"`
 }
