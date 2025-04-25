@@ -127,17 +127,26 @@ function generate_addon_config {
       export kind
       name=$(yq '.metadata.name' "${file}")
       export name
-      patch_content=$(cat "${file}")
-      export patch_content
       namespace=$(yq '.metadata.namespace' "${file}")
       # Set priority to test-infra range. http://go/abm-component-overrides#patch-priority.
       priority=350
       export priority
+      if [[ -n $(yq '.patchType' "${file}") ]] && [[ $(yq '.patchType' "${file}") == "json" ]]; then
+        patch_content=$(yq '.patchContent' "${file}")
+        export patch_content
+        patch_type="json"
+        export patch_type
+      else
+        patch_type="strategic"
+        export patch_type
+        patch_content=$(cat "${file}")
+        export patch_content
+      fi
       if [ "${namespace}" != "null" ]; then
         export namespace
-        yq -i '.spec.configs += {"apiVersion": strenv(api_version), "kind" : strenv(kind), "name" : strenv(name), "namespace": strenv(namespace), "priority": env(priority), "patchContent" : strenv(patch_content)}' "${addon_config_path}"
+        yq -i '.spec.configs += {"apiVersion": strenv(api_version), "kind" : strenv(kind), "name" : strenv(name), "namespace": strenv(namespace), "priority": env(priority), "patchType": strenv(patch_type), "patchContent" : strenv(patch_content)}' "${addon_config_path}"
       else
-        yq -i '.spec.configs += {"apiVersion": strenv(api_version), "kind" : strenv(kind), "name" : strenv(name), "priority": env(priority),"patchContent" : strenv(patch_content)}' "${addon_config_path}"
+        yq -i '.spec.configs += {"apiVersion": strenv(api_version), "kind" : strenv(kind), "name" : strenv(name), "priority": env(priority), "patchType": strenv(patch_type), "patchContent" : strenv(patch_content)}' "${addon_config_path}"
       fi
     fi
   done
