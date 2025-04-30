@@ -1,0 +1,16 @@
+apiVersion: "rbac.authorization.k8s.io/v1"
+kind: ClusterRole
+metadata:
+  name: cilium
+patchType: json
+patchContent: '[
+    {
+        "op": "add",
+        "path": "/rules/-",
+        "value": {"apiGroups": ["gateway.networking.k8s.io"],"resources": ["gatewayclasses", "gateways"],"verbs": ["get","list","watch"]}
+    },
+    {
+        "op": "add",
+        "path": "/rules/-",
+        "value": {"apiGroups": ["networking.gke.io"],"resources": ["gkegatewaycidrs", "gkel4routes"],"verbs": ["get","list","watch"]}
+    }]'

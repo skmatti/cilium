@@ -1,6 +1,8 @@
 apiVersion: v1
 data:
   enable-google-tunnel-through-secondary-interfaces: "true"
+  enable-runtime-device-detection: "true"
+  enable-google-l4-gateway: "true"
 kind: ConfigMap
 metadata:
   name: cilium-config

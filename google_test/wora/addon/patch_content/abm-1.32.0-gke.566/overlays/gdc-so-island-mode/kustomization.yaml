@@ -1,3 +1,4 @@
 resources:
 - ../image-only
 - gdc-so-island-mode.yaml
+- l4-gateway-clusterrole.yaml
