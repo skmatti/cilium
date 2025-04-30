@@ -73,6 +73,7 @@ fi
 function build_and_push_cilium_image {
   local cilium_gitref="${1:?}"
   local image_registry="${2:?}"
+  local num_clusters="${3:?}"
   local current_branch
   local docker_image_tag
   local cilium_docker_image_tag
@@ -83,7 +84,11 @@ function build_and_push_cilium_image {
     echo "INFO: building image from CILIUM_GITREF:HEAD." >&2
     docker_image_tag="$(git rev-parse --verify HEAD)"
     cilium_docker_image_tag=${docker_image_tag}-dpv2
-    IMAGE_REGISTRY=${image_registry} DOCKER_IMAGE_TAG=${docker_image_tag} CILIUM_DOCKER_IMAGE_TAG=${cilium_docker_image_tag} "${ROOT}/../build_and_push_cilium_image.sh"
+    IMAGE_REGISTRY=${image_registry} \
+    DOCKER_IMAGE_TAG=${docker_image_tag} \
+    CILIUM_DOCKER_IMAGE_TAG=${cilium_docker_image_tag} \
+    NUM_CLUSTERS=${num_clusters} \
+    "${ROOT}/../build_and_push_cilium_image.sh"
   else
     # Build and push cilium from CILIUM_GITREF.
     echo "INFO: building image from CILIUM_GITREF:${cilium_gitref}." >&2
@@ -98,7 +103,11 @@ function build_and_push_cilium_image {
     docker_image_tag="$(git rev-parse --verify HEAD)"
     cilium_docker_image_tag=${docker_image_tag}-dpv2
 
-    IMAGE_REGISTRY=${image_registry} DOCKER_IMAGE_TAG=${docker_image_tag} CILIUM_DOCKER_IMAGE_TAG=${cilium_docker_image_tag} ./build_and_push_cilium_image.sh
+    IMAGE_REGISTRY=${image_registry} \
+    DOCKER_IMAGE_TAG=${docker_image_tag} \
+    CILIUM_DOCKER_IMAGE_TAG=${cilium_docker_image_tag} \
+    NUM_CLUSTERS=${num_clusters} \
+    ./build_and_push_cilium_image.sh
     popd
   fi
 
@@ -126,6 +135,12 @@ function cluster_platform {
   echo "${provider}-${distribution}"
 }
 
+# Function to determine the number of clusters requested in the config.
+function num_clusters {
+  local -r config="${1:?}"
+  yq '.spec.knests[] | .spec.clusters | length' "${config}"
+}
+
 # Find out what platform we are running against.
 PLATFORM=$(cluster_platform "${TBCONFIG}")
 
@@ -134,9 +149,11 @@ if [[ ${PLATFORM} = gdce-gke ]] || [[ ${PLATFORM} = gcp-gke ]]; then
   remove_env "${WORA_CONFIG}" HTTPS_PROXY HTTP_PROXY
 fi
 
+# Find out how many clusters are requested in the config.
+NUM_CLUSTERS=$(num_clusters "${TBCONFIG}")
+
 # Check that platform is baremetal-gke when multiple clusters are requested.
-is_multicluster=$(yq '.spec.knests.[0].spec.clusters | length > 1' "${TBCONFIG}")
-if [[ "${is_multicluster}" == true ]] && [[ "${PLATFORM}" != "baremetal-gke" ]]; then
+if [[ "${NUM_CLUSTERS}" -gt 1 ]] && [[ "${PLATFORM}" != "baremetal-gke" ]]; then
   echo "Multiple clusters are only supported for baremetal-gke platform." >&2
   exit 1
 fi
@@ -159,7 +176,7 @@ if [[ -n "${CILIUM_GITREF:-}" ]]; then
   # Only build and push images when the image tags are not specified,
   # DOCKER_IMAGE_TAG and CILIUM_DOCKER_IMAGE_TAG will also be updated here.
   if [[ -z "${DOCKER_IMAGE_TAG}" ]] || [[ -z "${CILIUM_DOCKER_IMAGE_TAG}" ]]; then
-    build_and_push_cilium_image "${CILIUM_GITREF}" "${IMAGE_REGISTRY}"
+    build_and_push_cilium_image "${CILIUM_GITREF}" "${IMAGE_REGISTRY}" "${NUM_CLUSTERS}"
   fi
 fi
 RUN_ID="${PROW_JOB_ID:-}"
@@ -293,6 +310,14 @@ function update_label_filter {
     |= \"--label-filter=${label_filter}\"" "${config}"
 }
 
+function insert_clustermesh_image {
+  local -r config="${1:?}"
+  local -r clustermesh_image="${2:?}"
+
+  export clustermesh_image
+  yq -i '.spec.applications.[0].spec.directives.[0].spec.env.CILIUM_CLUSTERMESH_IMAGE_WITH_TAG = env(clustermesh_image)' "${config}"
+}
+
 # Insert plugin version into WORA_CONFIG.
 insert_plugin_version \
   "${WORA_CONFIG}" \
@@ -313,6 +338,14 @@ fi
 
 if [[ -n "${CILIUM_DOCKER_IMAGE_TAG}" ]]; then
   CILIUM_IMAGE_WITH_TAG=${IMAGE_REGISTRY}/cilium/cilium:${CILIUM_DOCKER_IMAGE_TAG}
+fi
+
+if [[ "${NUM_CLUSTERS}" -gt 1 ]]; then
+  CILIUM_CLUSTERMESH_IMAGE_WITH_TAG=${IMAGE_REGISTRY}/cilium/clustermesh-apiserver:${DOCKER_IMAGE_TAG}
+  export CILIUM_CLUSTERMESH_IMAGE_WITH_TAG
+  insert_clustermesh_image \
+    "${TBCONFIG}" \
+    "${CILIUM_CLUSTERMESH_IMAGE_WITH_TAG}"
 fi
 
 CILIUM_IMAGE_WITH_TAG=${CILIUM_IMAGE_WITH_TAG:-} \
