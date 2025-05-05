@@ -1,8 +1,10 @@
 package sample
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"os"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -17,6 +19,9 @@ import (
 const (
 	anetdLabelSelectorLabel        = "k8s-app=cilium"
 	anetOperatorLabelSelectorLabel = "io.cilium/app=operator"
+	anetdNamespace                 = "kube-system"
+	verifierErrorInLog             = "Verifier error"
+	compilationErrorInLog          = "Failed to compile"
 )
 
 var _ = Describe("Verifiers/Sample", Label("sample"), func() {
@@ -41,9 +46,9 @@ var _ = Describe("Verifiers/Sample", Label("sample"), func() {
 		var anetOperatorPods *corev1.PodList
 
 		BeforeEach(func() {
-			anetdPods, err = c.CoreV1().Pods("kube-system").List(context.Background(), metav1.ListOptions{LabelSelector: anetdLabelSelectorLabel})
+			anetdPods, err = c.CoreV1().Pods(anetdNamespace).List(context.Background(), metav1.ListOptions{LabelSelector: anetdLabelSelectorLabel})
 			Expect(err).NotTo(HaveOccurred())
-			anetOperatorPods, err = c.CoreV1().Pods("kube-system").List(context.Background(), metav1.ListOptions{LabelSelector: anetOperatorLabelSelectorLabel})
+			anetOperatorPods, err = c.CoreV1().Pods(anetdNamespace).List(context.Background(), metav1.ListOptions{LabelSelector: anetOperatorLabelSelectorLabel})
 			Expect(err).NotTo(HaveOccurred())
 		})
 		It("All anetd pods are running", func() {
@@ -87,6 +92,37 @@ var _ = Describe("Verifiers/Sample", Label("sample"), func() {
 						break
 					}
 				}
+			}
+		})
+
+		It("All anetd pods should not have verifier / compilation error", func() {
+			for _, anetdPod := range anetdPods.Items {
+				By("Fetching logs for anetd pod: " + anetdPod.Name)
+
+				// Create a request to get the logs
+				req := c.CoreV1().Pods(anetdPod.Namespace).GetLogs(anetdPod.Name, &corev1.PodLogOptions{
+					Container: "cilium-agent", // Uncomment if needed
+				})
+
+				podLogs, err := req.Stream(context.TODO())
+				Expect(err).NotTo(HaveOccurred(), "Failed to stream pod logs")
+				// Ensure the stream is closed eventually
+				defer podLogs.Close()
+
+				// Read the entire log stream into memory
+				// Be cautious with very large log files, might need streaming processing.
+				buf := new(bytes.Buffer)
+				_, err = io.Copy(buf, podLogs)
+				Expect(err).NotTo(HaveOccurred(), "Failed to read pod log stream")
+				logContent := buf.String()
+
+				By("Verifying logs do not contain the word: " + verifierErrorInLog)
+				// Use Gomega's `Not` and `ContainSubstring` matchers
+				Expect(logContent).NotTo(ContainSubstring(verifierErrorInLog),
+					"Found verifier error in logs for pod: "+anetdPod.Name)
+
+				Expect(logContent).NotTo(ContainSubstring(compilationErrorInLog),
+					"Found compilation error in logs for pod: "+anetdPod.Name)
 			}
 		})
 	})

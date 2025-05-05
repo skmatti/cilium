@@ -4,6 +4,8 @@ data:
   # GKE connect is required for tailorbird to bring up the cluster,
   # when ABM cluster not in private mode.
   k8s-interface-only: "false"
+  # Disable device-prefixes-to-exclude for the save reason as above.
+  device-prefixes-to-exclude: ""
   # Disabling the strict egress policy validation feature to allow
   # GKE agent connection which is required to bring up the cluster.
   enable-strict-egress-policy-validation: "false"

@@ -25,6 +25,7 @@ data:
   cni-uninstall: "false"
   custom-cni-conf: "false"
   debug: "false"
+  device-prefixes-to-exclude: "eth0"
   disable-cnp-status-updates: "true"
   disable-endpoint-crd: "false"
   disable-envoy-version-check: "true"
