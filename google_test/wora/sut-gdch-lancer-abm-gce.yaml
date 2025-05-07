@@ -45,3 +45,26 @@ spec:
             proxyPort: "8222"
             username: prowuser
             serverOS: gdch-rocky
+  applications:
+  - apiVersion: sut.tailorbird.io/v1alpha1
+    kind: Application
+    metadata:
+      name: k8s-net-post-provisioner-rookery
+      namespace: tailorbird-users
+    spec:
+      resourceTypeReference:
+        name: k8s-net-post-provisioner
+        version: latest
+        controlPlane: gcp
+      directives:
+      - apiVersion: sut.tailorbird.io/v1alpha1
+        kind: ExecutionDirective
+        metadata:
+          name: k8s-net-post-provisioner-execution
+        spec:
+          targets:
+          - namePrefix: wora-sut-gdch-abm-gce
+            kind: Cluster
+            namespace: tailorbird-users
+          env:
+            POSTPROVISIONER_FEATURES: ","
