@@ -1,7 +1,7 @@
 BASE_IMAGE := gke.gcr.io/gke-distroless/static:gke_distroless_20240907.00_p0@sha256:a3f03221e1174b99c0a6f8bf41d7840ae950396cd52fb9b1be2779550bdb2732
 BASE_BASH_IMAGE := gke.gcr.io/gke-distroless/bash:gke_distroless_20250107.00_p0@sha256:12d99a6a72f4fecd689ead5d93001c1f3acea08ec72a55bbdfc070e0edc30fa4
 DEBIAN_IMAGE := gke.gcr.io/debian-base:bookworm-v1.0.4-gke.2@sha256:faa59c6ecc8b107b79429245712f08a67f4aa12ad072deb8ff51cdb99bac99cb
-GOLANG_IMAGE := google-go.pkg.dev/golang:1.23.8@sha256:eac772dc031b6726e7755ec612f5d9a9ce44b987a15121a1a212bfb4f8bb9887
+GOLANG_IMAGE := google-go.pkg.dev/golang:1.23.9@sha256:cd48ee88f8ac3372ed186d6790af1b36c305aef70dfe73f2cd092d63d17d8410
 GO_VERSION=$(shell echo $(GOLANG_IMAGE) | awk -F '[:@]' '{print $$2}')
 GOLANG_TARBALL := https://go.dev/dl/go$(GO_VERSION).linux-amd64.tar.gz
 
