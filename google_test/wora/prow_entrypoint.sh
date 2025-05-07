@@ -143,7 +143,7 @@ ADDON_CONFIG_NAME=addonConfig-${PROW_JOB_ID:?}.yaml
 ADDON_CONFIG_BUCKET_URL=gs://anthos-networking-ci-artifacts/addon-configs
 # PATCH_CONTENT_DIR defaults to an option that only patches the Cilium
 # and Cilium operator images. See http://b/327682436#comment3.
-PATCH_CONTENT_DIR=${ROOT}/${PATCH_CONTENT_DIR:-addon/patch_content/abm-1.31.0-gke.590/overlays/image-only}
+PATCH_CONTENT_DIR=${ROOT}/${PATCH_CONTENT_DIR:-addon/patch_content/abm-1.32.x-gke/overlays/image-only}
 
 # Build the corresponding Cilium images and upload to the registry.
 # This step is only performed if CILIUM_GITREF is specified.
