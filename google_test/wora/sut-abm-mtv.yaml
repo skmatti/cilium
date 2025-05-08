@@ -32,7 +32,8 @@ spec:
                 "HERCULES_MAX_RETRY_ATTEMPTS": "1",
                 "HERCULES_RETRY_STRATEGY": "reboot",
                 "HERCULES_RETRY_INTERVAL": "45m",
-                "CONTAINER_RUNTIME": "containerd"
+                "CONTAINER_RUNTIME": "containerd",
+                "NUM_NETWORKS": "2"
               }
             project: anthos-networking-ci
             serverOS: ubuntu2004
