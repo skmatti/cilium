@@ -88,27 +88,31 @@ var _ = Describe("Verifiers/multinetwork", Label("multinetwork"), Ordered, func(
 			additionalNodeNetworkInfo, err = artifact.ExtractNodeNetworkInfo(hercEnvJsonFilePath)
 			Expect(err).NotTo(HaveOccurred())
 
-			// Get herc provisioner client.
-			// Create a herc client connecting to environment.
-			provisioner, err := network.GetProvisionerClient("atl_shared")
-			Expect(err).NotTo(HaveOccurred())
+			if additionalNodeNetworkInfo.Location == "atl_shared" {
+				// Get herc provisioner client.
+				// Create a herc client connecting to environment.
+				provisioner, err := network.GetProvisionerClient(additionalNodeNetworkInfo.Location)
+				Expect(err).NotTo(HaveOccurred())
 
-			// Set external API context timeout
-			ctx, cancel := context.WithTimeout(context.Background(), hercClientTimeout)
-			defer cancel()
+				// Set external API context timeout
+				ctx, cancel := context.WithTimeout(context.Background(), hercClientTimeout)
+				defer cancel()
 
-			// Reserve IPv4 CIDR block.
-			cidr, err = network.ReserveIPv4CIDRBlock(
-				ctx,
-				additionalNodeNetworkInfo,
-				fmt.Sprintf("%s-%s", cidrBlockNamePrefix, additionalNodeNetworkInfo.EnvironmentID),
-				maskSizeForAllNodesCombined,
-				provisioner,
-			)
-			Expect(err).NotTo(HaveOccurred())
-
-			nodeInterfaceName = "ens224"
-			klog.Info("Running on ABM on ATL lab.")
+				// Reserve IPv4 CIDR block.
+				cidr, err = network.ReserveIPv4CIDRBlock(
+					ctx,
+					additionalNodeNetworkInfo,
+					fmt.Sprintf("%s-%s", cidrBlockNamePrefix, additionalNodeNetworkInfo.EnvironmentID),
+					maskSizeForAllNodesCombined,
+					provisioner,
+				)
+				Expect(err).NotTo(HaveOccurred())
+				nodeInterfaceName = "ens224"
+			} else {
+				cidr = fmt.Sprintf("%s/%d", additionalNodeNetworkInfo.GatewayServer, maskSizeForAllNodesCombined)
+				nodeInterfaceName = "bond0"
+			}
+			klog.Infof("Running on ABM on %s.", additionalNodeNetworkInfo.Location)
 		}
 		s, _ := json.MarshalIndent(additionalNodeNetworkInfo, "", "\t")
 		networkConfigLogMessage := fmt.Sprintf("Running multinetwork test, use following info to create network:\n%s\nnodeInterfaceName: %s", s, nodeInterfaceName)
