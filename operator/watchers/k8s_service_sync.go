@@ -27,6 +27,14 @@ var (
 	kvs store.SyncStore
 )
 
+var (
+	// shouldSync is a function that takes namespace as input and returns whether
+	// service should be synced.
+	shouldSync = func(string) bool {
+		return true
+	}
+)
+
 func k8sServiceHandler(ctx context.Context, cinfo cmtypes.ClusterInfo, shared bool) {
 	serviceHandler := func(event k8s.ServiceEvent) {
 		defer event.SWG.Done()
@@ -44,6 +52,11 @@ func k8sServiceHandler(ctx context.Context, cinfo cmtypes.ClusterInfo, shared bo
 			"shared":               event.Service.Shared,
 		})
 		scopedLog.Debug("Kubernetes service definition changed")
+
+		if !shouldSync(event.ID.Namespace) {
+			log.Debugf("Not syncing service from namespace %q", event.ID.Namespace)
+			return
+		}
 
 		if shared && !event.Service.Shared {
 			// The annotation may have been added, delete an eventual existing service
@@ -79,14 +92,15 @@ func k8sServiceHandler(ctx context.Context, cinfo cmtypes.ClusterInfo, shared bo
 }
 
 type ServiceSyncParameters struct {
-	ClusterInfo  cmtypes.ClusterInfo
-	Clientset    k8sClient.Clientset
-	Services     resource.Resource[*slim_corev1.Service]
-	Endpoints    resource.Resource[*k8s.Endpoints]
-	Backend      store.SyncStoreBackend
-	SharedOnly   bool
-	StoreFactory store.Factory
-	SyncCallback func(context.Context)
+	ClusterInfo   cmtypes.ClusterInfo
+	Clientset     k8sClient.Clientset
+	Services      resource.Resource[*slim_corev1.Service]
+	Endpoints     resource.Resource[*k8s.Endpoints]
+	Backend       store.SyncStoreBackend
+	SharedOnly    bool
+	StoreFactory  store.Factory
+	SyncCallback  func(context.Context)
+	SyncPredicate func(string) bool
 }
 
 // StartSynchronizingServices starts a controller for synchronizing services from k8s to kvstore
@@ -95,6 +109,10 @@ type ServiceSyncParameters struct {
 // VM support we need to sync all the services.
 func StartSynchronizingServices(ctx context.Context, wg *sync.WaitGroup, cfg ServiceSyncParameters) {
 	kvstoreReady := make(chan struct{})
+
+	if cfg.SyncPredicate != nil {
+		shouldSync = cfg.SyncPredicate
+	}
 
 	wg.Add(1)
 	go func() {

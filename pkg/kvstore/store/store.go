@@ -283,6 +283,11 @@ func (s *SharedStore) Close(ctx context.Context) {
 
 		s.onDelete(key)
 	}
+
+	for name, key := range s.sharedKeys {
+		s.getLogger().Debugf("Deleting shared key in kvstore %s", name)
+		s.onDelete(key)
+	}
 }
 
 // keyPath returns the absolute kvstore path of a key
