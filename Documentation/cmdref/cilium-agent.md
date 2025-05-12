@@ -11,9 +11,13 @@ cilium-agent [flags]
 ### Options
 
 ```
+      --agent-enable-metrics-server-tls                           Enable mTLS for metrics server
       --agent-health-port int                                     TCP port for agent health status API (default 9879)
       --agent-labels strings                                      Additional labels to identify this agent
       --agent-liveness-update-interval duration                   Interval at which the agent updates liveness time for the datapath (default 1s)
+      --agent-metrics-server-tls-cert-file string                 Path to the public key file for the metrics server. The file must contain PEM encoded data.
+      --agent-metrics-server-tls-client-ca-files strings          Paths to one or more public key files of client CA certificates to use for TLS with mutual authentication (mTLS). The files must contain PEM encoded data. When provided, this option effectively enables mTLS.
+      --agent-metrics-server-tls-key-file string                  Path to the private key file for the metrics server. The file must contain PEM encoded data.
       --agent-not-ready-taint-key string                          Key of the taint indicating that Cilium is not ready on the node (default "node.cilium.io/agent-not-ready")
       --allocator-list-timeout duration                           Timeout for listing allocator state before exiting (default 3m0s)
       --allow-icmp-frag-needed                                    Allow ICMP Fragmentation Needed type packets for purposes like TCP Path MTU. (default true)
@@ -219,6 +223,10 @@ cilium-agent [flags]
       --hubble-listen-address string                              An additional address for Hubble server to listen to, e.g. ":4244"
       --hubble-metrics strings                                    List of Hubble metrics to enable.
       --hubble-metrics-server string                              Address to serve Hubble metrics on.
+      --hubble-metrics-server-enable-tls                          HubbleMetricsTLSEnabled allows the Hubble metrics server to run on the given listen address with TLS.
+      --hubble-metrics-server-tls-cert-file string                Path to the public key file for the Hubble Metrics server. The file must contain PEM encoded data.
+      --hubble-metrics-server-tls-client-ca-files strings         Paths to one or more public key files of client CA certificates to use for TLS with mutual authentication (mTLS). The files must contain PEM encoded data. When provided, this option effectively enables mTLS.
+      --hubble-metrics-server-tls-key-file string                 Path to the private key file for the Hubble Metrics server. The file must contain PEM encoded data.
       --hubble-monitor-events strings                             Cilium monitor events for Hubble to observe: [drop debug capture trace policy-verdict recorder trace-sock l7 agent]. By default, Hubble observes all monitor events.
       --hubble-prefer-ipv6                                        Prefer IPv6 addresses for announcing nodes when both address types are available.
       --hubble-recorder-sink-queue-size int                       Queue size of each Hubble recorder sink (default 1024)

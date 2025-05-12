@@ -74,11 +74,12 @@ func registerMetricsManager(p params) {
 		return
 	}
 
-	mm := &metricsManager{
+	mm := &googleMetricsManager{
 		logger:     p.Logger,
 		shutdowner: p.Shutdowner,
 		server:     http.Server{Addr: p.Cfg.OperatorPrometheusServeAddr},
 		metrics:    p.Metrics,
+		SharedCfg:  p.SharedCfg,
 	}
 
 	if p.SharedCfg.EnableGatewayAPI {

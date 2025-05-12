@@ -47,6 +47,19 @@ type SharedConfig struct {
 	// EnableMetrics is set to true if operator metrics are enabled
 	EnableMetrics bool
 
+	//  OperatorEnableMetricsServerTLS is set to true to enable mTLS for metrics server
+	OperatorEnableMetricsServerTLS bool
+
+	// Path to the public key file for the metrics server. The file must contain PEM encoded data.
+	OperatorMetricsServerTLSCertFile string
+
+	// Path to the private key file for the metrics server. The file must contain PEM encoded data.
+	OperatorMetricsServerTLSKeyFile string
+
+	// Path to one or more client CA certificates to use for TLS with mutual authentication (mTLS) on the
+	// metrics server. The files must contain PEM encoded data.
+	OperatorMetricsServerTLSClientCAFiles []string
+
 	// EnableGatewayAPI enables support of Gateway API
 	EnableGatewayAPI bool
 }

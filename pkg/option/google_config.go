@@ -95,4 +95,20 @@ const (
 
 	// GoogleRestrictK8sNPScopeToLocalCluster is the name of the option to restrict K8s NetworkPolicy scope to the local cluster
 	GoogleRestrictK8sNPScopeToLocalCluster = "google-restrict-k8s-np-scope-to-local-cluster"
+
+	// Enable mTLS for metrics server
+	AgentEnableMetricsServerTLS = "agent-enable-metrics-server-tls"
+
+	// MetricsServerTLSCertFile specifies the path to the public key file for
+	// the metrics server. The file must contain PEM encoded data.
+	AgentMetricsServerTLSCertFile = "agent-metrics-server-tls-cert-file"
+
+	// MetricsServerTLSKeyFile specifies the path to the private key file for
+	// the metrics server. The file must contain PEM encoded data.
+	AgentMetricsServerTLSKeyFile = "agent-metrics-server-tls-key-file"
+
+	// MetricsServerTLSClientCAFiles specifies the path to one or more client
+	// CA certificates to use for TLS with mutual authentication (mTLS) on the
+	// metrics server. The files must contain PEM encoded data.
+	AgentMetricsServerTLSClientCAFiles = "agent-metrics-server-tls-client-ca-files"
 )

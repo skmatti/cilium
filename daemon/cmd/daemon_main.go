@@ -195,6 +195,18 @@ func InitGlobalFlags(cmd *cobra.Command, vp *viper.Viper) {
 	})
 
 	// Env bindings
+	flags.Bool(option.AgentEnableMetricsServerTLS, defaults.AgentEnableMetricsServerTLS, "Enable mTLS for metrics server")
+	option.BindEnv(vp, option.AgentEnableMetricsServerTLS)
+
+	flags.String(option.AgentMetricsServerTLSCertFile, defaults.AgentMetricsServerTLSCertFile, "Path to the public key file for the metrics server. The file must contain PEM encoded data.")
+	option.BindEnv(vp, option.AgentMetricsServerTLSCertFile)
+
+	flags.String(option.AgentMetricsServerTLSKeyFile, defaults.AgentMetricsServerTLSKeyFile, "Path to the private key file for the metrics server. The file must contain PEM encoded data.")
+	option.BindEnv(vp, option.AgentMetricsServerTLSKeyFile)
+
+	flags.StringSlice(option.AgentMetricsServerTLSClientCAFiles, []string{}, "Paths to one or more public key files of client CA certificates to use for TLS with mutual authentication (mTLS). The files must contain PEM encoded data. When provided, this option effectively enables mTLS.")
+	option.BindEnv(vp, option.AgentMetricsServerTLSClientCAFiles)
+
 	flags.Int(option.AgentHealthPort, defaults.AgentHealthPort, "TCP port for agent health status API")
 	option.BindEnv(vp, option.AgentHealthPort)
 
@@ -928,6 +940,18 @@ func InitGlobalFlags(cmd *cobra.Command, vp *viper.Viper) {
 
 	flags.StringSlice(option.HubbleMetrics, []string{}, "List of Hubble metrics to enable.")
 	option.BindEnv(vp, option.HubbleMetrics)
+
+	flags.Bool(option.HubbleMetricsTLSEnabled, false, "HubbleMetricsTLSEnabled allows the Hubble metrics server to run on the given listen address with TLS.")
+	option.BindEnv(vp, option.HubbleMetricsTLSEnabled)
+
+	flags.String(option.HubbleMetricsTLSCertFile, "", "Path to the public key file for the Hubble Metrics server. The file must contain PEM encoded data.")
+	option.BindEnv(vp, option.HubbleMetricsTLSCertFile)
+
+	flags.String(option.HubbleMetricsTLSKeyFile, "", "Path to the private key file for the Hubble Metrics server. The file must contain PEM encoded data.")
+	option.BindEnv(vp, option.HubbleMetricsTLSKeyFile)
+
+	flags.StringSlice(option.HubbleMetricsTLSClientCAFiles, []string{}, "Paths to one or more public key files of client CA certificates to use for TLS with mutual authentication (mTLS). The files must contain PEM encoded data. When provided, this option effectively enables mTLS.")
+	option.BindEnv(vp, option.HubbleMetricsTLSClientCAFiles)
 
 	flags.String(option.HubbleFlowlogsConfigFilePath, "", "Filepath with configuration of hubble flowlogs")
 	option.BindEnv(vp, option.HubbleFlowlogsConfigFilePath)

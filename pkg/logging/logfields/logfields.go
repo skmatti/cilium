@@ -286,6 +286,10 @@ const (
 	// Hash is a hash of something
 	Hash = "hash"
 
+	// Config stands for configuration
+	// Used to denote mTLS config when logging
+	Config = "config"
+
 	// ServerNames is the list of TLS SNIs
 	ServerNames = "serverNames"
 

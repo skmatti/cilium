@@ -117,8 +117,12 @@ var (
 				// to add their metrics when it's set to true. Therefore, we leave the flag as global
 				// instead of declaring it as part of the metrics cell.
 				// This should be changed once the IPAM allocator is modularized.
-				EnableMetrics:    operatorCfg.EnableMetrics,
-				EnableGatewayAPI: operatorCfg.EnableGatewayAPI,
+				EnableMetrics:                         operatorCfg.EnableMetrics,
+				OperatorEnableMetricsServerTLS:        operatorCfg.OperatorEnableMetricsServerTLS,
+				OperatorMetricsServerTLSCertFile:      operatorCfg.OperatorMetricsServerTLSCertFile,
+				OperatorMetricsServerTLSKeyFile:       operatorCfg.OperatorMetricsServerTLSKeyFile,
+				OperatorMetricsServerTLSClientCAFiles: operatorCfg.OperatorMetricsServerTLSClientCAFiles,
+				EnableGatewayAPI:                      operatorCfg.EnableGatewayAPI,
 			}
 		}),
 	)

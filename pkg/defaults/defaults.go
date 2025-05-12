@@ -8,6 +8,15 @@ import (
 )
 
 const (
+	// EnableMetricsServerTLS is the default value for option.EnableMetricsServerTLS
+	AgentEnableMetricsServerTLS = false
+
+	// MetricsServerTLSCertFile is the default value for option.MetricsServerTLSCertFile
+	AgentMetricsServerTLSCertFile = ""
+
+	// MetricsServerTLSKeyFile is the default value for option.MetricsServerTLSKeyFile
+	AgentMetricsServerTLSKeyFile = ""
+
 	// AgentHealthPort is the default value for option.AgentHealthPort
 	AgentHealthPort = 9879
 

@@ -4,8 +4,6 @@
 package metrics
 
 import (
-	"errors"
-	"net/http"
 	"regexp"
 	"strings"
 
@@ -13,7 +11,6 @@ import (
 	"github.com/cilium/hive/cell"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/collectors"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
 	dto "github.com/prometheus/client_model/go"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/pflag"
@@ -63,43 +60,7 @@ type Registry struct {
 }
 
 func NewRegistry(params RegistryParams) *Registry {
-	reg := &Registry{
-		params: params,
-	}
-
-	reg.Reinitialize()
-
-	// Resolve the global registry variable for as long as we still have global functions
-	registryResolver.Resolve(reg)
-
-	if params.Config.PrometheusServeAddr != "" {
-		// The Handler function provides a default handler to expose metrics
-		// via an HTTP server. "/metrics" is the usual endpoint for that.
-		mux := http.NewServeMux()
-		mux.Handle("/metrics", promhttp.HandlerFor(reg.inner, promhttp.HandlerOpts{}))
-		srv := http.Server{
-			Addr:    params.Config.PrometheusServeAddr,
-			Handler: mux,
-		}
-
-		params.Lifecycle.Append(cell.Hook{
-			OnStart: func(hc cell.HookContext) error {
-				go func() {
-					params.Logger.Infof("Serving prometheus metrics on %s", params.Config.PrometheusServeAddr)
-					err := srv.ListenAndServe()
-					if err != nil && !errors.Is(err, http.ErrServerClosed) {
-						params.Shutdowner.Shutdown(hive.ShutdownWithError(err))
-					}
-				}()
-				return nil
-			},
-			OnStop: func(hc cell.HookContext) error {
-				return srv.Shutdown(hc)
-			},
-		})
-	}
-
-	return reg
+	return GoogleRegistry(params)
 }
 
 // Register registers a collector

@@ -2504,6 +2504,22 @@ type DaemonConfig struct {
 	// EnableSocketLBPodConnectionTermination enables the termination of connections from pods
 	// to deleted service backends when socket-LB is enabled
 	EnableSocketLBPodConnectionTermination bool
+
+	// Enable mTLS for metrics server
+	AgentEnableMetricsServerTLS bool
+
+	// MetricsServerTLSCertFile specifies the path to the public key file for
+	// the metrics server. The file must contain PEM encoded data.
+	AgentMetricsServerTLSCertFile string
+
+	// MetricsServerTLSKeyFile specifies the path to the private key file for
+	// the metrics server. The file must contain PEM encoded data.
+	AgentMetricsServerTLSKeyFile string
+
+	// MetricsServerTLSClientCAFiles specifies the path to one or more client
+	// CA certificates to use for TLS with mutual authentication (mTLS) on the
+	// metrics server. The files must contain PEM encoded data.
+	AgentMetricsServerTLSClientCAFiles []string
 }
 
 var (
@@ -3070,6 +3086,10 @@ func (c *DaemonConfig) parseExcludedLocalAddresses(s []string) error {
 func (c *DaemonConfig) Populate(vp *viper.Viper) {
 	var err error
 
+	c.AgentEnableMetricsServerTLS = vp.GetBool(AgentEnableMetricsServerTLS)
+	c.AgentMetricsServerTLSCertFile = vp.GetString(AgentMetricsServerTLSCertFile)
+	c.AgentMetricsServerTLSKeyFile = vp.GetString(AgentMetricsServerTLSKeyFile)
+	c.AgentMetricsServerTLSClientCAFiles = vp.GetStringSlice(AgentMetricsServerTLSClientCAFiles)
 	c.AgentHealthPort = vp.GetInt(AgentHealthPort)
 	c.ClusterHealthPort = vp.GetInt(ClusterHealthPort)
 	c.ClusterMeshHealthPort = vp.GetInt(ClusterMeshHealthPort)

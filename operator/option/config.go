@@ -416,12 +416,32 @@ type OperatorConfig struct {
 
 	// PodRestartSelector specify the labels contained in the pod that needs to be restarted before the node can be de-stained
 	PodRestartSelector string
+
+	//Enable mTLS for operator metrics server
+	OperatorEnableMetricsServerTLS bool
+
+	// MetricsServerTLSCertFile specifies the path to the public key file for
+	// the metrics server. The file must contain PEM encoded data.
+	OperatorMetricsServerTLSCertFile string
+
+	// MetricsServerTLSKeyFile specifies the path to the private key file for
+	// the metrics server. The file must contain PEM encoded data.
+	OperatorMetricsServerTLSKeyFile string
+
+	// MetricsServerTLSClientCAFiles specifies the path to one or more client
+	// CA certificates to use for TLS with mutual authentication (mTLS) on the
+	// metrics server. The files must contain PEM encoded data.
+	OperatorMetricsServerTLSClientCAFiles []string
 }
 
 // Populate sets all options with the values from viper.
 func (c *OperatorConfig) Populate(vp *viper.Viper) {
 	c.NodesGCInterval = vp.GetDuration(NodesGCInterval)
 	c.EnableMetrics = vp.GetBool(EnableMetrics)
+	c.OperatorEnableMetricsServerTLS = vp.GetBool(OperatorEnableMetricsServerTLS)
+	c.OperatorMetricsServerTLSCertFile = vp.GetString(OperatorMetricsServerTLSCertFile)
+	c.OperatorMetricsServerTLSKeyFile = vp.GetString(OperatorMetricsServerTLSKeyFile)
+	c.OperatorMetricsServerTLSClientCAFiles = vp.GetStringSlice(OperatorMetricsServerTLSClientCAFiles)
 	c.EndpointGCInterval = vp.GetDuration(EndpointGCInterval)
 	c.SyncK8sServices = vp.GetBool(SyncK8sServices)
 	c.SyncK8sNodes = vp.GetBool(SyncK8sNodes)
