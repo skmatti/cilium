@@ -55,6 +55,10 @@ func (d *Daemon) ReserveGatewayIP(network *networkv1.Network) error {
 	if network.Spec.Type != networkv1.L3NetworkType {
 		return nil
 	}
+	if network.Spec.IPAMMode != nil && *network.Spec.IPAMMode == networkv1.ExternalMode {
+		return nil
+	}
+
 	d.ipam.MultiNetworkAllocatorMutex.Lock()
 	defer d.ipam.MultiNetworkAllocatorMutex.Unlock()
 	allocator, ok := d.ipam.MultiNetworkAllocators[network.Name]

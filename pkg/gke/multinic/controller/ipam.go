@@ -11,10 +11,13 @@ import (
 )
 
 func (r *NetworkReconciler) updateMultiNetworkIPAM(ctx context.Context, network *networkv1.Network) error {
-	if network.Spec.ExternalDHCP4 != nil && *network.Spec.ExternalDHCP4 {
-		r.Log.Info("external DHCP enabled for network, no need to update IPAM maps")
+	externalMode := (network.Spec.ExternalDHCP4 != nil && *network.Spec.ExternalDHCP4) ||
+		(network.Spec.IPAMMode != nil && *network.Spec.IPAMMode == networkv1.ExternalMode)
+	if externalMode {
+		r.Log.Info("external IPAM or DHCP enabled for network, no need to update IPAM maps")
 		return nil
 	}
+
 	node, err := r.LocalNode(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to fetch latest local node while updating multinetworking IPAM: %v", err)
