@@ -2,6 +2,8 @@ module gke-internal.googlesource.com/third_party/cilium/google_test/wora/e2e
 
 go 1.22.0
 
+replace gke-internal.googlesource.com/anthos-networking/ipam-controller => gke-internal.googlesource.com/anthos-networking/ipam-controller.git v0.10.46
+
 require (
 	github.com/GoogleCloudPlatform/gke-networking-api v0.1.2-0.20240806213139-419c796010b0
 	github.com/cilium/cilium v1.13.12
@@ -10,7 +12,9 @@ require (
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/onsi/ginkgo/v2 v2.19.0
 	github.com/onsi/gomega v1.33.1
+	gke-internal.googlesource.com/anthos-networking/ipam-controller v0.0.0-00010101000000-000000000000
 	gke-internal.googlesource.com/anthos-networking/test-infra v0.0.0-00010101000000-000000000000
+	golang.org/x/crypto v0.31.0
 	k8s.io/api v0.30.3
 	k8s.io/apimachinery v0.30.3
 	k8s.io/client-go v0.30.3
@@ -106,7 +110,6 @@ require (
 	go.opentelemetry.io/otel v1.27.0 // indirect
 	go.opentelemetry.io/otel/metric v1.27.0 // indirect
 	go.opentelemetry.io/otel/trace v1.27.0 // indirect
-	golang.org/x/crypto v0.27.0 // indirect
 	golang.org/x/exp v0.0.0-20230905200255-921286631fa9 // indirect
 	golang.org/x/sync v0.10.0 // indirect
 	google.golang.org/api v0.169.0 // indirect
@@ -150,11 +153,11 @@ require (
 	github.com/prometheus/procfs v0.15.1 // indirect
 	github.com/spf13/pflag v1.0.6-0.20210604193023-d5e0c0615ace // indirect
 	gke-internal.googlesource.com/syllogi/sanitized-klog v0.0.0-00010101000000-000000000000
-	golang.org/x/net v0.29.0 // indirect
+	golang.org/x/net v0.33.0 // indirect
 	golang.org/x/oauth2 v0.23.0 // indirect
 	golang.org/x/sys v0.28.0 // indirect
-	golang.org/x/term v0.24.0 // indirect
-	golang.org/x/text v0.18.0 // indirect
+	golang.org/x/term v0.27.0 // indirect
+	golang.org/x/text v0.21.0 // indirect
 	golang.org/x/time v0.5.0 // indirect
 	golang.org/x/tools v0.23.0 // indirect
 	google.golang.org/protobuf v1.36.1 // indirect
@@ -185,9 +188,9 @@ replace (
 	gke-internal.googlesource.com/third_party/cilium/google_test/wora/e2e/verifiers/egressnat => ./verifiers/egressnat
 	gke-internal.googlesource.com/third_party/cilium/google_test/wora/e2e/verifiers/kubevirt => ./verifiers/kubevirt
 	gke-internal.googlesource.com/third_party/cilium/google_test/wora/e2e/verifiers/l3vm => ./verifiers/l3vm
-	gke-internal.googlesource.com/third_party/cilium/google_test/wora/e2e/verifiers/strict => ./verifiers/strict
 	gke-internal.googlesource.com/third_party/cilium/google_test/wora/e2e/verifiers/multinetwork => ./verifiers/multinetwork
 	gke-internal.googlesource.com/third_party/cilium/google_test/wora/e2e/verifiers/sample => ./verifiers/sample
+	gke-internal.googlesource.com/third_party/cilium/google_test/wora/e2e/verifiers/strict => ./verifiers/strict
 	gke-internal.googlesource.com/third_party/cilium/google_test/wora/e2e/verifiers/vpc => ./verifiers/vpc
 	k8s.io/kube-openapi => k8s.io/kube-openapi v0.0.0-20240726031636-6f6746feab9c
 )

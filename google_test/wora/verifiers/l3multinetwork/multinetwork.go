@@ -10,13 +10,19 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
+	k8sclient "sigs.k8s.io/controller-runtime/pkg/client"
 
 	networkv1 "github.com/GoogleCloudPlatform/gke-networking-api/apis/network/v1"
 	networkclientset "github.com/GoogleCloudPlatform/gke-networking-api/client/network/clientset/versioned"
+
+	ipamv1 "gke-internal.googlesource.com/anthos-networking/ipam-controller/api/v1alpha1"
+	e2escheme "gke-internal.googlesource.com/third_party/cilium/google_test/wora/e2e/pkg/test/scheme"
+	"gke-internal.googlesource.com/third_party/cilium/google_test/wora/e2e/pkg/test/utils"
 
 	klog "gke-internal.googlesource.com/syllogi/sanitized-klog"
 
@@ -42,20 +48,27 @@ const (
 var _ = Describe("Verifiers/l3multinetwork", Label("l3multinetwork"), Ordered, func() {
 	var (
 		c                 client.Interface
+		cl                k8sclient.Client
+		ctx               context.Context
 		dc                *dynamic.DynamicClient
 		nc                *networkclientset.Clientset
 		err               error
 		nodeInterfaceName string
 		cidr              string
 	)
-	ctx := context.Background()
+
 	BeforeAll(func() {
+		ctx := context.Background()
+		s := e2escheme.Scheme()
 
 		kubeconfig := os.Getenv("KUBECONFIG")
 		c, err = client.NewClientSet(kubeconfig)
 		Expect(err).NotTo(HaveOccurred())
 
 		config, err := clientcmd.BuildConfigFromFlags("", kubeconfig)
+		Expect(err).NotTo(HaveOccurred())
+
+		cl, err = k8sclient.New(config, k8sclient.Options{Scheme: s})
 		Expect(err).NotTo(HaveOccurred())
 
 		dc, err = createDynamicClient(config)
@@ -102,8 +115,7 @@ var _ = Describe("Verifiers/l3multinetwork", Label("l3multinetwork"), Ordered, f
 		_, err = network.CreateNetwork(ctx, nc, &networkObject)
 		Expect(err).NotTo(HaveOccurred())
 
-		_, podIPv4cidr, _ := net.ParseCIDR(cidr)
-		_, err = network.CreateClusterCIDRConfig(ctx, dc, clusterCIDRConfigName, podIPv4cidr.String(), additionalNetworkName, metav1.LabelSelector{})
+		err = createCCCIfNotExist(ctx, cl, dc, clusterCIDRConfigName, cidr, additionalNetworkName)
 		Expect(err).NotTo(HaveOccurred())
 
 		err = createWorkloadPodOnEachNode(c, ctx, additionalNetworkNodePoolName, additionalNetworkName, podInterfaceName, testNamespace)
@@ -134,6 +146,14 @@ var _ = Describe("Verifiers/l3multinetwork", Label("l3multinetwork"), Ordered, f
 		Expect(err).NotTo(HaveOccurred())
 
 		nc, err = createNetworkClient(config)
+		Expect(err).NotTo(HaveOccurred())
+
+		ccc := &ipamv1.ClusterCIDRConfig{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: clusterCIDRConfigName,
+			},
+		}
+		err = utils.DeleteIfExists(ctx, cl, ccc, "ccc")
 		Expect(err).NotTo(HaveOccurred())
 
 		err = c.CoreV1().Pods(testNamespace).DeleteCollection(ctx, metav1.DeleteOptions{}, metav1.ListOptions{})
@@ -180,5 +200,20 @@ func createWorkloadPodOnEachNode(c client.Interface, ctx context.Context, additi
 			return err
 		}
 	}
+	return nil
+}
+
+func createCCCIfNotExist(ctx context.Context, cl k8sclient.Client, dc *dynamic.DynamicClient, cccName, cidr, additionalNetworkName string) error {
+	_, podIPv4cidr, _ := net.ParseCIDR(cidr)
+	ccc := ipamv1.ClusterCIDRConfig{}
+	err := cl.Get(ctx, k8sclient.ObjectKey{Name: cccName}, &ccc)
+	if err == nil || !apierrors.IsNotFound(err) {
+		return err
+	}
+
+	if _, err := network.CreateClusterCIDRConfig(ctx, dc, cccName, podIPv4cidr.String(), additionalNetworkName, metav1.LabelSelector{}); err != nil {
+		return err
+	}
+
 	return nil
 }

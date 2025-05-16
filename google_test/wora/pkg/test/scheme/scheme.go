@@ -8,6 +8,8 @@ import (
 	runtimeutil "k8s.io/apimachinery/pkg/util/runtime"
 	networkv1 "k8s.io/cloud-provider-gcp/crd/apis/network/v1"
 
+	ipamv1 "gke-internal.googlesource.com/anthos-networking/ipam-controller/api/v1alpha1"
+
 	ciliumv2 "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2"
 )
 
@@ -19,6 +21,7 @@ func Scheme() *runtime.Scheme {
 	runtimeutil.Must(batchv1.AddToScheme(scheme))
 	runtimeutil.Must(networkv1.AddToScheme(scheme))
 	runtimeutil.Must(ciliumv2.AddToScheme(scheme))
+	runtimeutil.Must(ipamv1.AddToScheme(scheme))
 
 	return scheme
 }
