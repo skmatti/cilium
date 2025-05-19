@@ -189,15 +189,15 @@ func fakeNetworkClient() nwversioned.Interface {
 
 type fakeDHCPClient struct{}
 
-func (fakeDHCPClient) GetDHCPResponse(containerID, netns, ifname, parentInt string, macAddress *string) (*dhcp.DHCPResponse, error) {
+func (fakeDHCPClient) GetDHCPResponse(ctx context.Context, containerID, netns, ifname, parentInt string, macAddress *string) (*dhcp.DHCPResponse, error) {
 	return &dhcp.DHCPResponse{}, nil
 }
 
-func (fakeDHCPClient) Release(containerID, netns, ifname string, letLeaseExpire bool) error {
+func (fakeDHCPClient) Release(ctx context.Context, containerID, netns, ifname string, letLeaseExpire bool) error {
 	return nil
 }
 
-func (fakeDHCPClient) Renew(containerID, netns, ifname, parentIfName string, macAddress *string, clientIP, serverIP net.IP) (*dhcp.DHCPResponse, error) {
+func (fakeDHCPClient) Renew(ctx context.Context, containerID, netns, ifname, parentIfName string, macAddress *string, clientIP, serverIP net.IP) (*dhcp.DHCPResponse, error) {
 	return &dhcp.DHCPResponse{}, nil
 }
 

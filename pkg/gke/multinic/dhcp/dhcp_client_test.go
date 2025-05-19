@@ -15,6 +15,7 @@
 package dhcp
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io/ioutil"
@@ -26,13 +27,16 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/cilium/cilium/pkg/time"
+
+	"k8s.io/utils/ptr"
+
 	networkv1 "github.com/GoogleCloudPlatform/gke-networking-api/apis/network/v1"
 	"github.com/cilium/cilium/pkg/testutils"
 	"github.com/containernetworking/cni/pkg/skel"
 	cnitypes "github.com/containernetworking/cni/pkg/types"
 	ipam "github.com/containernetworking/cni/pkg/types/100"
 	"github.com/google/go-cmp/cmp"
-	"k8s.io/utils/pointer"
 )
 
 var (
@@ -55,9 +59,32 @@ type DHCP struct {
 	// expectedMacAddress is the expected mac address that is sent in the CmdArgs
 	expectedMacAddress *string
 	t                  *testing.T
+	// Channel to control blocking in mock methods
+	// If non-nil, methods will wait until this channel is closed or receives a value.
+	blockChan chan struct{}
+}
+
+// Helper to simulate blocking
+func (f *DHCP) blockIfRequested(ctx context.Context) bool {
+	if f.blockChan != nil {
+		select {
+		case <-f.blockChan:
+			return false
+		case <-ctx.Done():
+			// This allows the mock server itself to be context-aware.
+			f.t.Logf("Mock DHCP method interrupted by context: %v", ctx.Err())
+			return true
+		}
+	}
+	return false
 }
 
 func (f *DHCP) Allocate(args *skel.CmdArgs, result *Result) error {
+	f.t.Logf("Mock DHCP.Allocate called, args: %+v", args)
+	if f.blockIfRequested(context.Background()) {
+		return errors.New("mock allocate interrupted by its own context")
+	}
+
 	if args.ContainerID != containerID {
 		f.t.Errorf("incorrect container ID. Got %s, expected %s", args.ContainerID, containerID)
 	}
@@ -89,6 +116,11 @@ func (f *DHCP) Allocate(args *skel.CmdArgs, result *Result) error {
 }
 
 func (f *DHCP) Renew(args *skel.CmdArgs, result *Result) error {
+	f.t.Logf("Mock DHCP.Renew called, args: %+v", args)
+	if f.blockIfRequested(context.Background()) {
+		return errors.New("mock renew interrupted by its own context")
+	}
+
 	if args.ContainerID != containerID {
 		f.t.Errorf("incorrect container ID. Got %s, expected %s", args.ContainerID, containerID)
 	}
@@ -120,6 +152,11 @@ func (f *DHCP) Renew(args *skel.CmdArgs, result *Result) error {
 }
 
 func (f *DHCP) Release(args *skel.CmdArgs, reply *struct{}) error {
+	f.t.Logf("Mock DHCP.Release called, args: %+v", args)
+	if f.blockIfRequested(context.Background()) {
+		return errors.New("mock release interrupted by its own context")
+	}
+
 	if args.ContainerID != containerID {
 		f.t.Errorf("incorrect container ID. Got %s, expected %s", args.ContainerID, containerID)
 	}
@@ -233,7 +270,9 @@ func TestGetDHCPResponse(t *testing.T) {
 		want *DHCPResponse
 		// response the DHCP daemon returns
 		dhcpResult *ipam.Result
+		ctx        context.Context
 		rpcErr     bool
+		blockCall  bool
 		wantErr    string
 		macAddress *string
 	}{
@@ -241,7 +280,7 @@ func TestGetDHCPResponse(t *testing.T) {
 			desc: "converted dhcp response properly",
 			want: &DHCPResponse{
 				IPAddresses: []*net.IPNet{ipNet},
-				Gateway4:    pointer.StringPtr("2.2.2.2"),
+				Gateway4:    ptr.To("2.2.2.2"),
 				Routes: []networkv1.Route{
 					{To: cidr1.String()},
 					{To: cidr2.String()},
@@ -252,7 +291,7 @@ func TestGetDHCPResponse(t *testing.T) {
 				},
 			},
 			dhcpResult: result,
-			macAddress: pointer.StringPtr(podMACAddress),
+			macAddress: ptr.To(podMACAddress),
 		},
 		{
 			desc: "empty ip",
@@ -267,13 +306,13 @@ func TestGetDHCPResponse(t *testing.T) {
 				},
 			},
 			dhcpResult: missingIPResult,
-			macAddress: pointer.StringPtr(podMACAddress),
+			macAddress: ptr.To(podMACAddress),
 		},
 		{
 			desc: "empty dns",
 			want: &DHCPResponse{
 				IPAddresses: []*net.IPNet{ipNet},
-				Gateway4:    pointer.StringPtr("2.2.2.2"),
+				Gateway4:    ptr.To("2.2.2.2"),
 				Routes: []networkv1.Route{
 					{To: "3.3.3.0/24"},
 					{To: "4.4.4.0/24"},
@@ -281,32 +320,32 @@ func TestGetDHCPResponse(t *testing.T) {
 				DNSConfig: nil,
 			},
 			dhcpResult: missingDNSResult,
-			macAddress: pointer.StringPtr(podMACAddress),
+			macAddress: ptr.To(podMACAddress),
 		},
 		{
 			desc: "no routes",
 			want: &DHCPResponse{
 				IPAddresses: []*net.IPNet{ipNet},
-				Gateway4:    pointer.StringPtr("2.2.2.2"),
+				Gateway4:    ptr.To("2.2.2.2"),
 				DNSConfig: &networkv1.DNSConfig{
 					Nameservers: []string{"5.5.5.5", "6.6.6.6"},
 					Searches:    []string{"example.com", "example.org"},
 				},
 			},
 			dhcpResult: missingRoutesResult,
-			macAddress: pointer.StringPtr(podMACAddress),
+			macAddress: ptr.To(podMACAddress),
 		},
 		{
-			desc:       "reponse errored",
+			desc:       "response errored",
 			wantErr:    "error calling",
 			rpcErr:     true,
-			macAddress: pointer.StringPtr(podMACAddress),
+			macAddress: ptr.To(podMACAddress),
 		},
 		{
 			desc: "does not add the macAddress if is nil",
 			want: &DHCPResponse{
 				IPAddresses: []*net.IPNet{ipNet},
-				Gateway4:    pointer.StringPtr("2.2.2.2"),
+				Gateway4:    ptr.To("2.2.2.2"),
 				Routes: []networkv1.Route{
 					{To: cidr1.String()},
 					{To: cidr2.String()},
@@ -323,7 +362,7 @@ func TestGetDHCPResponse(t *testing.T) {
 			desc: "does not add the macAddress if is empty",
 			want: &DHCPResponse{
 				IPAddresses: []*net.IPNet{ipNet},
-				Gateway4:    pointer.StringPtr("2.2.2.2"),
+				Gateway4:    ptr.To("2.2.2.2"),
 				Routes: []networkv1.Route{
 					{To: cidr1.String()},
 					{To: cidr2.String()},
@@ -334,7 +373,26 @@ func TestGetDHCPResponse(t *testing.T) {
 				},
 			},
 			dhcpResult: result,
-			macAddress: pointer.StringPtr(""),
+			macAddress: ptr.To(""),
+		},
+		{
+			desc: "context times out",
+			want: &DHCPResponse{
+				IPAddresses: []*net.IPNet{ipNet},
+				Gateway4:    ptr.To("2.2.2.2"),
+				Routes: []networkv1.Route{
+					{To: cidr1.String()},
+					{To: cidr2.String()},
+				},
+				DNSConfig: &networkv1.DNSConfig{
+					Nameservers: []string{"5.5.5.5", "6.6.6.6"},
+					Searches:    []string{"example.com", "example.org"},
+				},
+			},
+			blockCall:  true,
+			dhcpResult: result,
+			macAddress: ptr.To(podMACAddress),
+			wantErr:    context.DeadlineExceeded.Error(),
 		},
 	}
 	for _, tc := range testcases {
@@ -342,8 +400,33 @@ func TestGetDHCPResponse(t *testing.T) {
 			fakeServer.svcError = tc.rpcErr
 			fakeServer.allocateResult = tc.dhcpResult
 			fakeServer.expectedMacAddress = tc.macAddress
+			if tc.blockCall {
+				fakeServer.blockChan = make(chan struct{})
+			}
+			defer func() {
+				// Ensure the mock server is unblocked if it was set to block
+				if fakeServer.blockChan != nil {
+					select {
+					case <-fakeServer.blockChan:
+					default:
+						close(fakeServer.blockChan)
+					}
+				}
+			}()
+
 			dc := newDHCPClientWithSocket(testDHCPSocket)
-			got, gotErr := dc.GetDHCPResponse(containerID, podNS, podIfName, parentIfName, tc.macAddress)
+
+			var ctx context.Context
+			var cancel context.CancelFunc
+			if tc.blockCall {
+				// Short deadline that should fire before the mock server "responds"
+				ctx, cancel = context.WithTimeout(context.Background(), 200*time.Millisecond)
+			} else {
+				ctx, cancel = context.WithCancel(context.Background())
+			}
+			defer cancel()
+
+			got, gotErr := dc.GetDHCPResponse(ctx, containerID, podNS, podIfName, parentIfName, tc.macAddress)
 			if gotErr != nil {
 				if tc.wantErr == "" {
 					t.Fatalf("dc.Allocate() returns error %v but want nil", gotErr)
@@ -380,6 +463,7 @@ func TestDHCPRelease(t *testing.T) {
 	testcases := []struct {
 		desc                string
 		rpcErr              bool
+		blockCall           bool
 		wantErr             string
 		expectLeaseToExpire bool
 	}{
@@ -400,8 +484,22 @@ func TestDHCPRelease(t *testing.T) {
 		t.Run(tc.desc, func(t *testing.T) {
 			fakeServer.svcError = tc.rpcErr
 			fakeServer.leaseExpire = tc.expectLeaseToExpire
+			if tc.blockCall {
+				fakeServer.blockChan = make(chan struct{})
+			}
 			dc := newDHCPClientWithSocket(testDHCPSocket)
-			gotErr := dc.Release(containerID, podNS, podIfName, tc.expectLeaseToExpire)
+
+			var ctx context.Context
+			var cancel context.CancelFunc
+			if tc.blockCall {
+				// Short deadline that should fire before the mock server "responds"
+				ctx, cancel = context.WithTimeout(context.Background(), 200*time.Millisecond)
+			} else {
+				ctx, cancel = context.WithCancel(context.Background())
+			}
+			defer cancel()
+
+			gotErr := dc.Release(ctx, containerID, podNS, podIfName, tc.expectLeaseToExpire)
 			if gotErr != nil {
 				if tc.wantErr == "" {
 					t.Fatalf("dc.Release() returns error %v but want nil", gotErr)
@@ -424,6 +522,7 @@ func TestDHCPRelease(t *testing.T) {
 // will create a connection to the socket which will be used for requests to the DHCPPlugin.
 func TestNilRPCClient(t *testing.T) {
 	testutils.PrivilegedTest(t)
+	ctx := context.Background()
 
 	socketDir, testDHCPSocket, fakeServer, err := setUpDHCPClient(t)
 	if err != nil {
@@ -436,16 +535,16 @@ func TestNilRPCClient(t *testing.T) {
 	}()
 	result := &ipam.Result{}
 	fakeServer.allocateResult = result
-	macAddr := pointer.StringPtr(podMACAddress)
+	macAddr := ptr.To(podMACAddress)
 	fakeServer.expectedMacAddress = macAddr
 	dc := &dhcpClient{socketPath: testDHCPSocket}
-	_, gotErr := dc.GetDHCPResponse(containerID, podNS, podIfName, parentIfName, macAddr)
+	_, gotErr := dc.GetDHCPResponse(ctx, containerID, podNS, podIfName, parentIfName, macAddr)
 	if gotErr != nil {
 		t.Fatalf("dc.Allocate() returns error %v but want nil", gotErr)
 	}
 
 	dc.client = nil
-	gotErr = dc.Release(containerID, podNS, podIfName, false)
+	gotErr = dc.Release(ctx, containerID, podNS, podIfName, false)
 	if gotErr != nil {
 		t.Fatalf("dc.Release() returns error %v but want nil", gotErr)
 	}

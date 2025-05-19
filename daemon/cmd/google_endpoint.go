@@ -298,7 +298,7 @@ func (d *Daemon) createMultiNICEndpoints(ctx context.Context, multiNICWaitCh cha
 				// cleanup, even if the setup process fails or times out.
 				cleanup = connector.ConstructCleanupFunc(ref.InterfaceName, multinicTemplate.NetworkNamespace, podResources, netCR)
 				originalIntfCR := intfCR.DeepCopy()
-				if err = connector.SetupL2Interface(ref.InterfaceName, pod.Name, podResources, netCR, intfCR, multinicTemplate, d.dhcpClient, d.ipam); err != nil {
+				if err = connector.SetupL2Interface(ctx, ref.InterfaceName, pod.Name, podResources, netCR, intfCR, multinicTemplate, d.dhcpClient, d.ipam); err != nil {
 					if !reflect.DeepEqual(originalIntfCR.Annotations, intfCR.Annotations) {
 						// Patch interface CR annotations via multinicClient
 						if err = d.multinicClient.PatchNetworkInterfaceAnnotations(ctx, intfCR); err != nil {
@@ -636,7 +636,7 @@ func (d *Daemon) deleteMultiNICEndpointQuiet(ep *endpoint.Endpoint, conf endpoin
 	if ep.ExternalDHCPEnabled() {
 		// If pod changed, then the interface lease is now maintained by a different pod. The lease should
 		// not released and instead should just expire for this pod.
-		d.dhcpClient.Release(ep.GetContainerID(), netNS, containerIfName, podChanged)
+		d.dhcpClient.Release(context.Background(), ep.GetContainerID(), netNS, containerIfName, podChanged)
 	} else {
 		if err := d.releaseMultiNICIP(ep); err != nil {
 			errs = append(errs, err)

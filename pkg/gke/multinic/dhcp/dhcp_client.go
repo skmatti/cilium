@@ -17,6 +17,7 @@ limitations under the License.
 package dhcp
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"net/rpc"
@@ -49,11 +50,11 @@ var (
 // DHCPClient interface defines the methods necessary to talk to the DHCPPlugin
 type DHCPClient interface {
 	// GetDHCPResponse sends a request to the DHCPPlugin for an IP allocation
-	GetDHCPResponse(containerID, netns, ifname, parentInt string, macAddress *string) (*DHCPResponse, error)
+	GetDHCPResponse(ctx context.Context, containerID, netns, ifname, parentInt string, macAddress *string) (*DHCPResponse, error)
 	// Release sends a request to the DHCPPlugin to stop maintaining the lease for the given interface
-	Release(containerID, netns, ifname string, letLeaseExpire bool) error
+	Release(ctx context.Context, containerID, netns, ifname string, letLeaseExpire bool) error
 	// Renew sends a renewal request to the DHCPPlugin to renew the lease of the client IP.
-	Renew(containerID, netns, ifname, parentIfName string, macAddress *string, clientIP, serverIP net.IP) (*DHCPResponse, error)
+	Renew(ctx context.Context, containerID, netns, ifname, parentIfName string, macAddress *string, clientIP, serverIP net.IP) (*DHCPResponse, error)
 }
 
 // dhcpClient is a rpc Client to query and request DHCP leases from the DHCP plugin
@@ -117,11 +118,11 @@ func (dc *dhcpClient) ensureRPCClient() error {
 
 // GetDHCPRelease calls DHCP.Allocate and converts the ipam result into a DHCP response
 // that contains, ip, gateway, routes, and dns information
-func (dc *dhcpClient) GetDHCPResponse(containerID, netns, ifname, parentIfName string, macAddress *string) (*DHCPResponse, error) {
+func (dc *dhcpClient) GetDHCPResponse(ctx context.Context, containerID, netns, ifname, parentIfName string, macAddress *string) (*DHCPResponse, error) {
 	result := &Result{CNIResult: ipam.Result{CNIVersion: ipam.ImplementedSpecVersion}}
 	resp := &DHCPResponse{}
 	args := generateCmdArgs(containerID, netns, ifname, parentIfName, macAddress, nil, nil)
-	if err := dc.rpcCall("DHCP.Allocate", args, result); err != nil {
+	if err := dc.rpcCall(ctx, "DHCP.Allocate", args, result); err != nil {
 		return resp, fmt.Errorf("errored in rpc call DHCP.Allocate: %w", err)
 	}
 
@@ -135,11 +136,11 @@ func (dc *dhcpClient) GetDHCPResponse(containerID, netns, ifname, parentIfName s
 
 // Renew calls DHCP.Renew and converts the ipam result into a DHCP response
 // that contains, ip, gateway, routes, and dns information
-func (dc *dhcpClient) Renew(containerID, netns, ifname, parentIfName string, macAddress *string, clientIP, serverIP net.IP) (*DHCPResponse, error) {
+func (dc *dhcpClient) Renew(ctx context.Context, containerID, netns, ifname, parentIfName string, macAddress *string, clientIP, serverIP net.IP) (*DHCPResponse, error) {
 	result := &Result{CNIResult: ipam.Result{CNIVersion: ipam.ImplementedSpecVersion}}
 	resp := &DHCPResponse{}
 	args := generateCmdArgs(containerID, netns, ifname, parentIfName, macAddress, clientIP, serverIP)
-	if err := dc.rpcCall("DHCP.Renew", args, result); err != nil {
+	if err := dc.rpcCall(ctx, "DHCP.Renew", args, result); err != nil {
 		return resp, fmt.Errorf("errored in rpc call DHCP.Renew: %w", err)
 	}
 
@@ -152,20 +153,20 @@ func (dc *dhcpClient) Renew(containerID, netns, ifname, parentIfName string, mac
 }
 
 // Release calls DHCP.Release on the dhcp plugin
-func (dc *dhcpClient) Release(containerID, netns, ifname string, letLeaseExpire bool) error {
+func (dc *dhcpClient) Release(ctx context.Context, containerID, netns, ifname string, letLeaseExpire bool) error {
 	args := generateCmdArgs(containerID, netns, ifname, "", nil, nil, nil)
 	if letLeaseExpire {
 		args.Args = leaseExpireArgs
 	}
 	result := struct{}{}
-	if err := dc.rpcCall("DHCP.Release", args, &result); err != nil {
+	if err := dc.rpcCall(ctx, "DHCP.Release", args, &result); err != nil {
 		return fmt.Errorf("errored in rpc call DHCP.Release: %w", err)
 	}
 
 	return nil
 }
 
-func (dc *dhcpClient) rpcCall(method string, args *skel.CmdArgs, result interface{}) error {
+func (dc *dhcpClient) rpcCall(ctx context.Context, method string, args *skel.CmdArgs, result interface{}) error {
 	if err := dc.ensureRPCClient(); err != nil {
 		return fmt.Errorf("failed to connect to socket: %w", err)
 	}
@@ -175,11 +176,17 @@ func (dc *dhcpClient) rpcCall(method string, args *skel.CmdArgs, result interfac
 	}
 	args.Netns = netns
 
-	err = dc.client.Call(method, args, result)
-	if err != nil {
-		return fmt.Errorf("error calling %s: %w", method, err)
+	call := dc.client.Go(method, args, result, nil)
+
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case callDone := <-call.Done:
+		if callDone.Error != nil {
+			return fmt.Errorf("error calling %s: %v", method, callDone.Error)
+		}
+		return nil
 	}
-	return nil
 }
 
 func parseIPAndGateway(cfg []*ipam.IPConfig) ([]*net.IPNet, *string) {

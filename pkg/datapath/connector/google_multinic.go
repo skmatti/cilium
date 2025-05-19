@@ -15,6 +15,7 @@
 package connector
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"hash/crc32"
@@ -537,7 +538,7 @@ func ConstructCleanupFunc(ifNameInPod, networkNamespace string, podResources map
 // the provided parent interface and sets it up.
 // The set up operations consist moving the interface to the remote network namespace, initializing
 // bpf tail call map on both directions (see setupInterfaceInRemoteNs), and configuring the interface.
-func SetupL2Interface(ifNameInPod, podName string, podResources map[string][]string, network *networkv1.Network, intf *networkv1.NetworkInterface, ep *models.EndpointChangeRequest, dc dhcp.DHCPClient, ipam *ipam.IPAM) error {
+func SetupL2Interface(ctx context.Context, ifNameInPod, podName string, podResources map[string][]string, network *networkv1.Network, intf *networkv1.NetworkInterface, ep *models.EndpointChangeRequest, dc dhcp.DHCPClient, ipam *ipam.IPAM) error {
 	cfg, err := getInterfaceConfiguration(intf, network, podResources)
 	if err != nil {
 		return fmt.Errorf("failed to get a valid interface configuration: %v", err)
@@ -628,7 +629,7 @@ func SetupL2Interface(ifNameInPod, podName string, podResources map[string][]str
 		clientIP, _, _ = net.ParseCIDR(intf.Status.IpAddresses[0])
 	}
 
-	dhcpResp, err := configureDHCPInfo(network, cfg, dc, clientIP, serverIP, ep.NetworkNamespace, ifNameInPod, ep.ContainerID)
+	dhcpResp, err := configureDHCPInfo(ctx, network, cfg, dc, clientIP, serverIP, ep.NetworkNamespace, ifNameInPod, ep.ContainerID)
 	if err != nil {
 		delete(intf.Annotations, KubevirtDHCPServerIPAnnotationKey)
 		return fmt.Errorf("failed to query DHCP information: %v", err)
@@ -1062,7 +1063,7 @@ func SetupNetworkRoutes(ifNameInPod string, intf *networkv1.NetworkInterface, ne
 	return nil
 }
 
-func configureDHCPInfo(network *networkv1.Network, cfg *interfaceConfiguration, dc dhcp.DHCPClient, clientIP, serverIP net.IP, podNS, podIface, containerID string) (*dhcp.DHCPResponse, error) {
+func configureDHCPInfo(ctx context.Context, network *networkv1.Network, cfg *interfaceConfiguration, dc dhcp.DHCPClient, clientIP, serverIP net.IP, podNS, podIface, containerID string) (*dhcp.DHCPResponse, error) {
 	if network.Spec.ExternalDHCP4 == nil || *network.Spec.ExternalDHCP4 == false {
 		// No DHCP is required when externalDHCP4 is false or not set
 		return nil, nil
@@ -1087,7 +1088,7 @@ func configureDHCPInfo(network *networkv1.Network, cfg *interfaceConfiguration, 
 
 	// Run a DHCP renew request first if we have both the Client and Server IPs
 	if serverIP != nil && clientIP != nil {
-		dhcpInfo, err = dc.Renew(containerID, podNS, podIface, parentInterface, &macAddr, clientIP, serverIP)
+		dhcpInfo, err = dc.Renew(ctx, containerID, podNS, podIface, parentInterface, &macAddr, clientIP, serverIP)
 		if err != nil {
 			log.Errorf("Failed DHCP renewal request, falling back to discovery: %v", err)
 			dhcpInfo = nil
@@ -1096,7 +1097,7 @@ func configureDHCPInfo(network *networkv1.Network, cfg *interfaceConfiguration, 
 
 	// If renew unsuccessful, proceed with a full DHCP discovery.
 	if dhcpInfo == nil {
-		dhcpInfo, err = dc.GetDHCPResponse(containerID, podNS, podIface, parentInterface, &macAddr)
+		dhcpInfo, err = dc.GetDHCPResponse(ctx, containerID, podNS, podIface, parentInterface, &macAddr)
 		if err != nil {
 			return nil, err
 		}

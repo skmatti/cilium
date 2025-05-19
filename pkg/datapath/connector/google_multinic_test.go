@@ -15,6 +15,7 @@
 package connector
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net"
@@ -1087,7 +1088,7 @@ func TestConfigureDHCPInfo(t *testing.T) {
 			testCfg := tc.cfg
 			tc.dc.network = tc.network
 			tc.dc.t = t
-			gotResp, gotErr := configureDHCPInfo(tc.network, &testCfg, tc.dc, tc.clientIP, tc.serverIP, "podNS", "podIface", "containerID")
+			gotResp, gotErr := configureDHCPInfo(context.Background(), tc.network, &testCfg, tc.dc, tc.clientIP, tc.serverIP, "podNS", "podIface", "containerID")
 
 			if diff := cmp.Diff(gotResp, tc.wantResp); diff != "" {
 				t.Errorf("configureDHCPInfo() has incorrect dhcp response (-got, +want): %s\n", diff)
@@ -1319,21 +1320,21 @@ func (dc *fakeDHCPClient) combinedResponse(containerID, podNS, podIface, parentI
 	return &dc.resp, nil
 }
 
-func (dc *fakeDHCPClient) GetDHCPResponse(containerID, podNS, podIface, parentIface string, macAddress *string) (*dhcp.DHCPResponse, error) {
+func (dc *fakeDHCPClient) GetDHCPResponse(ctx context.Context, containerID, podNS, podIface, parentIface string, macAddress *string) (*dhcp.DHCPResponse, error) {
 	if dc.clientErr != nil {
 		return nil, dc.clientErr
 	}
 	return dc.combinedResponse(containerID, podNS, podIface, parentIface, macAddress)
 }
 
-func (dc *fakeDHCPClient) Renew(containerID, podNS, podIface, parentIface string, macAddress *string, clientIP, serverIP net.IP) (*dhcp.DHCPResponse, error) {
+func (dc *fakeDHCPClient) Renew(ctx context.Context, containerID, podNS, podIface, parentIface string, macAddress *string, clientIP, serverIP net.IP) (*dhcp.DHCPResponse, error) {
 	if dc.renewErr != nil {
 		return nil, dc.renewErr
 	}
 	return dc.combinedResponse(containerID, podNS, podIface, parentIface, macAddress)
 }
 
-func (dc *fakeDHCPClient) Release(containerID, podNS, podIface string, letLeaseExpire bool) error {
+func (dc *fakeDHCPClient) Release(ctx context.Context, containerID, podNS, podIface string, letLeaseExpire bool) error {
 	return dc.clientErr
 }
 
