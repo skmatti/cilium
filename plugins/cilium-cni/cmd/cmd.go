@@ -1015,6 +1015,10 @@ func (cmd *Cmd) Status(args *skel.CmdArgs) error {
 	}
 	logger = loggerWithCNIArgs(logger, cniArgs)
 
+	if handleFastStartGracePeriod(logger, n.GCP.FastStartHealthCheckDue) {
+		return nil // We are in the grace period, so return success early
+	}
+
 	c, err := client.NewDefaultClientWithTimeout(defaults.ClientConnectTimeout)
 	if err != nil {
 		// use ErrTryAgainLater to tell the runtime that this is not a check failure

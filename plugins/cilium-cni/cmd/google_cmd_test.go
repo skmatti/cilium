@@ -1,7 +1,9 @@
 package cmd
 
 import (
+	"errors"
 	"fmt"
+	"io"
 	"net"
 	"testing"
 
@@ -10,6 +12,7 @@ import (
 	"github.com/cilium/cilium/plugins/cilium-cni/types"
 	cniTypes "github.com/containernetworking/cni/pkg/types"
 	"github.com/google/go-cmp/cmp"
+	"github.com/sirupsen/logrus"
 )
 
 func TestIsFastStartEnabled(t *testing.T) {
@@ -112,6 +115,73 @@ func TestIsFastStartEnabled(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			if result := isFastStartEnabled(&tt.netConf, tt.podNamespace); result != tt.expected {
 				t.Fatalf("isFastStartEnabled want: %v, got: %v", tt.expected, result)
+			}
+		})
+	}
+}
+
+func TestHandleFastStartGracePeriod(t *testing.T) {
+	originalGetMonotonicTimeProviderFunc := getMonotonicNanoseconds
+	defer func() { getMonotonicNanoseconds = originalGetMonotonicTimeProviderFunc }()
+
+	logger := logrus.New()
+	logger.SetOutput(io.Discard)
+	testLoggerEntry := logrus.NewEntry(logger)
+
+	tests := []struct {
+		name        string
+		dueTime     int64
+		currentTime int64
+		timeError   error
+		expected    bool
+	}{
+		{
+			name:        "dueTime is zero",
+			dueTime:     0,
+			currentTime: 0,
+			timeError:   nil,
+			expected:    false,
+		},
+		{
+			name:        "error getting current time",
+			dueTime:     1000,
+			currentTime: 0,
+			timeError:   errors.New("mock time error"),
+			expected:    false,
+		},
+		{
+			name:        "grace period active (current time < due time)",
+			dueTime:     2000,
+			currentTime: 1000,
+			timeError:   nil,
+			expected:    true,
+		},
+		{
+			name:        "grace period expired (current time == due time)",
+			dueTime:     2000,
+			currentTime: 2000,
+			timeError:   nil,
+			expected:    false,
+		},
+		{
+			name:        "grace period expired (current time > due time)",
+			dueTime:     2000,
+			currentTime: 3000,
+			timeError:   nil,
+			expected:    false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Mock getMonotonicNanoseconds
+			getMonotonicNanoseconds = func() (int64, error) {
+				return tt.currentTime, tt.timeError
+			}
+
+			result := handleFastStartGracePeriod(testLoggerEntry, tt.dueTime)
+			if result != tt.expected {
+				t.Errorf("handleFastStartGracePeriod() = %v, want %v", result, tt.expected)
 			}
 		})
 	}

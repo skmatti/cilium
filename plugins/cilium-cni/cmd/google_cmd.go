@@ -3,6 +3,7 @@ package cmd
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net"
 	"slices"
 	"strings"
@@ -14,6 +15,8 @@ import (
 	ipamOption "github.com/cilium/cilium/pkg/ipam/option"
 	"github.com/cilium/cilium/plugins/cilium-cni/types"
 	cniTypes "github.com/containernetworking/cni/pkg/types"
+	"github.com/sirupsen/logrus"
+	"golang.org/x/sys/unix"
 )
 
 var (
@@ -43,6 +46,42 @@ type ipamConfig struct {
 type netConfig struct {
 	// IPAM represents the IPAM configuration section of the CNI config file.
 	IPAM ipamConfig `json:"ipam"`
+}
+
+// Please keep this function in sync with the one in pkg/cni/cni_writer.go in the anet repo.
+// getMonotonicNanoseconds retrieves the current monotonic time in nanoseconds.
+var getMonotonicNanoseconds = func() (int64, error) {
+	var ts unix.Timespec
+	err := unix.ClockGettime(unix.CLOCK_MONOTONIC, &ts)
+	if err != nil {
+		return 0, fmt.Errorf("unix.ClockGettime(CLOCK_MONOTONIC) failed: %w", err)
+	}
+	return ts.Nano(), nil
+}
+
+// handleFastStartGracePeriod checks if the CNI status call can be short-circuited
+// due to an active fast start health check grace period, using the provided dueTime.
+// It returns true if the grace period is active and the caller should return nil (success),
+// and false otherwise (meaning the normal health check should proceed).
+func handleFastStartGracePeriod(logger *logrus.Entry, dueTime int64) bool {
+	if dueTime == 0 {
+		logger.Debug("Fast start health check due time not provided; proceeding with actual health check.")
+		return false
+	}
+
+	currentTime, err := getMonotonicNanoseconds()
+	if err != nil {
+		logger.WithError(err).Warn("Failed to get current monotonic time for fast start health check; proceeding with actual check.")
+		return false
+	}
+
+	if currentTime < dueTime {
+		logger.Infof("Fast start health check grace period active (current: %d ns, due: %d ns). Reporting CNI status as OK.", currentTime, dueTime)
+		return true
+	}
+
+	logger.Debugf("Fast start health check grace period expired (current: %d ns, due: %d ns). Proceeding with actual health check.", currentTime, dueTime)
+	return false
 }
 
 func getIpamConfig(stdinData []byte) (*ipamConfig, error) {
