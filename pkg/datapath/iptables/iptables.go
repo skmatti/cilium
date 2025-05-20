@@ -1541,7 +1541,11 @@ func (m *Manager) installRules(state desiredState) error {
 			}
 		}
 
-		if m.sharedCfg.IptablesMasqueradingIPv4Enabled && m.sharedCfg.TunnelingEnabled {
+		// Bug Fix (b/415371635): Ensures correct source IP masquerading for host-originated
+		// traffic when using Cilium 1.15+ with IPv4, BPF masquerade, and tunneling.
+		// This reinstates a missing CILIUM_POST_nat rule for proper SNAT, particularly in ABM.
+		// Note: When IPv4 & BPF masquerade are true,`IptablesMasqueradingIPv4Enabled` is false.
+		if !m.sharedCfg.IptablesMasqueradingIPv4Enabled && m.sharedCfg.TunnelingEnabled {
 			if err := m.installMasqueradeRulesForHost(ip4tables,
 				node.GetIPv4AllocRange().String(),
 				node.GetHostMasqueradeIPv4().String(),
@@ -1566,7 +1570,8 @@ func (m *Manager) installRules(state desiredState) error {
 			}
 		}
 
-		if m.sharedCfg.IptablesMasqueradingIPv6Enabled && m.sharedCfg.TunnelingEnabled {
+		// Bug Fix (b/415371635): See IPv4 block above for explanation.
+		if !m.sharedCfg.IptablesMasqueradingIPv6Enabled && m.sharedCfg.TunnelingEnabled {
 			if err := m.installMasqueradeRulesForHost(ip6tables,
 				node.GetIPv6AllocRange().String(),
 				node.GetHostMasqueradeIPv6().String(),
