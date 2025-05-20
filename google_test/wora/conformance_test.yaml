@@ -12,7 +12,7 @@ spec:
       namespace: tailorbird-users
     spec:
       resourceTypeReference:
-        name: anthos-networking-test-workloads
+        name: anthos-networking-test-large-workloads
         version: latest
       directives:
       - apiVersion: sut.tailorbird.io/v1alpha1
