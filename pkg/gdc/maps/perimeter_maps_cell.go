@@ -5,6 +5,7 @@ import (
 	"github.com/cilium/cilium/pkg/gke/features"
 	"github.com/cilium/cilium/pkg/logging"
 	"github.com/cilium/cilium/pkg/logging/logfields"
+	"github.com/cilium/cilium/pkg/maps/google_ctmap"
 	"github.com/cilium/cilium/pkg/maps/perimetermap"
 	"github.com/cilium/hive/cell"
 
@@ -25,6 +26,7 @@ var Cell = cell.Module(
 type GDCMapsResult struct {
 	PerimeterRedirectMapIP *bpf.Map
 	PerimeterRedirectMapID *bpf.Map
+	GoogleCtMapID          *bpf.Map
 }
 
 func InitalizeGDCMaps() *GDCMapsResult {
@@ -58,13 +60,25 @@ func createPerimeterMaps(result *GDCMapsResult) {
 
 	log.Info("finished creating perimeter maps...")
 
+	log.Info("creating ID to google ctmap...")
+
+	googleCtMap := google_ctmap.InitGoogleCtMap()
+
+	if err := googleCtMap.OpenOrCreate(); err != nil {
+		log.Infof("error while creating/opening google ctmap: %v", err)
+	}
+
+	log.Info("finished creating google ctmap...")
+
 	if !option.Config.RestoreState {
 		log.Info("clearing perimeter map state...")
 
 		perimeterRedirectIDtoIPMap.DeleteAll()
 		perimeterRedirectIPtoIDMap.DeleteAll()
+		googleCtMap.DeleteAll()
 	}
 
 	result.PerimeterRedirectMapID = perimeterRedirectIPtoIDMap
 	result.PerimeterRedirectMapIP = perimeterRedirectIDtoIPMap
+	result.GoogleCtMapID = googleCtMap
 }

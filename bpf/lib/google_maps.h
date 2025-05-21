@@ -108,6 +108,18 @@ struct egress_gw_timeouts_entry {
 	struct connection_timeouts egress_connection_timeouts;
 };
 
+/* google_ctmap_entry holds 1 IPv4 field and support up to 16
+ *  flags which help determine the context of the IP address.
+ *  Padding is reserved in the entry to account for future use cases.
+ */
+struct google_ctmap_entry {
+	__u32 ip4_addr;
+	__u32 egress_nat:1,
+		  elb:1,
+		  reserved:30;
+
+};
+
 #ifdef ENABLE_GOOGLE_MULTI_NIC
 
 #ifndef MULTI_NIC_DEV_MAP_SIZE
@@ -208,4 +220,11 @@ struct {
 	__uint(map_flags, CONDITIONAL_PREALLOC);
 } EGRESS_POLICY_TIMEOUTS_MAP __section_maps_btf;
 
+struct {
+	__uint(type, BPF_MAP_TYPE_LRU_HASH);
+	__type(key, struct ipv4_ct_tuple);
+	__type(value, struct google_ctmap_entry);
+	__uint(pinning, LIBBPF_PIN_BY_NAME);
+	__uint(max_entries, CT_MAP_SIZE_TCP + CT_MAP_SIZE_ANY);
+} GOOGLE_CTMAP_V4 __section_maps_btf;
 #endif /* ENABLE_EGRESS_GATEWAY */

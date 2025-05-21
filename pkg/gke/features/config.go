@@ -5,6 +5,7 @@ import (
 
 	"github.com/cilium/cilium/pkg/datapath/linux/config/defines"
 	"github.com/cilium/cilium/pkg/gke/multinic/multinicconfig"
+	googlectmapconst "github.com/cilium/cilium/pkg/maps/google_ctmap/consts"
 	perimeterconst "github.com/cilium/cilium/pkg/maps/perimetermap/consts"
 	"github.com/cilium/cilium/pkg/option"
 	"github.com/cilium/hive/cell"
@@ -299,6 +300,8 @@ func configure(cfg Config, daemonCfg *option.DaemonConfig) (out struct {
 	if cfg.EnableGooglePerimeterFeatures {
 		out.NodeDefines["GOOGLE_PERIMETER_FEATURES"] = "1"
 	}
+
+	out.NodeDefines["GOOGLE_CT_MAP_V4"] = googlectmapconst.GoogleCtMapName
 
 	return
 }

@@ -106,10 +106,35 @@ lookup_egress_nat_timeouts(struct connection_timeouts **timeouts, __be32 saddr, 
 	if (egress_timeouts_entry)
 		*timeouts = &egress_timeouts_entry->egress_connection_timeouts;
 }
+
+static __always_inline
+struct google_ctmap_entry *lookup_google_ctmap_entry(struct ipv4_ct_tuple *tuple)
+{
+	return map_lookup_elem(&GOOGLE_CTMAP_V4, tuple);
+}
+
+static __always_inline
+int update_google_ctmap_egress_gw_ip(struct ipv4_ct_tuple *tuple, __u32 gw_ip)
+{
+	struct google_ctmap_entry new_entry = {
+		.egress_nat = 1,
+		.ip4_addr = gw_ip,
+	};
+	return map_update_elem(&GOOGLE_CTMAP_V4, tuple, &new_entry, BPF_ANY);
+}
 #else
 static __always_inline
 void lookup_egress_nat_timeouts(struct connection_timeouts **timeouts __maybe_unused,
 				__be32 saddr __maybe_unused,
 				__be32 daddr __maybe_unused)
+{}
+
+static __always_inline
+void lookup_google_ctmap_entry(struct ipv4_ct_tuple tuple __maybe_unused)
+{}
+
+static __always_inline
+void update_google_ctmap_gw_ip(struct ipv4_ct_tuple tuple __maybe_unused,
+			       __u32 gw_ip __maybe_unused)
 {}
 #endif /* ENABLE_EGRESS_GATEWAY */

@@ -316,6 +316,8 @@ func (gc *GC) runGC(e *endpoint.Endpoint, ipv4, ipv6, triggeredBySignal bool, fi
 					"ctMapIPVersion": vsn,
 				}).Info("Deleted orphan SNAT entries from map")
 			}
+
+			ctmap.PurgeOrphanGoogleCtEntries(ctMapTCP, ctMapAny)
 		}
 	}
 

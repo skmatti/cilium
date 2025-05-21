@@ -18,10 +18,12 @@ int google_perimeter_egress_policy_pre_ctr_egress_fwd4(struct __ctx_buff *ctx __
 						       struct goog_ctr_egress_fwd4_ctx *stage_ctx)
 {
 	struct egress_gw_policy_entry *egress_gw_policy;
+	struct google_ctmap_entry *egress_ct_info;
 	struct endpoint_info *lep;
 	struct iphdr *ip4;
 	void *data, *data_end;
 	struct trace_ctx trace = {};
+	__u32 perimeter_gw_ip;
 
 	if (identity_is_cluster(stage_ctx->dst_sec_identity))
 		return HOOK_ACT_CONTINUE;
@@ -34,6 +36,19 @@ int google_perimeter_egress_policy_pre_ctr_egress_fwd4(struct __ctx_buff *ctx __
 
 	if (!egress_gw_policy)
 		return HOOK_ACT_CONTINUE;
+
+	/* Attempt to retrieve the perimeter gateway IP from the Google CT map. */
+	egress_ct_info = lookup_google_ctmap_entry(stage_ctx->tuple);
+	if (egress_ct_info && egress_ct_info->egress_nat && egress_ct_info->ip4_addr != 0) {
+		/* Use the gw ip from established connection to perform the redirect. */
+		perimeter_gw_ip = egress_ct_info->ip4_addr;
+	} else {
+		/* For new connections, or if no CT entry exists
+		 * determine the perimeter gateway IP from the `egress_gw_policy`.
+		 */
+		perimeter_gw_ip = egress_gw_policy->gateway_ip;
+		update_google_ctmap_egress_gw_ip(stage_ctx->tuple, egress_gw_policy->gateway_ip);
+	}
 
 	/* If the packet is a reply or is related, it means that outside
 	 * has initiated the connection, and so we should skip egress
@@ -52,7 +67,7 @@ int google_perimeter_egress_policy_pre_ctr_egress_fwd4(struct __ctx_buff *ctx __
 	if ((stage_ctx->ct_status == CT_REPLY || stage_ctx->ct_status == CT_RELATED) && egress_gw_policy->egress_ip != 0xffffffff)
 		return HOOK_ACT_CONTINUE;
 
-	lep = __lookup_ip4_endpoint(egress_gw_policy->gateway_ip);
+	lep = __lookup_ip4_endpoint(perimeter_gw_ip);
 
 	/* Handle Strict Egress Policy Case*/
 	/* TODO: (b/439603456) take out when strict egress policy is using new map */
@@ -62,7 +77,7 @@ int google_perimeter_egress_policy_pre_ctr_egress_fwd4(struct __ctx_buff *ctx __
 	if (!revalidate_data(ctx, &data, &data_end, &ip4))
 		return DROP_INVALID;
 
-	return google_perimeter__redirect_to_perimeter_gateway(ctx, ip4, &trace, egress_gw_policy->gateway_ip);
+	return google_perimeter__redirect_to_perimeter_gateway(ctx, ip4, &trace, perimeter_gw_ip);
 }
 
 #else

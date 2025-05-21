@@ -24,6 +24,7 @@ import (
 	"github.com/cilium/cilium/pkg/lock"
 	"github.com/cilium/cilium/pkg/logging"
 	"github.com/cilium/cilium/pkg/logging/logfields"
+	"github.com/cilium/cilium/pkg/maps/google_ctmap"
 	"github.com/cilium/cilium/pkg/maps/nat"
 	"github.com/cilium/cilium/pkg/maps/timestamp"
 	"github.com/cilium/cilium/pkg/metrics"
@@ -98,8 +99,10 @@ const (
 var globalDeleteLock [mapTypeMax]lock.Mutex
 
 type mapAttributes struct {
-	natMapLock *lock.Mutex // Serializes concurrent accesses to natMap
-	natMap     *nat.Map
+	natMapLock   *lock.Mutex // Serializes concurrent accesses to natMap
+	natMap       *nat.Map
+	googleCtLock *lock.Mutex // Serializes concurrent accesses to ctEgressInfoMap
+	googleCtMap  *bpf.Map
 }
 
 // CtMap interface represents a CT map, and can be reused to implement mock
@@ -128,12 +131,13 @@ func InitMapInfo(v4, v6, nodeport bool) {
 	global4Map, global6Map := nat.GlobalMaps(v4, v6, nodeport)
 	global4MapLock := &lock.Mutex{}
 	global6MapLock := &lock.Mutex{}
+	googleCtLock4 := &lock.Mutex{}
 
 	// SNAT also only works if the CT map is global so all local maps will be nil
 	mapInfo = map[mapType]mapAttributes{
-		mapTypeIPv4TCPGlobal: {natMap: global4Map, natMapLock: global4MapLock},
+		mapTypeIPv4TCPGlobal: {natMap: global4Map, natMapLock: global4MapLock, googleCtLock: googleCtLock4},
 		mapTypeIPv6TCPGlobal: {natMap: global6Map, natMapLock: global6MapLock},
-		mapTypeIPv4AnyGlobal: {natMap: global4Map, natMapLock: global4MapLock},
+		mapTypeIPv4AnyGlobal: {natMap: global4Map, natMapLock: global4MapLock, googleCtLock: googleCtLock4},
 		mapTypeIPv6AnyGlobal: {natMap: global6Map, natMapLock: global6MapLock},
 	}
 }
@@ -462,7 +466,7 @@ func doGC6(m *Map, filter *GCFilter) gcStats {
 	return stats
 }
 
-func purgeCtEntry4(m *Map, key CtKey, entry *CtEntry, natMap *nat.Map) error {
+func purgeCtEntry4(m *Map, key CtKey, entry *CtEntry, natMap *nat.Map, googleCtMap *bpf.Map) error {
 	err := m.Delete(key)
 	if err != nil {
 		return err
@@ -489,6 +493,18 @@ func purgeCtEntry4(m *Map, key CtKey, entry *CtEntry, natMap *nat.Map) error {
 		}
 	}
 
+	if googleCtMap != nil {
+		err := googleCtMap.Delete(t.(*tuple.TupleKey4Global))
+		if err != nil {
+			log.WithError(err).WithField(logfields.Key, t.String()).Error("Unable to delete Google CT entry")
+		}
+
+		elementCount := 0
+		err = googleCtMap.DumpWithCallback(func(k bpf.MapKey, v bpf.MapValue) {
+			elementCount++
+		})
+	}
+
 	return nil
 }
 
@@ -496,6 +512,7 @@ func purgeCtEntry4(m *Map, key CtKey, entry *CtEntry, natMap *nat.Map) error {
 // filter.
 func doGC4(m *Map, filter *GCFilter) gcStats {
 	var natMap *nat.Map
+	var googleCtMap *bpf.Map
 
 	if m.clusterID == 0 {
 		// global map handling
@@ -504,6 +521,12 @@ func doGC4(m *Map, filter *GCFilter) gcStats {
 			ctMap.natMapLock.Lock()
 			defer ctMap.natMapLock.Unlock()
 		}
+
+		if ctMap.googleCtLock != nil {
+			ctMap.googleCtLock.Lock()
+			defer ctMap.googleCtLock.Unlock()
+		}
+
 		natMap = ctMap.natMap
 	} else {
 		// per-cluster map handling
@@ -526,6 +549,13 @@ func doGC4(m *Map, filter *GCFilter) gcStats {
 		}
 	}
 
+	googleCtMap = google_ctmap.InitGoogleCtMap()
+	if err := googleCtMap.Open(); err == nil {
+		defer googleCtMap.Close()
+	} else {
+		googleCtMap = nil
+	}
+
 	filterCallback := func(key bpf.MapKey, value bpf.MapValue) {
 		entry := value.(*CtEntry)
 
@@ -541,7 +571,7 @@ func doGC4(m *Map, filter *GCFilter) gcStats {
 
 			switch action {
 			case deleteEntry:
-				err := purgeCtEntry4(m, currentKey4Global, entry, natMap)
+				err := purgeCtEntry4(m, currentKey4Global, entry, natMap, googleCtMap)
 				if err != nil {
 					log.WithError(err).WithField(logfields.Key, currentKey4Global.String()).Error("Unable to delete CT entry")
 				} else {
@@ -561,7 +591,7 @@ func doGC4(m *Map, filter *GCFilter) gcStats {
 
 			switch action {
 			case deleteEntry:
-				err := purgeCtEntry4(m, currentKey4, entry, natMap)
+				err := purgeCtEntry4(m, currentKey4, entry, natMap, googleCtMap)
 				if err != nil {
 					log.WithError(err).WithField(logfields.Key, currentKey4.String()).Error("Unable to delete CT entry")
 				} else {
@@ -725,6 +755,75 @@ func PurgeOrphanNATEntries(ctMapTCP, ctMapAny *Map) *NatGCStats {
 	}
 
 	return &stats
+}
+
+// PurgeOrphanGoogleCtEntries removes orphan Google CT entries. An entry is considered
+// orphan if it does not have a corresponding entry in the main Cilium conntrack table.
+// This can happen if the main conntrack entry is evicted by LRU and the corresponding
+// delete event is dropped by the kernel under load.
+// This function iterates the google_ctmap and checks for the existence of the parent
+// entry in the main CT map, deleting any orphans it finds.
+func PurgeOrphanGoogleCtEntries(ctMapTCP, ctMapAny *Map) {
+	// The google_ctmap is currently IPv4 only.
+	if ctMapTCP.mapType.isIPv6() {
+		return
+	}
+
+	ctMapAttr := mapInfo[ctMapTCP.mapType]
+	if ctMapAttr.googleCtLock != nil {
+		ctMapAttr.googleCtLock.Lock()
+		defer ctMapAttr.googleCtLock.Unlock()
+	}
+
+	gCtMap := google_ctmap.InitGoogleCtMap()
+	if err := gCtMap.Open(); err != nil {
+		log.WithError(err).Error("Unable to open google_ctmap for GC")
+		return
+	}
+	defer gCtMap.Close()
+
+	var alive uint32
+	keysToDelete := make([]bpf.MapKey, 0)
+
+	cb := func(key bpf.MapKey, value bpf.MapValue) {
+		gCtKey, ok := key.(*google_ctmap.GoogleCtMapKey4)
+		if !ok {
+			return // Should not happen
+		}
+
+		ctMap := ctMapAny
+		if gCtKey.NextHeader == u8proto.TCP {
+			ctMap = ctMapTCP
+		}
+
+		// Construct a regular CT key from the Google CT key.
+		ctKey := &CtKey4Global{
+			TupleKey4Global: gCtKey.TupleKey4Global,
+		}
+
+		// Check for the existence of the conntrack entry.
+		if !ctEntryExist(ctMap, ctKey, nil) {
+			// Collect orphan keys instead of deleting immediately to avoid deadlock.
+			keyCopy := *gCtKey
+			keysToDelete = append(keysToDelete, &keyCopy)
+		} else {
+			alive++
+		}
+	}
+
+	if err := gCtMap.DumpWithCallback(cb); err != nil {
+		log.WithError(err).Error("google_ctmap dump failed during GC")
+		return
+	}
+
+	// Now, delete the collected keys
+	for _, key := range keysToDelete {
+		if err := gCtMap.Delete(key); err != nil {
+			log.WithError(err).WithField(logfields.Key, key.String()).Warn("Failed to delete orphan Google CT entry")
+		}
+	}
+
+	gCtMap.UpdatePressureMetricWithSize(int32(alive))
 }
 
 // Flush runs garbage collection for map m with the name mapType, deleting all

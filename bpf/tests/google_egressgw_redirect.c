@@ -23,6 +23,7 @@
 #define DEST_IFINDEX 5
 #define DEST_LXC_ID 200
 #define HAVE_FIB_NEIGH 1
+#define GATEWAY_NODE_2_IP v4_node_one
 
 __section("mock-handle-policy")
 int mock_handle_policy(struct __ctx_buff *ctx __maybe_unused)
@@ -52,6 +53,14 @@ mock_tail_call_dynamic(struct __ctx_buff *ctx __maybe_unused,
 #include "bpf_lxc.c"
 #include "lib/egressgw.h"
 #include "lib/policy.h"
+#include "lib/google_maps.h"
+#include "lib/google/test_util.h"
+
+static __always_inline void __maybe_unused add_google_ctmap_entry(struct ipv4_ct_tuple tuple,
+								  struct google_ctmap_entry entry)
+{
+	map_update_elem(&GOOGLE_CTMAP_V4, &tuple, &entry, 0);
+}
 
 #define FROM_CONTAINER 0
 
@@ -233,4 +242,171 @@ int google_egressgw_skip_no_gateway_redirect_check(const struct __ctx_buff *ctx)
 	del_egressgw_policy_entry(CLIENT_IP, EXTERNAL_SVC_IP, 32);
 
 	test_finish();
+}
+
+/* Test that an initial packet destined for a perimeter gateway node creates an
+ * entry in the GOOGLE_CTMAP_V4 map.
+ */
+PKTGEN("tc", "google_ct_egress_create_entry")
+int google_ct_egress_create_entry_pktgen(struct __ctx_buff *ctx)
+{
+	return egressgw_pktgen(ctx, (struct egressgw_test_ctx) {
+			.test = TEST_REDIRECT,
+		});
+}
+
+SETUP("tc", "google_ct_egress_create_entry")
+int google_ct_egress_create_entry_setup(struct __ctx_buff *ctx)
+{
+	add_egressgw_policy_entry(CLIENT_IP, EXTERNAL_SVC_IP & 0xffffff, 24, GATEWAY_NODE_IP, 0);
+
+	/* Avoid policy drop */
+	policy_add_egress_allow_all_entry();
+
+	/* Add local endpoint to the ENDPOINTS_MAP*/
+	struct endpoint_key ep_key = {
+		.family = ENDPOINT_KEY_IPV4,
+		.ip4 = GATEWAY_NODE_IP,
+	};
+
+	struct endpoint_info ep_value = {
+		.ifindex = DEST_IFINDEX,
+		.lxc_id = DEST_LXC_ID,
+	};
+
+	map_update_elem(&ENDPOINTS_MAP, &ep_key, &ep_value, BPF_ANY);
+
+	/* Jump into the entrypoint */
+	tail_call_static(ctx, entry_call_map, FROM_CONTAINER);
+	/* Fail if we didn't jump */
+	return TEST_ERROR;
+}
+
+CHECK("tc", "google_ct_egress_create_entry")
+int google_ct_egress_create_entry_check(const struct __ctx_buff *ctx)
+{
+	test_init();
+	struct google_ctmap_entry *egress_ct_info;
+	int ret = egressgw_status_check(ctx, (struct egressgw_test_ctx) {
+			.status_code = TC_ACT_OK,
+	});
+
+	if (ret != TEST_PASS)
+		test_fatal("Failed status check");
+
+	struct ipv4_ct_tuple tuple = {
+		.daddr   = CLIENT_IP,
+		.saddr   = EXTERNAL_SVC_IP,
+		.dport   = EXTERNAL_SVC_PORT,
+		.sport   = client_port(TEST_REDIRECT),
+		.nexthdr = IPPROTO_TCP,
+		.flags = TUPLE_F_OUT,
+	};
+	egress_ct_info = map_lookup_elem(&GOOGLE_CTMAP_V4, &tuple);
+
+	if (!egress_ct_info)
+		test_fatal("Null ct egress info entry");
+	assert(egress_ct_info->ip4_addr == GATEWAY_NODE_IP);
+	assert(egress_ct_info->egress_nat == 1);
+
+	policy_delete_egress_entry();
+	del_egressgw_policy_entry(CLIENT_IP, EXTERNAL_SVC_IP & 0xffffff, 24);
+
+	/* Delete local endpoint from the ENDPOINTS_MAP*/
+	struct endpoint_key ep_key = {
+		.family = ENDPOINT_KEY_IPV4,
+		.ip4 = GATEWAY_NODE_IP,
+	};
+
+	map_delete_elem(&ENDPOINTS_MAP, &ep_key);
+	map_delete_elem(&GOOGLE_CTMAP_V4, &tuple);
+
+	test_finish();
+}
+
+/* Tests that a packet which has established an egress connection will continue to use the original
+ * perimeter gateway node even when the gateway stored in egress policy map changes.
+ * This is achieved by redirecting to the gateway node IP stored in the CT_EGRESS_INFO_4 map.
+ */
+PKTGEN("tc", "google_ct_egress_redirect")
+int google_ct_egress_redirect_pktgen(struct __ctx_buff *ctx)
+{
+	return egressgw_pktgen(ctx, (struct egressgw_test_ctx) {
+			.test = TEST_REDIRECT,
+		});
+}
+
+SETUP("tc", "google_ct_egress_redirect")
+int google_ct_egress_redirect_setup(struct __ctx_buff *ctx)
+{
+	add_egressgw_policy_entry(CLIENT_IP, EXTERNAL_SVC_IP & 0xffffff, 24, GATEWAY_NODE_IP, 0);
+
+	/* Avoid policy drop */
+	policy_add_egress_allow_all_entry();
+
+	/* remote endpoint for original gateway */
+	struct ipcache_key cache_key = {
+		.lpm_key.prefixlen = IPCACHE_PREFIX_LEN(32),
+		.family = ENDPOINT_KEY_IPV4,
+		.ip4 = GATEWAY_NODE_2_IP,
+	};
+	struct remote_endpoint_info cache_value = {
+		.sec_identity = 445566
+	};
+	map_update_elem(&IPCACHE_MAP, &cache_key, &cache_value, BPF_ANY);
+
+	struct ipv4_ct_tuple tuple = {
+		.daddr   = CLIENT_IP,
+		.saddr   = EXTERNAL_SVC_IP,
+		.dport   = EXTERNAL_SVC_PORT,
+		.sport   = client_port(TEST_REDIRECT),
+		.nexthdr = IPPROTO_TCP,
+		.flags = TUPLE_F_OUT,
+	};
+	struct google_ctmap_entry in_val = {
+		.ip4_addr = GATEWAY_NODE_2_IP,
+		.egress_nat = 1,
+	};
+	add_google_ctmap_entry(tuple, in_val);
+
+	/* Jump into the entrypoint */
+	tail_call_static(ctx, entry_call_map, FROM_CONTAINER);
+	/* Fail if we didn't jump */
+	return TEST_ERROR;
+}
+
+CHECK("tc", "google_ct_egress_redirect")
+int google_ct_egress_redirect_check(const struct __ctx_buff *ctx)
+{
+	int ret = geneve_ip_opt_check(ctx, (struct geneve_opt_test_ctx) {
+		.hdr_type = PERIMETER_GENEVE_EGRESS_OPT_TYPE,
+		.hdr_length = PERIMETER_IPV4_GENEVE_OPT_LEN,
+		.ip_opt = GATEWAY_NODE_2_IP,
+		.src_mac = client_mac,
+		.dst_mac = ext_svc_mac,
+	});
+
+	policy_delete_egress_entry();
+	del_egressgw_policy_entry(CLIENT_IP, EXTERNAL_SVC_IP & 0xffffff, 24);
+
+	/* Delete remote endpoint from the IPCACHE_MAP*/
+	struct ipcache_key cache_key = {
+		.lpm_key.prefixlen = IPCACHE_PREFIX_LEN(32),
+		.family = ENDPOINT_KEY_IPV4,
+		.ip4 = GATEWAY_NODE_2_IP,
+	};
+
+	map_delete_elem(&IPCACHE_MAP, &cache_key);
+
+	struct ipv4_ct_tuple tuple = {
+		.daddr   = CLIENT_IP,
+		.saddr   = EXTERNAL_SVC_IP,
+		.dport   = EXTERNAL_SVC_PORT,
+		.sport   = client_port(TEST_REDIRECT),
+		.nexthdr = IPPROTO_TCP,
+		.flags = TUPLE_F_OUT,
+	};
+	map_delete_elem(&GOOGLE_CTMAP_V4, &tuple);
+
+	return ret;
 }
