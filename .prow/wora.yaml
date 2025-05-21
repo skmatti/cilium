@@ -209,8 +209,8 @@ presubmits:
         value: mtv
       - name: WORA_GINKGO_LABEL_FILTER
         # TODO: b/412356832 - reenable kubevirt verifier when the bug is fixed.
-        # value: kubevirt||multinetwork||sample||tailcall
-        value: multinetwork||sample||tailcall
+        # value: kubevirt||multinetwork||sample
+        value: multinetwork||sample
       command:
       - runner.sh
       args:
