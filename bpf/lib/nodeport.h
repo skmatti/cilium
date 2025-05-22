@@ -1677,6 +1677,15 @@ int tail_handle_nat_fwd_ipv6(struct __ctx_buff *ctx)
 #endif /* ENABLE_IPV6 */
 
 #ifdef ENABLE_IPV4
+
+// Define the custom IPv4 NodePort SNAT source port range
+#  ifdef ENABLE_MASQUERADE_IPV4
+#   define NODEPORT_PORT_NAT_IPV4_RANGE1_MIN 1024
+#   define NODEPORT_PORT_NAT_IPV4_RANGE1_MAX 29999
+#   define NODEPORT_PORT_NAT_IPV4_RANGE2_MIN 32768
+#   define NODEPORT_PORT_NAT_IPV4_RANGE2_MAX 65535
+#  endif /* ENABLE_MASQUERADE_IPV4 */
+
 static __always_inline bool nodeport_uses_dsr4(const struct ipv4_ct_tuple *tuple)
 {
 	return nodeport_uses_dsr(tuple->nexthdr);
@@ -1720,17 +1729,35 @@ static __always_inline int nodeport_snat_fwd_ipv4(struct __ctx_buff *ctx,
 						  struct trace_ctx *trace,
 						  __s8 *ext_err)
 {
-	struct ipv4_nat_target target = {
-		.min_port = NODEPORT_PORT_MIN_NAT,
-		.max_port = NODEPORT_PORT_MAX_NAT,
+	__u16 selected_min_port;
+	__u16 selected_max_port;
+# ifdef ENABLE_MASQUERADE_IPV4
+	__u32 random_val;
+# endif /* ENABLE_MASQUERADE_IPV4 */
+    struct ipv4_nat_target target;
+    struct ipv4_ct_tuple tuple = {};
+    void *data, *data_end;
+    struct iphdr *ip4;
+    int l4_off, ret;
+# ifdef ENABLE_MASQUERADE_IPV4
+    random_val = get_prandom_u32();
+	if (random_val & 1) {
+		selected_min_port = NODEPORT_PORT_NAT_IPV4_RANGE1_MIN;
+		selected_max_port = NODEPORT_PORT_NAT_IPV4_RANGE1_MAX;
+	} else {
+		selected_min_port = NODEPORT_PORT_NAT_IPV4_RANGE2_MIN;
+		selected_max_port = NODEPORT_PORT_NAT_IPV4_RANGE2_MAX;
+	}
+# else
+	selected_min_port = NODEPORT_PORT_MIN_NAT;
+	selected_max_port = NODEPORT_PORT_MAX_NAT;
+# endif /* ENABLE_MASQUERADE_IPV4 */
+    memset(&target, 0, sizeof(target)); /* 确保所有未显式赋值的成员为0 */
+    target.min_port = selected_min_port; /* 给需要的成员赋值 */
+    target.max_port = selected_max_port;
 #if defined(ENABLE_CLUSTER_AWARE_ADDRESSING) && defined(ENABLE_INTER_CLUSTER_SNAT)
-		.cluster_id = cluster_id,
+        target.cluster_id = cluster_id;
 #endif
-	};
-	struct ipv4_ct_tuple tuple = {};
-	void *data, *data_end;
-	struct iphdr *ip4;
-	int l4_off, ret;
 
 	if (!revalidate_data(ctx, &data, &data_end, &ip4))
 		return DROP_INVALID;
@@ -2642,10 +2669,12 @@ __section_tail(CILIUM_MAP_CALLS, CILIUM_CALL_IPV4_NODEPORT_NAT_INGRESS)
 static __always_inline
 int tail_nodeport_nat_ingress_ipv4(struct __ctx_buff *ctx)
 {
-	struct ipv4_nat_target target = {
-		.min_port = NODEPORT_PORT_MIN_NAT,
-		.max_port = NODEPORT_PORT_MAX_NAT,
-	};
+	__u16 selected_min_port;
+	__u16 selected_max_port;
+#   ifdef ENABLE_MASQUERADE_IPV4
+    __u32 random_val;
+#   endif /* ENABLE_MASQUERADE_IPV4 */
+    struct ipv4_nat_target target;
 	struct trace_ctx trace = {
 		.reason = TRACE_REASON_UNKNOWN,
 		.monitor = TRACE_PAYLOAD_LEN,
@@ -2653,6 +2682,23 @@ int tail_nodeport_nat_ingress_ipv4(struct __ctx_buff *ctx)
 	__u32 src_id = 0;
 	__s8 ext_err = 0;
 	int ret;
+
+#   ifdef ENABLE_MASQUERADE_IPV4
+    random_val = get_prandom_u32();
+	if (random_val & 1) {
+		selected_min_port = NODEPORT_PORT_NAT_IPV4_RANGE1_MIN;
+		selected_max_port = NODEPORT_PORT_NAT_IPV4_RANGE1_MAX;
+	} else {
+		selected_min_port = NODEPORT_PORT_NAT_IPV4_RANGE2_MIN;
+		selected_max_port = NODEPORT_PORT_NAT_IPV4_RANGE2_MAX;
+	}
+#   else
+     selected_min_port = NODEPORT_PORT_MIN_NAT;
+	 selected_max_port = NODEPORT_PORT_MAX_NAT;
+#   endif /* ENABLE_MASQUERADE_IPV4 */
+    memset(&target, 0, sizeof(target));
+	target.min_port = selected_min_port;
+	target.max_port = selected_max_port;
 
 	ret = snat_v4_rev_nat(ctx, &target, &trace, &ext_err);
 	if (IS_ERR(ret)) {
@@ -2738,16 +2784,12 @@ int tail_nodeport_nat_egress_ipv4(struct __ctx_buff *ctx)
 			.ifindex	= ctx_get_ifindex(ctx),
 		},
 	};
-	struct ipv4_nat_target target = {
-		.min_port = NODEPORT_PORT_MIN_NAT,
-		.max_port = NODEPORT_PORT_MAX_NAT,
-		/* Unfortunately, the bpf_fib_lookup() is not able to set src IP addr.
-		 * So we need to assume that the direct routing device is going to be
-		 * used to fwd the NodePort request, thus SNAT-ing to its IP addr.
-		 * This will change once we have resolved GH#17158.
-		 */
-		.addr = IPV4_DIRECT_ROUTING,
-	};
+	__u16 selected_min_port;
+	__u16 selected_max_port;
+#   ifdef ENABLE_MASQUERADE_IPV4
+	__u32 random_val;
+#   endif /* ENABLE_MASQUERADE_IPV4 */
+    struct ipv4_nat_target target; 
 	struct ipv4_ct_tuple tuple = {};
 	struct trace_ctx trace = {
 		.reason = (enum trace_reason)CT_NEW,
@@ -2765,6 +2807,29 @@ int tail_nodeport_nat_egress_ipv4(struct __ctx_buff *ctx)
 	struct remote_endpoint_info *info;
 	__be32 tunnel_endpoint = 0;
 #endif
+
+#   ifdef ENABLE_MASQUERADE_IPV4
+    random_val = get_prandom_u32();
+	if (random_val & 1) {
+		selected_min_port = NODEPORT_PORT_NAT_IPV4_RANGE1_MIN;
+		selected_max_port = NODEPORT_PORT_NAT_IPV4_RANGE1_MAX;
+	} else {
+		selected_min_port = NODEPORT_PORT_NAT_IPV4_RANGE2_MIN;
+		selected_max_port = NODEPORT_PORT_NAT_IPV4_RANGE2_MAX;
+	}
+#   else
+     selected_min_port = NODEPORT_PORT_MIN_NAT;
+	 selected_max_port = NODEPORT_PORT_MAX_NAT;
+#   endif /* ENABLE_MASQUERADE_IPV4 */
+    memset(&target, 0, sizeof(target));
+	target.min_port = selected_min_port;
+	target.max_port = selected_max_port;
+	/* Unfortunately, the bpf_fib_lookup() is not able to set src IP addr.
+	 * So we need to assume that the direct routing device is going to be
+	 * used to fwd the NodePort request, thus SNAT-ing to its IP addr.
+	 * This will change once we have resolved GH#17158.
+	 */
+	target.addr = IPV4_DIRECT_ROUTING;
 
 	/* Use per-interface NodePort SNAT IP for additional-network host devices
 	 * to preserve network isolation.
