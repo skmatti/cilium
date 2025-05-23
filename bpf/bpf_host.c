@@ -58,6 +58,9 @@
 #include "lib/google_arp.h"
 #include "lib/google_pip.h"
 
+#include "lib/google/hooks_common.h"
+#include "lib/google/hooks_host.h"
+
 #define host_egress_policy_hook(ctx, src_sec_identity, ext_err) CTX_ACT_OK
 /* Bit 0 is skipped for robustness, as it's used in some places to indicate from_host itself. */
 #define FROM_HOST_FLAG_NEED_HOSTFW (1 << 1)
@@ -680,6 +683,7 @@ handle_ipv4_cont(struct __ctx_buff *ctx, __u32 secctx, const bool from_host,
 		.reason = TRACE_REASON_UNKNOWN,
 		.monitor = TRACE_PAYLOAD_LEN,
 	};
+	struct goog_host_stage_ctx stage_ctx;
 	__u32 __maybe_unused from_host_raw;
 	void *data, *data_end;
 	struct iphdr *ip4;
@@ -701,6 +705,27 @@ handle_ipv4_cont(struct __ctx_buff *ctx, __u32 secctx, const bool from_host,
 
 	if (!revalidate_data(ctx, &data, &data_end, &ip4))
 		return DROP_INVALID;
+
+	goog_host_init_ctx(&stage_ctx);
+
+	if (from_host)
+		ret = GOOGLE_HOOK(ctx, host_ingress_hfw4, HOST_INGRESS_HFW4,
+				  stage_ctx, ext_err);
+	else
+		ret = GOOGLE_HOOK(ctx, netdev_ingress_hfw4, NETDEV_INGRESS_HFW4,
+				  stage_ctx, ext_err);
+
+	if (!revalidate_data(ctx, &data, &data_end, &ip4))
+		return DROP_INVALID;
+
+	switch (ret) {
+	case HOOK_ACT_SKIP:
+		goto to_endpoint;
+	case HOOK_ACT_CONTINUE:
+		break;
+	default:
+		return ret;
+	}
 
 #ifdef ENABLE_HOST_FIREWALL
 	from_host_raw = ctx_load_and_clear_meta(ctx, CB_FROM_HOST);
@@ -730,6 +755,19 @@ handle_ipv4_cont(struct __ctx_buff *ctx, __u32 secctx, const bool from_host,
 			return ret;
 	}
 #endif /* ENABLE_HOST_FIREWALL */
+
+	if (from_host)
+		ret = GOOGLE_HOOK(ctx, host_ingress_fwd4, HOST_INGRESS_FWD4,
+				  stage_ctx, ext_err);
+	else
+		ret = GOOGLE_HOOK(ctx, netdev_ingress_fwd4, NETDEV_INGRESS_FWD4,
+				  stage_ctx, ext_err);
+
+	if (!revalidate_data(ctx, &data, &data_end, &ip4))
+		return DROP_INVALID;
+
+	if (ret != HOOK_ACT_CONTINUE)
+		return ret;
 
 #ifdef ENABLE_GOOGLE_MULTI_NIC
 {
@@ -1322,7 +1360,9 @@ handle_netdev(struct __ctx_buff *ctx, const bool from_host)
 __section_entry
 int cil_from_netdev(struct __ctx_buff *ctx)
 {
+	struct goog_host_stage_ctx stage_ctx;
 	__u32 src_id = 0;
+	__s8 ext_err = 0;
 
 #ifdef ENABLE_NODEPORT_ACCELERATION
 	__u32 flags = ctx_get_xfer(ctx, XFER_FLAGS);
@@ -1355,6 +1395,12 @@ int cil_from_netdev(struct __ctx_buff *ctx)
 		ctx_snat_done_set(ctx);
 #endif
 #endif
+	goog_host_init_ctx(&stage_ctx);
+
+	ret = GOOGLE_HOOK(ctx, netdev_ingress_start, NETDEV_INGRESS_START,
+			  stage_ctx, &ext_err);
+	if (ret != HOOK_ACT_CONTINUE)
+		return ret;
 
 #ifdef ENABLE_HIGH_SCALE_IPCACHE
 	ret = decapsulate_overlay(ctx, &src_id);
@@ -1378,6 +1424,17 @@ drop_err:
 __section_entry
 int cil_from_host(struct __ctx_buff *ctx)
 {
+	struct goog_host_stage_ctx stage_ctx;
+	__s8 ext_err = 0;
+	int ret;
+
+	goog_host_init_ctx(&stage_ctx);
+
+	ret = GOOGLE_HOOK(ctx, host_ingress_start, HOST_INGRESS_START,
+			  stage_ctx, &ext_err);
+	if (ret != HOOK_ACT_CONTINUE)
+		return ret;
+
 	/* Traffic from the host ns going through cilium_host device must
 	 * not be subject to EDT rate-limiting.
 	 */

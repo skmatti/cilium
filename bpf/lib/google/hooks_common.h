@@ -36,6 +36,13 @@ enum goog_ctr_stage {
 	CTR_INGRESS_CT4,
 	CTR_INGRESS_POL4,
 	CTR_INGRESS_DEL4,
+
+	NETDEV_INGRESS_START,
+	NETDEV_INGRESS_HFW4,
+	NETDEV_INGRESS_FWD4,
+	HOST_INGRESS_START,
+	HOST_INGRESS_HFW4,
+	HOST_INGRESS_FWD4,
 };
 
 /**
@@ -105,6 +112,46 @@ static __always_inline void
 goog_ctr_init_ctx(struct goog_ctr_stage_ctx *stage_ctx)
 {
 	memset(stage_ctx, 0, sizeof(struct goog_ctr_stage_ctx));
+}
+
+struct goog_netdev_ingress_start_ctx {
+};
+
+struct goog_netdev_ingress_hfw4_ctx {
+};
+
+struct goog_netdev_ingress_fwd4_ctx {
+};
+
+struct goog_host_ingress_start_ctx {
+};
+
+struct goog_host_ingress_hfw4_ctx {
+};
+
+struct goog_host_ingress_fwd4_ctx {
+};
+
+union goog_host_stage_hook_ctx {
+	struct goog_netdev_ingress_start_ctx goog_netdev_ingress_start_ctx;
+	struct goog_netdev_ingress_hfw4_ctx goog_netdev_ingress_hfw4_ctx;
+	struct goog_netdev_ingress_fwd4_ctx goog_netdev_ingress_fwd4_ctx;
+	struct goog_host_ingress_start_ctx goog_host_ingress_start_ctx;
+	struct goog_host_ingress_hfw4_ctx goog_host_ingress_hfw4_ctx;
+	struct goog_host_ingress_fwd4_ctx goog_host_ingress_fwd4_ctx;
+};
+
+struct goog_host_stage_ctx {
+	union goog_host_stage_hook_ctx stage_ctx;
+	struct __ctx_buff *ctx;
+	enum goog_ctr_stage curr;
+	__s8 *ext_err;
+};
+
+static __always_inline void
+goog_host_init_ctx(struct goog_host_stage_ctx *stage_ctx)
+{
+	memset(stage_ctx, 0, sizeof(struct goog_host_stage_ctx));
 }
 
 /**
