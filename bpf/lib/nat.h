@@ -89,8 +89,8 @@ struct ipv4_nat_entry {
 
 struct ipv4_nat_target {
 	__be32 addr;
-	__u16 min_port; /* host endianness */
-	__u16 max_port; /* host endianness */
+	const __u16 min_port; /* host endianness */
+	const __u16 max_port; /* host endianness */
 	bool from_local_endpoint;
 	bool egress_gateway; /* NAT is needed because of an egress gateway policy */
 	__u32 cluster_id;
@@ -203,8 +203,8 @@ static __always_inline int snat_v4_new_mapping(struct __ctx_buff *ctx, void *map
 	/* .dport is selected below */
 
 	port = __snat_try_keep_port(target->min_port,
-	 			target->max_port,
-	 			bpf_ntohs(otuple->sport));
+				    target->max_port,
+				    bpf_ntohs(otuple->sport));
 
 	ostate->common.needs_ct = needs_ct;
 	rstate.common.needs_ct = needs_ct;
