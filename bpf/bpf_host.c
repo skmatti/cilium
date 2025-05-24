@@ -774,14 +774,6 @@ handle_ipv4_cont(struct __ctx_buff *ctx, __u32 secctx, const bool from_host,
 	if (ret != HOOK_ACT_CONTINUE)
 		return ret;
 
-#ifdef ENABLE_GOOGLE_PERSISTENT_IP
-	ret = google_try_pip_ingress_redirect4(ctx, secctx, ip4);
-	if (ret != CTX_ACT_OK)
-		return ret;
-	if (!revalidate_data(ctx, &data, &data_end, &ip4))
-		return DROP_INVALID;
-#endif /* ENABLE_GOOGLE_PERSISTENT_IP */
-
 #ifndef ENABLE_HOST_ROUTING
 	/* Without bpf_redirect_neigh() helper, we cannot redirect a
 	 * packet to a local endpoint in the direct routing mode, as

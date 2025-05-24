@@ -5,6 +5,7 @@
 #include <linux/in.h>
 
 #include "lib/google/multinic.h"
+#include "lib/google/pip.h"
 #include "lib/google/plugin.h"
 
 /**
@@ -68,6 +69,10 @@ int pre_netdev_ingress_fwd4(struct __ctx_buff *ctx,
 	if (ret != HOOK_ACT_CONTINUE)
 		return ret;
 
+	ret = goog_maybe_try_pip_ingress_redirect4(ctx, &stage_ctx->__common);
+	if (ret != HOOK_ACT_CONTINUE)
+		return ret;
+
 	return HOOK_ACT_CONTINUE;
 }
 
@@ -119,6 +124,10 @@ int pre_host_ingress_fwd4(struct __ctx_buff *ctx,
 	ret = goog_mn_maybe_deliver_to_ep(ctx, &stage_ctx->__common);
 	if (ret == HOOK_ACT_SKIP)
 		return HOOK_ACT_CONTINUE;
+	if (ret != HOOK_ACT_CONTINUE)
+		return ret;
+
+	ret = goog_maybe_try_pip_ingress_redirect4(ctx, &stage_ctx->__common);
 	if (ret != HOOK_ACT_CONTINUE)
 		return ret;
 
