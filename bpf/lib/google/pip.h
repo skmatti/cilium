@@ -33,6 +33,27 @@ int goog_maybe_try_pip_ingress_redirect4(struct __ctx_buff *ctx,
 
 #endif /* IS_BPF_HOST */
 
+#ifdef IS_BPF_LXC
+
+static __always_inline
+int goog_maybe_try_pip_egress_redirect4(struct __ctx_buff *ctx,
+					struct goog_ctr_egress_svc4_ctx *stage_ctx)
+{
+	void *data, *data_end;
+	int ret;
+
+	ret = google_try_pip_egress_redirect4(ctx, stage_ctx->ip4);
+	if (ret != CTX_ACT_OK)
+		return ret;
+
+	if (!revalidate_data(ctx, &data, &data_end, &stage_ctx->ip4))
+		return DROP_INVALID;
+
+	return HOOK_ACT_CONTINUE;
+}
+
+#endif /* IS_BPF_LXC */
+
 #else
 
 #ifdef IS_BPF_HOST
@@ -45,5 +66,15 @@ int goog_maybe_try_pip_ingress_redirect4(struct __ctx_buff *ctx __maybe_unused,
 }
 
 #endif /* IS_BPF_HOST */
+
+#ifdef IS_BPF_LXC
+
+int goog_maybe_try_pip_egress_redirect4(struct __ctx_buff *ctx __maybe_unused,
+					struct goog_ctr_egress_svc4_ctx *stage_ctx __maybe_unused)
+{
+	return HOOK_ACT_CONTINUE;
+}
+
+#endif /* IS_BPF_LXC */
 
 #endif /* ENABLE_GOOGLE_PERSISTENT_IP */

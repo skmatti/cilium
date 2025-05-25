@@ -1466,15 +1466,6 @@ static __always_inline int __tail_handle_ipv4(struct __ctx_buff *ctx,
 		return DROP_INVALID;
 #endif /* MULTI_NIC_DEVICE_TYPE */
 
-#ifdef ENABLE_GOOGLE_PERSISTENT_IP
-	ret = google_try_pip_egress_redirect4(ctx, ip4);
-	if (ret != CTX_ACT_OK)
-	    return ret;
-	// We always return above if modifying the packet.
-	// But still need this revalidation to make verifier happy.
-	if (!revalidate_data(ctx, &data, &data_end, &ip4))
-		return DROP_INVALID;
-#endif
 	stage_ctx.stage_ctx.goog_ctr_egress_svc4_ctx.ip4 = ip4;
 	ret = GOOGLE_HOOK(ctx, ctr_egress_svc4, CTR_EGRESS_SVC4, stage_ctx, ext_err);
 	if (ret != HOOK_ACT_CONTINUE)
@@ -2535,15 +2526,6 @@ int cil_to_container(struct __ctx_buff *ctx)
 						  &ext_err);
 		if (ret != HOOK_ACT_CONTINUE)
 			goto out;
-
-#ifdef ENABLE_GOOGLE_PERSISTENT_IP
-		{
-			if (is_dst_endpoint_pip4(ctx)) {
-				ret = CTX_ACT_OK;
-				break;
-			}
-		}
-#endif /* ENABLE_GOOGLE_PERSISTENT_IP */
 
 # ifdef ENABLE_HIGH_SCALE_IPCACHE
 	if (identity_is_world_ipv4(identity)) {

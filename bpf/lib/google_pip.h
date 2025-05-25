@@ -222,4 +222,11 @@ static __always_inline bool is_dst_endpoint_pip4(struct __ctx_buff *ctx)
 
 #endif /* IS_BPF_LXC */
 
+#else
+
+static __always_inline
+bool is_dst_endpoint_pip4(struct __ctx_buff *ctx __maybe_unused) {
+	return false;
+}
+
 #endif /* ENABLE_GOOGLE_PERSISTENT_IP */

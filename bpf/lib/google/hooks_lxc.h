@@ -5,6 +5,7 @@
 #include <linux/in.h>
 
 #include "lib/google/sfc.h"
+#include "lib/google/pip.h"
 #include "lib/google/plugin.h"
 #include "lib/google_multinic.h"
 
@@ -47,7 +48,14 @@ static __always_inline int
 pre_ctr_ingress_ct4(struct __ctx_buff *ctx,
 		    struct goog_ctr_ingress_ct4_ctx *stage_ctx)
 {
-	return goog_sfc_maybe_decap(ctx, stage_ctx);
+	int ret = goog_sfc_maybe_decap(ctx, stage_ctx);
+	if (ret != HOOK_ACT_CONTINUE)
+		return ret;
+
+	if (is_dst_endpoint_pip4(ctx))
+		return CTX_ACT_OK;
+
+	return HOOK_ACT_CONTINUE;
 }
 
 static __always_inline int
@@ -104,6 +112,10 @@ static __always_inline int
 pre_ctr_egress_svc4(struct __ctx_buff *ctx,
 		    struct goog_ctr_egress_svc4_ctx *stage_ctx)
 {
+	int ret = goog_maybe_try_pip_egress_redirect4(ctx, stage_ctx);
+	if (ret != HOOK_ACT_CONTINUE)
+		return ret;
+
 	return goog_sfc_maybe_encap_existing(ctx, stage_ctx);
 }
 
