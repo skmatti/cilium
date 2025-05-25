@@ -114,6 +114,11 @@ goog_ctr_init_ctx(struct goog_ctr_stage_ctx *stage_ctx)
 	memset(stage_ctx, 0, sizeof(struct goog_ctr_stage_ctx));
 }
 
+struct goog_host_ingress_fwd4_ctx_common {
+	struct iphdr *ip4;
+	__u32 secctx;
+};
+
 struct goog_netdev_ingress_start_ctx {
 };
 
@@ -121,6 +126,7 @@ struct goog_netdev_ingress_hfw4_ctx {
 };
 
 struct goog_netdev_ingress_fwd4_ctx {
+	struct goog_host_ingress_fwd4_ctx_common __common;
 };
 
 struct goog_host_ingress_start_ctx {
@@ -130,6 +136,7 @@ struct goog_host_ingress_hfw4_ctx {
 };
 
 struct goog_host_ingress_fwd4_ctx {
+	struct goog_host_ingress_fwd4_ctx_common __common;
 };
 
 union goog_host_stage_hook_ctx {
