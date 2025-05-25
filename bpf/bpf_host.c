@@ -774,28 +774,6 @@ handle_ipv4_cont(struct __ctx_buff *ctx, __u32 secctx, const bool from_host,
 	if (ret != HOOK_ACT_CONTINUE)
 		return ret;
 
-#ifdef ENABLE_GOOGLE_MULTI_NIC
-{
-	bool should_to_endpoint = false;
-	// Mark the source IDENTITY to HOST if the packet is local-redirected
-	// for the multinic device before redirection to kernel.
-	// The ingress BPF program of the multinic device can correctly
-	// inherit the source IDENTITY to process the packet.
-	if (unlikely(ctx_google_local_redirect(ctx)))
-		ctx->mark = MARK_MAGIC_HOST;
-	// Here we enable the rediret datapath to deliver traffic
-	// from netdev to local L3 multi-nic endpoints, for which
-	// we either drop the packet if wrong device, or redirect it to the endpoint.
-	ret = try_google_L3_fast_redirect(ctx, secctx, ip4, &should_to_endpoint);
-	if (should_to_endpoint)
-		goto to_endpoint;
-	if (ret != CTX_ACT_OK)
-		return ret;
-	if (!revalidate_data(ctx, &data, &data_end, &ip4))
-		return DROP_INVALID;
-}
-#endif /* ENABLE_GOOGLE_MULTI_NIC */
-
 #ifdef ENABLE_GOOGLE_PERSISTENT_IP
 	ret = google_try_pip_ingress_redirect4(ctx, secctx, ip4);
 	if (ret != CTX_ACT_OK)

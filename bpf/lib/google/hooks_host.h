@@ -4,6 +4,7 @@
 #include <bpf/api.h>
 #include <linux/in.h>
 
+#include "lib/google/multinic.h"
 #include "lib/google/plugin.h"
 
 /**
@@ -55,9 +56,18 @@ int pre_netdev_ingress_hfw4(struct __ctx_buff *ctx __maybe_unused,
 }
 
 static __always_inline
-int pre_netdev_ingress_fwd4(struct __ctx_buff *ctx __maybe_unused,
-			    struct goog_netdev_ingress_fwd4_ctx *stage_ctx __maybe_unused)
+int pre_netdev_ingress_fwd4(struct __ctx_buff *ctx,
+			    struct goog_netdev_ingress_fwd4_ctx *stage_ctx)
 {
+
+	int ret;
+
+	ret = goog_mn_maybe_deliver_to_ep(ctx, &stage_ctx->__common);
+	if (ret == HOOK_ACT_SKIP)
+		return HOOK_ACT_CONTINUE;
+	if (ret != HOOK_ACT_CONTINUE)
+		return ret;
+
 	return HOOK_ACT_CONTINUE;
 }
 
@@ -101,8 +111,16 @@ int pre_host_ingress_hfw4(struct __ctx_buff *ctx __maybe_unused,
 }
 
 static __always_inline
-int pre_host_ingress_fwd4(struct __ctx_buff *ctx __maybe_unused,
-			  struct goog_host_ingress_fwd4_ctx *stage_ctx __maybe_unused)
+int pre_host_ingress_fwd4(struct __ctx_buff *ctx,
+			  struct goog_host_ingress_fwd4_ctx *stage_ctx)
 {
+	int ret;
+
+	ret = goog_mn_maybe_deliver_to_ep(ctx, &stage_ctx->__common);
+	if (ret == HOOK_ACT_SKIP)
+		return HOOK_ACT_CONTINUE;
+	if (ret != HOOK_ACT_CONTINUE)
+		return ret;
+
 	return HOOK_ACT_CONTINUE;
 }
