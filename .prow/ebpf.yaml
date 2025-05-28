@@ -96,36 +96,6 @@ presubmits:
       command:
       - runner.sh
       - ./google_test/upstream_test/prow_entrypoint.sh
-- name: gke-advanced-datapath-presubmit-ebpf-ubuntu2004
-  trigger: /test ebpf-ubuntu2004
-  rerun_command: /test ebpf-ubuntu2004
-  always_run: false
-  skip_fetch_head: true
-  decorate: true
-  decoration_config:
-    timeout: 240m
-  labels:
-    preset-cookie-file: "true"
-    preset-cookie-file-env: "true"
-    preset-service-account: "true"
-    preset-k8s-ssh: "true"
-    prow.k8s.io/gerrit-report-label: Unit-Verified
-  path_alias: gke-internal.googlesource.com/third_party/cilium
-  spec:
-    containers:
-    - image: gcr.io/gke-test-infra/kubekins-e2e:v20240104-dc2c09a68a-1.29
-      env:
-      - name: GCP_PROJECT
-        value: anthos-networking-ci
-      - name: TEST_TYPE
-        value: ebpf
-      - name: IMAGE_PROJECT
-        value: anthos-baremetal-ci
-      - name: IMAGE_FAMILY
-        value: ubuntu-2004-docker
-      command:
-      - runner.sh
-      - ./google_test/upstream_test/prow_entrypoint.sh
 - name: gke-advanced-datapath-presubmit-ebpf-rocky86-upstream
   trigger: /test ebpf-rocky86
   rerun_command: /test ebpf-rocky86
