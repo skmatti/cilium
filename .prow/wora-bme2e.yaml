@@ -1,0 +1,84 @@
+presubmits:
+# Presubmit WORA jobs.
+- name: wora-bme2e_cilium
+  trigger: /test wora-bme2e$
+  rerun_command: /test wora-bme2e
+  always_run: false
+  skip_fetch_head: true
+  decorate: true
+  decoration_config:
+    timeout: 240m
+  labels:
+    preset-cookie-file: "true"
+    preset-cookie-file-env: "true"
+    preset-service-account: "true"
+    preset-dind-enabled: "true"
+    preset-k8s-ssh: "true"
+  path_alias: gke-internal.googlesource.com/third_party/cilium
+  spec:
+    containers:
+    - image: gcr.io/tailorbird/kubetest2-tailorbird:latest
+      resources:
+        requests:
+          ephemeral-storage: 150Gi
+        limits:
+          ephemeral-storage: 300Gi
+      securityContext:
+        # needed for docker-in-docker
+        privileged: true
+      env:
+      - name: CILIUM_GITREF
+        value: HEAD
+      - name: PATCH_CONTENT_DIR
+        value: addon/patch_content/abm-1.32.x-gke/overlays/gdc-so
+      - name: TBCONFIG
+        value: sut-bme2e.yaml
+      - name: WORA_CONFIG
+        value: no_op_test.yaml
+      command:
+      - runner.sh
+      args:
+      - ./google_test/wora/prow_entrypoint.sh
+- name: wora-bme2e-mtv_cilium
+  cluster: build-onprem-mtv
+  trigger: /test wora-bme2e-mtv$
+  rerun_command: /test wora-bme2e-mtv
+  always_run: false
+  skip_fetch_head: true
+  decorate: true
+  decoration_config:
+    timeout: 240m
+  labels:
+    preset-cookie-file: "true"
+    preset-cookie-file-env: "true"
+    preset-service-account-onprem: "true"
+    preset-dind-enabled: "true"
+  path_alias: gke-internal.googlesource.com/third_party/cilium
+  spec:
+    imagePullSecrets:
+    - name: gcr-secret
+    containers:
+    - image: gcr.io/tailorbird/kubetest2-tailorbird:latest
+      resources:
+        requests:
+          ephemeral-storage: 150Gi
+        limits:
+          ephemeral-storage: 300Gi
+      securityContext:
+        # needed for docker-in-docker
+        privileged: true
+      env:
+      - name: CILIUM_GITREF
+        value: HEAD
+      - name: PATCH_CONTENT_DIR
+        value: addon/patch_content/abm-1.32.x-gke/overlays/gdc-so
+      - name: TBCONFIG
+        value: sut-bme2e-mtv.yaml
+      - name: WORA_CONTROL_PLANE
+        value: mtv
+      - name: WORA_CONFIG
+        value: no_op_test.yaml
+      command:
+      - runner.sh
+      args:
+      - ./google_test/wora/prow_entrypoint.sh

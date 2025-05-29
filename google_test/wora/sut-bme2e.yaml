@@ -1,0 +1,40 @@
+# Configuration for running Baremetal E2E tests defined below on GCE
+apiVersion: sut.tailorbird.io/v1alpha1
+kind: Rookery
+metadata:
+  name: wora-sut-bme2e
+  namespace: tailorbird-users
+spec:
+  ttlSeconds: 86400 # 1 day
+  knests:
+  - apiVersion: sut.tailorbird.io/v1alpha1
+    kind: Knest
+    metadata:
+      name: wora-sut-bme2e
+    spec:
+      clusters:
+      - apiVersion: sut.tailorbird.io/v1alpha1
+        kind: Cluster
+        metadata:
+          name: wora-sut-bme2e
+          namespace: tailorbird-users
+        spec:
+          distribution: gke
+          provider: baremetal
+          provisionerArgs:
+            # Exact version of ABM is required to generate addon configurations.
+            bmctlVersion: 1.32.0-gke.566
+            # See
+            # https://source.corp.google.com/h/gke-internal/codesearch/+/master:syllogi-baremetal/test-infra/README.md;drc=afe783bc4145ba18892210a10ea6dcb3e28ee389
+            # for cluster size descriptions.
+            passthroughEnv: |
+              {
+                "MANIFEST_PROFILE_ENV": "staging",
+                "CLUSTER_SIZE": "conformant_cluster",
+                "NUM_NETWORKS": "2",
+                "TEST_TYPE": "bm_e2e",
+                "BM_E2E_TEST_LABELS": "flat-ip,conformance,ingress,loadbalancer,egress-nat"
+              }
+            project: anthos-networking-ci
+            proxyPort: "8222"
+            username: prowuser

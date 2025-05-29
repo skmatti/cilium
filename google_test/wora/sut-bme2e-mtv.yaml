@@ -1,0 +1,43 @@
+# Configuration for running Baremetal E2E tests defined below on MTV lab
+apiVersion: sut.tailorbird.io/v1alpha1
+kind: Rookery
+metadata:
+  name: wora-sut-bme2e-mtv
+  namespace: tailorbird-users
+spec:
+  ttlSeconds: 86400 # 1 day
+  knests:
+  - apiVersion: sut.tailorbird.io/v1alpha1
+    kind: Knest
+    metadata:
+      name: wora-sut-bme2e-mtv
+    spec:
+      clusters:
+      - apiVersion: sut.tailorbird.io/v1alpha1
+        kind: Cluster
+        metadata:
+          name: wora-sut-bme2e-mtv
+          namespace: tailorbird-users
+        spec:
+          distribution: gke-baremetal
+          location: mtv
+          provider: baremetal
+          provisionerArgs:
+            bmctlVersion: 1.32.0-gke.566
+            passthroughEnv: |
+              {
+                "MANIFEST_PROFILE_ENV": "staging",
+                "PLATFORM": "baremetal",
+                "LAB_ID": "mtv_baremetal",
+                "HERCULES_VLANS": "339,340,346,347,348",
+                "HERCULES_MAX_RETRY_ATTEMPTS": "1",
+                "HERCULES_RETRY_STRATEGY": "reboot",
+                "HERCULES_RETRY_INTERVAL": "45m",
+                "CONTAINER_RUNTIME": "containerd",
+                "NUM_NETWORKS": "2",
+                "TEST_TYPE": "bm_e2e",
+                "BM_E2E_TEST_LABELS": "flat-ip,conformance,ingress,loadbalancer,egress-nat"
+              }
+            project: anthos-networking-ci
+            serverOS: ubuntu2004
+            username: prowuser
