@@ -76,6 +76,8 @@ presubmits:
         value: conformance_test.yaml
       - name: WORA_DOCKERFILE_DIR
         value: conformance
+      - name: WORA_RESOURCE_NAME
+        value: anthos-networking-test-large-workloads
       command:
       - runner.sh
       args:
@@ -116,6 +118,8 @@ presubmits:
         value: networking_granular_test.yaml
       - name: WORA_DOCKERFILE_DIR
         value: conformance
+      - name: WORA_RESOURCE_NAME
+        value: anthos-networking-test-large-workloads
       command:
       - runner.sh
       args:
