@@ -21,7 +21,7 @@ var bpfMultiNICDevDeleteCmd = &cobra.Command{
 
 		m, err := multinetworking.ParseMAC(args[0])
 		if err != nil {
-			Fatalf(err.Error())
+			Fatalf("%s", err.Error())
 		}
 
 		key := multinetworking.NewKey(m)
