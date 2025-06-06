@@ -90,4 +90,7 @@ const (
 
 	// EnableGoogleMultiNICEgressNAT is the name of the option to enable egress nat policies for google multi NIC endpointpoints.
 	EnableGoogleMultiNICEgressNAT = "enable-google-multi-nic-egress-nat"
+
+	// GoogleRestrictK8sNPScopeToLocalCluster is the name of the option to restrict K8s NetworkPolicy scope to the local cluster
+	GoogleRestrictK8sNPScopeToLocalCluster = "google-restrict-k8s-np-scope-to-local-cluster"
 )

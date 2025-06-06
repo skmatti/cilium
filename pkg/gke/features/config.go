@@ -70,6 +70,9 @@ type Config struct {
 	EnableGDCILB                    bool `mapstructure:"enable-gdc-ilb"`
 	// EnableGoogleMultiNICEgressNAT is the option to enable egress NAT policies for multi NIC endpoints.
 	EnableGoogleMultiNICEgressNAT bool
+
+	// GoogleRestrictK8sNPScopeToLocalCluster is a flag to restrict K8s NetworkPolicy scope to the local cluster.
+	GoogleRestrictK8sNPScopeToLocalCluster bool `mapstructure:"google-restrict-k8s-np-scope-to-local-cluster"`
 }
 
 var defaultConfig = Config{
@@ -87,9 +90,10 @@ var defaultConfig = Config{
 	EnableMultiPoolIPAM:         false,
 	EnableGKEMultiTenancy:       false,
 
-	DisablePodToRemoteNodeTunneling: false,
-	EnableGDCILB:                    false,
-	EnableGoogleMultiNICEgressNAT:   false,
+	DisablePodToRemoteNodeTunneling:        false,
+	EnableGDCILB:                           false,
+	EnableGoogleMultiNICEgressNAT:          false,
+	GoogleRestrictK8sNPScopeToLocalCluster: false,
 }
 
 func (cfg Config) Flags(flags *pflag.FlagSet) {
@@ -142,4 +146,7 @@ func (cfg Config) Flags(flags *pflag.FlagSet) {
 
 	flags.Bool(option.EnableGoogleMultiNICEgressNAT, defaultConfig.EnableGoogleMultiNICEgressNAT, "Enable Egress NAT policies for Google multi NIC endpoints")
 	flags.MarkHidden(option.EnableGoogleMultiNICEgressNAT)
+
+	flags.Bool(option.GoogleRestrictK8sNPScopeToLocalCluster, defaultConfig.GoogleRestrictK8sNPScopeToLocalCluster, "Restrict K8s NetworkPolicy scope to the local cluster")
+	flags.MarkHidden(option.GoogleRestrictK8sNPScopeToLocalCluster)
 }

@@ -93,9 +93,13 @@ func parseNetworkPolicyPeer(namespace string, peer *slim_networkingv1.NetworkPol
 			namespaceSelector.MatchExpressions = []slim_metav1.LabelSelectorRequirement{allowAllNamespacesRequirement}
 		}
 
+		applyLocalClusterScope(peer, namespace)
+
 		selector := api.NewESFromK8sLabelSelector(labels.LabelSourceK8sKeyPrefix, namespaceSelector, peer.PodSelector, networkSelector)
 		retSel = &selector
 	} else if peer.PodSelector != nil {
+		applyLocalClusterScope(peer, namespace)
+
 		podSelector := parsePodSelector(peer.PodSelector, namespace)
 		selector := api.NewESFromK8sLabelSelector(labels.LabelSourceK8sKeyPrefix, podSelector, networkSelector)
 		retSel = &selector

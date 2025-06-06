@@ -6,12 +6,14 @@ import (
 
 	networkv1 "github.com/GoogleCloudPlatform/gke-networking-api/apis/network/v1"
 	"github.com/cilium/cilium/api/v1/models"
+	"github.com/cilium/cilium/pkg/gke/features"
 	"github.com/cilium/cilium/pkg/gke/multinic/multinicconfig"
 	k8sConst "github.com/cilium/cilium/pkg/k8s/apis/cilium.io"
 	slim_networkingv1 "github.com/cilium/cilium/pkg/k8s/slim/k8s/api/networking/v1"
 	slim_metav1 "github.com/cilium/cilium/pkg/k8s/slim/k8s/apis/meta/v1"
 	"github.com/cilium/cilium/pkg/k8s/slim/k8s/apis/util/intstr"
 	"github.com/cilium/cilium/pkg/labels"
+	"github.com/cilium/cilium/pkg/option"
 	"github.com/cilium/cilium/pkg/policy"
 	"github.com/cilium/cilium/pkg/policy/api"
 	"github.com/stretchr/testify/require"
@@ -1103,6 +1105,372 @@ func Test_parseNetworkPolicyPeerForNetworkSelector(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			got := parseNetworkPolicyPeer(tt.namespace, tt.peer, tt.networkSelector)
+			require.EqualValues(t, tt.want, got, "Failed to parseNetworkPolicyPeer()")
+		})
+	}
+}
+
+func Test_applyLocalClusterScope(t *testing.T) {
+	const validClusterName = "test-cluster-1"
+
+	origRestrictScope := features.GlobalConfig.GoogleRestrictK8sNPScopeToLocalCluster
+	origClusterName := option.Config.ClusterName
+
+	defer func() {
+		features.GlobalConfig.GoogleRestrictK8sNPScopeToLocalCluster = origRestrictScope
+		option.Config.ClusterName = origClusterName
+	}()
+
+	tests := []struct {
+		name         string
+		setup        func()
+		peer         *slim_networkingv1.NetworkPolicyPeer
+		namespace    string
+		expectedPeer *slim_networkingv1.NetworkPolicyPeer
+	}{
+		{
+			name: "local-cluster-scope-flag-disabled",
+			setup: func() {
+				features.GlobalConfig.GoogleRestrictK8sNPScopeToLocalCluster = false
+				option.Config.ClusterName = validClusterName
+			},
+			peer: &slim_networkingv1.NetworkPolicyPeer{
+				PodSelector: &slim_metav1.LabelSelector{},
+			},
+			namespace: "ns-1",
+			expectedPeer: &slim_networkingv1.NetworkPolicyPeer{
+				PodSelector: &slim_metav1.LabelSelector{},
+			},
+		},
+		{
+			name: "peer-with-no-selectors",
+			setup: func() {
+				features.GlobalConfig.GoogleRestrictK8sNPScopeToLocalCluster = true
+				option.Config.ClusterName = validClusterName
+			},
+			peer:         &slim_networkingv1.NetworkPolicyPeer{},
+			namespace:    "ns-2",
+			expectedPeer: &slim_networkingv1.NetworkPolicyPeer{},
+		},
+		{
+			name: "peer-with-pod-selector-empty-matchlabels",
+			setup: func() {
+				features.GlobalConfig.GoogleRestrictK8sNPScopeToLocalCluster = true
+				option.Config.ClusterName = validClusterName
+			},
+			peer: &slim_networkingv1.NetworkPolicyPeer{
+				PodSelector: &slim_metav1.LabelSelector{},
+			},
+			namespace: "ns-3",
+			expectedPeer: &slim_networkingv1.NetworkPolicyPeer{
+				PodSelector: &slim_metav1.LabelSelector{
+					MatchLabels: map[string]string{
+						k8sConst.PolicyLabelCluster: validClusterName,
+					},
+				},
+			},
+		},
+		{
+			name: "peer-with-namespace-selector-empty-matchlabels",
+			setup: func() {
+				features.GlobalConfig.GoogleRestrictK8sNPScopeToLocalCluster = true
+				option.Config.ClusterName = validClusterName
+			},
+			peer: &slim_networkingv1.NetworkPolicyPeer{
+				NamespaceSelector: &slim_metav1.LabelSelector{},
+			},
+			namespace: "ns-4",
+			expectedPeer: &slim_networkingv1.NetworkPolicyPeer{
+				NamespaceSelector: &slim_metav1.LabelSelector{},
+				PodSelector: &slim_metav1.LabelSelector{
+					MatchLabels: map[string]string{
+						k8sConst.PolicyLabelCluster: validClusterName,
+					},
+				},
+			},
+		},
+		{
+			name: "peer-with-pod-selector",
+			setup: func() {
+				features.GlobalConfig.GoogleRestrictK8sNPScopeToLocalCluster = true
+				option.Config.ClusterName = validClusterName
+			},
+			peer: &slim_networkingv1.NetworkPolicyPeer{
+				PodSelector: &slim_metav1.LabelSelector{
+					MatchLabels: map[string]string{
+						"app": "my-app",
+					},
+				},
+			},
+			namespace: "ns-5",
+			expectedPeer: &slim_networkingv1.NetworkPolicyPeer{
+				PodSelector: &slim_metav1.LabelSelector{
+					MatchLabels: map[string]string{
+						"app":                       "my-app",
+						k8sConst.PolicyLabelCluster: validClusterName,
+					},
+				},
+			},
+		},
+		{
+			name: "peer-with-namespace-selector",
+			setup: func() {
+				features.GlobalConfig.GoogleRestrictK8sNPScopeToLocalCluster = true
+				option.Config.ClusterName = validClusterName
+			},
+			peer: &slim_networkingv1.NetworkPolicyPeer{
+				NamespaceSelector: &slim_metav1.LabelSelector{
+					MatchLabels: map[string]string{
+						"ns": "ns-peer",
+					},
+				},
+			},
+			namespace: "ns-6",
+			expectedPeer: &slim_networkingv1.NetworkPolicyPeer{
+				NamespaceSelector: &slim_metav1.LabelSelector{
+					MatchLabels: map[string]string{
+						"ns": "ns-peer",
+					},
+				},
+				PodSelector: &slim_metav1.LabelSelector{
+					MatchLabels: map[string]string{
+						k8sConst.PolicyLabelCluster: validClusterName,
+					},
+				},
+			},
+		},
+		{
+			name: "peer-with-pod-selector-and-namespace-selector",
+			setup: func() {
+				features.GlobalConfig.GoogleRestrictK8sNPScopeToLocalCluster = true
+				option.Config.ClusterName = validClusterName
+			},
+			peer: &slim_networkingv1.NetworkPolicyPeer{
+				PodSelector: &slim_metav1.LabelSelector{
+					MatchLabels: map[string]string{
+						"app": "my-app",
+					},
+				},
+				NamespaceSelector: &slim_metav1.LabelSelector{
+					MatchLabels: map[string]string{
+						"ns": "ns-peer",
+					},
+				},
+			},
+			namespace: "ns-7",
+			expectedPeer: &slim_networkingv1.NetworkPolicyPeer{
+				NamespaceSelector: &slim_metav1.LabelSelector{
+					MatchLabels: map[string]string{
+						"ns": "ns-peer",
+					},
+				},
+				PodSelector: &slim_metav1.LabelSelector{
+					MatchLabels: map[string]string{
+						"app":                       "my-app",
+						k8sConst.PolicyLabelCluster: validClusterName,
+					},
+				},
+			},
+		},
+		{
+			name: "empty-cluster-name",
+			setup: func() {
+				features.GlobalConfig.GoogleRestrictK8sNPScopeToLocalCluster = true
+				option.Config.ClusterName = ""
+			},
+			peer:         &slim_networkingv1.NetworkPolicyPeer{},
+			namespace:    "ns-8",
+			expectedPeer: &slim_networkingv1.NetworkPolicyPeer{},
+		},
+		{
+			name: "empty-cluster-name-local-cluster-scope-flag-disabled",
+			setup: func() {
+				features.GlobalConfig.GoogleRestrictK8sNPScopeToLocalCluster = false
+				option.Config.ClusterName = ""
+			},
+			peer:         &slim_networkingv1.NetworkPolicyPeer{},
+			namespace:    "ns-9",
+			expectedPeer: &slim_networkingv1.NetworkPolicyPeer{},
+		},
+		{
+			name: "empty-cluster-name-should-not-modify-peer-with-existing-data",
+			setup: func() {
+				features.GlobalConfig.GoogleRestrictK8sNPScopeToLocalCluster = true
+				option.Config.ClusterName = ""
+			},
+			peer: &slim_networkingv1.NetworkPolicyPeer{
+				PodSelector: &slim_metav1.LabelSelector{
+					MatchLabels: map[string]string{"app": "my-app"},
+				},
+			},
+			namespace: "ns-10",
+			expectedPeer: &slim_networkingv1.NetworkPolicyPeer{
+				PodSelector: &slim_metav1.LabelSelector{
+					MatchLabels: map[string]string{"app": "my-app"},
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.setup()
+			applyLocalClusterScope(tt.peer, tt.namespace)
+			require.EqualValues(t, tt.expectedPeer, tt.peer, "Failed to applyLocalClusterScope()")
+		})
+	}
+}
+
+func Test_parseNetworkPolicyPeerWithLocalScopeRestriction(t *testing.T) {
+	const validClusterName = "vanilla-zone1"
+
+	origRestrictScope := features.GlobalConfig.GoogleRestrictK8sNPScopeToLocalCluster
+	origClusterName := option.Config.ClusterName
+
+	defer func() {
+		features.GlobalConfig.GoogleRestrictK8sNPScopeToLocalCluster = origRestrictScope
+		option.Config.ClusterName = origClusterName
+	}()
+
+	tests := []struct {
+		name            string
+		setup           func()
+		namespace       string
+		peer            *slim_networkingv1.NetworkPolicyPeer
+		networkSelector *slim_metav1.LabelSelector
+		want            *api.EndpointSelector
+	}{
+		{
+			name: "peer-with-only-pod-selector",
+			setup: func() {
+				features.GlobalConfig.GoogleRestrictK8sNPScopeToLocalCluster = true
+				option.Config.ClusterName = validClusterName
+			},
+			namespace: "ns-1",
+			peer: &slim_networkingv1.NetworkPolicyPeer{
+				PodSelector: &slim_metav1.LabelSelector{
+					MatchLabels: map[string]string{
+						"app": "database",
+					},
+				},
+			},
+			networkSelector: &slim_metav1.LabelSelector{
+				MatchLabels: map[string]string{
+					"network-annotation-key": "pod-network",
+				},
+			},
+			want: getSelectorPointer(
+				api.NewESFromMatchRequirements(
+					map[string]string{
+						"k8s.app":                          "database",
+						"k8s.io.kubernetes.pod.namespace":  "ns-1",
+						"k8s.io.cilium.k8s.policy.cluster": "vanilla-zone1",
+						"k8s.network-annotation-key":       "pod-network",
+					},
+					nil,
+				),
+			),
+		},
+		{
+			name: "peer-with-only-namespace-selector",
+			setup: func() {
+				features.GlobalConfig.GoogleRestrictK8sNPScopeToLocalCluster = true
+				option.Config.ClusterName = validClusterName
+			},
+			namespace: "ns-2",
+			peer: &slim_networkingv1.NetworkPolicyPeer{
+				NamespaceSelector: &slim_metav1.LabelSelector{
+					MatchLabels: map[string]string{"role": "backend-ns"},
+				},
+			},
+			networkSelector: &slim_metav1.LabelSelector{
+				MatchLabels: map[string]string{
+					"network-annotation-key": "pod-network",
+				},
+			},
+			want: getSelectorPointer(
+				api.NewESFromMatchRequirements(
+					map[string]string{
+						"k8s.io.cilium.k8s.namespace.labels.role": "backend-ns",
+						"k8s.io.cilium.k8s.policy.cluster":        "vanilla-zone1",
+						"k8s.network-annotation-key":              "pod-network",
+					},
+					nil,
+				),
+			),
+		},
+		{
+			name: "peer-with-namespace-and-pod-selector",
+			setup: func() {
+				features.GlobalConfig.GoogleRestrictK8sNPScopeToLocalCluster = true
+				option.Config.ClusterName = validClusterName
+			},
+			namespace: "ns-3",
+			peer: &slim_networkingv1.NetworkPolicyPeer{
+				NamespaceSelector: &slim_metav1.LabelSelector{
+					MatchLabels: map[string]string{"role": "frontend-ns"},
+				},
+				PodSelector: &slim_metav1.LabelSelector{
+					MatchLabels: map[string]string{"app": "frontend"},
+				},
+			},
+			networkSelector: &slim_metav1.LabelSelector{
+				MatchLabels: map[string]string{
+					"network-annotation-key": "pod-network",
+				},
+			},
+			want: getSelectorPointer(
+				api.NewESFromMatchRequirements(
+					map[string]string{
+						"k8s.app": "frontend",
+						"k8s.io.cilium.k8s.namespace.labels.role": "frontend-ns",
+						"k8s.io.cilium.k8s.policy.cluster":        "vanilla-zone1",
+						"k8s.network-annotation-key":              "pod-network",
+					},
+					nil,
+				),
+			),
+		},
+		{
+			name: "clustername-is-empty",
+			setup: func() {
+				features.GlobalConfig.GoogleRestrictK8sNPScopeToLocalCluster = true
+				option.Config.ClusterName = ""
+			},
+			namespace: "ns-4",
+			peer: &slim_networkingv1.NetworkPolicyPeer{
+				PodSelector: &slim_metav1.LabelSelector{
+					MatchLabels: map[string]string{"env": "prod"},
+				},
+			},
+			networkSelector: &slim_metav1.LabelSelector{
+				MatchLabels: map[string]string{
+					"network-annotation-key": "pod-network",
+				},
+			},
+			want: func() *api.EndpointSelector {
+				originalName := option.Config.ClusterName
+				option.Config.ClusterName = ""
+				defer func() { option.Config.ClusterName = originalName }()
+
+				return getSelectorPointer(
+					api.NewESFromMatchRequirements(
+						map[string]string{
+							"k8s.env":                         "prod",
+							"k8s.io.kubernetes.pod.namespace": "ns-4",
+							"k8s.network-annotation-key":      "pod-network",
+						},
+						nil,
+					),
+				)
+			}(),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.setup()
 			got := parseNetworkPolicyPeer(tt.namespace, tt.peer, tt.networkSelector)
 			require.EqualValues(t, tt.want, got, "Failed to parseNetworkPolicyPeer()")
 		})
