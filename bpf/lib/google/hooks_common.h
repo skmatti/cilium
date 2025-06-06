@@ -69,12 +69,30 @@ struct goog_ctr_egress_pol4_ctx {
 };
 
 struct goog_ctr_egress_fwd4_ctx {
+	__u32 cluster_id;
+	struct ipv4_ct_tuple *tuple;
 	 /* TODO(jrife): Maybe something more generic like CT state makes sense
 	  * here. rev_nat_index is pretty tailored towards service steering's code.
 	  */
 	__u16 rev_nat_index;
 	/* Skip local delivery if set to true. */
 	bool skip_local_delivery;
+	enum ct_status ct_status;
+	/* endpoint wants to access itself via service IP */
+	bool hairpin_flow;
+	/* Local endpoint. Valid when it's a hairpin traffic */
+	struct endpoint_info *local_dst_ep;
+	/* Source security identity. Used to override the original source security identity
+	 * if it's not zero.
+	 */
+	__u32 src_sec_identity;
+	__u32 dst_sec_identity;
+	/* Destination endpoint info. If provided, the packet should be redirected
+	 * to this tunnel_endpoint instead.
+	 * Only used for the redirection. You may not use the identity here
+	 * for network policy enforcement.
+	 */
+	struct remote_endpoint_info *remote_dst_ep;
 };
 
 struct goog_ctr_ingress_ct4_ctx {
@@ -117,6 +135,9 @@ goog_ctr_init_ctx(struct goog_ctr_stage_ctx *stage_ctx)
 
 struct goog_host_ingress_fwd4_ctx_common {
 	__u32 secctx;
+	// When true, the packet will be redirected to endpoint directly.
+	bool go_to_endpoint;
+	struct endpoint_info *ep;
 };
 
 struct goog_netdev_ingress_start_ctx {

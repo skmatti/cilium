@@ -758,12 +758,12 @@ handle_ipv4_cont(struct __ctx_buff *ctx, __u32 secctx, const bool from_host,
 
 	if (from_host) {
 		stage_ctx.stage_ctx.goog_host_ingress_fwd4_ctx.__common.secctx = secctx;
-
+		stage_ctx.stage_ctx.goog_host_ingress_fwd4_ctx.__common.ep = lookup_ip4_endpoint(ip4);
 		ret = GOOGLE_HOOK(ctx, host_ingress_fwd4, HOST_INGRESS_FWD4,
 				  stage_ctx, ext_err);
 	} else {
 		stage_ctx.stage_ctx.goog_netdev_ingress_fwd4_ctx.__common.secctx = secctx;
-
+		stage_ctx.stage_ctx.goog_netdev_ingress_fwd4_ctx.__common.ep = lookup_ip4_endpoint(ip4);
 		ret = GOOGLE_HOOK(ctx, netdev_ingress_fwd4, NETDEV_INGRESS_FWD4,
 				  stage_ctx, ext_err);
 	}
@@ -773,6 +773,10 @@ handle_ipv4_cont(struct __ctx_buff *ctx, __u32 secctx, const bool from_host,
 
 	if (ret != HOOK_ACT_CONTINUE)
 		return ret;
+
+	if ((from_host && stage_ctx.stage_ctx.goog_host_ingress_fwd4_ctx.__common.go_to_endpoint) ||
+		(!from_host && stage_ctx.stage_ctx.goog_netdev_ingress_fwd4_ctx.__common.go_to_endpoint))
+		goto to_endpoint;
 
 #ifndef ENABLE_HOST_ROUTING
 	/* Without bpf_redirect_neigh() helper, we cannot redirect a
@@ -799,9 +803,14 @@ handle_ipv4_cont(struct __ctx_buff *ctx, __u32 secctx, const bool from_host,
 		if (!revalidate_data(ctx, &data, &data_end, &ip4))
 			return DROP_INVALID;
 	}
-__maybe_unused to_endpoint:
-	/* Lookup IPv4 address in list of local endpoints and host IPs */
-	ep = lookup_ip4_endpoint(ip4);
+to_endpoint:
+	/* Lookup IPv4 address in list of local endpoints and host IPs.
+	 * Note the acutal lookup logic has been moved above the NETDEV_INGRESS_FWD4 hook point.
+	 */
+	if (from_host)
+		ep = stage_ctx.stage_ctx.goog_host_ingress_fwd4_ctx.__common.ep;
+	else
+		ep = stage_ctx.stage_ctx.goog_netdev_ingress_fwd4_ctx.__common.ep;
 	if (ep) {
 		bool l2_hdr_required __maybe_unused = true;
 		int l3_off __maybe_unused = ETH_HLEN;

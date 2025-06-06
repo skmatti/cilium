@@ -868,7 +868,7 @@ static __always_inline int handle_ipv4_from_lxc(struct __ctx_buff *ctx, __u32 *d
 						__s8 *ext_err)
 {
 	struct ct_state *ct_state, ct_state_new = {};
-	struct ipv4_ct_tuple *tuple;
+	struct ipv4_ct_tuple *tuple = NULL;
 #ifdef ENABLE_ROUTING
 	union macaddr router_mac = THIS_INTERFACE_MAC;
 #endif
@@ -888,7 +888,7 @@ static __always_inline int handle_ipv4_from_lxc(struct __ctx_buff *ctx, __u32 *d
 	struct ct_buffer4 *ct_buffer;
 	__u8 audited = 0;
 	__u8 auth_type = 0;
-	enum ct_status ct_status;
+	enum ct_status ct_status = 0;
 	__u16 proxy_port = 0;
 	bool from_l7lb = false;
 	__u32 cluster_id = 0;
@@ -1129,6 +1129,11 @@ ct_recreate4:
 
 skip_egress_policy:
 	stage_ctx.stage_ctx.goog_ctr_egress_fwd4_ctx.rev_nat_index = ct_state_new.rev_nat_index;
+	stage_ctx.stage_ctx.goog_ctr_egress_fwd4_ctx.hairpin_flow = hairpin_flow;
+	stage_ctx.stage_ctx.goog_ctr_egress_fwd4_ctx.tuple = tuple;
+	stage_ctx.stage_ctx.goog_ctr_egress_fwd4_ctx.ct_status = ct_status;
+	stage_ctx.stage_ctx.goog_ctr_egress_fwd4_ctx.src_sec_identity = SECLABEL_IPV4;
+	stage_ctx.stage_ctx.goog_ctr_egress_fwd4_ctx.dst_sec_identity = *dst_sec_identity;
 	ret = GOOGLE_HOOK(ctx, ctr_egress_fwd4, CTR_EGRESS_FWD4, stage_ctx, ext_err);
 	if (ret != HOOK_ACT_CONTINUE)
 		return ret;
@@ -1165,7 +1170,7 @@ skip_egress_policy:
 	if (is_defined(ENABLE_ROUTING) || hairpin_flow ||
 	    is_defined(ENABLE_HOST_ROUTING)) {
 		__be32 daddr = ip4->daddr;
-		struct endpoint_info *ep;
+		struct endpoint_info *ep = stage_ctx.stage_ctx.goog_ctr_egress_fwd4_ctx.local_dst_ep;
 
 		/* Loopback replies are addressed to IPV4_LOOPBACK, so
 		 * an endpoint lookup with ip4->daddr won't work.
@@ -1184,7 +1189,8 @@ skip_egress_policy:
 		 *    host itself
 		 *  - The destination IP address belongs to endpoint itself.
 		 */
-		ep = __lookup_ip4_endpoint(daddr);
+		if (!ep)
+			ep = __lookup_ip4_endpoint(daddr);
 		// Skip local delivery if the destination endpoint is an L2 multi NIC endpoint.
 		if (ep && !(ep->flags & ENDPOINT_F_MULTI_NIC_L2)) {
 #if defined(ENABLE_HOST_ROUTING) || defined(ENABLE_ROUTING)
@@ -1205,7 +1211,8 @@ skip_egress_policy:
 
 			policy_clear_mark(ctx);
 			/* If the packet is from L7 LB it is coming from the host */
-			return ipv4_local_delivery(ctx, ETH_HLEN, SECLABEL_IPV4,
+			return ipv4_local_delivery(ctx, ETH_HLEN,
+						   stage_ctx.stage_ctx.goog_ctr_egress_fwd4_ctx.src_sec_identity,
 						   MARK_MAGIC_IDENTITY, ip4,
 						   ep, METRIC_EGRESS, from_l7lb,
 						   false, 0);
@@ -1289,6 +1296,14 @@ skip_vtep:
 		}
 #endif
 
+		if (stage_ctx.stage_ctx.goog_ctr_egress_fwd4_ctx.remote_dst_ep) {
+			const struct remote_endpoint_info *info =
+				stage_ctx.stage_ctx.goog_ctr_egress_fwd4_ctx.remote_dst_ep;
+
+			tunnel_endpoint = info->tunnel_endpoint;
+			encrypt_key = get_min_encrypt_key(info->key);
+			*dst_sec_identity = info->sec_identity;
+		}
 		ret = encap_and_redirect_lxc(ctx, tunnel_endpoint, ip4->saddr,
 					     ip4->daddr, encrypt_key, &key,
 					     SECLABEL_IPV4, *dst_sec_identity, &trace);
