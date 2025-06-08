@@ -33,8 +33,10 @@ import (
 	"github.com/cilium/cilium/pkg/ipam"
 	"github.com/cilium/cilium/pkg/logging/logfields"
 	"github.com/cilium/cilium/pkg/metrics"
+	"github.com/cilium/cilium/pkg/mtu"
 	"github.com/cilium/cilium/pkg/netns"
 	"github.com/cilium/cilium/pkg/node"
+	"github.com/cilium/cilium/pkg/option"
 
 	"github.com/containernetworking/plugins/pkg/ns"
 	"github.com/sirupsen/logrus"
@@ -676,6 +678,9 @@ func SetupL3Interface(ifNameInPod, podName string, podResources map[string][]str
 	}
 	// TODO(yfshen): get MTU information from interface CR.
 	cfg.MTU = parentDevLink.Attrs().MTU
+	if option.Config.TunnelingEnabled() {
+		cfg.MTU -= mtu.GoogleTunnelOverhead()
+	}
 
 	var peerIfName string
 	var peer netlink.Link
