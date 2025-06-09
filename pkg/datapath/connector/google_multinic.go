@@ -48,6 +48,7 @@ import (
 	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	multinictypes "github.com/cilium/cilium/pkg/gke/multinic/types"
 	anutils "gke-internal.googlesource.com/anthos-networking/apis/v2/utils"
 )
 
@@ -1299,6 +1300,15 @@ func populateInterfaceStatus(intf *networkv1.NetworkInterface, network *networkv
 	intf.Status.Routes = routes
 
 	if network.Spec.Type == networkv1.L3NetworkType {
+		// If the gateway IP is specified in the NI's annotation, we override
+		// the gateway IP in the network spec.
+		gwIP, err := fetchGateway4FromAnntations(intf.GetAnnotations())
+		if err != nil {
+			return err
+		}
+		if gwIP != "" {
+			intf.Status.Gateway4 = &gwIP
+		}
 		if intf.Status.Gateway4 == nil {
 			// For L3 network, if gateway is not specified in network,
 			// use the first IP from the network's pod CIDR on node as gateway IP.
@@ -1331,6 +1341,19 @@ func populateInterfaceStatus(intf *networkv1.NetworkInterface, network *networkv
 		}
 	}
 	return nil
+}
+
+// fetchGateway4FromInterfaceAnntations retrives the gateway IP from the annotation
+// specified on NetworkInterface object.
+func fetchGateway4FromAnntations(anns map[string]string) (string, error) {
+	gatewayIPStr, ok := anns[multinictypes.GatewayIPv4AddressAnnotationKey]
+	if !ok {
+		return "", nil
+	}
+	if ip := net.ParseIP(gatewayIPStr); ip == nil {
+		return "", fmt.Errorf("failed to parse %q as an IP Address", gatewayIPStr)
+	}
+	return gatewayIPStr, nil
 }
 
 // SetLXCVethAddress sets the given IP address to the LXC veth pair.

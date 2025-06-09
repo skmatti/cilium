@@ -1695,3 +1695,43 @@ func TestExtractRoutes(t *testing.T) {
 		})
 	}
 }
+
+func TestFetchGateway4FromAnntations(t *testing.T) {
+	for _, tc := range []struct {
+		desc    string
+		anns    map[string]string
+		wantErr string
+		want    string
+	}{
+		{
+			desc: "nil annotations",
+		},
+		{
+			desc: "bad gateway annotation",
+			anns: map[string]string{
+				multinictypes.GatewayIPv4AddressAnnotationKey: "10.0.0.0/32",
+			},
+			wantErr: "failed to parse",
+		},
+		{
+			desc: "valid gateway annotation",
+			anns: map[string]string{
+				multinictypes.GatewayIPv4AddressAnnotationKey: "10.0.0.0",
+			},
+			want: "10.0.0.0",
+		},
+	} {
+		t.Run(tc.desc, func(t *testing.T) {
+			gwIP, err := fetchGateway4FromAnntations(tc.anns)
+			if tc.wantErr == "" && err != nil {
+				t.Fatalf("fetchGateway4FromAnntations() error = %v, want nil", err)
+			}
+			if tc.wantErr != "" && (err == nil || !strings.Contains(err.Error(), tc.wantErr)) {
+				t.Fatalf("fetchGateway4FromAnntations() error = %v, want nil", err)
+			}
+			if gwIP != tc.want {
+				t.Errorf("fetchGateway4FromAnntations() = %s, want %s", gwIP, tc.want)
+			}
+		})
+	}
+}

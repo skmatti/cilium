@@ -15,6 +15,12 @@ import (
 	"github.com/cilium/cilium/pkg/node"
 )
 
+// GatewayIPv4AddressAnnotationKey the key for the annotation which
+// holds the gateway IPv4 address for a network interface.
+// This must be used as an annotation on NetworkInterface object that
+// references a L3 Network.
+const GatewayIPv4AddressAnnotationKey = "networking.gke.io/gateway-ipv4"
+
 // EndpointManager specifies the methods to manage endpoints.
 type EndpointManager interface {
 	// Subscribe to endpoint manager events.
