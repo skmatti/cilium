@@ -89,6 +89,15 @@ func TestIsIlbService(t *testing.T) {
 			},
 			want: true,
 		},
+		{
+			desc: "correct global-internal svc",
+			svc: &slimv1.Service{ObjectMeta: metav1.ObjectMeta{
+				Annotations: map[string]string{serviceAnnotationKey: globalServiceAnnotationValue}},
+				Spec:   slimv1.ServiceSpec{Type: slimv1.ServiceTypeLoadBalancer},
+				Status: slimv1.ServiceStatus{LoadBalancer: slimv1.LoadBalancerStatus{Ingress: []slimv1.LoadBalancerIngress{{IP: "1.2.3.4"}}}},
+			},
+			want: true,
+		},
 	}
 
 	for _, tc := range testCases {

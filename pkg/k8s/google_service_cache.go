@@ -40,10 +40,11 @@ import (
 )
 
 const (
-	serviceAnnotationKey   = "networking.gke.io/load-balancer-type"
-	serviceAnnotationValue = "internal"
-	serviceTypeKey         = "serviceType"
-	globalServiceTrue      = "true"
+	serviceAnnotationKey         = "networking.gke.io/load-balancer-type"
+	serviceAnnotationValue       = "internal"
+	globalServiceAnnotationValue = "global-internal"
+	serviceTypeKey               = "serviceType"
+	globalServiceTrue            = "true"
 )
 
 // generateServiceName creates a unique service name by using the cluster name as a prefix.
@@ -216,7 +217,8 @@ func isIlbService(svc *slimv1.Service) bool {
 	if svc == nil {
 		return false
 	}
-	return svc.Spec.Type == slimv1.ServiceTypeLoadBalancer && svc.Annotations[serviceAnnotationKey] == serviceAnnotationValue && len(svc.Status.LoadBalancer.Ingress) == 1
+
+	return svc.Spec.Type == slimv1.ServiceTypeLoadBalancer && hasGlobalILBAnnotation(svc.Annotations) && len(svc.Status.LoadBalancer.Ingress) == 1
 }
 
 // isLocalIlbClusterService checks if the external ClusterService should be exposed to pods on the local cluster
@@ -230,7 +232,8 @@ func isLocalIlbClusterService(svc *serviceStore.ClusterService) bool {
 	if svc.IncludeExternal {
 		return false
 	}
-	return svc.Labels[serviceAnnotationKey] == serviceAnnotationValue && svc.Labels[serviceTypeKey] == string(slimv1.ServiceTypeLoadBalancer)
+
+	return hasGlobalILBAnnotation(svc.Labels) && svc.Labels[serviceTypeKey] == string(slimv1.ServiceTypeLoadBalancer)
 }
 
 // isGlobalILBService checks if the local service should be exposed to remote clusters.
@@ -244,7 +247,10 @@ func isGlobalILBService(svc *slimv1.Service) bool {
 	// - networking.gke.io/load-balancer-type: internal
 	// - networking.gke.io/global-service: true
 	// - 1 Ingress
-	return svc.Spec.Type == slimv1.ServiceTypeLoadBalancer && svc.Annotations[annotation.GlobalService] == globalServiceTrue && svc.Annotations[serviceAnnotationKey] == serviceAnnotationValue && len(svc.Status.LoadBalancer.Ingress) == 1
+
+	ilbAnnotation := hasGlobalILBAnnotation(svc.Annotations)
+
+	return svc.Spec.Type == slimv1.ServiceTypeLoadBalancer && svc.Annotations[annotation.GlobalService] == globalServiceTrue && ilbAnnotation && len(svc.Status.LoadBalancer.Ingress) == 1
 }
 
 func isGlobalILBClusterService(svc *serviceStore.ClusterService) bool {
@@ -254,7 +260,7 @@ func isGlobalILBClusterService(svc *serviceStore.ClusterService) bool {
 	if !svc.IncludeExternal {
 		return false
 	}
-	return svc.Labels[serviceAnnotationKey] == serviceAnnotationValue && svc.Labels[serviceTypeKey] == string(slimv1.ServiceTypeLoadBalancer)
+	return hasGlobalILBAnnotation(svc.Labels) && svc.Labels[serviceTypeKey] == string(slimv1.ServiceTypeLoadBalancer)
 }
 
 func (s *ServiceCache) globalILBUpdateLocal(svcID ServiceID) {
@@ -411,4 +417,8 @@ func injectGlobalILBInfo(svc *slimv1.Service, internalService *Service) {
 		logfields.K8sSvcName:   svc.Name,
 		logfields.K8sNamespace: svc.Namespace,
 	}).Debugf("Injecting Global ILB Endpoint as Frontend, Backend: %s", lbVIP)
+}
+
+func hasGlobalILBAnnotation(data map[string]string) bool {
+	return (data[serviceAnnotationKey] == serviceAnnotationValue) || (data[serviceAnnotationKey] == globalServiceAnnotationValue)
 }
