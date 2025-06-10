@@ -117,7 +117,7 @@ pre_ctr_egress_svc4(struct __ctx_buff *ctx,
 	if (ret != HOOK_ACT_CONTINUE)
 		return ret;
 
-	ret = goog_maybe_try_pip_egress_redirect4(ctx, stage_ctx);
+	ret = goog_maybe_try_pip_egress_redirect4(ctx);
 	if (ret != HOOK_ACT_CONTINUE)
 		return ret;
 

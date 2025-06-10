@@ -18,15 +18,14 @@ int goog_maybe_try_pip_ingress_redirect4(struct __ctx_buff *ctx,
 					 struct goog_host_ingress_fwd4_ctx_common *stage_ctx)
 {
 	void *data, *data_end;
+	struct iphdr *ip4;
 	int ret;
 
-	ret = google_try_pip_ingress_redirect4(ctx, stage_ctx->secctx,
-					       stage_ctx->ip4);
+	if (!revalidate_data(ctx, &data, &data_end, &ip4))
+		return DROP_INVALID;
+	ret = google_try_pip_ingress_redirect4(ctx, stage_ctx->secctx, ip4);
 	if (ret != CTX_ACT_OK)
 		return ret;
-
-	if (!revalidate_data(ctx, &data, &data_end, &stage_ctx->ip4))
-		return DROP_INVALID;
 
 	return HOOK_ACT_CONTINUE;
 }
@@ -36,18 +35,17 @@ int goog_maybe_try_pip_ingress_redirect4(struct __ctx_buff *ctx,
 #ifdef IS_BPF_LXC
 
 static __always_inline
-int goog_maybe_try_pip_egress_redirect4(struct __ctx_buff *ctx,
-					struct goog_ctr_egress_svc4_ctx *stage_ctx)
+int goog_maybe_try_pip_egress_redirect4(struct __ctx_buff *ctx)
 {
 	void *data, *data_end;
+	struct iphdr *ip4;
 	int ret;
 
-	ret = google_try_pip_egress_redirect4(ctx, stage_ctx->ip4);
+	if (!revalidate_data(ctx, &data, &data_end, &ip4))
+		return DROP_INVALID;
+	ret = google_try_pip_egress_redirect4(ctx, ip4);
 	if (ret != CTX_ACT_OK)
 		return ret;
-
-	if (!revalidate_data(ctx, &data, &data_end, &stage_ctx->ip4))
-		return DROP_INVALID;
 
 	return HOOK_ACT_CONTINUE;
 }
@@ -69,8 +67,7 @@ int goog_maybe_try_pip_ingress_redirect4(struct __ctx_buff *ctx __maybe_unused,
 
 #ifdef IS_BPF_LXC
 
-int goog_maybe_try_pip_egress_redirect4(struct __ctx_buff *ctx __maybe_unused,
-					struct goog_ctr_egress_svc4_ctx *stage_ctx __maybe_unused)
+int goog_maybe_try_pip_egress_redirect4(struct __ctx_buff *ctx __maybe_unused)
 {
 	return HOOK_ACT_CONTINUE;
 }
