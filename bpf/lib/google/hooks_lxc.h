@@ -113,7 +113,7 @@ static __always_inline int
 pre_ctr_egress_svc4(struct __ctx_buff *ctx,
 		    struct goog_ctr_egress_svc4_ctx *stage_ctx)
 {
-	int ret = goog_maybe_redirect_if_dhcp(ctx, stage_ctx);
+	int ret = goog_maybe_redirect_if_dhcp(ctx);
 	if (ret != HOOK_ACT_CONTINUE)
 		return ret;
 
