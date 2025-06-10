@@ -59,7 +59,6 @@ struct goog_ctr_egress_start4_ctx {
 };
 
 struct goog_ctr_egress_svc4_ctx {
-	struct iphdr *ip4;
 	/* Disables source IP validation if set to true. */
 	bool disable_sip_validation;
 	/* Override the source IP used for service backend selection  */
@@ -67,11 +66,9 @@ struct goog_ctr_egress_svc4_ctx {
 };
 
 struct goog_ctr_egress_pol4_ctx {
-	struct iphdr *ip4;
 };
 
 struct goog_ctr_egress_fwd4_ctx {
-	struct iphdr *ip4;
 	 /* TODO(jrife): Maybe something more generic like CT state makes sense
 	  * here. rev_nat_index is pretty tailored towards service steering's code.
 	  */
@@ -115,7 +112,6 @@ goog_ctr_init_ctx(struct goog_ctr_stage_ctx *stage_ctx)
 }
 
 struct goog_host_ingress_fwd4_ctx_common {
-	struct iphdr *ip4;
 	__u32 secctx;
 };
 

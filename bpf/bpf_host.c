@@ -758,12 +758,12 @@ handle_ipv4_cont(struct __ctx_buff *ctx, __u32 secctx, const bool from_host,
 
 	if (from_host) {
 		stage_ctx.stage_ctx.goog_host_ingress_fwd4_ctx.__common.secctx = secctx;
-		stage_ctx.stage_ctx.goog_host_ingress_fwd4_ctx.__common.ip4 = ip4;
+
 		ret = GOOGLE_HOOK(ctx, host_ingress_fwd4, HOST_INGRESS_FWD4,
 				  stage_ctx, ext_err);
 	} else {
 		stage_ctx.stage_ctx.goog_netdev_ingress_fwd4_ctx.__common.secctx = secctx;
-		stage_ctx.stage_ctx.goog_netdev_ingress_fwd4_ctx.__common.ip4 = ip4;
+
 		ret = GOOGLE_HOOK(ctx, netdev_ingress_fwd4, NETDEV_INGRESS_FWD4,
 				  stage_ctx, ext_err);
 	}

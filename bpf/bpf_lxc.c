@@ -899,9 +899,10 @@ static __always_inline int handle_ipv4_from_lxc(struct __ctx_buff *ctx, __u32 *d
 
 	goog_ctr_init_ctx(&stage_ctx);
 
-	stage_ctx.stage_ctx.goog_ctr_egress_pol4_ctx.ip4 = ip4;
 	ret = GOOGLE_HOOK(ctx, ctr_egress_pol4, CTR_EGRESS_POL4, stage_ctx,
 					  ext_err);
+	if (!revalidate_data(ctx, &data, &data_end, &ip4))
+		return DROP_INVALID;
 	switch (ret) {
 	case HOOK_ACT_SKIP:
 		goto skip_egress_policy;
@@ -1128,7 +1129,6 @@ ct_recreate4:
 
 skip_egress_policy:
 	stage_ctx.stage_ctx.goog_ctr_egress_fwd4_ctx.rev_nat_index = ct_state_new.rev_nat_index;
-	stage_ctx.stage_ctx.goog_ctr_egress_fwd4_ctx.ip4 = ip4;
 	ret = GOOGLE_HOOK(ctx, ctr_egress_fwd4, CTR_EGRESS_FWD4, stage_ctx, ext_err);
 	if (ret != HOOK_ACT_CONTINUE)
 		return ret;
@@ -1456,7 +1456,6 @@ static __always_inline int __tail_handle_ipv4(struct __ctx_buff *ctx,
 	if (unlikely(!is_valid_lxc_src_mac(ctx, ip4->protocol)))
 		return DROP_GOOGLE_INVALID_SMAC;
 
-	stage_ctx.stage_ctx.goog_ctr_egress_svc4_ctx.ip4 = ip4;
 	ret = GOOGLE_HOOK(ctx, ctr_egress_svc4, CTR_EGRESS_SVC4, stage_ctx, ext_err);
 	if (ret != HOOK_ACT_CONTINUE)
 		return ret;
