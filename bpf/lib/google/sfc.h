@@ -156,18 +156,23 @@ static __always_inline int
 goog_sfc_maybe_encap_existing(struct __ctx_buff *ctx,
 			      struct goog_ctr_egress_svc4_ctx *stage_ctx)
 {
-	__be32 inner_saddr = stage_ctx->ip4->saddr;
 	struct redirect_info redir = {};
+	void *data, *data_end;
+	__be32 inner_saddr;
+	struct iphdr *ip4;
 	__u32 *flags;
 	int ret;
 
-	ret = sfc_existing_flow(ctx, stage_ctx->ip4, &redir);
+	if (!revalidate_data(ctx, &data, &data_end, &ip4))
+		return DROP_INVALID;
+	inner_saddr = ip4->saddr;
+	ret = sfc_existing_flow(ctx, ip4, &redir);
 	if (IS_ERR(ret))
 		return ret;
 	if (redir.path) {
-		ret = sfc_encap(ctx, stage_ctx->ip4, &redir);
+		ret = sfc_encap(ctx, ip4, &redir);
 		if (unlikely(ret == DROP_FRAG_NEEDED))
-			return sfc_redirect_icmp4(ctx, stage_ctx->ip4, 0);
+			return sfc_redirect_icmp4(ctx, ip4, 0);
 		if (IS_ERR(ret))
 			return ret;
 
@@ -216,6 +221,8 @@ goog_sfc_maybe_encap_new(struct __ctx_buff *ctx,
 			 struct goog_ctr_egress_fwd4_ctx *stage_ctx)
 {
 	struct redirect_info redir = {};
+	void *data, *data_end;
+	struct iphdr *ip4;
 	__be32 orig_sip;
 	__u32 *flags;
 	int ret;
@@ -227,13 +234,15 @@ goog_sfc_maybe_encap_new(struct __ctx_buff *ctx,
 	if (*flags & GOOG_SFC_EGRESS_IS_ENCAPPED)
 		goto skip_validate_sip;
 
-	ret = sfc_select4(ctx, stage_ctx->ip4, true, &redir);
+	if (!revalidate_data(ctx, &data, &data_end, &ip4))
+		return DROP_INVALID;
+	ret = sfc_select4(ctx, ip4, true, &redir);
 	if (IS_ERR(ret))
 		return ret;
 	if (redir.path) {
-		ret = sfc_encap(ctx, stage_ctx->ip4, &redir);
+		ret = sfc_encap(ctx, ip4, &redir);
 		if (unlikely(ret == DROP_FRAG_NEEDED))
-			return sfc_redirect_icmp4(ctx, stage_ctx->ip4,
+			return sfc_redirect_icmp4(ctx, ip4,
 						  stage_ctx->rev_nat_index);
 		if (IS_ERR(ret))
 			return ret;
