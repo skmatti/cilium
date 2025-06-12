@@ -2128,6 +2128,7 @@ int tail_ipv4_policy(struct __ctx_buff *ctx)
 	__u32 src_label = ctx_load_and_clear_meta(ctx, CB_SRC_LABEL);
 	bool from_host = ctx_load_and_clear_meta(ctx, CB_FROM_HOST);
 	bool proxy_redirect __maybe_unused = false;
+	struct goog_ctr_stage_ctx stage_ctx;
 	bool from_tunnel = false;
 	void *data, *data_end;
 	__u16 proxy_port = 0;
@@ -2143,6 +2144,16 @@ int tail_ipv4_policy(struct __ctx_buff *ctx)
 	if (!revalidate_data(ctx, &data, &data_end, &ip4)) {
 		ret = DROP_INVALID;
 		goto drop_err;
+	}
+
+	goog_ctr_init_ctx(&stage_ctx);
+
+	ret = GOOGLE_HOOK(ctx, ctr_ingress_pol4, CTR_INGRESS_POL4, stage_ctx,
+			  &ext_err);
+	if (ret != HOOK_ACT_CONTINUE) {
+		if (IS_ERR(ret))
+			goto drop_err;
+		return ret;
 	}
 
 	ret = ipv4_policy(ctx, ip4, THIS_INTERFACE_IFINDEX, src_label, &tuple,
@@ -2208,6 +2219,7 @@ int tail_ipv4_to_endpoint(struct __ctx_buff *ctx)
 {
 	__u32 src_sec_identity = ctx_load_and_clear_meta(ctx, CB_SRC_LABEL);
 	bool proxy_redirect __maybe_unused = false;
+	struct goog_ctr_stage_ctx stage_ctx;
 	void *data, *data_end;
 	struct iphdr *ip4;
 	__u16 proxy_port = 0;
@@ -2218,6 +2230,8 @@ int tail_ipv4_to_endpoint(struct __ctx_buff *ctx)
 		ret = DROP_INVALID;
 		goto out;
 	}
+
+	goog_ctr_init_ctx(&stage_ctx);
 
 	/* Packets from the proxy will already have a real identity. */
 	if (identity_is_reserved(src_sec_identity)) {
@@ -2245,6 +2259,14 @@ int tail_ipv4_to_endpoint(struct __ctx_buff *ctx)
 	}
 
 	cilium_dbg(ctx, DBG_LOCAL_DELIVERY, LXC_ID, SECLABEL_IPV4);
+
+	ret = GOOGLE_HOOK(ctx, ctr_ingress_pol4, CTR_INGRESS_POL4, stage_ctx,
+			  &ext_err);
+	if (ret != HOOK_ACT_CONTINUE) {
+		if (IS_ERR(ret))
+			goto out;
+		return ret;
+	}
 
 #ifdef LOCAL_DELIVERY_METRICS
 	update_metrics(ctx_full_len(ctx), METRIC_INGRESS, REASON_FORWARDED);

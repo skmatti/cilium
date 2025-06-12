@@ -36,8 +36,8 @@
  *   pre_ctr_ingress_pol4()
  *            |
  *  __________V__________
- * |                     |
- * |  CTR_INGRESS_POL4   | tail_ipv4_policy
+ * |                     | tail_ipv4_to_endpoint (endpoint routes)
+ * |  CTR_INGRESS_POL4   | tail_ipv4_policy      (no endpoint routes)
  * |_____________________|
  *            |
  *  __________V__________
