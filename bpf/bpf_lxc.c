@@ -2134,6 +2134,7 @@ int tail_ipv4_policy(struct __ctx_buff *ctx)
 	__u16 proxy_port = 0;
 	struct iphdr *ip4;
 	__s8 ext_err = 0;
+	int hook_ret;
 
 	ctx_store_meta(ctx, CB_CLUSTER_ID_INGRESS, 0);
 
@@ -2207,6 +2208,15 @@ int tail_ipv4_policy(struct __ctx_buff *ctx)
 	}
 #endif
 
+	hook_ret = GOOGLE_HOOK(ctx, ctr_ingress_del4, CTR_INGRESS_DEL4,
+			       stage_ctx, &ext_err);
+	/* Use what was decided above unless we override it. */
+	if (hook_ret != HOOK_ACT_CONTINUE) {
+		ret = hook_ret;
+		if (IS_ERR(ret))
+			goto drop_err;
+	}
+
 	return ret;
 
 drop_err:
@@ -2224,6 +2234,7 @@ int tail_ipv4_to_endpoint(struct __ctx_buff *ctx)
 	struct iphdr *ip4;
 	__u16 proxy_port = 0;
 	__s8 ext_err = 0;
+	int hook_ret;
 	int ret;
 
 	if (!revalidate_data(ctx, &data, &data_end, &ip4)) {
@@ -2309,6 +2320,15 @@ out:
 			       REASON_MISSED_CUSTOM_CALL);
 	}
 #endif
+
+	hook_ret = GOOGLE_HOOK(ctx, ctr_ingress_del4, CTR_INGRESS_DEL4, stage_ctx,
+			       &ext_err);
+	/* Use what was decided above unless we override it. */
+	if (hook_ret != HOOK_ACT_CONTINUE) {
+		ret = hook_ret;
+		if (IS_ERR(ret))
+			goto out;
+	}
 
 	return ret;
 }

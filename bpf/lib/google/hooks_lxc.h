@@ -40,9 +40,11 @@
  * |  CTR_INGRESS_POL4   | tail_ipv4_policy      (no endpoint routes)
  * |_____________________|
  *            |
+ *   pre_ctr_ingress_del4()
+ *            |
  *  __________V__________
- * |                     |
- * |  CTR_INGRESS_DEL4   | tail_ipv4_policy
+ * |                     | tail_ipv4_to_endpoint (endpoint routes)
+ * |  CTR_INGRESS_DEL4   | tail_ipv4_policy      (no endpoint routes)
  * |_____________________|
  */
 static __always_inline int
@@ -62,6 +64,13 @@ pre_ctr_ingress_ct4(struct __ctx_buff *ctx,
 static __always_inline int
 pre_ctr_ingress_pol4(struct __ctx_buff *ctx __maybe_unused,
 		     struct goog_ctr_ingress_pol4_ctx *stage_ctx __maybe_unused)
+{
+	return HOOK_ACT_CONTINUE;
+}
+
+static __always_inline int
+pre_ctr_ingress_del4(struct __ctx_buff *ctx __maybe_unused,
+		     struct goog_ctr_ingress_del4_ctx *stage_ctx __maybe_unused)
 {
 	return HOOK_ACT_CONTINUE;
 }

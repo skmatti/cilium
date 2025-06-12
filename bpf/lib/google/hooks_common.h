@@ -89,6 +89,9 @@ struct goog_ctr_ingress_ct4_ctx {
 struct goog_ctr_ingress_pol4_ctx {
 };
 
+struct goog_ctr_ingress_del4_ctx {
+};
+
 union goog_ctr_stage_hook_ctx {
 	struct goog_ctr_egress_start4_ctx goog_ctr_egress_start4_ctx;
 	struct goog_ctr_egress_svc4_ctx goog_ctr_egress_svc4_ctx;
@@ -96,6 +99,7 @@ union goog_ctr_stage_hook_ctx {
 	struct goog_ctr_egress_fwd4_ctx goog_ctr_egress_fwd4_ctx;
 	struct goog_ctr_ingress_ct4_ctx goog_ctr_ingress_ct4_ctx;
 	struct goog_ctr_ingress_pol4_ctx goog_ctr_ingress_pol4_ctx;
+	struct goog_ctr_ingress_del4_ctx goog_ctr_ingress_del4_ctx;
 };
 
 struct goog_ctr_stage_ctx {
