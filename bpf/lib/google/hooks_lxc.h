@@ -61,7 +61,7 @@ pre_ctr_ingress_ct4(struct __ctx_buff *ctx,
 
 static __always_inline int
 pre_ctr_ingress_pol4(struct __ctx_buff *ctx __maybe_unused,
-		     struct goog_ctr_ingress_ct4_ctx *stage_ctx __maybe_unused)
+		     struct goog_ctr_ingress_pol4_ctx *stage_ctx __maybe_unused)
 {
 	return HOOK_ACT_CONTINUE;
 }
