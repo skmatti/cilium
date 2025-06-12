@@ -49,7 +49,7 @@ function provision_vm {
     --max-run-duration 24h \
     --instance-termination-action=DELETE \
     --image-project=ubuntu-os-cloud \
-    --image-family=ubuntu-minimal-2004-lts \
+    --image-family=ubuntu-minimal-2404-lts-amd64 \
     --machine-type=$MACHINE_TYPE \
     --boot-disk-type=pd-ssd \
     --boot-disk-size=64GB \

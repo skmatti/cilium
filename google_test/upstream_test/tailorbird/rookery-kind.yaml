@@ -22,6 +22,7 @@ spec:
           distribution: kind
           provisionerArgs:
             machineType: n2-standard-16
+            systemImage: ubuntu-os-pro-cloud/ubuntu-minimal-pro-2004-lts
             dockerVersion: 5:24.0.4-1~ubuntu.20.04~focal
             numNodes: "3"
             version: v0.24.0 # This is used because google:cilium v1.15 is released to GKE 1.31, we need kind v0.24.0 to support node image with v1.31

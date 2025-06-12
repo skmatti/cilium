@@ -26,10 +26,7 @@ run_tests_and_report() {
   # Run the tests
   GO_TEST_FLAGS=-v make "${test_target}" > "${tmp_output}" 2>&1
   retval=$?
-  if [ "${retval}" = 0 ]; then
-    go-junit-report -iocopy -set-exit-code -debug.print-events -in "${tmp_output}" -out "${output_file}"
-    retval=$?
-  fi
+  go-junit-report -iocopy -set-exit-code -debug.print-events -in "${tmp_output}" -out "${output_file}" || true
   return "${retval}"
 }
 
