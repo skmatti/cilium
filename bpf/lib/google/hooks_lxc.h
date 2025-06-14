@@ -10,6 +10,7 @@
 #include "lib/google/geneve.h"
 #include "lib/google/vpc.h"
 #include "lib/google/strict_egress_policy.h"
+#include "lib/google/perimeter_egressnat.h"
 #include "lib/google/plugin.h"
 #include "lib/google_multinic.h"
 #include "lib/google/google_perimeter_elb.h"
@@ -167,7 +168,9 @@ pre_ctr_egress_fwd4(struct __ctx_buff *ctx,
 	ret = google_strict_egress_policy_pre_ctr_egress_fwd4(stage_ctx);
 	if (ret != HOOK_ACT_CONTINUE)
 		return ret;
-
+	ret = google_perimeter_egress_policy_pre_ctr_egress_fwd4(ctx, stage_ctx);
+	if (ret != HOOK_ACT_CONTINUE)
+		return ret;
 	ret = goog_elb_from_lxc(ctx, stage_ctx);
 	if (ret != HOOK_ACT_CONTINUE)
 		return ret;

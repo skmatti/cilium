@@ -13,6 +13,7 @@ import (
 
 	"github.com/cilium/cilium/pkg/datapath/linux/netdevice"
 	"github.com/cilium/cilium/pkg/datapath/linux/route"
+	"github.com/cilium/cilium/pkg/gke/features"
 	k8sConst "github.com/cilium/cilium/pkg/k8s/apis/cilium.io"
 	v2 "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2"
 	k8sLabels "github.com/cilium/cilium/pkg/k8s/slim/k8s/apis/labels"
@@ -30,6 +31,8 @@ type policyGatewayConfig struct {
 	nodeSelector api.EndpointSelector
 	iface        string
 	egressIP     netip.Addr
+
+	staticGatewayIP netip.Addr
 }
 
 // gatewayConfig is the gateway configuration derived at runtime from a policy.
@@ -108,6 +111,13 @@ func (config *PolicyConfig) regenerateGatewayConfig(manager *Manager) {
 	}
 
 	policyGwc := config.policyGwConfig
+
+	// If gateway IP is specified in the policy, use it.
+	if policyGwc.staticGatewayIP.IsValid() {
+		gwc.gatewayIP = config.policyGwConfig.staticGatewayIP
+		config.gatewayConfig = gwc
+		return
+	}
 
 	for _, node := range manager.nodes {
 		if !policyGwc.selectsNodeAsGateway(node) {
@@ -250,6 +260,12 @@ func ParseCEGP(cegp *v2.CiliumEgressGatewayPolicy) (*PolicyConfig, error) {
 			return nil, fmt.Errorf("failed to parse egress IP %s: %w", egressGateway.EgressIP, err)
 		}
 		policyGwc.egressIP = addr
+	}
+
+	// When the option to select gateway IP address from the annotation is
+	// enabled, verify its presence in the annotation and use it.
+	if features.GlobalConfig.EnableGatewayIPFromAnnotation {
+		policyGwc.staticGatewayIP = staticGatewayIP(cegp.GetAnnotations())
 	}
 
 	for _, cidrString := range destinationCIDRs {

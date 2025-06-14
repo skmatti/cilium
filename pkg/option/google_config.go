@@ -154,6 +154,10 @@ const (
 	// gateway IP from CiliumEgressGatewayPolicy annotation
 	EnableGatewayIPFromAnnotation = "enable-gateway-ip-from-annotation"
 
+	// EgressGatewayPendingIdentityExpirySeconds is the number of seconds before the egressgateway
+	// manager cleans up an endpoint with unlearned labels.
+	EgressGatewayPendingIdentityExpirySeconds = "egress-gateway-pending-identity-expiry-seconds"
+
 	// PerimeterEndpointNetwork is the name of the network the perimeter endpoints are connected to.
 	PerimeterEndpointNetwork = "perimeter-endpoint-network"
 

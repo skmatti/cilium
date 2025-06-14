@@ -270,14 +270,9 @@ For services backed by pods, use `Endpoints Based` rules on the backend pod
 labels.
 
 This example shows how to allow all endpoints with the label ``id=app2``
-<<<<<<< HEAD
-to talk to all endpoints of kubernetes service ``myservice`` in kubernetes
-namespace ``default``.
-=======
 to talk to all endpoints of Kubernetes Service ``myservice`` in kubernetes
 namespace ``default`` as well as all services with label ``env=staging`` in
 namespace ``another-namespace``.
->>>>>>> 95294c7f24 (docs: Fix formatting in L3 policies)
 
 .. only:: html
 

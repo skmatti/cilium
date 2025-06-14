@@ -78,6 +78,12 @@ static __always_inline int google_strict_egress_policy_pre_ctr_egress_fwd4(
 
 #else
 
+static __always_inline bool google_is_strict_egress_policy(
+	const struct egress_gw_policy_entry *egress_gw_policy __maybe_unused)
+{
+	return false;
+}
+
 static __always_inline int google_strict_egress_policy_pre_ctr_egress_fwd4(
 	struct goog_ctr_egress_fwd4_ctx *stage_ctx __maybe_unused)
 {

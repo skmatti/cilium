@@ -23,9 +23,11 @@ import (
 	"github.com/cilium/cilium/pkg/datapath/linux/sysctl"
 	"github.com/cilium/cilium/pkg/datapath/tables"
 	"github.com/cilium/cilium/pkg/datapath/tunnel"
+	"github.com/cilium/cilium/pkg/gke/features"
 	"github.com/cilium/cilium/pkg/gke/strictegresspolicyvalidation"
 	"github.com/cilium/cilium/pkg/identity"
 	identityCache "github.com/cilium/cilium/pkg/identity/cache"
+	"github.com/cilium/cilium/pkg/ipcache"
 	cilium_api_v2 "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2"
 	"github.com/cilium/cilium/pkg/k8s/resource"
 	k8sTypes "github.com/cilium/cilium/pkg/k8s/types"
@@ -151,12 +153,18 @@ type Manager struct {
 	sysctl sysctl.Sysctl
 
 	sepManager strictegresspolicyvalidation.StrictEgressPolicyManager
+
+	featuresConfig features.Config
+
+	// googleManager stores data related to google specific features
+	googleManager
 }
 
 type Params struct {
 	cell.In
 
 	Config            Config
+	FeaturesConfig    features.Config
 	DaemonConfig      *option.DaemonConfig
 	IdentityAllocator identityCache.IdentityAllocator
 	PolicyMap         egressmap.PolicyMap
@@ -169,6 +177,7 @@ type Params struct {
 	SEPManager strictegresspolicyvalidation.StrictEgressPolicyManager
 
 	Lifecycle cell.Lifecycle
+	IPCache   *ipcache.IPCache
 }
 
 func NewEgressGatewayManager(p Params) (out struct {
@@ -201,6 +210,12 @@ func NewEgressGatewayManager(p Params) (out struct {
 		return out, err
 	}
 
+	if p.FeaturesConfig.EnableEgressPolicyRemoteEndpointSelection {
+		log.Debug("IPCache Listener Registered")
+		p.IPCache.AddListener(out.Manager)
+		out.Manager.runPendingIdentityResolverThread(context.Background())
+	}
+
 	out.NodeDefines = map[string]string{
 		"ENABLE_EGRESS_GATEWAY": "1",
 	}
@@ -224,6 +239,8 @@ func newEgressGatewayManager(p Params) (*Manager, error) {
 		endpoints:                     p.Endpoints,
 		sysctl:                        p.Sysctl,
 		sepManager:                    p.SEPManager,
+		featuresConfig:                p.FeaturesConfig,
+		googleManager:                 NewGoogleManager(p.FeaturesConfig.EgressGatewayPendingIdentityExpirySeconds),
 	}
 
 	t, err := trigger.NewTrigger(trigger.Parameters{
@@ -436,6 +453,13 @@ func (manager *Manager) addEndpoint(endpoint *k8sTypes.CiliumEndpoint) error {
 	var err error
 	var identityLabels labels.Labels
 
+	// When EnableEgressPolicyRemoteEndpointSelection flag is enabled, both
+	// local and remote endpoints updates will be handled via IPCache
+	// notifications.
+	if features.GlobalConfig.EnableEgressPolicyRemoteEndpointSelection {
+		return nil
+	}
+
 	manager.Lock()
 	defer manager.Unlock()
 
@@ -480,14 +504,26 @@ func (manager *Manager) deleteEndpoint(endpoint *k8sTypes.CiliumEndpoint) {
 	manager.Lock()
 	defer manager.Unlock()
 
+	// When EnableEgressPolicyRemoteEndpointSelection flag is enabled, both
+	// local and remote endpoints updates will be handled via IPCache
+	// notifications.
+	if features.GlobalConfig.EnableEgressPolicyRemoteEndpointSelection {
+		return
+	}
+	log.Debug("SKIP EnableEgressPolicyRemoteEndpointSelection CHECK")
+
 	logger := log.WithFields(logrus.Fields{
 		logfields.K8sEndpointName: endpoint.Name,
 		logfields.K8sNamespace:    endpoint.Namespace,
 		logfields.K8sUID:          endpoint.UID,
 	})
 
+	endpointKey := endpointID{
+		UID: endpoint.UID,
+	}
+
 	logger.Debug("Deleted CiliumEndpoint")
-	delete(manager.epDataStore, endpoint.UID)
+	delete(manager.epDataStore, endpointKey)
 
 	manager.setEventBitmap(eventDeleteEndpoint)
 	manager.reconciliationTrigger.TriggerWithReason("endpoint deleted")

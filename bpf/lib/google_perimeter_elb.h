@@ -12,18 +12,7 @@
 #include "lib/google/hooks_common.h"
 #include "lib/egress_gateway.h"
 #include "lib/google_maps.h"
-
-struct geneve_perimeter_opt4 {
-	struct geneve_opt_hdr hdr;
-	__be32 addr;
-};
-
-/* Ingress and Egress directions are relative to the GDC-AG Deployment */
-# define PERIMETER_GENEVE_EGRESS_OPT_TYPE  (GENEVE_OPT_TYPE_CRIT | 0x03)
-# define PERIMETER_GENEVE_INGRESS_OPT_TYPE (GENEVE_OPT_TYPE_CRIT | 0x04)
-
-# define PERIMETER_IPV4_GENEVE_OPT_LEN \
-	 GENEVE_OPT_LENGTH_FIELD(struct geneve_perimeter_opt4)
+#include "lib/google_perimeter_common.h"
 
 static __always_inline __u16 generate_new_ep(void)
 {

@@ -2606,6 +2606,12 @@ nodeport_rev_dnat_ingress_ipv4(struct __ctx_buff *ctx, struct trace_ctx *trace,
 	}
 
 skip_revdnat:
+/* TODO: (b/440354414) revist better ways to reduce GDC-AG footprint */
+#if !defined(GOOGLE_PERIMETER_FEATURES)
+/* GDCAG Perimeter EgressNAT:
+ * Traffic returning to user cluster VM nodes cannot be tunneled to directly, so
+ * we skip this block.
+*/
 #if defined(ENABLE_EGRESS_GATEWAY_COMMON) && !defined(IS_BPF_OVERLAY)
 	/* The gateway node needs to manually steer any reply traffic
 	 * for a remote pod into the tunnel (to avoid iptables potentially
@@ -2616,6 +2622,7 @@ skip_revdnat:
 		goto redirect;
 	}
 #endif /* ENABLE_EGRESS_GATEWAY_COMMON */
+#endif /* !GOOGLE_PERIMETER_FEATURES */
 
 	return CTX_ACT_OK;
 

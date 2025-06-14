@@ -1,6 +1,7 @@
 package egressgateway
 
 import (
+	"net/netip"
 	"reflect"
 	"testing"
 
@@ -8,6 +9,7 @@ import (
 	"github.com/cilium/cilium/pkg/gke/features"
 	k8slbls "github.com/cilium/cilium/pkg/k8s/slim/k8s/apis/labels"
 	"github.com/cilium/cilium/pkg/maps/egressmap"
+	"github.com/onsi/gomega/format"
 )
 
 func TestSkipEgressNATPolicy(t *testing.T) {
@@ -165,6 +167,106 @@ func TestParseConnectionTimeouts(t *testing.T) {
 
 			if !reflect.DeepEqual(tc.want, connectionTimeouts) {
 				t.Fatalf("Timeout mismatch:\nwant: %+v\ngot:  %+v", tc.want, connectionTimeouts)
+			}
+		})
+	}
+}
+
+func TestStaticGatewayIP(t *testing.T) {
+	tests := []struct {
+		name        string
+		annotations map[string]string
+		gatewayIP   netip.Addr
+	}{
+		{
+			name:        "nil_annotations",
+			annotations: nil,
+			gatewayIP:   netip.Addr{},
+		},
+		{
+			name:        "empty_annotations",
+			annotations: map[string]string{},
+			gatewayIP:   netip.Addr{},
+		},
+		{
+			name: "gateway_IP",
+			annotations: map[string]string{
+				NetworkGatewayIPAnnotationKey: "1.1.1.1",
+			},
+			gatewayIP: netip.MustParseAddr("1.1.1.1"),
+		},
+		{
+			name: "empty_gateway_IP",
+			annotations: map[string]string{
+				NetworkGatewayIPAnnotationKey: "",
+			},
+			gatewayIP: netip.Addr{},
+		},
+		{
+			name: "malformed_gateway_IP",
+			annotations: map[string]string{
+				NetworkGatewayIPAnnotationKey: "1.1.1.1.1",
+			},
+			gatewayIP: netip.Addr{},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := staticGatewayIP(tt.annotations)
+			if got != tt.gatewayIP {
+				t.Errorf("got %v, want %v\n", got, tt.gatewayIP)
+			}
+		})
+	}
+}
+
+func Test_PolicyConfig_regenerateGatewayConfig(t *testing.T) {
+	type fields struct {
+		policyGwConfig *policyGatewayConfig
+	}
+	tests := []struct {
+		name   string
+		fields fields
+		want   gatewayConfig
+	}{
+		{
+			name: "static_gateway_IP",
+			fields: fields{
+				policyGwConfig: &policyGatewayConfig{
+					staticGatewayIP: netip.MustParseAddr(egressIP1),
+				},
+			},
+			want: gatewayConfig{
+				gatewayIP:                    netip.MustParseAddr(egressIP1),
+				localNodeConfiguredAsGateway: false,
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			p := Params{
+				IdentityAllocator: identityAllocator,
+				// DaemonConfig: &option.DaemonConfig{
+				// 	EnableIPv4EgressGateway: true,
+				// },
+			}
+			manager := &Manager{
+				policyConfigs:           make(map[policyID]*PolicyConfig),
+				policyConfigsBySourceIP: make(map[string][]*PolicyConfig),
+				epDataStore:             make(map[endpointID]*endpointMetadata),
+				identityAllocator:       p.IdentityAllocator,
+				googleManager:           NewGoogleManager(p.FeaturesConfig.EgressGatewayPendingIdentityExpirySeconds),
+			}
+
+			config := &PolicyConfig{
+				policyGwConfig: tt.fields.policyGwConfig,
+			}
+			config.regenerateGatewayConfig(manager)
+			got := config.gatewayConfig
+
+			if got.gatewayIP.String() != tt.want.gatewayIP.String() ||
+				got.localNodeConfiguredAsGateway != tt.want.localNodeConfiguredAsGateway {
+				t.Errorf("PolicyConfig.regenerateGatewayConfig() = %v, want %v", format.Object(got, 0), format.Object(tt.want, 0))
 			}
 		})
 	}

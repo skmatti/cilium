@@ -22,10 +22,16 @@ type endpointMetadata struct {
 	id endpointID
 	// ips are endpoint's unique IPs
 	ips []netip.Addr
+
+	googleEndpointMetadata
 }
 
-// endpointID is based on endpoint's UID
-type endpointID = types.UID
+// endpointID is based on endpoint's UID and cluster ID
+type endpointID struct {
+	UID types.UID
+
+	googleEndpointID
+}
 
 func getEndpointMetadata(endpoint *k8sTypes.CiliumEndpoint, identityLabels labels.Labels) (*endpointMetadata, error) {
 	var addrs []netip.Addr
@@ -56,7 +62,9 @@ func getEndpointMetadata(endpoint *k8sTypes.CiliumEndpoint, identityLabels label
 	data := &endpointMetadata{
 		ips:    addrs,
 		labels: identityLabels.K8sStringMap(),
-		id:     endpoint.UID,
+		id: endpointID{
+			UID: endpoint.UID,
+		},
 	}
 
 	return data, nil

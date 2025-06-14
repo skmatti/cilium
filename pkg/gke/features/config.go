@@ -96,6 +96,8 @@ type Config struct {
 	// GoogleIPSecMode is the option to set Google IPSec mode. Possible values are "disabled" (default), "software"
 	// Use string instead of bool since we may support more modes in the future. e.g. "hardware-offload".
 	GoogleIPSecMode string
+	// EgressGatewayPendingIdentityExpirySeconds specifies the number of seconds before the manager cleans up an endpoint with unlearned labels.
+	EgressGatewayPendingIdentityExpirySeconds int `mapstructure:"egress-gateway-pending-identity-expiry-seconds"`
 	// DisableClusterIDValidation provides backward compatibility for a cilium-agent (v1.16+) that
 	// is processing a remote cluster's node/service KV store entries managed by an older
 	// clustermesh instance (v1.13). Newer clustermesh versions embed a cluster ID in the value of
@@ -146,7 +148,8 @@ var defaultConfig = Config{
 	XDPDevices:                  []string{},
 	EnableGoogleVPC:             false,
 	GoogleIPSecMode:             GoogleIPSecModeDisabled,
-	DisableClusterIDValidation:  false,
+	EgressGatewayPendingIdentityExpirySeconds: 300,
+	DisableClusterIDValidation:                false,
 	// TODO: (b/439930952) move these perimeter elb flags into a cell
 	EnableEgressPolicyRemoteEndpointSelection: false,
 	EnableGatewayIPFromAnnotation:             false,
@@ -228,6 +231,10 @@ func (cfg Config) Flags(flags *pflag.FlagSet) {
 		fmt.Sprintf("GoogleIPSecMode is the option to set Google IPSec mode. Possible values are %v. Default value is %q",
 			[]string{GoogleIPSecModeDisabled, GoogleIPSecModeSoftware}, cfg.GoogleIPSecMode))
 	flags.MarkHidden(option.GoogleIPSecMode)
+
+	flags.Int(option.EgressGatewayPendingIdentityExpirySeconds,
+		defaultConfig.EgressGatewayPendingIdentityExpirySeconds, "Set the duration before which pending egress gateway endpoints are cleaned up")
+	flags.MarkHidden(option.EgressGatewayPendingIdentityExpirySeconds)
 
 	flags.Bool(option.DisableClusterIDValidation, cfg.DisableClusterIDValidation, "Disable remote cluster cluster ID validation for node/service kvstore entries")
 	flags.MarkHidden(option.DisableClusterIDValidation)

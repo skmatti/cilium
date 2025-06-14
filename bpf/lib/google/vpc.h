@@ -1,6 +1,8 @@
 #pragma once
 
 #include "lib/google/hooks_common.h"
+#include "lib/google_perimeter_common.h"
+#include "lib/google/geneve.h"
 
 #ifdef ENABLE_GOOGLE_VPC
 
@@ -152,10 +154,44 @@ static __always_inline int goog_vpc_pre_host_ingress_fwd4(
 {
 	void *data, *data_end;
 	struct iphdr *ip4;
+	struct endpoint_info *ep = NULL;
 
 	if (!revalidate_data(ctx, &data, &data_end, &ip4))
 		return DROP_INVALID;
-	stage_ctx_common->ep = google_vpc_lookup_ip4_endpoint(ip4->daddr);
+
+	#ifdef ENABLE_EGRESS_GATEWAY_REDIRECT
+	{
+		__u32 perimeter_gw_ip = 0;
+		// Attempt to get Google Geneve perimeter options.
+		const struct geneve_perimeter_opt4 *perimeter_opt =
+				(const struct geneve_perimeter_opt4 *)geneve_get_option_from_metadata(
+						geneve_get_metadata(GENEVE_DIR_INGRESS),
+						GOOGLE_GENEVE_OPT_CLASS,
+						PERIMETER_GENEVE_EGRESS_OPT_TYPE);
+
+		if (perimeter_opt) {
+			perimeter_gw_ip = perimeter_opt->addr;
+			if (perimeter_gw_ip != 0) {
+				ep = __lookup_ip4_endpoint(perimeter_gw_ip);
+				if (!ep) {
+					/* Packet entered the node with a Perimeter Gateway Option, its either:
+					 * 1. EgressNAT Forward Path
+					 * 2. ELB Reverse Path
+					 * In either case, packet should go directly to the infra node hosting the
+					 * perimeter gateway. Since there is no endpoint matching perimeter IP here,
+					 * this packet is invalid and should be dropped.
+					 */
+					return DROP_GOOGLE_NO_PERIMETER_GATEWAY;
+				}
+			}
+		}
+	}
+	#endif /* ENABLE_EGRESS_GATEWAY_REDIRECT */
+	if (ep) {
+		stage_ctx_common->ep = ep;
+	} else {
+		stage_ctx_common->ep = google_vpc_lookup_ip4_endpoint(ip4->daddr);
+	}
 
 	return HOOK_ACT_CONTINUE;
 }
