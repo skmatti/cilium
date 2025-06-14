@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time" // Do not use pkg/time in test code.
 
-	networkv1 "github.com/GoogleCloudPlatform/gke-networking-api/apis/network/v1"
+	gkenetworkv1 "github.com/GoogleCloudPlatform/gke-networking-api/apis/network/v1"
 	networkclientset "github.com/GoogleCloudPlatform/gke-networking-api/client/network/clientset/versioned"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -21,6 +21,7 @@ import (
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
+	networkv1 "k8s.io/cloud-provider-gcp/crd/apis/network/v1"
 	crclient "sigs.k8s.io/controller-runtime/pkg/client"
 
 	"gke-internal.googlesource.com/anthos-networking/test-infra/pkg/artifact"
@@ -86,6 +87,7 @@ var _ = Describe("Verifiers/multinetwork", Label("multinetwork"), Ordered, func(
 		Expect(err).NotTo(HaveOccurred())
 
 		scheme := e2escheme.Scheme()
+
 		// create a controller runtime client
 		cl, err = crclient.New(config, crclient.Options{Scheme: scheme})
 		Expect(err).NotTo(HaveOccurred())
@@ -147,22 +149,22 @@ var _ = Describe("Verifiers/multinetwork", Label("multinetwork"), Ordered, func(
 
 		prefixLength, _ := net.IPMask(net.ParseIP(additionalNodeNetworkInfo.Netmask).To4()).Size()
 		prefixLength4 := int32(prefixLength)
-		ipamModeInternal := networkv1.InternalMode
-		networkObject := networkv1.Network{
+		ipamModeInternal := gkenetworkv1.InternalMode
+		networkObject := gkenetworkv1.Network{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: additionalNetworkName,
 			},
-			Spec: networkv1.NetworkSpec{
+			Spec: gkenetworkv1.NetworkSpec{
 				Type: "L2",
-				NodeInterfaceMatcher: networkv1.NodeInterfaceMatcher{
+				NodeInterfaceMatcher: gkenetworkv1.NodeInterfaceMatcher{
 					InterfaceName: &nodeInterfaceName,
 				},
 				Gateway4: &additionalNodeNetworkInfo.GatewayServer,
-				L2NetworkConfig: &networkv1.L2NetworkConfig{
+				L2NetworkConfig: &gkenetworkv1.L2NetworkConfig{
 					PrefixLength4: &prefixLength4,
 				},
 				IPAMMode: &ipamModeInternal,
-				DNSConfig: &networkv1.DNSConfig{
+				DNSConfig: &gkenetworkv1.DNSConfig{
 					Nameservers: []string{"8.8.8.8"},
 				},
 			},

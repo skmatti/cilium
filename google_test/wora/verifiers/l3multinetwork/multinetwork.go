@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time" // Do not use pkg/time in test code.
 
-	networkv1 "github.com/GoogleCloudPlatform/gke-networking-api/apis/network/v1"
+	gkenetworkv1 "github.com/GoogleCloudPlatform/gke-networking-api/apis/network/v1"
 	networkclientset "github.com/GoogleCloudPlatform/gke-networking-api/client/network/clientset/versioned"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -19,6 +19,7 @@ import (
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
+	networkv1 "k8s.io/cloud-provider-gcp/crd/apis/network/v1"
 	k8sclient "sigs.k8s.io/controller-runtime/pkg/client"
 
 	ipamv1 "gke-internal.googlesource.com/anthos-networking/ipam-controller/api/v1alpha1"
@@ -80,6 +81,7 @@ var _ = Describe("Verifiers/l3multinetwork", Label("l3multinetwork"), Ordered, f
 		Expect(err).NotTo(HaveOccurred())
 
 		scheme := e2escheme.Scheme()
+
 		// create a controller runtime client
 		cl, err = k8sclient.New(config, k8sclient.Options{Scheme: scheme})
 		Expect(err).NotTo(HaveOccurred())
@@ -101,19 +103,19 @@ var _ = Describe("Verifiers/l3multinetwork", Label("l3multinetwork"), Ordered, f
 		// Gateway of the pod-network is set to the IP of vxlan1 interface of the control plane node.
 		gw4 := "10.100.0.4"
 
-		ipamModeInternal := networkv1.InternalMode
-		networkObject := networkv1.Network{
+		ipamModeInternal := gkenetworkv1.InternalMode
+		networkObject := gkenetworkv1.Network{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: additionalNetworkName,
 			},
-			Spec: networkv1.NetworkSpec{
+			Spec: gkenetworkv1.NetworkSpec{
 				Type: "L3",
-				NodeInterfaceMatcher: networkv1.NodeInterfaceMatcher{
+				NodeInterfaceMatcher: gkenetworkv1.NodeInterfaceMatcher{
 					InterfaceName: &nodeInterfaceName,
 				},
 				Gateway4: &gw4,
 				IPAMMode: &ipamModeInternal,
-				DNSConfig: &networkv1.DNSConfig{
+				DNSConfig: &gkenetworkv1.DNSConfig{
 					Nameservers: []string{"8.8.8.8"},
 				},
 			},
