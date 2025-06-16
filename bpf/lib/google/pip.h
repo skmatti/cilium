@@ -67,6 +67,7 @@ int goog_maybe_try_pip_ingress_redirect4(struct __ctx_buff *ctx __maybe_unused,
 
 #ifdef IS_BPF_LXC
 
+static __always_inline
 int goog_maybe_try_pip_egress_redirect4(struct __ctx_buff *ctx __maybe_unused)
 {
 	return HOOK_ACT_CONTINUE;
