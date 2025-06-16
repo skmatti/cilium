@@ -11,9 +11,9 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
-	"k8s.io/klog/v2"
 	k8sclient "sigs.k8s.io/controller-runtime/pkg/client"
 
+	klog "gke-internal.googlesource.com/syllogi/sanitized-klog/third_party/klogv2"
 	e2escheme "gke-internal.googlesource.com/third_party/cilium/google_test/wora/e2e/pkg/test/scheme"
 	"gke-internal.googlesource.com/third_party/cilium/google_test/wora/e2e/pkg/test/utils"
 )
