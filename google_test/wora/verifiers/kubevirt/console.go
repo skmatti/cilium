@@ -141,7 +141,7 @@ func consoleLogin(virtClient kubecli.KubevirtClient, vmi *virtv1.VirtualMachineI
 	return nil
 }
 
-func consolePing(virtClient kubecli.KubevirtClient, vmi *virtv1.VirtualMachineInstance, cmd string, expectResponse string) error {
+func consoleExec(virtClient kubecli.KubevirtClient, vmi *virtv1.VirtualMachineInstance, cmd string, expectResponse string) error {
 	err := expectConsoleOutput(virtClient, vmi, cmd, expectResponse, defaultConsoleRespDuration)
 	if err != nil {
 		return fmt.Errorf("console response does not contain expectResponse %s: %w", expectResponse, err)

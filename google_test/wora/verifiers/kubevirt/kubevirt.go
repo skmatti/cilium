@@ -207,15 +207,31 @@ var _ = Describe("Verifiers/Kubevirt", Label("kubevirt"), Ordered, func() {
 			Expect(err).ShouldNot(HaveOccurred())
 		})
 
+		It("validates routes are configured correctly on the VM", func() {
+			// The command to show the routing table. A newline character is added to ensure execution.
+			showRoutesCmd := "ip route show\n"
+
+			// Define the routes to verify.
+			expectedRoutes := []string{"10.240.0.0/13", "172.26.0.0/16"}
+
+			for _, route := range expectedRoutes {
+				// Assuming `consoleExec` is a helper that can execute a command and check
+				// for an expected string in the output. If not, a more generic
+				// helper like `consoleExec` would be needed.
+				err := consoleExec(vc, kubevirtVMInstance1, showRoutesCmd, route)
+				Expect(err).ShouldNot(HaveOccurred(), fmt.Sprintf("Route %s not found on %s", route, kubevirtVMInstance1.Name))
+			}
+		})
+
 		It("validate connection of VMs on same node", func() {
 			vm2IP, _, _ := net.ParseCIDR(VMTestConfig2.NetworkInterfaces[0].IPAddress)
 			pingCmdFromVM1toVM2 := MakePingCommand(vm2IP.String())
-			err := consolePing(vc, kubevirtVMInstance1, pingCmdFromVM1toVM2, pingOKExpectation)
+			err := consoleExec(vc, kubevirtVMInstance1, pingCmdFromVM1toVM2, pingOKExpectation)
 			Expect(err).ShouldNot(HaveOccurred())
 
 			vm1IP, _, _ := net.ParseCIDR(VMTestConfig1.NetworkInterfaces[0].IPAddress)
 			pingCmdFromVM2toVM1 := MakePingCommand(vm1IP.String())
-			err = consolePing(vc, kubevirtVMInstance2, pingCmdFromVM2toVM1, pingOKExpectation)
+			err = consoleExec(vc, kubevirtVMInstance2, pingCmdFromVM2toVM1, pingOKExpectation)
 			Expect(err).ShouldNot(HaveOccurred())
 
 		})
@@ -223,12 +239,12 @@ var _ = Describe("Verifiers/Kubevirt", Label("kubevirt"), Ordered, func() {
 		It("validate connection of VMs on different nodes", func() {
 			vm3IP, _, _ := net.ParseCIDR(VMTestConfig3.NetworkInterfaces[0].IPAddress)
 			pingCmdFromVM1toVM3 := MakePingCommand(vm3IP.String())
-			err := consolePing(vc, kubevirtVMInstance1, pingCmdFromVM1toVM3, pingOKExpectation)
+			err := consoleExec(vc, kubevirtVMInstance1, pingCmdFromVM1toVM3, pingOKExpectation)
 			Expect(err).ShouldNot(HaveOccurred())
 
 			vm1IP, _, _ := net.ParseCIDR(VMTestConfig1.NetworkInterfaces[0].IPAddress)
 			pingCmdFromVM3toVM1 := MakePingCommand(vm1IP.String())
-			err = consolePing(vc, kubevirtVMInstance3, pingCmdFromVM3toVM1, pingOKExpectation)
+			err = consoleExec(vc, kubevirtVMInstance3, pingCmdFromVM3toVM1, pingOKExpectation)
 			Expect(err).ShouldNot(HaveOccurred())
 		})
 	})
