@@ -12,9 +12,13 @@
 # 6. Exit with exit code from remote execution.
 #
 # Caveats:
-# Testing VMs will be automatically torn down after succesful runs. If
+# Testing VMs will be automatically torn down after successful runs. If
 # the testing job is terminated early, these VMs will be left alive for 1d
 # from the creation time and then self-destruct.
+
+set -ex
+set -u
+set -o pipefail
 
 date=$(TZ=":America/Los_Angeles" date '+%Y-%m-%d-%H-%M-%S')
 PROJECT="${GCP_PROJECT:-gke-anthos-datapath-presubmits}"
@@ -22,7 +26,8 @@ VM_NAME="prow-unit-$date-$(git rev-parse --short=5 HEAD)-ttl1d"
 ZONE="us-west1-b"
 MACHINE_TYPE="c2-standard-8"
 HOST_NAME="$VM_NAME.$ZONE.$PROJECT"
-HOST_TEST_REPORT_DIR="/root/cilium/reports"
+BASE_DIR="/home/${USER}"
+HOST_TEST_REPORT_DIR="${BASE_DIR}/reports"
 
 function log {
   echo "$(date +'%b %d %T.000'): INFO:  $@"
@@ -53,6 +58,7 @@ function provision_vm {
     --machine-type=$MACHINE_TYPE \
     --boot-disk-type=pd-ssd \
     --boot-disk-size=64GB \
+    --metadata=block-project-ssh-keys=TRUE \
     --metadata-from-file=user-data=./google_test/unit-test-image/userdata.yaml || exit 1
   wait_for_vm
   wait_for_config_ssh
@@ -60,7 +66,7 @@ function provision_vm {
 
 function wait_for_vm {
   local count=0
-  until gcloud compute ssh --quiet root@$VM_NAME --command="cloud-init status --wait" 2> /dev/null; do
+  until gcloud compute ssh --quiet $VM_NAME --command="cloud-init status --wait" 2> /dev/null; do
     if (( count++ >= 5 )); then
       error "Failed to create $VM_NAME, reached the retry limit";
     fi
@@ -84,12 +90,13 @@ function wait_for_config_ssh {
 
 function clean_up_vm {
   log "Deleting GCE instance " $VM_NAME
+  gcloud compute instances remove-metadata "${VM_NAME}" --keys=ssh-keys
   gcloud compute instances delete ${VM_NAME} --quiet
 }
 
 function ship_repo {
   log "Shipping repo to target GCE instance " $HOST_NAME
-  rsync -avzq . root@$HOST_NAME:/root/cilium
+  rsync -avzq . "${USER}@$HOST_NAME:${BASE_DIR}/cilium"
 }
 
 function allow_ssh {
@@ -100,13 +107,13 @@ function allow_ssh {
 function rexec {
   local cmd=$@
   log "Running remote cmd " $cmd " on instance " $HOST_NAME
-  ssh root@$HOST_NAME "$cmd"
+  ssh "${USER}@$HOST_NAME" "$cmd"
 }
 
 function copy_back_report {
   path=$1
   log "Copying the test report back to ${ARTIFACTS}"
-  rsync -az "root@${HOST_NAME}:${path}/" "${ARTIFACTS}/"
+  rsync -az "${USER}@${HOST_NAME}:${path}/" "${ARTIFACTS}/"
 }
 
 auth
@@ -117,7 +124,8 @@ provision_vm
 
 ship_repo
 
-rexec "cd cilium && make install-go"
-rexec "cd cilium && HOST_TEST_REPORT_DIR=${HOST_TEST_REPORT_DIR} ./google_test/unit-test-local.sh"
+# Run with sudo -E to maintain changes in google_test/unit-test-image/userdata.yaml while running as root.
+rexec "cd ${BASE_DIR}/cilium && sudo -E make install-go"
+rexec "cd ${BASE_DIR}/cilium && sudo -E HOST_TEST_REPORT_DIR=${HOST_TEST_REPORT_DIR} ./google_test/unit-test-local.sh"
 
 copy_back_report "${HOST_TEST_REPORT_DIR}"
