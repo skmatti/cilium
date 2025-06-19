@@ -54,6 +54,14 @@ const (
 	hostNetworkPodName = "host-nw-pod"
 )
 
+// IPs set up by add-vxlans binary on vxlan1 interfaces on each node
+var additionalNodeNetworkIPs = []string{
+	"10.100.0.2",
+	"10.100.0.3",
+	"10.100.0.4",
+	"10.100.0.5",
+}
+
 var _ = Describe("Verifiers/multinetwork", Label("multinetwork"), Ordered, func() {
 	var (
 		c                         client.Interface
@@ -349,6 +357,100 @@ var _ = Describe("Verifiers/multinetwork", Label("multinetwork"), Ordered, func(
 		cleanup()
 		err = utils.WaitForPodDeletion(ctx, cl, nodeportTestPodName, testNamespace)
 		Expect(err).ToNot(HaveOccurred())
+
+		// delete multinetwork nodeport service
+		err = utils.DeleteIfExists(ctx, cl, &svc, "service")
+		Expect(err).NotTo(HaveOccurred())
+	})
+
+	It("can validate reachability of multinetwork pod behind a L2 multinetwork LoadBalancer service ", func() {
+
+		// create IPAddressPool and L2Advertisements for metalLB to handle IPAM and advertise ranges for LB services
+		secondaryNetworkLBRanges := []string{"10.100.7.10/30"}
+
+		ipAddrPoolName := "lb-ipaddrpool"
+		annotations := map[string]string{
+			"networking.gke.io/network": additionalNetworkName,
+		}
+		l2AdvertisementName := "lb-l2adv"
+		_, err := utils.CreateIPAddressPool(ctx, dc, ipAddrPoolName, annotations, secondaryNetworkLBRanges)
+		Expect(err).NotTo(HaveOccurred())
+		_, err = utils.CreateL2Advertisement(ctx, dc, l2AdvertisementName, []string{ipAddrPoolName})
+		Expect(err).NotTo(HaveOccurred())
+
+		// create multinic test pods with label selector on any one node that we know the additional node interface IP for.
+		labelKey := "app"
+		labelValue := "lb-svc-test"
+		nwSelectorValue := additionalNetworkName
+		lbTestPodName := "mn-lb-svc-test-pod"
+		cleanup, err := utils.CreatePodWithNetworkInterfaces(ctx, cl, lbTestPodName, testNamespace,
+			[]utils.NetworkInfo{
+				{
+					InterfaceName: "eth0",
+					NetworkName:   networkv1.DefaultPodNetworkName,
+				},
+				{
+					InterfaceName: "eth1",
+					NetworkName:   additionalNetworkName,
+					IPAMMode:      "Internal",
+					IsDefault:     true,
+				},
+			},
+			nil,
+			utils.WithLabel(labelKey, labelValue),
+			utils.WithContainers([]corev1.Container{utils.ResponderContainer}),
+		)
+		Expect(err).NotTo(HaveOccurred())
+
+		// create multinetwork LoadBalancer svc on additional network with pod selector
+		svcName := "mn-lb-svc-test"
+		svc := corev1.Service{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      svcName,
+				Namespace: testNamespace,
+			},
+			Spec: corev1.ServiceSpec{
+				Type: corev1.ServiceTypeLoadBalancer,
+				Selector: map[string]string{
+					labelKey:      labelValue,
+					nwSelectorKey: nwSelectorValue,
+				},
+				Ports: []corev1.ServicePort{
+					{
+						Name: "http",
+						Port: int32(80),
+						TargetPort: intstr.IntOrString{
+							Type:   intstr.Int,
+							IntVal: 8080,
+						},
+					},
+				},
+			},
+		}
+
+		for _, nodeIP := range additionalNodeNetworkIPs {
+			err = utils.RunPingFromPodWithTimeoutLimit(ctx, lbTestPodName, testNamespace, nodeIP, pingTimeoutSeconds)
+			Expect(err).NotTo(HaveOccurred())
+		}
+
+		err = utils.CreateNodeportService(ctx, cl, &svc)
+		Expect(err).NotTo(HaveOccurred())
+
+		err = utils.WaitForServiceReadiness(ctx, cl, svcName, testNamespace, corev1.ServiceTypeLoadBalancer)
+		Expect(err).NotTo(HaveOccurred())
+
+		err = utils.TestLoadBalancerService(ctx, cl, svcName, testNamespace, 80)
+		Expect(err).NotTo(HaveOccurred())
+
+		klog.Infof("Successfully tested behaviour for L2 multinetwork LoadBalancer service")
+
+		cleanup()
+		err = utils.WaitForPodDeletion(ctx, cl, lbTestPodName, testNamespace)
+		Expect(err).ToNot(HaveOccurred())
+
+		// delete multinetwork LoadBalancer service
+		err = utils.DeleteIfExists(ctx, cl, &svc, "service")
+		Expect(err).NotTo(HaveOccurred())
 	})
 
 	AfterAll(func() {
