@@ -361,6 +361,9 @@ func cleanupResources(ctx context.Context, cl k8sclient.Client, podName, namespa
 
 	// Delete associated network interfaces
 	for _, info := range networkInfos {
+		if info.IPAMMode == networkv1.InternalMode {
+			continue
+		}
 		niName := fmt.Sprintf("%s-%s", podName, info.InterfaceName)
 		err := cl.Delete(ctx, &networkv1.NetworkInterface{
 			ObjectMeta: metav1.ObjectMeta{
