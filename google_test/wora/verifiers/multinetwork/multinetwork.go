@@ -8,15 +8,19 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"strings"
 	"time" // Do not use pkg/time in test code.
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
+	crclient "sigs.k8s.io/controller-runtime/pkg/client"
 
 	networkv1 "github.com/GoogleCloudPlatform/gke-networking-api/apis/network/v1"
 	networkclientset "github.com/GoogleCloudPlatform/gke-networking-api/client/network/clientset/versioned"
@@ -26,6 +30,8 @@ import (
 	"gke-internal.googlesource.com/anthos-networking/test-infra/pkg/artifact"
 	"gke-internal.googlesource.com/anthos-networking/test-infra/pkg/client"
 	"gke-internal.googlesource.com/anthos-networking/test-infra/pkg/network"
+	e2escheme "gke-internal.googlesource.com/third_party/cilium/google_test/wora/e2e/pkg/test/scheme"
+	"gke-internal.googlesource.com/third_party/cilium/google_test/wora/e2e/pkg/test/utils"
 )
 
 const (
@@ -38,16 +44,19 @@ const (
 	testNamespace                 = "default"
 	cidrBlockNamePrefix           = "test-block"
 	hercClientTimeout             = 120 * time.Second
+	nwSelectorKey                 = "networking.gke.io/network"
 	// cleanupPods sets the default value of whether the deployed test pod will be
 	// deleted after test finish. Here true means the test pod will be cleaned up
 	// after the test run.
-	cleanupPods = true
-	podsTimeout = 30 * time.Minute
+	cleanupPods        = true
+	podsTimeout        = 30 * time.Minute
+	hostNetworkPodName = "host-nw-pod"
 )
 
 var _ = Describe("Verifiers/multinetwork", Label("multinetwork"), Ordered, func() {
 	var (
 		c                         client.Interface
+		cl                        crclient.Client
 		dc                        *dynamic.DynamicClient
 		nc                        *networkclientset.Clientset
 		err                       error
@@ -70,17 +79,29 @@ var _ = Describe("Verifiers/multinetwork", Label("multinetwork"), Ordered, func(
 		nc, err = createNetworkClient(config)
 		Expect(err).NotTo(HaveOccurred())
 
+		scheme := e2escheme.Scheme()
+		// create a controller runtime client
+		cl, err = crclient.New(config, crclient.Options{Scheme: scheme})
+		Expect(err).NotTo(HaveOccurred())
+
 		hercEnvJsonFilePath := filepath.Join(filepath.Dir(kubeconfig), "herc_env.json")
 		_, err = os.Stat(hercEnvJsonFilePath)
 		if errors.Is(err, os.ErrNotExist) {
+			// GDC-SO on GCE nodes are brought up with 3 node interfaces:
+			// vxlan0 (default network) (range: )
+			// vxlan1 (additional node network 1) (range: 10.100.0.0/21)
+			// vxlan2 (additional node network 2) (range: 10.150.0.0/21)
+			// These vxlan interfaces are setup on all the GCE nodes of the cluster: worker nodes,
+			// control plane nodes and bootstrapper node and act as the k8s node interfaces.
 			additionalNodeNetworkInfo = &artifact.NodeNetworkInfo{
 				NetworkName:             "placeholder-additional-network",
-				Netmask:                 "255.255.248.0",
-				GatewayServer:           "10.250.79.254",
+				Netmask:                 "255.255.248.0", // /21
+				GatewayServer:           "10.100.0.1",
 				GatewayServerSubnetMask: "21",
 			}
-			nodeInterfaceName = "vxlan0"
-			cidr = fmt.Sprintf("%s/%d", additionalNodeNetworkInfo.GatewayServer, maskSizeForAllNodesCombined)
+			nodeInterfaceName = "vxlan1"
+			// pod CIDR from the larger L2 network (vxlan1)
+			cidr = fmt.Sprintf("10.100.5.0/%d", maskSizeForAllNodesCombined)
 			klog.Info("Running on ABM on GCE.")
 		} else {
 			Expect(err).NotTo(HaveOccurred())
@@ -164,6 +185,88 @@ var _ = Describe("Verifiers/multinetwork", Label("multinetwork"), Ordered, func(
 		allTestWorkloadPods, _ := c.CoreV1().Pods(testNamespace).List(ctx, metav1.ListOptions{})
 		allNodes, _ := c.CoreV1().Nodes().List(context.Background(), metav1.ListOptions{LabelSelector: fmt.Sprintf("%s=%s", nodeSelectorKey, additionalNetworkNodePoolName)})
 		err = network.ValidateMultiNetworkPodConnectivityFromEachNode(ctx, nc, c, dc, testNamespace, additionalNetworkName, podInterfaceName, allTestWorkloadPods, allNodes, cleanupPods, podsTimeout)
+		Expect(err).NotTo(HaveOccurred())
+	})
+
+	It("can validate reachability of multinetwork pod behind a multinetwork L2 nodeport service ", func() {
+		allNodes, _ := c.CoreV1().Nodes().List(context.Background(), metav1.ListOptions{LabelSelector: fmt.Sprintf("%s=%s", nodeSelectorKey, additionalNetworkNodePoolName)})
+
+		// create a host network pod on a node that allows us to identify the node network IPs on additional node interfaces
+		_, err := utils.CreatePod(ctx, cl, hostNetworkPodName, testNamespace,
+			utils.WithHostNetworking(),
+			utils.WithNodeName(allNodes.Items[0].Name))
+		Expect(err).NotTo(HaveOccurred())
+		cidr, err := utils.NodeInterfaceIPFromPod(ctx, hostNetworkPodName, nodeInterfaceName, testNamespace)
+		cidr = strings.TrimSuffix(cidr, "\n")
+		Expect(err).NotTo(HaveOccurred())
+
+		ip, _, err := net.ParseCIDR(cidr)
+		Expect(err).NotTo(HaveOccurred())
+		additionalNodeNetworkIP := ip.String()
+		Expect(err).NotTo(HaveOccurred())
+
+		// create multinic test pods with label selector on any one node that we know the additional node interface IP for.
+		labelKey := "app"
+		labelValue := "svc-test"
+		nwSelectorValue := additionalNetworkName
+		_, err = utils.CreatePodWithNetworkInterfaces(ctx, cl, "nodeport-svc-test-pod", testNamespace,
+			[]utils.NetworkInfo{
+				{
+					InterfaceName: "eth0",
+					NetworkName:   networkv1.DefaultPodNetworkName,
+				},
+				{
+					InterfaceName: "eth1",
+					NetworkName:   additionalNetworkName,
+					IPAMMode:      "Internal",
+					IsDefault:     true,
+				},
+			},
+			nil,
+			utils.WithLabel(labelKey, labelValue),
+			utils.WithNodeName(allNodes.Items[0].Name),
+			utils.WithContainers([]corev1.Container{utils.ResponderContainer}),
+		)
+		Expect(err).NotTo(HaveOccurred())
+
+		// create multinetwork nodeport svc on additional network with pod selector
+		svcName := "nodeport-svc-test-local"
+		svc := corev1.Service{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      svcName,
+				Namespace: testNamespace,
+			},
+			Spec: corev1.ServiceSpec{
+				Type:                  corev1.ServiceTypeNodePort,
+				ExternalTrafficPolicy: corev1.ServiceExternalTrafficPolicyTypeLocal,
+				Selector: map[string]string{
+					labelKey:      labelValue,
+					nwSelectorKey: nwSelectorValue,
+				},
+				Ports: []corev1.ServicePort{
+					{
+						Name: "http",
+						Port: int32(8080),
+						TargetPort: intstr.IntOrString{
+							Type:   intstr.Int,
+							IntVal: 8080,
+						},
+					},
+				},
+			},
+		}
+
+		err = utils.CreateNodeportService(ctx, cl, &svc)
+		Expect(err).NotTo(HaveOccurred())
+
+		// Wait for service NodePort to come up.
+		err, assignedNodePort := utils.NodePortReadiness(ctx, cl, svcName, testNamespace, corev1.ServiceTypeNodePort)
+		Expect(err).NotTo(HaveOccurred())
+
+		Expect(assignedNodePort).To(BeNumerically(">", 0), "NodePort should be assigned and non-zero")
+
+		// run curl from bootstrapper on nodeport service
+		err = utils.RunCurlFromBootstrapper(ctx, cl, additionalNodeNetworkIP, int32(assignedNodePort))
 		Expect(err).NotTo(HaveOccurred())
 	})
 
