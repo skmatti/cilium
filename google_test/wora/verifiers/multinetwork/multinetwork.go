@@ -35,8 +35,8 @@ import (
 )
 
 const (
-	additionalNetworkName         = "vlan-test"
-	clusterCIDRConfigName         = "ccc-test"
+	additionalNetworkName         = "vlanl2"
+	clusterCIDRConfigName         = "cccl2"
 	podInterfaceName              = "eth1"
 	nodeSelectorKey               = "baremetal.cluster.gke.io/node-pool"
 	additionalNetworkNodePoolName = "np1"
@@ -50,6 +50,7 @@ const (
 	// after the test run.
 	cleanupPods        = true
 	podsTimeout        = 30 * time.Minute
+	pingTimeoutSeconds = 10
 	hostNetworkPodName = "host-nw-pod"
 )
 
@@ -209,7 +210,10 @@ var _ = Describe("Verifiers/multinetwork", Label("multinetwork"), Ordered, func(
 		labelKey := "app"
 		labelValue := "svc-test"
 		nwSelectorValue := additionalNetworkName
-		_, err = utils.CreatePodWithNetworkInterfaces(ctx, cl, "nodeport-svc-test-pod", testNamespace,
+
+		// Test ExternalTrafficPolicy:Local behaviour by curling node0 and pod on node0
+		nodeportTestPodName := "nodeport-svc-test-pod"
+		cleanup, err := utils.CreatePodWithNetworkInterfaces(ctx, cl, nodeportTestPodName, testNamespace,
 			[]utils.NetworkInfo{
 				{
 					InterfaceName: "eth0",
@@ -268,6 +272,83 @@ var _ = Describe("Verifiers/multinetwork", Label("multinetwork"), Ordered, func(
 		// run curl from bootstrapper on nodeport service
 		err = utils.RunCurlFromBootstrapper(ctx, cl, additionalNodeNetworkIP, int32(assignedNodePort))
 		Expect(err).NotTo(HaveOccurred())
+
+		klog.Infof("Successfully tested externalTrafficPolicy: Local behaviour for L2 multinetwork nodeport services")
+
+		// delete the previously deployed pod on node0
+		cleanup()
+		err = utils.WaitForPodDeletion(ctx, cl, nodeportTestPodName, testNamespace)
+		Expect(err).ToNot(HaveOccurred())
+
+		// Test ExternalTrafficPolicy: Cluster behaviour by curling node0 and pod on node1
+		cleanup, err = utils.CreatePodWithNetworkInterfaces(ctx, cl, nodeportTestPodName, testNamespace,
+			[]utils.NetworkInfo{
+				{
+					InterfaceName: "eth0",
+					NetworkName:   networkv1.DefaultPodNetworkName,
+				},
+				{
+					InterfaceName: "eth1",
+					NetworkName:   additionalNetworkName,
+					IPAMMode:      "Internal",
+					IsDefault:     true,
+				},
+			},
+			nil,
+			utils.WithLabel(labelKey, labelValue),
+			utils.WithNodeName(allNodes.Items[1].Name), // deploy on node 1
+			utils.WithContainers([]corev1.Container{utils.ResponderContainer}),
+		)
+		Expect(err).NotTo(HaveOccurred())
+
+		// create multinetwork with ETP:Cluster nodeport svc on additional network with pod selector
+		svcName = "nodeport-svc-test-cluster"
+		svc = corev1.Service{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      svcName,
+				Namespace: testNamespace,
+			},
+			Spec: corev1.ServiceSpec{
+				Type:                  corev1.ServiceTypeNodePort,
+				ExternalTrafficPolicy: corev1.ServiceExternalTrafficPolicyTypeLocal,
+				Selector: map[string]string{
+					labelKey:      labelValue,
+					nwSelectorKey: nwSelectorValue,
+				},
+				Ports: []corev1.ServicePort{
+					{
+						Name: "http",
+						Port: int32(8080),
+						TargetPort: intstr.IntOrString{
+							Type:   intstr.Int,
+							IntVal: 8080,
+						},
+					},
+				},
+			},
+		}
+
+		err = utils.CreateNodeportService(ctx, cl, &svc)
+		Expect(err).NotTo(HaveOccurred())
+
+		// Wait for service NodePort to come up.
+		err, assignedNodePort = utils.NodePortReadiness(ctx, cl, svcName, testNamespace, corev1.ServiceTypeNodePort)
+		Expect(err).NotTo(HaveOccurred())
+
+		Expect(assignedNodePort).To(BeNumerically(">", 0), "NodePort should be assigned and non-zero")
+
+		err = utils.RunPingFromPodWithTimeoutLimit(ctx, nodeportTestPodName, testNamespace, additionalNodeNetworkIP, pingTimeoutSeconds)
+		Expect(err).NotTo(HaveOccurred())
+
+		// run curl from bootstrapper on nodeport service
+		err = utils.RunCurlFromBootstrapper(ctx, cl, additionalNodeNetworkIP, int32(assignedNodePort))
+		Expect(err).NotTo(HaveOccurred())
+
+		klog.Infof("Successfully tested externalTrafficPolicy: Cluster behaviour for L2 multinetwork nodeport services")
+
+		cleanup()
+		err = utils.WaitForPodDeletion(ctx, cl, nodeportTestPodName, testNamespace)
+		Expect(err).ToNot(HaveOccurred())
 	})
 
 	AfterAll(func() {

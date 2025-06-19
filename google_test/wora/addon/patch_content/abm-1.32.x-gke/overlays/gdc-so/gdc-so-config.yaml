@@ -1,6 +1,7 @@
 apiVersion: v1
 data:
   kube-proxy-replacement: "false"
+  enable-runtime-device-detection: "true"
 kind: ConfigMap
 metadata:
   name: cilium-config

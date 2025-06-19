@@ -441,6 +441,27 @@ func NodeInterfaceIPFromPod(ctx context.Context, sourcePodName, nodeInterfaceNam
 	return string(output), nil
 }
 
+func RunPingFromPodWithTimeoutLimit(ctx context.Context, sourcePodName, namespace string, targetIP string, timeout int) error {
+	cmd := exec.Command(
+		"kubectl", "exec", sourcePodName, "-n", namespace, "--",
+		"ping", "-c", "3", "-W", fmt.Sprintf("%d", timeout), fmt.Sprintf("%s", targetIP),
+	)
+	return runPingCommand(cmd, sourcePodName, targetIP)
+}
+
+func runPingCommand(cmd *exec.Cmd, sourcePodName, targetIP string) error {
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("failed to execute curl command: %v, output: %s", err, string(output))
+	}
+	expectedPayload := fmt.Sprintf("bytes from %v", targetIP)
+	if !strings.Contains(string(output), expectedPayload) {
+		return fmt.Errorf("unexpected ping response: %s", string(output))
+	}
+
+	klog.Infof("Ping command successful from pod %s to %s:%d", sourcePodName, targetIP)
+	return nil
+}
 func waitForPodReady(ctx context.Context, c k8sclient.Client, podName, podNamespace string) error {
 	pod := corev1.Pod{}
 	podReady := func(ctx context.Context) error {
