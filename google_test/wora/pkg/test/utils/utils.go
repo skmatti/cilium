@@ -48,7 +48,31 @@ type CiliumConfig struct {
 	Value string
 }
 
+var ResponderContainer = corev1.Container{
+	Name:  responderContainerName,
+	Image: "gcr.io/anthos-networking-ci/toolbox:wora-test",
+	Command: []string{
+		"/bin/sh", "-c", `POD_NAME=$(hostname)
+			echo "Serving pod name: $POD_NAME on port 8080"
+			while true; do
+				{ echo -ne "HTTP/1.1 200 OK\r\nContent-Length: ${#POD_NAME}\r\n\r\n$POD_NAME"; } | nc -l -p 8080 -q 1;
+			done`,
+	},
+	Ports: []corev1.ContainerPort{
+		{
+			ContainerPort: int32(ResponderPort),
+			Name:          "http",
+		},
+	},
+}
+
 type PodCustomization func(*corev1.Pod)
+
+func WithHostNetworking() PodCustomization {
+	return func(p *corev1.Pod) {
+		p.Spec.HostNetwork = true
+	}
+}
 
 func WithAnnotation(key, value string) PodCustomization {
 	return func(p *corev1.Pod) {
@@ -56,6 +80,12 @@ func WithAnnotation(key, value string) PodCustomization {
 			p.Annotations = make(map[string]string)
 		}
 		p.Annotations[key] = value
+	}
+}
+
+func WithNodeName(nodeName string) PodCustomization {
+	return func(p *corev1.Pod) {
+		p.Spec.NodeName = nodeName
 	}
 }
 
@@ -77,35 +107,18 @@ func WithNodeSelector(nodeSelectorIP string) PodCustomization {
 	}
 }
 
-func WithHostNetworking() PodCustomization {
+func WithContainers(containers []corev1.Container) PodCustomization {
 	return func(p *corev1.Pod) {
-		p.Spec.HostNetwork = true
+		p.Spec.Containers = containers
 	}
 }
 
 func WithResponderContainer() PodCustomization {
 	return func(p *corev1.Pod) {
-		responder := corev1.Container{
-			Name:  responderContainerName,
-			Image: "gcr.io/anthos-networking-ci/toolbox:wora-test",
-			Command: []string{
-				"/bin/sh", "-c", `POD_NAME=$(hostname)
-					echo "Serving pod name: $POD_NAME on port 8080"
-					while true; do
-						{ echo -ne "HTTP/1.1 200 OK\r\nContent-Length: ${#POD_NAME}\r\n\r\n$POD_NAME"; } | nc -l -p 8080 -q 1;
-					done`,
-			},
-			Ports: []corev1.ContainerPort{
-				{
-					ContainerPort: int32(ResponderPort),
-					Name:          "http",
-				},
-			},
-		}
 		if len(p.Spec.Containers) == 0 {
-			p.Spec.Containers = []corev1.Container{responder}
+			p.Spec.Containers = []corev1.Container{ResponderContainer}
 		} else {
-			p.Spec.Containers = append(p.Spec.Containers, responder)
+			p.Spec.Containers = append(p.Spec.Containers, ResponderContainer)
 		}
 	}
 }
@@ -200,6 +213,20 @@ type NetworkInfo struct {
 	NetworkName   string
 	IPAddress     string
 	IsDefault     bool
+	IPAMMode      networkv1.IPAMModeType
+}
+
+// Create nodeport svc for multi-networking
+func CreateNodeportService(ctx context.Context, cl k8sclient.Client, service *corev1.Service) error {
+	if err := cl.Create(ctx, service); err != nil {
+		if apierrors.IsAlreadyExists(err) {
+			klog.Infof("Service already exists.")
+			return nil
+		}
+		return fmt.Errorf("failed to create service: %v", err)
+	}
+	klog.Infof("service %s created successfully", service.Name)
+	return nil
 }
 
 func CreatePod(ctx context.Context, cl k8sclient.Client, podName, namespace string, opts ...PodCustomization) (func(), error) {
@@ -246,10 +273,14 @@ func CreatePodWithNetworkInterfaces(ctx context.Context, cl k8sclient.Client, po
 			}
 			defaultIntf = info.InterfaceName
 		}
-		if err := createNetworkInterface(cl, podName, namespace, info); err != nil {
-			return cleanup, err
+		if info.IPAMMode == networkv1.InternalMode {
+			interfaceAnnotations = append(interfaceAnnotations, fmt.Sprintf("{\"interfaceName\":\"%s\",\"network\":\"%s\"}", info.InterfaceName, info.NetworkName))
+		} else {
+			if err := createNetworkInterface(cl, podName, namespace, info); err != nil {
+				return cleanup, err
+			}
+			interfaceAnnotations = append(interfaceAnnotations, fmt.Sprintf("{\"interfaceName\":\"%s\",\"interface\":\"%s-%s\"}", info.InterfaceName, podName, info.InterfaceName))
 		}
-		interfaceAnnotations = append(interfaceAnnotations, fmt.Sprintf("{\"interfaceName\":\"%s\",\"interface\":\"%s-%s\"}", info.InterfaceName, podName, info.InterfaceName))
 	}
 
 	if len(interfaceAnnotations) != 0 {
@@ -392,6 +423,19 @@ func VerifyCurlFromPod(ctx context.Context, cl k8sclient.Client, sourcePodName, 
 		}
 		return nil
 	})
+}
+
+func NodeInterfaceIPFromPod(ctx context.Context, sourcePodName, nodeInterfaceName string, namespace string) (string, error) {
+	cmd := exec.Command(
+		"kubectl", "exec", sourcePodName, "-n", namespace, "--",
+		"/bin/sh", "-c", fmt.Sprintf("ip -4 -o addr show dev %s | awk '{print $4}'", nodeInterfaceName),
+	)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return "", fmt.Errorf("failed to execute curl command: %v, output: %s", err, string(output))
+	}
+	klog.Infof("NodeInterfaceIPFromPod: %s", string(output))
+	return string(output), nil
 }
 
 func waitForPodReady(ctx context.Context, c k8sclient.Client, podName, podNamespace string) error {
