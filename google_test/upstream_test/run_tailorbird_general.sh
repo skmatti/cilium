@@ -98,6 +98,14 @@ function get_log_from_kind_cluster {
   scp -i "${HOST_MACHINE_INFO_DIR}"/id_rsa -o StrictHostKeyChecking=accept-new -o IdentitiesOnly=yes -r "${HOST_MACHINE_USER}@${HOST_MACHINE_IP}":"${KIND_LOGDUMP}" "${ARTIFACTS}"
 }
 
+function update_max_watchers {
+  HOST_MACHINE_USER="$(jq '.default_transport.attributes.username' "${HOST_MACHINE_INFO_DIR}"/connectivity_metadata.json | tr -d '"')"
+  HOST_MACHINE_IP="$(jq '.default_transport.attributes.bastion_hostname' "${HOST_MACHINE_INFO_DIR}"/connectivity_metadata.json | tr -d '"')"
+  ssh -i "${HOST_MACHINE_INFO_DIR}"/id_rsa -o StrictHostKeyChecking=accept-new -o IdentitiesOnly=yes "${HOST_MACHINE_USER}@${HOST_MACHINE_IP}" "sudo sysctl -w fs.inotify.max_user_watches=2099999999"
+  ssh -i "${HOST_MACHINE_INFO_DIR}"/id_rsa -o StrictHostKeyChecking=accept-new -o IdentitiesOnly=yes "${HOST_MACHINE_USER}@${HOST_MACHINE_IP}" "sudo sysctl -w fs.inotify.max_user_instances=2099999999"
+  ssh -i "${HOST_MACHINE_INFO_DIR}"/id_rsa -o StrictHostKeyChecking=accept-new -o IdentitiesOnly=yes "${HOST_MACHINE_USER}@${HOST_MACHINE_IP}" "sudo sysctl -w fs.inotify.max_queued_events=2099999999"
+}
+
 function clean_up_before_exit {
   set +e
   # Dump all debug info
@@ -110,6 +118,9 @@ function clean_up_before_exit {
 }
 
 trap clean_up_before_exit EXIT
+
+# Prep node to support all file watchers (b/426240919)
+update_max_watchers
 
 # Remove kube-proxy and kindnet in preparation to install cilium.
 kubectl delete ds kube-proxy -n kube-system
