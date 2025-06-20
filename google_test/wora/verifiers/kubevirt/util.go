@@ -21,7 +21,7 @@ import (
 	"kubevirt.io/client-go/kubecli"
 	cdiv1beta1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 
-	klog "gke-internal.googlesource.com/syllogi/sanitized-klog"
+	klog "gke-internal.googlesource.com/syllogi/sanitized-klog/third_party/klogv2"
 	gvmv1 "gke-internal.googlesource.com/third_party/cilium/google_test/wora/e2e/pkg/kubevm/vm-controller/api/v1"
 	vmruntimev1 "gke-internal.googlesource.com/third_party/cilium/google_test/wora/e2e/pkg/kubevm/vm-runtime-operator/api/v1"
 

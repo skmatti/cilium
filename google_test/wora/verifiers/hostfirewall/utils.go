@@ -3,16 +3,15 @@ package hostfirewall
 import (
 	"context"
 
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	k8sclient "sigs.k8s.io/controller-runtime/pkg/client"
-
 	ciliumv2 "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2"
 	slim_metav1 "github.com/cilium/cilium/pkg/k8s/slim/k8s/apis/meta/v1"
 	ciliumlabels "github.com/cilium/cilium/pkg/labels"
 	ciliumapi "github.com/cilium/cilium/pkg/policy/api"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/rest"
+	k8sclient "sigs.k8s.io/controller-runtime/pkg/client"
 
 	"gke-internal.googlesource.com/third_party/cilium/google_test/wora/e2e/pkg/test/utils"
-	"k8s.io/client-go/rest"
 )
 
 func applyCCNPWithIngressPolicy(cl k8sclient.Client, policyName string, nodeSelectorIP string, ingressLabelKey string, ingressLabelValue string) error {

@@ -14,7 +14,7 @@ import (
 	kubevirtcorev1 "kubevirt.io/client-go/generated/kubevirt/clientset/versioned/typed/core/v1"
 	"kubevirt.io/client-go/kubecli"
 
-	klog "gke-internal.googlesource.com/syllogi/sanitized-klog"
+	klog "gke-internal.googlesource.com/syllogi/sanitized-klog/third_party/klogv2"
 )
 
 // NewExpecter will connect to an already logged in VMI console and return the generated expecter it will wait `timeout` for the connection.

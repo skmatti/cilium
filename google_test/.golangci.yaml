@@ -1,0 +1,9 @@
+version: "2"
+formatters:
+  enable:
+    - gofmt
+    - goimports
+  settings:
+    goimports:
+      local-prefixes:
+        - gke-internal.googlesource.com

@@ -1,6 +1,7 @@
 package scheme
 
 import (
+	ciliumv2 "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2"
 	appsv1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -9,8 +10,6 @@ import (
 	networkv1 "k8s.io/cloud-provider-gcp/crd/apis/network/v1"
 
 	ipamv1 "gke-internal.googlesource.com/anthos-networking/ipam-controller/api/v1alpha1"
-
-	ciliumv2 "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2"
 )
 
 func Scheme() *runtime.Scheme {

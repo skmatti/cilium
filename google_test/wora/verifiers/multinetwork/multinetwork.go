@@ -11,9 +11,10 @@ import (
 	"strings"
 	"time" // Do not use pkg/time in test code.
 
+	networkv1 "github.com/GoogleCloudPlatform/gke-networking-api/apis/network/v1"
+	networkclientset "github.com/GoogleCloudPlatform/gke-networking-api/client/network/clientset/versioned"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
@@ -22,14 +23,10 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 	crclient "sigs.k8s.io/controller-runtime/pkg/client"
 
-	networkv1 "github.com/GoogleCloudPlatform/gke-networking-api/apis/network/v1"
-	networkclientset "github.com/GoogleCloudPlatform/gke-networking-api/client/network/clientset/versioned"
-
-	klog "gke-internal.googlesource.com/syllogi/sanitized-klog"
-
 	"gke-internal.googlesource.com/anthos-networking/test-infra/pkg/artifact"
 	"gke-internal.googlesource.com/anthos-networking/test-infra/pkg/client"
 	"gke-internal.googlesource.com/anthos-networking/test-infra/pkg/network"
+	klog "gke-internal.googlesource.com/syllogi/sanitized-klog/third_party/klogv2"
 	e2escheme "gke-internal.googlesource.com/third_party/cilium/google_test/wora/e2e/pkg/test/scheme"
 	"gke-internal.googlesource.com/third_party/cilium/google_test/wora/e2e/pkg/test/utils"
 )

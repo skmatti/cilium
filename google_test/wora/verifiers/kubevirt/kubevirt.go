@@ -25,7 +25,7 @@ import (
 
 	"gke-internal.googlesource.com/anthos-networking/test-infra/pkg/client"
 	"gke-internal.googlesource.com/anthos-networking/test-infra/pkg/network"
-	klog "gke-internal.googlesource.com/syllogi/sanitized-klog"
+	klog "gke-internal.googlesource.com/syllogi/sanitized-klog/third_party/klogv2"
 	gvmv1 "gke-internal.googlesource.com/third_party/cilium/google_test/wora/e2e/pkg/kubevm/vm-controller/api/v1"
 )
 

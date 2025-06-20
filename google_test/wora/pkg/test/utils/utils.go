@@ -6,7 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net"
 	"os"
 	"os/exec"
@@ -21,7 +21,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/client-go/kubernetes"
 	networkv1 "k8s.io/cloud-provider-gcp/crd/apis/network/v1"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 	k8sclient "sigs.k8s.io/controller-runtime/pkg/client"
 
 	klog "gke-internal.googlesource.com/syllogi/sanitized-klog/third_party/klogv2"
@@ -258,7 +258,7 @@ func CreatePodWithNetworkInterfaces(ctx context.Context, cl k8sclient.Client, po
 					Command:         []string{"/bin/sh", "-c", command},
 					ImagePullPolicy: corev1.PullIfNotPresent,
 					SecurityContext: &corev1.SecurityContext{
-						Privileged: pointer.Bool(true),
+						Privileged: ptr.To(true),
 					},
 				},
 			},
@@ -505,7 +505,7 @@ func FetchPodLogs(ctx context.Context, c kubernetes.Interface, podName, namespac
 	defer podLogs.Close()
 
 	// Read logs from the stream
-	logs, err := ioutil.ReadAll(podLogs)
+	logs, err := io.ReadAll(podLogs)
 	if err != nil {
 		return "", fmt.Errorf("failed to read logs for pod %s: %v", podName, err)
 	}
@@ -690,7 +690,7 @@ func ExecuteCommandFromBootstapper(ctx context.Context, cl k8sclient.Client, com
 		return "", err
 	}
 	// Read the private key.
-	privateKey, err := ioutil.ReadFile(privateKeyPath)
+	privateKey, err := os.ReadFile(privateKeyPath)
 	if err != nil {
 		return "", fmt.Errorf("failed to read private key: %v", err)
 	}

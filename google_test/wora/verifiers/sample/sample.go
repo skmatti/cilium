@@ -7,13 +7,11 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	klog "gke-internal.googlesource.com/syllogi/sanitized-klog"
-
 	"gke-internal.googlesource.com/anthos-networking/test-infra/pkg/client"
+	klog "gke-internal.googlesource.com/syllogi/sanitized-klog/third_party/klogv2"
 )
 
 const (
