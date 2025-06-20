@@ -16,6 +16,8 @@ import (
 	"github.com/cilium/cilium/pkg/logging"
 	"github.com/cilium/cilium/pkg/logging/logfields"
 	"github.com/cilium/hive/cell"
+	ipamversioned "gke-internal.googlesource.com/anthos-networking/ipam-controller/api/client/clientset/versioned"
+	ipamv1alpha1 "gke-internal.googlesource.com/anthos-networking/ipam-controller/api/v1alpha1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 )
@@ -28,12 +30,14 @@ var Cell = cell.Module(
 	"google-multinetworking-clients",
 	"Google Multinetworking Clients",
 	cell.Provide(networkAPIClient),
+	cell.Provide(ipamAPIClient),
 	cell.Provide(networkResources),
 	cell.Provide(gkeNetworkParamSetResources),
 	cell.Provide(networkInterfaceResources),
 	cell.Provide(kubeletClient),
 	cell.Provide(multiNetworkHelperClient),
 	cell.Provide(dhcpClient),
+	cell.Provide(clusterCIDRConfigResources),
 )
 
 type Params struct {
@@ -42,9 +46,11 @@ type Params struct {
 	// Clients required by multinetwork reconciler
 	Clientset           k8sClient.Clientset
 	NetworkAPIClient    nwversioned.Interface
+	IPAMClient          ipamversioned.Interface
 	Networks            resource.Resource[*networkv1.Network]
 	GKENetworkParamSets resource.Resource[*networkv1.GKENetworkParamSet]
 	NetworkInterfaces   resource.Resource[*networkv1.NetworkInterface]
+	ClusterCIDRConfigs  resource.Resource[*ipamv1alpha1.ClusterCIDRConfig]
 	Lifecycle           cell.Lifecycle
 	Config              multinicconfig.Config
 }
@@ -60,6 +66,7 @@ func multiNetworkHelperClient(p Params) (MultiNetworkHelperClient, error) {
 		Networks:            p.Networks,
 		GKENetworkParamSets: p.GKENetworkParamSets,
 		NetworkInterfaces:   p.NetworkInterfaces,
+		ClusterCIDRConfigs:  p.ClusterCIDRConfigs,
 	}
 	p.Lifecycle.Append(cell.Hook{
 		OnStart: func(ctx cell.HookContext) error {
@@ -84,6 +91,17 @@ func networkAPIClient(clientset k8sClient.Clientset) (nwversioned.Interface, err
 	return nwClient, nil
 }
 
+func ipamAPIClient(clientset k8sClient.Clientset) (ipamversioned.Interface, error) {
+	if !clientset.IsEnabled() {
+		return nil, nil
+	}
+	ipamClient, err := ipamversioned.NewForConfig(clientset.RestConfig())
+	if err != nil {
+		return nil, fmt.Errorf("create ipam client: %v", err)
+	}
+	return ipamClient, nil
+}
+
 // networkResources creates a new resource for network objects.
 // Network objects are custom resources defined by the Multinetworking API.
 func networkResources(lc cell.Lifecycle, conf multinicconfig.Config, c nwversioned.Interface) (resource.Resource[*networkv1.Network], error) {
@@ -102,6 +120,22 @@ func networkInterfaceResources(lc cell.Lifecycle, conf multinicconfig.Config, c 
 	}
 	return resource.New[*networkv1.NetworkInterface](
 		lc, utils.ListerWatcherFromTyped[*networkv1.NetworkInterfaceList](c.NetworkingV1().NetworkInterfaces("")), resource.WithMetric("NetworkInterfaces")), nil
+}
+
+// clusterCIDRConfigResources creates a new resource for ClusterCIDRConfig objects.
+// ClusterCIDRConfig objects are custom resources defined by the IPAM controller API, used for managing cluster-wide CIDR configurations.
+func clusterCIDRConfigResources(lc cell.Lifecycle, conf multinicconfig.Config, c ipamversioned.Interface, clientset k8sClient.Clientset) (resource.Resource[*ipamv1alpha1.ClusterCIDRConfig], error) {
+
+	if !conf.EnableGoogleMultiNIC {
+		return nil, nil
+	}
+
+	if !conf.EnableGoogleTunnelThroughSecondaryInterfaces {
+		return nil, nil
+	}
+
+	return resource.New[*ipamv1alpha1.ClusterCIDRConfig](
+		lc, utils.ListerWatcherFromTyped[*ipamv1alpha1.ClusterCIDRConfigList](c.ApiV1alpha1().ClusterCIDRConfigs("")), resource.WithMetric("ClusterCIDRConfigs")), nil
 }
 
 // gkeNetworkParamSetResources creates a new resource for GKENetworkParamSet objects.

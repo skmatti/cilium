@@ -36,6 +36,7 @@ import (
 	"github.com/cilium/cilium/pkg/maps/multinicdev"
 	"github.com/cilium/cilium/pkg/option"
 	"github.com/sirupsen/logrus"
+	ipamv1alpha1 "gke-internal.googlesource.com/anthos-networking/ipam-controller/api/v1alpha1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/pointer"
 	utilpointer "k8s.io/utils/pointer"
@@ -316,7 +317,21 @@ func (d *Daemon) createMultiNICEndpoints(ctx context.Context, multiNICWaitCh cha
 				parentDevInUse[multinicTemplate.ParentDeviceName] = ref.InterfaceName
 
 			} else if netCR.Spec.Type == networkv1.L3NetworkType {
-				if cleanup, err = connector.SetupL3Interface(ref.InterfaceName, pod.Name, podResources, netCR, intfCR, multinicTemplate, d.ipam, netParamsRef); err != nil {
+				// When L3 network doesn't have GKENetworkParam(GNP) linked
+				// and IPAMMode is internal, add a route for the podCIDR on
+				// secondary L3 network. This ensures that traffic destined
+				// for the secondary network's CIDR is properly routed
+				// through the corresponding pod interface.
+				var ccc *ipamv1alpha1.ClusterCIDRConfig
+				if _, isGNP := netParamsRef.(*networkv1.GKENetworkParamSet); netParamsRef == nil || !isGNP {
+					if *netCR.Spec.IPAMMode == networkv1.InternalMode {
+						ccc, err = d.multinicClient.GetClusterCIDRConfigForNetwork(ctx, netCR.Name)
+						if err != nil {
+							return d.errorDuringMultiNICCreation(primaryEp, PutEndpointIDInvalidCode, fmt.Errorf("unable to retrieve ClusterCIDRConfig for network %q: %w", netCR.Name, err))
+						}
+					}
+				}
+				if cleanup, err = connector.SetupL3Interface(ref.InterfaceName, pod.Name, podResources, netCR, intfCR, multinicTemplate, d.ipam, netParamsRef, ccc); err != nil {
 					return d.errorWithMultiNICCleanup(primaryEp, PutEndpointIDInvalidCode, fmt.Errorf("failed setting up layer3 interface %q for pod %q: %v", intfCR.Name, podID, err), cleanup)
 				}
 			} else if netCR.Spec.Type == networkv1.DeviceNetworkType {

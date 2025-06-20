@@ -38,6 +38,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	ipamv1alpha1 "gke-internal.googlesource.com/anthos-networking/ipam-controller/api/v1alpha1"
 )
 
 const (
@@ -1474,7 +1476,7 @@ func TestExtractRoutes(t *testing.T) {
 	testPodCIDR2 := "10.3.0.0/22"
 
 	createRoutes := func(cidrs ...string) []networkv1.Route {
-		routes := []networkv1.Route{}
+		var routes []networkv1.Route
 		for _, cidr := range cidrs {
 			routes = append(routes, networkv1.Route{To: cidr})
 		}
@@ -1502,11 +1504,23 @@ func TestExtractRoutes(t *testing.T) {
 
 		return gnp
 	}
-
+	createCCC := func(cidr, network string) *ipamv1alpha1.ClusterCIDRConfig {
+		ccc := &ipamv1alpha1.ClusterCIDRConfig{
+			ObjectMeta: metav1.ObjectMeta{},
+			Spec: ipamv1alpha1.ClusterCIDRConfigSpec{
+				Network: &network,
+				IPv4: &ipamv1alpha1.CIDRConfig{
+					CIDR: cidr,
+				},
+			},
+		}
+		return ccc
+	}
 	testcases := []struct {
 		desc       string
 		network    *networkv1.Network
 		gnp        client.Object
+		ccc        *ipamv1alpha1.ClusterCIDRConfig
 		wantRoutes []networkv1.Route
 		wantErr    string
 	}{
@@ -1630,11 +1644,36 @@ func TestExtractRoutes(t *testing.T) {
 			},
 			wantRoutes: createRoutes(testRouteCIDR1, testRouteCIDR2),
 		},
+		{
+			desc:       "L3 network with ClusterCIDRConfig",
+			network:    createNetwork(networkv1.L3NetworkType),
+			ccc:        createCCC(testRouteCIDR1, testNetworkName),
+			wantRoutes: createRoutes(testRouteCIDR1),
+		},
+		{
+			desc:       "L3 network with nil ClusterCIDRConfig but gnp pod CIDRs",
+			network:    createNetwork(networkv1.L3NetworkType, testRouteCIDR1),
+			gnp:        createGNP(testPodCIDR1, testPodCIDR2),
+			ccc:        nil,
+			wantRoutes: createRoutes(testRouteCIDR1, testPodCIDR1, testPodCIDR2),
+		},
+		{
+			desc:       "L3 network with nil ClusterCIDRConfig and nil gnp pod CIDRs",
+			network:    createNetwork(networkv1.L3NetworkType),
+			ccc:        nil,
+			wantRoutes: createRoutes(),
+		},
+		{
+			desc:       "L3 network with empty ClusterCIDRConfig",
+			network:    createNetwork(networkv1.L3NetworkType),
+			ccc:        createCCC("", testNetworkName),
+			wantRoutes: createRoutes(),
+		},
 	}
 
 	for _, tc := range testcases {
 		t.Run(tc.desc, func(t *testing.T) {
-			gotRoutes, gotErr := extractRoutes(tc.network, tc.gnp)
+			gotRoutes, gotErr := extractRoutes(tc.network, tc.gnp, tc.ccc)
 			if gotErr != nil && tc.wantErr == "" {
 				t.Fatalf("extractRoutes() returned unexpected error: %v", gotErr)
 			}

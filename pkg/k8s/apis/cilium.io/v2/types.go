@@ -282,6 +282,10 @@ type EndpointNetworking struct {
 	// NodeIP is the IP of the node the endpoint is running on. The IP must
 	// be reachable between nodes.
 	NodeIP string `json:"node,omitempty"`
+	// Google only - ParentInterfaceIP is the IP specifically storing the node interface IP
+	// associated with the pod's secondary network and defaults to an empty string.
+	// This is only set for multinic endpoints.
+	ParentInterfaceIP string `json:"parent-interface-ip,omitempty"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object

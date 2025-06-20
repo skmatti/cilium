@@ -138,6 +138,10 @@ func (l *BPFListener) OnIPIdentityCacheChange(modType ipcache.CacheModification,
 				// Only skip updating tunnel endpoint for layer 2 multi nic endpoint.
 				if k8sMeta == nil || !k8sMeta.IsL2MultiNIC {
 					copy(value.TunnelEndpoint[:], ip4)
+					tunnelIP := resolveTunnelEndpointIP(k8sMeta)
+					if tunnelIP != nil {
+						copy(value.TunnelEndpoint[:], tunnelIP)
+					}
 				}
 			}
 		}

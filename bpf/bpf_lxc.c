@@ -1293,7 +1293,13 @@ skip_vtep:
 					     ip4->daddr, encrypt_key, &key,
 					     SECLABEL_IPV4, *dst_sec_identity, &trace);
 		if (ret == DROP_NO_TUNNEL_ENDPOINT)
+#ifdef MULTI_NIC_DEVICE_TYPE
+			// Pass the packet to parent interface when tunnel endpoint is not found.
+			goto maybe_pass_to_parent;
+#else
 			goto maybe_pass_to_stack;
+#endif
+
 		/* If not redirected noteably due to IPSEC then pass up to stack
 		 * for further processing.
 		 */
@@ -1315,6 +1321,7 @@ skip_vtep:
 #endif /* TUNNEL_MODE || ENABLE_HIGH_SCALE_IPCACHE */
 
 #ifdef MULTI_NIC_DEVICE_TYPE
+maybe_pass_to_parent: __maybe_unused;
 #if MULTI_NIC_DEVICE_TYPE == EP_DEV_TYPE_INDEX_MULTI_NIC_VETH
 {
 	union macaddr parent_mac = PARENT_DEV_MAC;
@@ -1326,7 +1333,38 @@ skip_vtep:
 	ret = ipv4_l3(ctx, ETH_HLEN, (__u8 *) &parent_mac.addr, NULL, ip4);
 	if (unlikely(ret != CTX_ACT_OK))
 		return ret;
-	return ctx_redirect(ctx, PARENT_DEV_IFINDEX, 0);
+
+	if (!revalidate_data(ctx, &data, &data_end, &ip4))
+		return DROP_INVALID;
+
+	/*
+	 * (Bug Fix: b/377564367) - For egress traffic on secondary networks,
+	 * rewrite dmmac if the kernel supports redirect_neighbor().
+	 * else, fall back to ctx_redirect() to the parent interface.
+	 *
+	 * redirect_neighbor() is supported in Linux kernel versions 5.10 and later.
+	*/
+
+	if (neigh_resolver_available()) {
+		// Resolve the next hop with given IPv4 dst addr, exit interface and redirect the packet.
+		int oif __maybe_unused = PARENT_DEV_IFINDEX;
+		struct bpf_fib_lookup_padded fib_params __maybe_unused = {
+			.l = {
+				.family = AF_INET,
+				.ipv4_dst = ip4->daddr,
+			},
+		};
+		ret = fib_redirect_google_multinic(ctx, &fib_params, &oif, ext_err);
+
+		// Next hop not found. Drop the packet.
+		if (ret == CTX_ACT_OK) {
+			return DROP_UNROUTABLE;
+		}
+
+		return ret;
+	} else {
+		return ctx_redirect(ctx, PARENT_DEV_IFINDEX, 0);
+	}
 }
 #else
 	// For other (L2) multinic types, go to stack

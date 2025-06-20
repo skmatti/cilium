@@ -101,6 +101,10 @@ type K8sMetadata struct {
 
 	// IsL2MultiNIC indicates if the ip belongs to a Layer 2 multi NIC endpoint (macvtap).
 	IsL2MultiNIC bool
+
+	// ParentInterfaceIP stores node interface IP associated with pod's secondary network.
+	// This is only set for multinic endpoints.
+	ParentInterfaceIP string
 }
 
 // Configuration is init-time configuration for the IPCache.

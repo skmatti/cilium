@@ -13,6 +13,7 @@ import (
 	"github.com/cilium/cilium/pkg/identity"
 	"github.com/cilium/cilium/pkg/labels"
 	"github.com/cilium/cilium/pkg/mac"
+	"github.com/cilium/cilium/pkg/node"
 	"golang.org/x/sys/unix"
 )
 
@@ -281,4 +282,15 @@ func objPin(fd int, pathname string) error {
 	}
 
 	return nil
+}
+
+func (e *Endpoint) ParentInterfaceIP() (string, error) {
+	if e.IsMultiNIC() && multinicconfig.GlobalConfig.EnableGoogleTunnelThroughSecondaryInterfaces {
+		ip, err := node.FirstV4GlobalAddrOnInf(e.parentDevName)
+		if err != nil {
+			return "", err
+		}
+		return ip, nil
+	}
+	return "", nil
 }

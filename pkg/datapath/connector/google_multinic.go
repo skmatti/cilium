@@ -40,6 +40,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/afero"
 	"github.com/vishvananda/netlink"
+	ipamv1alpha1 "gke-internal.googlesource.com/anthos-networking/ipam-controller/api/v1alpha1"
 	"golang.org/x/sys/unix"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/utils/pointer"
@@ -643,7 +644,7 @@ func SetupL2Interface(ctx context.Context, ifNameInPod, podName string, podResou
 		return fmt.Errorf("failed to configure interface: %v", err)
 	}
 
-	if err := populateInterfaceStatus(intf, network, cfg, dhcpResp, podName, nil); err != nil {
+	if err := populateInterfaceStatus(intf, network, cfg, dhcpResp, podName, nil, nil); err != nil {
 		return fmt.Errorf("failed to populate interface status: %v", err)
 	}
 
@@ -663,7 +664,7 @@ func SetupL2Interface(ctx context.Context, ifNameInPod, podName string, podResou
 	return nil
 }
 
-func SetupL3Interface(ifNameInPod, podName string, podResources map[string][]string, network *networkv1.Network, intf *networkv1.NetworkInterface, ep *models.EndpointChangeRequest, ipam *ipam.IPAM, paramsRef client.Object) (func(), error) {
+func SetupL3Interface(ifNameInPod, podName string, podResources map[string][]string, network *networkv1.Network, intf *networkv1.NetworkInterface, ep *models.EndpointChangeRequest, ipam *ipam.IPAM, paramsRef client.Object, ccc *ipamv1alpha1.ClusterCIDRConfig) (func(), error) {
 	cfg, err := getInterfaceConfiguration(intf, network, podResources)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get a valid interface configuration: %v", err)
@@ -746,7 +747,7 @@ func SetupL3Interface(ifNameInPod, podName string, podResources map[string][]str
 		return cleanup, fmt.Errorf("failed to configure interface: %v", err)
 	}
 
-	if err := populateInterfaceStatus(intf, network, cfg, nil, podName, paramsRef); err != nil {
+	if err := populateInterfaceStatus(intf, network, cfg, nil, podName, paramsRef, ccc); err != nil {
 		return cleanup, fmt.Errorf("failed to populate interface status: %v", err)
 	}
 
@@ -948,7 +949,7 @@ func SetupDeviceInterface(ifNameInPod, podName string, podResources map[string][
 		IPV4Address: &ipNet,
 		MacAddress:  mac,
 	}
-	err = populateInterfaceStatus(intf, network, &ifcfg, nil, podName, paramsRef)
+	err = populateInterfaceStatus(intf, network, &ifcfg, nil, podName, paramsRef, nil)
 	if err != nil {
 		return cleanup, isDPDK, err
 	}
@@ -1221,7 +1222,7 @@ func isStaticNetwork(network *networkv1.Network) bool {
 	return routesConfigured || gatewayConfigured || dnsConfigured
 }
 
-func extractRoutes(network *networkv1.Network, netParamsObj client.Object) ([]networkv1.Route, error) {
+func extractRoutes(network *networkv1.Network, netParamsObj client.Object, ccc *ipamv1alpha1.ClusterCIDRConfig) ([]networkv1.Route, error) {
 	knownRoutes := make(map[string]bool)
 	// Collect all CIDRs from the network routes.
 	for _, route := range network.Spec.Routes {
@@ -1243,7 +1244,13 @@ func extractRoutes(network *networkv1.Network, netParamsObj client.Object) ([]ne
 		} else {
 			return nil, fmt.Errorf("Expected GKENetworkParamSet but got unknown param struct [%T] %+v", netParamsObj, netParamsObj)
 		}
+	} else if ccc != nil && ccc.Spec.IPv4 != nil && (network.Spec.Type == networkv1.L3NetworkType) {
+		// For L3 types, retrieve CIDR from ClusterCIDRConfig if defined.
+		if ccc.Spec.IPv4.CIDR != "" {
+			knownRoutes[ccc.Spec.IPv4.CIDR] = true
+		}
 	}
+
 	// Create Route objects for all of the collected CIDRs.
 	var allRoutes []networkv1.Route
 	for cidr := range knownRoutes {
@@ -1252,7 +1259,7 @@ func extractRoutes(network *networkv1.Network, netParamsObj client.Object) ([]ne
 	return allRoutes, nil
 }
 
-func populateInterfaceStatus(intf *networkv1.NetworkInterface, network *networkv1.Network, cfg *interfaceConfiguration, dhcpResp *dhcp.DHCPResponse, podName string, netParamsObj client.Object) error {
+func populateInterfaceStatus(intf *networkv1.NetworkInterface, network *networkv1.Network, cfg *interfaceConfiguration, dhcpResp *dhcp.DHCPResponse, podName string, netParamsObj client.Object, ccc *ipamv1alpha1.ClusterCIDRConfig) error {
 	// Update the interface status after IP and MAC address are configured successfully.
 	intf.Status.IpAddresses = []string{cfg.IPV4Address.String()}
 	intf.Status.MacAddress = cfg.MacAddress.String()
@@ -1280,12 +1287,13 @@ func populateInterfaceStatus(intf *networkv1.NetworkInterface, network *networkv
 		}
 	}
 
+	routes, err := extractRoutes(network, netParamsObj, ccc)
+	if err != nil {
+		return err
+	}
+	intf.Status.Routes = routes
+
 	if network.Spec.Type == networkv1.L3NetworkType {
-		routes, err := extractRoutes(network, netParamsObj)
-		if err != nil {
-			return err
-		}
-		intf.Status.Routes = routes
 		if intf.Status.Gateway4 == nil {
 			// For L3 network, if gateway is not specified in network,
 			// use the first IP from the network's pod CIDR on node as gateway IP.
@@ -1298,11 +1306,6 @@ func populateInterfaceStatus(intf *networkv1.NetworkInterface, network *networkv
 			intf.Status.Gateway4 = &gwIp
 		}
 	} else if network.Spec.Type == networkv1.DeviceNetworkType {
-		routes, err := extractRoutes(network, netParamsObj)
-		if err != nil {
-			return err
-		}
-		intf.Status.Routes = routes
 		if intf.Status.Gateway4 == nil {
 			gkeparam, ok := netParamsObj.(*networkv1.GKENetworkParamSet)
 			if !ok {

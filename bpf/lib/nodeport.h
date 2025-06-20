@@ -2788,10 +2788,18 @@ int tail_nodeport_nat_egress_ipv4(struct __ctx_buff *ctx)
 #ifdef TUNNEL_MODE
 	info = lookup_ip4_remote_endpoint(ip4->daddr, cluster_id);
 	if (info && info->tunnel_endpoint != 0 && !info->flag_skip_tunnel) {
+		struct host_dev_routing_entry * entry;
 		tunnel_endpoint = info->tunnel_endpoint;
 		dst_sec_identity = info->sec_identity;
-
+	/*
+	*Bug Fix: (b/402479397)- Prevent NodePort traffic failure (ETP:Cluster)
+	*on additional network devices by avoiding SNAT with the cilium host interface IP.
+	*Refer b/402479397, b/409627873 for details.
+	*/
+	entry = lookup_host_dev_routes4(NATIVE_DEV_IFINDEX, ip4->daddr);
+	if(entry == NULL) {
 		target.addr = IPV4_GATEWAY;
+	}
 #if defined(ENABLE_CLUSTER_AWARE_ADDRESSING) && defined(ENABLE_INTER_CLUSTER_SNAT)
 		if (cluster_id && cluster_id != CLUSTER_ID)
 			target.addr = IPV4_INTER_CLUSTER_SNAT;

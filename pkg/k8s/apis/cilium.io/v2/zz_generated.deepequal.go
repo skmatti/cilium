@@ -768,6 +768,9 @@ func (in *EndpointNetworking) DeepEqual(other *EndpointNetworking) bool {
 	if in.NodeIP != other.NodeIP {
 		return false
 	}
+	if in.ParentInterfaceIP != other.ParentInterfaceIP {
+		return false
+	}
 
 	return true
 }

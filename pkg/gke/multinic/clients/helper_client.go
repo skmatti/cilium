@@ -28,6 +28,8 @@ import (
 	k8sClient "github.com/cilium/cilium/pkg/k8s/client"
 	"github.com/cilium/cilium/pkg/k8s/resource"
 	slimv1 "github.com/cilium/cilium/pkg/k8s/slim/k8s/api/core/v1"
+	ipamversioned "gke-internal.googlesource.com/anthos-networking/ipam-controller/api/client/clientset/versioned"
+	ipamv1alpha1 "gke-internal.googlesource.com/anthos-networking/ipam-controller/api/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -53,6 +55,9 @@ type MultiNetworkHelperClient interface {
 
 	// GetGKENetworkParamSet returns the specified GKENetworkParamSet pointed by the params ref inside the Network object.
 	GetGKENetworkParamSet(ctx context.Context, ref *networkv1.NetworkParametersReference) (*networkv1.GKENetworkParamSet, error)
+
+	// GetClusterCIDRConfigForNetwork fetches the clusterCIDRCofig based on the Network.
+	GetClusterCIDRConfigForNetwork(ctx context.Context, nwName string) (*ipamv1alpha1.ClusterCIDRConfig, error)
 }
 
 // MultiNetworkHelperClientImpl is an implementation of the MultiNetworkHelperClient interface
@@ -61,12 +66,16 @@ type MultiNetworkHelperClientImpl struct {
 	Clientset k8sClient.Clientset
 	// NWClient to update GKE networking group resources
 	NWClient nwversioned.Interface
+	// IPAMClient to get ang/ipam-controller clusterCIDRConfig resources.
+	IPAMClient ipamversioned.Interface
 	// Handle for network resources
 	Networks resource.Resource[*networkv1.Network]
 	// Handle for GKENetworkParamSet resources
 	GKENetworkParamSets resource.Resource[*networkv1.GKENetworkParamSet]
 	// Handle for network interface resources
 	NetworkInterfaces resource.Resource[*networkv1.NetworkInterface]
+	// Handle for clusterCIDRConfig resources
+	ClusterCIDRConfigs resource.Resource[*ipamv1alpha1.ClusterCIDRConfig]
 }
 
 func (c *MultiNetworkHelperClientImpl) GetNetworkInterface(ctx context.Context, name, namespace string) (*networkv1.NetworkInterface, error) {
@@ -82,6 +91,22 @@ func (c *MultiNetworkHelperClientImpl) GetNetworkInterface(ctx context.Context, 
 		return nil, fmt.Errorf("network interface %s not found: %v", name, err)
 	}
 	return networkInfs, nil
+}
+
+// GetClusterCIDRConfigForNetwork filters ClusterCIDRConfig based on the network.
+func (c *MultiNetworkHelperClientImpl) GetClusterCIDRConfigForNetwork(ctx context.Context, nwName string) (*ipamv1alpha1.ClusterCIDRConfig, error) {
+	clusterCIDRConfigstore, err := c.ClusterCIDRConfigs.Store(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch clusterCIDRConfig store: %v", err)
+	}
+
+	for _, clusterCIDRConfig := range clusterCIDRConfigstore.List() {
+		networkValue := *clusterCIDRConfig.Spec.Network
+		if networkValue == nwName {
+			return clusterCIDRConfig, nil
+		}
+	}
+	return nil, fmt.Errorf("No ClusterCIDRConfig found for this Network %v", nwName)
 }
 
 func (c *MultiNetworkHelperClientImpl) GetNetwork(ctx context.Context, name string) (*networkv1.Network, error) {

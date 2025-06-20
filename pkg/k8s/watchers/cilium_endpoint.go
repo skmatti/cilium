@@ -229,10 +229,11 @@ func (k *K8sCiliumEndpointsWatcher) endpointUpdated(oldEndpoint, endpoint *types
 	}
 
 	k8sMeta := &ipcache.K8sMetadata{
-		Namespace:    endpoint.Namespace,
-		PodName:      k8s.GetPodNameIfExistsFromCiliumEndpoint(endpoint.Name),
-		NamedPorts:   make(ciliumTypes.NamedPortMap, len(endpoint.NamedPorts)),
-		IsL2MultiNIC: multiniccep.IsL2MultiNICCEP(endpoint),
+		Namespace:         endpoint.Namespace,
+		PodName:           k8s.GetPodNameIfExistsFromCiliumEndpoint(endpoint.Name),
+		NamedPorts:        make(ciliumTypes.NamedPortMap, len(endpoint.NamedPorts)),
+		IsL2MultiNIC:      multiniccep.IsL2MultiNICCEP(endpoint),
+		ParentInterfaceIP: endpoint.Networking.ParentInterfaceIP,
 	}
 	podName, err := multiniccep.GetPodNameFromCEP(endpoint)
 	if err != nil {

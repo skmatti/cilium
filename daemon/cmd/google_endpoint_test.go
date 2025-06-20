@@ -14,6 +14,7 @@ import (
 	"github.com/cilium/cilium/pkg/k8s/watchers"
 	"github.com/cilium/cilium/pkg/testutils"
 	"github.com/stretchr/testify/require"
+	ipamv1alpha1 "gke-internal.googlesource.com/anthos-networking/ipam-controller/api/v1alpha1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -217,5 +218,9 @@ func (m *mockMultiNICClient) PatchPodAnnotation(ctx context.Context, obj *v1.Pod
 	return nil
 }
 func (m *mockMultiNICClient) GetGKENetworkParamSet(ctx context.Context, ref *networkv1.NetworkParametersReference) (*networkv1.GKENetworkParamSet, error) {
+	return nil, nil
+}
+
+func (m *mockMultiNICClient) GetClusterCIDRConfigForNetwork(ctx context.Context, nwName string) (*ipamv1alpha1.ClusterCIDRConfig, error) {
 	return nil, nil
 }

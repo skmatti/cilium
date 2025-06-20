@@ -6,9 +6,10 @@ import (
 )
 
 const (
-	EnableFlag            = "enable-google-multi-nic"
-	EnableL3MigrationFlag = "enable-google-multi-nic-l3-migration"
-	PopulateGCENICInfo    = "populate-gce-nic-info"
+	EnableFlag                                   = "enable-google-multi-nic"
+	EnableL3MigrationFlag                        = "enable-google-multi-nic-l3-migration"
+	PopulateGCENICInfo                           = "populate-gce-nic-info"
+	EnableGoogleTunnelThroughSecondaryInterfaces = "enable-google-tunnel-through-secondary-interfaces"
 )
 
 var Cell = cell.Config(defaultConfig)
@@ -24,12 +25,18 @@ type Config struct {
 	// EnableGoogleMultiNICL3Migration enables Google multi NIC migration. When enabled, L3 multi-network configuration is migrated to cilium-cni.
 	EnableGoogleMultiNICL3Migration bool
 	PopulateGCENICInfo              bool
+	// EnableGoogleTunnelThroughSecondaryInterfaces is used to enable
+	// tunneling traffic through secondary host interfaces on the L3 networks.
+	//
+	// Ref. go/island-mode-secondary-networks
+	EnableGoogleTunnelThroughSecondaryInterfaces bool `mapstructure:"enable-google-tunnel-through-secondary-interfaces"`
 }
 
 var defaultConfig = Config{
-	EnableGoogleMultiNIC:            false,
-	EnableGoogleMultiNICL3Migration: false,
-	PopulateGCENICInfo:              false,
+	EnableGoogleMultiNIC:                         false,
+	EnableGoogleMultiNICL3Migration:              false,
+	PopulateGCENICInfo:                           false,
+	EnableGoogleTunnelThroughSecondaryInterfaces: false,
 }
 
 func (cfg Config) Flags(flags *pflag.FlagSet) {
@@ -41,6 +48,9 @@ func (cfg Config) Flags(flags *pflag.FlagSet) {
 
 	flags.Bool(PopulateGCENICInfo, defaultConfig.PopulateGCENICInfo, "Populate GCE NIC information as node annotation.")
 	flags.MarkHidden(PopulateGCENICInfo)
+
+	flags.Bool(EnableGoogleTunnelThroughSecondaryInterfaces, defaultConfig.EnableGoogleTunnelThroughSecondaryInterfaces, "Enable tunneling through secondary host interfaces on L3 networks.")
+	flags.MarkHidden(EnableGoogleTunnelThroughSecondaryInterfaces)
 }
 
 func Enabled() bool {
