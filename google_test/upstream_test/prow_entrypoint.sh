@@ -165,6 +165,7 @@ function create_gce_instance_with_os {
       --image-project="${IMAGE_PROJECT}" \
       --image="${IMAGE_REF}" \
       --machine-type="${test_vm_machine_type}" \
+      --metadata=block-project-ssh-keys=TRUE \
       --boot-disk-size=256GB
   else
     gcloud beta compute instances create "${TEST_VM_NAME}" \
@@ -173,6 +174,7 @@ function create_gce_instance_with_os {
       --image-project="${IMAGE_PROJECT}" \
       --image-family="${IMAGE_FAMILY}" \
       --machine-type="${test_vm_machine_type}" \
+      --metadata=block-project-ssh-keys=TRUE \
       --boot-disk-size=256GB
   fi
 }
@@ -180,7 +182,9 @@ function create_gce_instance_with_os {
 function wait_for_vm {
   local count=0
   until gcloud compute ssh --quiet "${TEST_VM_NAME}" --command="echo ready" 2>/dev/null; do
-    if ((count++ >= 20)); then
+    if ((count++ >= 5)); then
+      log "Reached retry limit. Running ready check in verbose mode assuming failure."
+      gcloud compute ssh "${TEST_VM_NAME}" --verbosity=debug --command="echo ready"
       error "Failed to create ${TEST_VM_NAME}, reached the retry limit"
     fi
     log "Waiting $count second(s) for ${TEST_VM_NAME} to be ready"
@@ -210,6 +214,7 @@ function copy_back_report {
 
 function clean_up_gce_instance {
   log "Deleting GCE instance ${TEST_VM_NAME}.${ZONE}.${PROJECT}."
+  gcloud compute instances remove-metadata "${TEST_VM_NAME}" --keys=ssh-keys
   gcloud compute instances delete "${TEST_VM_NAME}" --quiet || true
 }
 
