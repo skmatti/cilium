@@ -30,8 +30,6 @@ presubmits:
         # needed for docker-in-docker
         privileged: true
       env:
-      - name: ADD_VXLANS_CLUSTER_TYPE
-        value: gdc-ag
       - name: CILIUM_GITREF
         value: HEAD
       - name: PATCH_CONTENT_DIR
@@ -79,8 +77,6 @@ presubmits:
         # needed for docker-in-docker
         privileged: true
       env:
-      - name: ADD_VXLANS_CLUSTER_TYPE
-        value: gdc-ag
       - name: CILIUM_GITREF
         value: HEAD
       - name: PATCH_CONTENT_DIR
@@ -128,8 +124,6 @@ presubmits:
         # needed for docker-in-docker
         privileged: true
       env:
-      - name: ADD_VXLANS_CLUSTER_TYPE
-        value: gdc-ag
       - name: CILIUM_GITREF
         value: HEAD
       - name: DOCKER_BUILD_EXTRA_ARGS
@@ -179,8 +173,6 @@ presubmits:
         # needed for docker-in-docker
         privileged: true
       env:
-      - name: ADD_VXLANS_CLUSTER_TYPE
-        value: gdc-ag
       - name: CILIUM_GITREF
         value: HEAD
       - name: DOCKER_BUILD_EXTRA_ARGS
@@ -228,16 +220,12 @@ presubmits:
         # needed for docker-in-docker
         privileged: true
       env:
-      - name: ADD_VXLANS_CLUSTER_TYPE
-        value: gdc-ag
       - name: CILIUM_GITREF
         value: HEAD
       - name: PATCH_CONTENT_DIR
         value: addon/patch_content/abm-1.31.x-gke/overlays/gdch-perimeter
       - name: TBCONFIG
         value: sut-gdch-perimeter-abm-gce.yaml
-      - name: VXLAN_DSTPORT
-        value: '4790'
       - name: WORA_CONFIG
         value: integration_test.yaml
       - name: WORA_GINKGO_LABEL_FILTER
@@ -281,8 +269,6 @@ presubmits:
         # needed for docker-in-docker
         privileged: true
       env:
-      - name: ADD_VXLANS_CLUSTER_TYPE
-        value: gdc-ag
       - name: CILIUM_GITREF
         value: HEAD
       - name: DOCKER_BUILD_EXTRA_ARGS
@@ -291,8 +277,6 @@ presubmits:
         value: addon/patch_content/abm-1.31.x-gke/overlays/gdch-perimeter
       - name: TBCONFIG
         value: sut-gdch-perimeter-abm-gce.yaml
-      - name: VXLAN_DSTPORT
-        value: '4790'
       - name: WORA_CONFIG
         value: perimeter_conformance_test.yaml
       - name: WORA_DOCKERFILE_DIR
@@ -334,8 +318,6 @@ presubmits:
         # needed for docker-in-docker
         privileged: true
       env:
-      - name: ADD_VXLANS_CLUSTER_TYPE
-        value: gdc-ag
       - name: CILIUM_GITREF
         value: HEAD
       - name: DOCKER_BUILD_EXTRA_ARGS
@@ -344,8 +326,6 @@ presubmits:
         value: addon/patch_content/abm-1.31.x-gke/overlays/gdch-perimeter
       - name: TBCONFIG
         value: sut-gdch-perimeter-abm-gce.yaml
-      - name: VXLAN_DSTPORT
-        value: '4790'
       - name: WORA_CONFIG
         value: perimeter_networking_granular_test.yaml
       - name: WORA_DOCKERFILE_DIR
@@ -385,8 +365,6 @@ presubmits:
         # needed for docker-in-docker
         privileged: true
       env:
-      - name: ADD_VXLANS_CLUSTER_TYPE
-        value: gdc-ag
       - name: CILIUM_GITREF
         value: HEAD
       - name: PATCH_CONTENT_DIR

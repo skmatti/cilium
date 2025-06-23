@@ -110,5 +110,6 @@ spec:
             kind: Cluster
             namespace: tailorbird-users
           env:
-            POSTPROVISIONER_FEATURES: multicluster
+            POSTPROVISIONER_FEATURES: "addvxlans,multicluster"
+            ADD_VXLANS_CLUSTER_TYPE: "gdc-ag"
             CILIUM_CLUSTERMESH_IMAGE_WITH_TAG: '{{ Env "CILIUM_CLUSTERMESH_IMAGE_WITH_TAG" }}'

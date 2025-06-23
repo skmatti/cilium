@@ -27,8 +27,6 @@ presubmits:
         # needed for docker-in-docker
         privileged: true
       env:
-      - name: ADD_VXLANS_CLUSTER_TYPE
-        value: gdc-so
       - name: CILIUM_GITREF
         value: HEAD
       - name: PATCH_CONTENT_DIR
@@ -72,8 +70,6 @@ presubmits:
         # needed for docker-in-docker
         privileged: true
       env:
-      - name: ADD_VXLANS_CLUSTER_TYPE
-        value: gdc-so
       - name: CILIUM_GITREF
         value: HEAD
       - name: PATCH_CONTENT_DIR

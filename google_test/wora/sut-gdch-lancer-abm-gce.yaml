@@ -67,4 +67,5 @@ spec:
             kind: Cluster
             namespace: tailorbird-users
           env:
-            POSTPROVISIONER_FEATURES: ","
+            POSTPROVISIONER_FEATURES: "addvxlans"
+            ADD_VXLANS_CLUSTER_TYPE: "gdc-ag"
