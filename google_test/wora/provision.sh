@@ -7,8 +7,8 @@ SCRIPT_DIR=$(dirname -- "${BASH_SOURCE[0]}")
 WORKDIR=${WORKDIR:-${SCRIPT_DIR}}
 GENERATED_CONFIGS_DIR="${GENERATED_CONFIGS_DIR:-"${WORKDIR}/generated_configs"}"
 
-if [[ -z ${PROW_JOB_ID:-} ]]; then
-  echo "ERROR: must specify PROW_JOB_ID." >&2
+if [[ -z ${RUN_ID:-} ]]; then
+  echo "ERROR: must specify RUN_ID." >&2
   exit 1
 fi
 
@@ -59,7 +59,7 @@ if [[ -z ${CILIUM_DOCKER_IMAGE_TAG:-} ]]; then
   exit 1
 fi
 
-echo "PROW_JOB_ID             = ${PROW_JOB_ID}"
+echo "RUN_ID                  = ${RUN_ID}"
 echo "CREATE_NAMESPACE        = ${CREATE_NAMESPACE}"
 echo "CREATE_GCR_SECRET       = ${CREATE_GCR_SECRET}"
 echo "BMCTL_VERSION           = ${BMCTL_VERSION}"
@@ -127,7 +127,7 @@ function generate_addon_config {
   local generated_content_tmp_dir="${4:?}"
   export namespace
   yq '
-  .metadata.name = strenv(PROW_JOB_ID) |
+  .metadata.name = strenv(RUN_ID) |
   .metadata.namespace = strenv(namespace) |
   .spec.anthosBareMetalVersions[0] = env(BMCTL_VERSION)
 ' "${SCRIPT_DIR}"/addon/configuration.yaml >"${addon_config_path}"
@@ -269,7 +269,7 @@ function generate_complete_addon_config {
 
 rm -rf "${GENERATED_CONFIGS_DIR}"
 mkdir -p "${GENERATED_CONFIGS_DIR}"
-cluster_namespace="${CLUSTER_NAMESPACE:-"cluster-${PROW_JOB_ID}-cluster"}"
+cluster_namespace="${CLUSTER_NAMESPACE:-"cluster-${RUN_ID}-cluster"}"
 cluster_id=${CLUSTER_ID:-""}
 
 generate_complete_addon_config "${GENERATED_CONFIGS_DIR}" "${PATCH_CONTENT_DIR}" "${CREATE_NAMESPACE}" "${CREATE_GCR_SECRET}" "${IMAGE_REGISTRY}" "${DOCKER_IMAGE_TAG}" "${CILIUM_DOCKER_IMAGE_TAG}" "${WORKDIR}/${ADDON_CONFIG_NAME}" "${cluster_namespace}" "${cluster_id}"

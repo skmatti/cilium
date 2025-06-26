@@ -160,11 +160,10 @@ comments:
 
 > Note: Instructions assume running from the top of the [cilium] repo.
 
-Tests can be run manually with the following command line. Set `PROW_JOB_ID` to
-something unique, for instance including your user name:
+Tests can be run manually with the following command line. Set `RUN_ID` to something unique, for instance including your user name:
 
 ```shell
-PROW_JOB_ID="${USER}-1" TBCONFIG=sut-abm-gce.yaml ./google_test/wora/prow_entrypoint.sh
+RUN_ID="${USER}-1" TBCONFIG=sut-abm-gce.yaml ./google_test/wora/prow_entrypoint.sh
 ```
 
 Other variables may be set as described in

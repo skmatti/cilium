@@ -6,8 +6,17 @@ shopt -s inherit_errexit
 ROOT="$(dirname -- "${BASH_SOURCE[0]}")"
 
 # For manual runs:
-#  - use PROW_JOB_ID to use predictable run id.
 #  - set RUN_DOWN=false
+
+# Users may set RUN_ID or BUILD_ID or PROW_JOB_ID for manual tests.
+# BUILD_ID will be used for tests run with Prow.
+RUN_ID="${RUN_ID:-"${BUILD_ID:-"${PROW_JOB_ID:-}"}"}"
+if [[ -z "${RUN_ID}" ]]; then
+  echo "RUN_ID is not set. Please set RUN_ID (preferred), BUILD_ID or PROW_JOB_ID." >&2
+  exit 1
+fi
+echo "RUN_ID is set to: ${RUN_ID}"
+export RUN_ID
 
 TBENV="${TBENV:-prod}"
 export TBENV
@@ -163,7 +172,7 @@ PROJECT=${GCP_PROJECT:-"anthos-networking-ci"}
 IMAGE_REGISTRY=${IMAGE_REGISTRY:-"gcr.io/${PROJECT}"}
 DOCKER_IMAGE_TAG=${DOCKER_IMAGE_TAG:-}
 CILIUM_DOCKER_IMAGE_TAG=${CILIUM_DOCKER_IMAGE_TAG:-}
-ADDON_CONFIG_NAME=addonConfig-${PROW_JOB_ID:?}.yaml
+ADDON_CONFIG_NAME=addonConfig-${RUN_ID}.yaml
 ADDON_CONFIG_BUCKET_URL=gs://anthos-networking-ci-artifacts/addon-configs
 # PATCH_CONTENT_DIR defaults to an option that only patches the Cilium
 # and Cilium operator images. See http://b/327682436#comment3.
@@ -179,7 +188,6 @@ if [[ -n "${CILIUM_GITREF:-}" ]]; then
     build_and_push_cilium_image "${CILIUM_GITREF}" "${IMAGE_REGISTRY}" "${NUM_CLUSTERS}"
   fi
 fi
-RUN_ID="${PROW_JOB_ID:-}"
 
 # Update the cluster rookery file.
 case "${PLATFORM}" in
@@ -222,7 +230,7 @@ case "${PLATFORM}" in
     ;;
   gcp-gke)
     make -C "${ROOT}" \
-      ADVANCEDDATAPATH_IMAGE_SUFFIX="${CILIUM_GITREF:+"${PROW_JOB_ID}"}" \
+      ADVANCEDDATAPATH_IMAGE_SUFFIX="${CILIUM_GITREF:+"${RUN_ID}"}" \
       DOCKER_IMAGE_TAG="${DOCKER_IMAGE_TAG}" \
       CILIUM_DOCKER_IMAGE_TAG="${CILIUM_DOCKER_IMAGE_TAG}" \
       TBCONFIG="$(realpath "${TBCONFIG}" || true)" \
@@ -230,7 +238,7 @@ case "${PLATFORM}" in
       configure-docker provision-gke
     if [[ -n "${CILIUM_GITREF:-}" ]]; then
       make -C "${ROOT}" \
-        ADVANCEDDATAPATH_IMAGE_SUFFIX="${PROW_JOB_ID}" \
+        ADVANCEDDATAPATH_IMAGE_SUFFIX="${RUN_ID}" \
         ${ADVANCEDDATAPATH_BASE_IMAGE_TAG+ADVANCEDDATAPATH_BASE_IMAGE_TAG="${ADVANCEDDATAPATH_BASE_IMAGE_TAG}"} \
         IMAGE_REGISTRY="${IMAGE_REGISTRY}" \
         DOCKER_IMAGE_TAG="${DOCKER_IMAGE_TAG}" \
@@ -265,7 +273,6 @@ case "${PLATFORM}" in
     # Image verification is not possible in GDCH due to lack of kubeconfig support.
     DISABLE_UPGRADE_VERIFICATION=true
     TB_CLIENT_TIMEOUT=10h
-    RUN_ID="${PROW_JOB_ID}"-"${BASHPID:?}"
     ;;
   *)
     echo "Unknown platform: ${PLATFORM}." >&2
@@ -275,7 +282,7 @@ esac
 
 # Build and push plugin image if WORA_IMAGE_TAG is not set.
 if [[ -z "${WORA_IMAGE_TAG:-}" ]]; then
-  WORA_IMAGE_TAG="${PROW_JOB_ID}"
+  WORA_IMAGE_TAG="${RUN_ID}"
   # Export for use in run.sh.
   export WORA_IMAGE_TAG
 
@@ -352,7 +359,7 @@ CILIUM_IMAGE_WITH_TAG=${CILIUM_IMAGE_WITH_TAG:-} \
   DISABLE_UPGRADE_VERIFICATION=${DISABLE_UPGRADE_VERIFICATION:-} \
   kubetest2-tailorbird \
   --verbose \
-  --run-id="${RUN_ID:?}" \
+  --run-id="${RUN_ID}" \
   --up \
   --down="${RUN_DOWN:-true}" \
   --tbconfig="${TBCONFIG}" \

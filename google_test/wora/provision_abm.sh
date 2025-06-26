@@ -18,7 +18,7 @@ function insert_cluster_name {
   local tbconfig_path="${1:?}"
   num_clusters=$(yq '.spec.knests.[0].spec.clusters | length' "${tbconfig_path}")
   for i in $(seq 1 $num_clusters); do
-    cluster_name=${PROW_JOB_ID:?}-cluster
+    cluster_name=${RUN_ID}-cluster
     if [ "$num_clusters" -gt 1 ]; then
       cluster_name+="-$i"
     fi
@@ -34,7 +34,7 @@ function insert_addon_config_gcs_location_abm {
   echo 'INFO: insert addon config gcs location to the baremetal-gke cluster Rookery file.' >&2
   num_clusters=$(yq '.spec.knests.[0].spec.clusters | length' "${tbconfig_path}")
   for i in $(seq 1 $num_clusters); do
-    addon_config_name="addonConfig-${PROW_JOB_ID:?}"
+    addon_config_name="addonConfig-${RUN_ID}"
     if [ "$num_clusters" -gt 1 ]; then
       addon_config_name+="-$i"
     fi
@@ -55,8 +55,8 @@ insert_addon_config_gcs_location_abm "${ABSOLUTE_PATH_TBCONFIG}" "${ADDON_CONFIG
 num_clusters=$(yq '.spec.knests.[0].spec.clusters | length' "${ABSOLUTE_PATH_TBCONFIG}")
 for i in $(seq 1 $num_clusters); do
   cluster_id=""
-  cluster_ns="cluster-${PROW_JOB_ID:?}-cluster"
-  addon_config_name="addonConfig-${PROW_JOB_ID:?}"
+  cluster_ns="cluster-${RUN_ID}-cluster"
+  addon_config_name="addonConfig-${RUN_ID}"
   if [ "$num_clusters" -gt 1 ]; then
     addon_config_name+="-$i"
     cluster_ns+="-$i"

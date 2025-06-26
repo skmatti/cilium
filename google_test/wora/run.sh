@@ -24,7 +24,7 @@ set -x
 source "$(dirname -- "${BASH_SOURCE[0]}")"/remote_execution.sh
 
 # Derive semi-unique id for rookery containing test application.
-TEST_RUN_ID=${KUBETEST2_RUN_ID:-unset-id}-${BASHPID:?}
+TEST_RUN_ID=${KUBETEST2_RUN_ID:-unset-id}
 
 function verify_cilium_overridden {
   # assumes that KUBECONFIG is appropriately set to the SUT cluster
