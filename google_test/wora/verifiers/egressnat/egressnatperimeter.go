@@ -6,7 +6,11 @@ package egressnat
 import (
 	"context"
 	"fmt"
+	"math"
 	"os"
+	"os/exec"
+	"strconv"
+	"strings"
 	"time" // Do not use pkg/time in test code.
 
 	ciliumv2 "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2"
@@ -16,6 +20,9 @@ import (
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/fields"
+	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/selection"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
 	k8sclient "sigs.k8s.io/controller-runtime/pkg/client"
@@ -27,8 +34,28 @@ import (
 )
 
 const (
-	workerNodeLabel = "node-role.kubernetes.io/worker="
-	bootstrapperIP  = "10.200.0.1"
+	workerNodeLabel                = "node-role.kubernetes.io/worker="
+	bootstrapperIP                 = "10.200.0.1"
+	TimeoutRegularAnyAnnotation    = "egress.networking.gke.io/TimeoutRegularAnyAnnotation"
+	TimeoutRegularTcpAnnotation    = "egress.networking.gke.io/TimeoutRegularTcpAnnotation"
+	TimeoutRegularTcpFinAnnotation = "egress.networking.gke.io/TimeoutRegularTcpFinAnnotation"
+	TimeoutRegularTcpSynAnnotation = "egress.networking.gke.io/TimeoutRegularTcpSynAnnotation"
+)
+
+var (
+	egressTimeoutAnnotations = map[string]string{
+		TimeoutRegularAnyAnnotation:    "100",
+		TimeoutRegularTcpAnnotation:    "200",
+		TimeoutRegularTcpFinAnnotation: "300",
+		TimeoutRegularTcpSynAnnotation: "400",
+	}
+
+	egressTimeouts = map[string]int64{
+		TimeoutRegularAnyAnnotation:    100,
+		TimeoutRegularTcpAnnotation:    200,
+		TimeoutRegularTcpFinAnnotation: 300,
+		TimeoutRegularTcpSynAnnotation: 400,
+	}
 )
 
 var _ = Describe("Verifiers/EgressNATPerimeter", Label("egressnatperimeter"), Ordered, func() {
@@ -141,6 +168,8 @@ var _ = Describe("Verifiers/EgressNATPerimeter", Label("egressnatperimeter"), Or
 		// Verify allowEgressPod can do egress NAT to reach bootstrapper by SNAT
 		testPods, cleanupFuncs, err = testEgressNATFromPodPerimeterCluster(ctx, cl, allowEgressPodName, egressNodeName, egressNodeIP, podAffinity)
 		Expect(err).NotTo(HaveOccurred(), fmt.Sprintf("pod %s is not able to connect to bootstrapper", allowEgressPodName))
+		err = testEgressConnectionTimeouts(ctx, cl, allowEgressPodName, egressNodeName, TimeoutRegularTcpFinAnnotation)
+		Expect(err).NotTo(HaveOccurred(), fmt.Sprintf("pod %s connection timeouts are incorrect via egress perimeter vm %s", allowEgressPodName, egressNodeName))
 	})
 
 	It("Verifies pods on worker node could egress through different node", func() {
@@ -165,6 +194,9 @@ var _ = Describe("Verifiers/EgressNATPerimeter", Label("egressnatperimeter"), Or
 		// Verify allowEgressPod can do egress NAT to reach bootstrapper by SNAT
 		testPods, cleanupFuncs, err = testEgressNATFromPodPerimeterCluster(ctx, cl, allowEgressPodName, egressNodeName, egressNodeIP, podAntiAffinity)
 		Expect(err).NotTo(HaveOccurred(), fmt.Sprintf("pod %s is not able to connect to bootstrapper", allowEgressPodName))
+		// Verify custom egress timeouts are applied for traffic from remote src endpoints
+		err = testEgressConnectionTimeouts(ctx, cl, allowEgressPodName, egressNodeName, TimeoutRegularTcpFinAnnotation)
+		Expect(err).NotTo(HaveOccurred(), fmt.Sprintf("pod %s connection timeouts are incorrect via egress perimeter vm %s", allowEgressPodName, egressNodeName))
 	})
 
 })
@@ -172,7 +204,7 @@ var _ = Describe("Verifiers/EgressNATPerimeter", Label("egressnatperimeter"), Or
 func testEgressNATFromPodPerimeterCluster(ctx context.Context, cl k8sclient.Client, allowEgressPodName, egressNodeName, egressNodeIP string, affinity *corev1.Affinity) ([]string, []func(), error) {
 	var testPods []string
 	var cleanupFuncs []func()
-	cleanupCiliumEgressGatewayPolicy, err := createCiliumEgressGatewayPolicyPerimeterCluster(ctx, cl, testNamespace, egressNATIP, egressNodeName)
+	cleanupCiliumEgressGatewayPolicy, err := createCiliumEgressGatewayPolicyPerimeterCluster(ctx, cl, testNamespace, egressNATIP, egressNodeName, egressTimeoutAnnotations)
 	if err != nil {
 		klog.Errorf("Failed to create cilium egress gateway policy: %v", err)
 	}
@@ -220,8 +252,73 @@ func testEgressNATFromPodPerimeterCluster(ctx context.Context, cl k8sclient.Clie
 	return testPods, cleanupFuncs, nil
 }
 
+func testEgressConnectionTimeouts(ctx context.Context, cl k8sclient.Client, allowEgressPodName, perimeterNodeName, timeoutsAnnotation string) error {
+	anetdLabel, err := labels.NewRequirement(
+		"k8s-app",
+		selection.Equals,
+		[]string{string("cilium")},
+	)
+	if err != nil {
+		return err
+	}
+
+	listOptions := k8sclient.ListOptions{
+		LabelSelector: labels.NewSelector().Add(*anetdLabel),
+		FieldSelector: fields.SelectorFromSet(fields.Set{"spec.nodeName": perimeterNodeName}),
+	}
+
+	anetdPods := &corev1.PodList{}
+	err = cl.List(ctx, anetdPods, &listOptions)
+
+	if anetdPods.Items == nil || len(anetdPods.Items) == 0 {
+		return fmt.Errorf("no anetd pods found")
+	}
+
+	anetdPod := anetdPods.Items[0]
+	klog.Infof("Got Anetd Pod: %s, %s", anetdPod.Name, anetdPod.Namespace)
+
+	if err != nil {
+		panic(err.Error())
+	}
+
+	srcPod := &corev1.Pod{}
+	err = cl.Get(ctx, k8sclient.ObjectKey{Name: allowEgressPodName, Namespace: testNamespace}, srcPod)
+	if err != nil {
+		klog.Errorf("Failed to get scrPod %s: %v", allowEgressPodName, err)
+		return err
+	}
+
+	srcPodIP := srcPod.Status.PodIP
+	anetdCommand := "cilium bpf ct list global | grep " + srcPodIP + " | grep TCP"
+	cmd := exec.Command(
+		"kubectl", "exec", anetdPod.Name, "-n", anetdPod.Namespace, "--", "bash", "-c",
+		anetdCommand,
+	)
+	klog.Infof("Running command: %s", cmd.String())
+
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		klog.Errorf("Failed to execute ct lookup command: %v", err)
+		return err
+	}
+
+	differences, err := ParseCtOutput(output)
+
+	// Conntrack lifetimes are stored in jiffies, which are equal to 0.256 seconds.
+	// Set the error threshold to 5% to account for small flucuations in setting timeouts.
+	for _, diff := range differences {
+		threshold := float64(egressTimeouts[timeoutsAnnotation]) * 0.05
+		absoluteDiff := math.Abs(float64(diff)*0.256 - float64(egressTimeouts[timeoutsAnnotation]))
+
+		if absoluteDiff > threshold {
+			return fmt.Errorf("got timeout: %d, expected: %d, difference exceeds 5%%", diff, egressTimeouts[timeoutsAnnotation])
+		}
+	}
+	return nil
+}
+
 // createCiliumEgressGatewayPolicy creates CiliumEgressGatewayPolicy with associated egressNATIP, gatewayIP and name which will
-func createCiliumEgressGatewayPolicyPerimeterCluster(ctx context.Context, cl k8sclient.Client, name, egressNATIP, hostName string) (func(), error) {
+func createCiliumEgressGatewayPolicyPerimeterCluster(ctx context.Context, cl k8sclient.Client, name, egressNATIP, hostName string, timeoutsAnnotations map[string]string) (func(), error) {
 	cleanup := func() {
 		// Delete  CiliumEgressGatewayPolicy
 		err := cl.Delete(ctx, &ciliumv2.CiliumEgressGatewayPolicy{
@@ -235,9 +332,16 @@ func createCiliumEgressGatewayPolicyPerimeterCluster(ctx context.Context, cl k8s
 			klog.Infof("Deleting CiliumEgressGatewayPolicy %s", name)
 		}
 	}
+
+	annotations := map[string]string{}
+	for k, v := range timeoutsAnnotations {
+		annotations[k] = v
+	}
+
 	cegp := &ciliumv2.CiliumEgressGatewayPolicy{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: name,
+			Name:        name,
+			Annotations: annotations,
 		},
 		Spec: ciliumv2.CiliumEgressGatewayPolicySpec{
 			Selectors: []ciliumv2.EgressRule{
@@ -271,4 +375,37 @@ func createCiliumEgressGatewayPolicyPerimeterCluster(ctx context.Context, cl k8s
 		return cleanup, fmt.Errorf("failed to create CiliumEgressGatewayPolicy: %v", err)
 	}
 	return cleanup, nil
+}
+
+func ParseCtOutput(output []byte) ([]int64, error) {
+	outputStr := string(output)
+	lines := strings.Split(outputStr, "\n")
+	var differences []int64
+
+	for _, line := range lines {
+		if strings.Contains(line, "expires=") && strings.Contains(line, "LastRxReport=") {
+			parts := strings.Split(line, " ")
+			var expires, lastRxReport int64
+			for _, part := range parts {
+				if strings.HasPrefix(part, "expires=") {
+					valStr := strings.TrimPrefix(part, "expires=")
+					val, err := strconv.ParseInt(valStr, 10, 64)
+					if err != nil {
+						return nil, fmt.Errorf("error parsing expires: %w", err)
+					}
+					expires = val
+				}
+				if strings.HasPrefix(part, "LastRxReport=") {
+					valStr := strings.TrimPrefix(part, "LastRxReport=")
+					val, err := strconv.ParseInt(valStr, 10, 64)
+					if err != nil {
+						return nil, fmt.Errorf("error parsing LastRxReport: %w", err)
+					}
+					lastRxReport = val
+				}
+			}
+			differences = append(differences, expires-lastRxReport)
+		}
+	}
+	return differences, nil
 }
