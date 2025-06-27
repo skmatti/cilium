@@ -66,9 +66,9 @@ function provision_vm {
 
 function wait_for_vm {
   local count=0
-  until gcloud compute ssh --quiet $VM_NAME --command="cloud-init status --wait" 2> /dev/null; do
-    if (( count++ >= 5 )); then
-      error "Failed to create $VM_NAME, reached the retry limit";
+  until gcloud compute ssh --quiet $VM_NAME --command="cloud-init status --wait" 2>/dev/null; do
+    if ((count++ >= 5)); then
+      error "Failed to create $VM_NAME, reached the retry limit"
     fi
     log "Waiting $count second(s) for $VM_NAME to be ready"
     sleep $count
@@ -78,9 +78,9 @@ function wait_for_vm {
 
 function wait_for_config_ssh {
   local count=0
-  until gcloud compute config-ssh 2> /dev/null; do
-    if (( count++ >= 5 )); then
-      error "Failed to configure SSH for GCP VMs, reached the retry limit";
+  until gcloud compute config-ssh 2>/dev/null; do
+    if ((count++ >= 5)); then
+      error "Failed to configure SSH for GCP VMs, reached the retry limit"
     fi
     log "Waiting $count second(s) to configure SSH for GCP VMs"
     sleep $count
@@ -116,6 +116,14 @@ function copy_back_report {
   rsync -az "${USER}@${HOST_NAME}:${path}/" "${ARTIFACTS}/"
 }
 
+function run_tests {
+  # Run with sudo -E to maintain changes in google_test/unit-test-image/userdata.yaml while running as root.
+  rexec "cd ${BASE_DIR}/cilium && sudo -E make install-go"
+  rexec "cd ${BASE_DIR}/cilium && sudo -E HOST_TEST_REPORT_DIR=${HOST_TEST_REPORT_DIR} ./google_test/unit-test-local.sh"
+  tests_exit_code=$?
+  return "${tests_exit_code}"
+}
+
 auth
 
 allow_ssh
@@ -124,8 +132,13 @@ provision_vm
 
 ship_repo
 
-# Run with sudo -E to maintain changes in google_test/unit-test-image/userdata.yaml while running as root.
-rexec "cd ${BASE_DIR}/cilium && sudo -E make install-go"
-rexec "cd ${BASE_DIR}/cilium && sudo -E HOST_TEST_REPORT_DIR=${HOST_TEST_REPORT_DIR} ./google_test/unit-test-local.sh"
+if run_tests; then
+  tests_exit_code=0
+else
+  tests_exit_code=$?
+  log "Unit tests failed, copying report back even if failed, exit code: ${tests_exit_code}"
+fi
 
 copy_back_report "${HOST_TEST_REPORT_DIR}"
+
+exit "${tests_exit_code}"

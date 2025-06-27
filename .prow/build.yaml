@@ -1,5 +1,7 @@
 presubmits:
 - name: gke-advanced-datapath-presubmit-unit
+  trigger: /test gke-advanced-datapath-presubmit-unit$
+  rerun_command: /test gke-advanced-datapath-presubmit-unit
   always_run: true
   skip_fetch_head: true
   decorate: true
@@ -25,7 +27,7 @@ presubmits:
       - runner.sh
       - ./google_test/presubmit-unit.sh
 - name: gke-advanced-datapath-presubmit-upstream-k8s-conformance
-  trigger: /test upstream-k8s-conformance
+  trigger: /test upstream-k8s-conformance$
   rerun_command: /test upstream-k8s-conformance
   always_run: true
   skip_fetch_head: true
@@ -59,7 +61,7 @@ presubmits:
       args:
       - ./google_test/upstream_test/run_e2e_tailorbird_with_kind_cluster.sh
 - name: gke-advanced-datapath-presubmit-upstream-connectivity
-  trigger: /test upstream-connectivity
+  trigger: /test upstream-connectivity$
   rerun_command: /test upstream-connectivity
   always_run: true
   skip_fetch_head: true
