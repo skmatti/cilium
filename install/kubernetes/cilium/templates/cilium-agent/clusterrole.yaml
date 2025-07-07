@@ -112,6 +112,7 @@ rules:
   - ciliumcidrgroups
   - ciliuml2announcementpolicies
   - ciliumpodippools
+  - flowtaggers
   verbs:
   - list
   - watch
@@ -154,4 +155,11 @@ rules:
   - ciliumbgpnodeconfigs/status
   verbs:
   - patch
+- apiGroups:
+  - cilium.io
+  resources:
+  - flowtaggers
+  verbs:
+  - get
+  - update
 {{- end }}

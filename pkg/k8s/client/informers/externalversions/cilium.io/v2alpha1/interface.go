@@ -35,6 +35,8 @@ type Interface interface {
 	CiliumNodeConfigs() CiliumNodeConfigInformer
 	// CiliumPodIPPools returns a CiliumPodIPPoolInformer.
 	CiliumPodIPPools() CiliumPodIPPoolInformer
+	// FlowTaggers returns a FlowTaggerInformer.
+	FlowTaggers() FlowTaggerInformer
 }
 
 type version struct {
@@ -106,4 +108,9 @@ func (v *version) CiliumNodeConfigs() CiliumNodeConfigInformer {
 // CiliumPodIPPools returns a CiliumPodIPPoolInformer.
 func (v *version) CiliumPodIPPools() CiliumPodIPPoolInformer {
 	return &ciliumPodIPPoolInformer{factory: v.factory, tweakListOptions: v.tweakListOptions}
+}
+
+// FlowTaggers returns a FlowTaggerInformer.
+func (v *version) FlowTaggers() FlowTaggerInformer {
+	return &flowTaggerInformer{factory: v.factory, tweakListOptions: v.tweakListOptions}
 }

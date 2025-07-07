@@ -10,6 +10,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/pflag"
 
+	"github.com/cilium/cilium/pkg/gke/features"
 	"github.com/cilium/cilium/pkg/k8s/apis/cilium.io/client"
 	k8sClient "github.com/cilium/cilium/pkg/k8s/client"
 )
@@ -57,11 +58,19 @@ type params struct {
 
 	Config            RegisterCRDsConfig
 	RegisterCRDsFuncs []RegisterCRDsFunc `group:"register-crd-funcs"`
+
+	// CRD registration depends on GKE features config
+	GKEFeatures features.Config
 }
 
 func createCRDs(p params) {
 	p.Lifecycle.Append(cell.Hook{
 		OnStart: func(ctx cell.HookContext) error {
+			// The global config is used by CRD registration functions, so we must
+			// update it with the config injected by hive. This is especially
+			// important for the operator which may not run the GKE features cell
+			// that would otherwise populate this global.
+			features.GlobalConfig = p.GKEFeatures
 			// Register the CRDs after validating that we are running on a supported
 			// version of K8s.
 			if !p.Clientset.IsEnabled() || p.Config.SkipCRDCreation {

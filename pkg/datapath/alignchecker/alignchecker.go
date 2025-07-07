@@ -8,6 +8,7 @@ import (
 	"github.com/cilium/cilium/pkg/maps/ctmap"
 	"github.com/cilium/cilium/pkg/maps/eventsmap"
 	"github.com/cilium/cilium/pkg/maps/fragmap"
+	"github.com/cilium/cilium/pkg/maps/google_traffictagmap"
 	ipcachemap "github.com/cilium/cilium/pkg/maps/ipcache"
 	"github.com/cilium/cilium/pkg/maps/lbmap"
 	"github.com/cilium/cilium/pkg/maps/lxcmap"
@@ -93,16 +94,18 @@ func init() {
 		// "capture_rule":      {recorder.CaptureRule6{}},
 		// "ipv4_nat_entry":    {nat.NatEntry4{}},
 		// "ipv6_nat_entry":    {nat.NatEntry6{}},
-		"ratelimit_metrics_key":   {ratelimitmetricsmap.Key{}},
-		"ratelimit_metrics_value": {ratelimitmetricsmap.Value{}},
-		"sfc_select_key":          {sfc.SelectKey{}},
-		"sfc_select_entry":        {sfc.SelectEntry{}},
-		"sfc_path_key":            {sfc.PathKey{}},
-		"sfc_path_entry":          {sfc.PathEntry{}},
-		"sfc_ipv4_flow_key":       {sfc.FlowKey4{}},
-		"sfc_ipv4_flow_entry":     {sfc.FlowEntry4{}},
-		"pip_cidr_key":            {pip.CIDRKey{}},
-		"pip_routing_entry":       {pip.RoutingEntry{}},
+		"ratelimit_metrics_key":    {ratelimitmetricsmap.Key{}},
+		"ratelimit_metrics_value":  {ratelimitmetricsmap.Value{}},
+		"sfc_select_key":           {sfc.SelectKey{}},
+		"sfc_select_entry":         {sfc.SelectEntry{}},
+		"sfc_path_key":             {sfc.PathKey{}},
+		"sfc_path_entry":           {sfc.PathEntry{}},
+		"sfc_ipv4_flow_key":        {sfc.FlowKey4{}},
+		"sfc_ipv4_flow_entry":      {sfc.FlowEntry4{}},
+		"pip_cidr_key":             {pip.CIDRKey{}},
+		"pip_routing_entry":        {pip.RoutingEntry{}},
+		"google_traffic_tag_key":   {google_traffictagmap.TrafficTagKey{}},
+		"google_traffic_tag_value": {google_traffictagmap.TrafficTagValue{}},
 	})
 
 	registerToCheckSizes(map[string][]any{

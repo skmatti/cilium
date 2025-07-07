@@ -190,6 +190,7 @@ func defaultCommands(confDir string, cmdDir string, k8sPods []string) []string {
 		"tc/globals/cilium_ratelimit_metrics",
 		"tc/globals/cilium_skip_lb4",
 		"tc/globals/cilium_skip_lb6",
+		"tc/globals/google_traffic_tag_map",
 	}
 	commands = append(commands, bpfMapDumpCommands(bpfMapsPath)...)
 

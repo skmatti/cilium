@@ -21,6 +21,7 @@
 #include "lib/mcast.h"
 #include "lib/google_maps.h"
 #include "lib/google_sfc.h"
+#include "lib/google/packet_tracer.h"
 
 /*
  * The __COUNTER__ macro expands to an integer value which is increasing every
@@ -108,3 +109,5 @@ add_type(struct host_dev_routing_key);
 add_type(struct host_dev_routing_entry);
 add_type(struct pip_cidr_key);
 add_type(struct pip_routing_entry);
+add_type(struct google_traffic_tag_key);
+add_type(struct google_traffic_tag_value);

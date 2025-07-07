@@ -56,3 +56,7 @@ type CiliumNodeConfigNamespaceListerExpansion interface{}
 // CiliumPodIPPoolListerExpansion allows custom methods to be added to
 // CiliumPodIPPoolLister.
 type CiliumPodIPPoolListerExpansion interface{}
+
+// FlowTaggerListerExpansion allows custom methods to be added to
+// FlowTaggerLister.
+type FlowTaggerListerExpansion interface{}

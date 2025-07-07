@@ -106,6 +106,10 @@ func agentCRDResourceNames() []string {
 		result = append(result, CRDResourceName(v2alpha1.L2AnnouncementName))
 	}
 
+	if features.GlobalConfig.EnableGoogleIPOptionTracing {
+		result = append(result, CRDResourceName(v2alpha1.FTName))
+	}
+
 	return result
 }
 

@@ -234,6 +234,7 @@ rules:
   - ciliumcidrgroups.cilium.io
   - ciliuml2announcementpolicies.cilium.io
   - ciliumpodippools.cilium.io
+  - flowtaggers.cilium.io
 - apiGroups:
   - cilium.io
   resources:

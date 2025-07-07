@@ -101,6 +101,9 @@ const (
 
 	// CPIPCRDName is the full name of the CiliumPodIPPool CRD.
 	CPIPCRDName = k8sconstv2alpha1.CPIPKindDefinition + "/" + k8sconstv2alpha1.CustomResourceDefinitionVersion
+
+	// CFTCRDName is the full name of the FlowTagger CRD.
+	FTCRDName = k8sconstv2alpha1.FTKindDefinition + "/" + k8sconstv2alpha1.CustomResourceDefinitionVersion
 )
 
 // log is the k8s package logger object.
@@ -207,6 +210,10 @@ func CustomResourceDefinitionList() map[string]*CRDList {
 			Name:     CPIPCRDName,
 			FullName: k8sconstv2alpha1.CPIPName,
 		},
+		synced.CRDResourceName(k8sconstv2alpha1.FTName): {
+			Name:     FTCRDName,
+			FullName: k8sconstv2alpha1.FTName,
+		},
 	}
 }
 
@@ -301,6 +308,9 @@ var (
 
 	//go:embed crds/v2alpha1/ciliumpodippools.yaml
 	crdsv2Alpha1CiliumPodIPPools []byte
+
+	//go:embed crds/v2alpha1/flowtaggers.yaml
+	crdsv2Alpha1FlowTaggers []byte
 )
 
 // GetPregeneratedCRD returns the pregenerated CRD based on the requested CRD
@@ -362,6 +372,8 @@ func GetPregeneratedCRD(crdName string) apiextensionsv1.CustomResourceDefinition
 		crdBytes = crdsv2Alpha1CiliumL2AnnouncementPolicies
 	case CPIPCRDName:
 		crdBytes = crdsv2Alpha1CiliumPodIPPools
+	case FTCRDName:
+		crdBytes = crdsv2Alpha1FlowTaggers
 	default:
 		scopedLog.Fatal("Pregenerated CRD does not exist")
 	}

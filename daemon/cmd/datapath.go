@@ -19,10 +19,12 @@ import (
 	datapath "github.com/cilium/cilium/pkg/datapath/types"
 	"github.com/cilium/cilium/pkg/defaults"
 	"github.com/cilium/cilium/pkg/endpointmanager"
+	"github.com/cilium/cilium/pkg/gke/features"
 	"github.com/cilium/cilium/pkg/logging/logfields"
 	"github.com/cilium/cilium/pkg/maps/ctmap"
 	"github.com/cilium/cilium/pkg/maps/encrypt"
 	"github.com/cilium/cilium/pkg/maps/fragmap"
+	"github.com/cilium/cilium/pkg/maps/google_traffictagmap"
 	ipcachemap "github.com/cilium/cilium/pkg/maps/ipcache"
 	"github.com/cilium/cilium/pkg/maps/ipmasq"
 	"github.com/cilium/cilium/pkg/maps/lbmap"
@@ -307,6 +309,12 @@ func (d *Daemon) initMaps() error {
 	_, err := lbmap.NewSkipLBMap()
 	if err != nil {
 		return fmt.Errorf("initializing local redirect policy maps: %w", err)
+	}
+
+	if features.GlobalConfig.EnableGoogleIPOptionTracing {
+		if err := google_traffictagmap.InitTrafficTagMap(true); err != nil {
+			return fmt.Errorf("initializing google_traffic_tag_map map: %w", err)
+		}
 	}
 
 	return nil

@@ -110,6 +110,11 @@ const (
 	CPIPPluralName     = "ciliumpodippools"
 	CPIPKindDefinition = "CiliumPodIPPool"
 	CPIPName           = CPIPPluralName + "." + CustomResourceDefinitionGroup
+
+	// FlowTagger (FT)
+	FTPluralName     = "flowtaggers"
+	FTKindDefinition = "FlowTagger"
+	FTName           = FTPluralName + "." + CustomResourceDefinitionGroup
 )
 
 // SchemeGroupVersion is group version used to register these objects
@@ -179,6 +184,9 @@ func addKnownTypes(scheme *runtime.Scheme) error {
 		&CiliumBGPNodeConfigList{},
 		&CiliumBGPNodeConfigOverride{},
 		&CiliumBGPNodeConfigOverrideList{},
+
+		&FlowTagger{},
+		&FlowTaggerList{},
 	)
 
 	metav1.AddToGroupVersion(scheme, SchemeGroupVersion)
