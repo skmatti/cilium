@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/cilium/cilium/pkg/endpointmanager"
+	"github.com/cilium/cilium/pkg/flowtagger"
 	"github.com/cilium/cilium/pkg/gke/endpointqueue"
 	"github.com/cilium/cilium/pkg/gke/enhancedservices"
 	"github.com/cilium/cilium/pkg/gke/features"
@@ -81,6 +82,8 @@ var googleCell = cell.Module(
 	gdcmaps.Cell,
 
 	perimeter.Cell,
+
+	flowtagger.Cell,
 )
 
 // Converts Daemon promise into a PolicyManager promise
