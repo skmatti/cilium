@@ -6,7 +6,9 @@
 #define ENABLE_GOOGLE_IP_OPTION_TRACING
 
 #include <node_config.h>
+#include "ep_config.h"
 #include "lib/google/ip_options.h"
+#include "lib/google/packet_tracer.h"
 
 // Used to define IP options for packet generation.
 struct ip4opthdr {
@@ -22,6 +24,59 @@ struct ip4opthdr {
 	// Length of the data field in bytes. Must match exactly.
 	__u8 data_len;
 };
+
+static __always_inline __maybe_unused int
+gen_packet_without_options(struct __sk_buff *ctx)
+{
+	struct pktgen builder;
+	struct iphdr *l3;
+
+	pktgen__init(&builder, ctx);
+
+	if (!pktgen__push_ethhdr(&builder))
+		return TEST_ERROR;
+
+	l3 = pktgen__push_default_iphdr(&builder);
+	if (!l3)
+		return TEST_ERROR;
+
+	if (!pktgen__push_data(&builder, default_data, sizeof(default_data)))
+		return TEST_ERROR;
+
+	pktgen__finish(&builder);
+
+	return TEST_PASS;
+}
+
+/* Test add trace ip option.
+ */
+PKTGEN("tc", "add_trace_ip_option")
+int test_add_trace_ip_option_pktgen(struct __ctx_buff *ctx)
+{
+	return gen_packet_without_options(ctx);
+}
+
+CHECK("tc", "add_trace_ip_option")
+int test_add_trace_ip_option_check(struct __ctx_buff *ctx)
+{
+	test_init();
+
+	void *data, *data_end;
+	struct iphdr *ip4;
+
+	if (!revalidate_data_pull(ctx, &data, &data_end, &ip4))
+		return DROP_INVALID;
+	__s16 want_trace_id = 1;
+	add_trace_ip_opt_v4(ctx, ip4, want_trace_id);
+
+	__s16 found_trace_id = trace_id_from_ctx(ctx);
+
+	if (found_trace_id != want_trace_id) {
+		test_fatal("trace_id_from_ctx(ctx) = %d; want %d\n", found_trace_id, want_trace_id);
+	}
+
+	test_finish();
+}
 
 // Injects a packet into the ctx with the IPv4 options specified. See comments
 // on the struct for more details on how to specify options. The total byte
@@ -75,6 +130,260 @@ gen_packet_with_options(struct __sk_buff *ctx, struct ip4opthdr *opts, __u8 opts
 	pktgen__finish(&builder);
 
 	return TEST_PASS;
+}
+
+/* Test removing a single option specifying the trace ID with no special cases.
+ */
+PKTGEN("tc", "remove_trace_ip_option_solo")
+int test_remove_trace_ip_option_solo_pktgen(struct __ctx_buff *ctx)
+{
+	struct ip4opthdr opts[] = {
+		{
+			.type = TRACE_IPV4_OPT_TYPE,
+			.len = 4,
+			.data = (__u8*)"\x00\x01",
+			.data_len = 2,
+		},
+	};
+
+	return gen_packet_with_options(ctx, opts, 1, 4);
+}
+
+CHECK("tc", "remove_trace_ip_option_solo")
+int test_remove_trace_ip_option_solo_check(struct __ctx_buff *ctx)
+{
+	test_init();
+
+	remove_trace_ip_opt_v4(ctx);
+	__s16 found_trace_id = trace_id_from_ctx(ctx);
+
+	if (found_trace_id != TRACE_ID_NOT_FOUND) {
+		test_fatal("trace_id_from_ctx(ctx) = %d; want %d\n", found_trace_id, TRACE_ID_NOT_FOUND);
+	}
+
+	test_finish();
+}
+
+/* Test three options with the trace ID option being first.
+ */
+PKTGEN("tc", "remove_trace_ip_option_first_of_three")
+int test_remove_trace_ip_option_first_of_three_pktgen(struct __ctx_buff *ctx)
+{
+	struct ip4opthdr opts[] = {
+		{
+			.type = TRACE_IPV4_OPT_TYPE,
+			.len = 4,
+			.data = (__u8*)"\x00\x01",
+			.data_len = 2,
+		},
+		{
+			.type = 10,
+			.len = 4,
+			.data = (__u8*)"\x10\x10",
+			.data_len = 2,
+		},
+		{
+			.type = 11,
+			.len = 4,
+			.data = (__u8*)"\x11\x11",
+			.data_len = 2,
+		},
+	};
+
+	return gen_packet_with_options(ctx, opts, 3, 12);
+}
+
+CHECK("tc", "remove_trace_ip_option_first_of_three")
+int test_remove_trace_ip_option_first_of_three_check(struct __ctx_buff *ctx)
+{
+	test_init();
+
+	remove_trace_ip_opt_v4(ctx);
+	__s16 found_trace_id = trace_id_from_ctx(ctx);
+
+	if (found_trace_id != TRACE_ID_NOT_FOUND) {
+		test_fatal("trace_id_from_ctx(ctx) = %d; want %d\n", found_trace_id, TRACE_ID_NOT_FOUND);
+	}
+
+	test_finish();
+}
+
+/* Test three options with the trace ID option being between the other two.
+ */
+PKTGEN("tc", "remove_trace_ip_option_middle_of_three")
+int test_remove_trace_ip_option_middle_of_three_pktgen(struct __ctx_buff *ctx)
+{
+	struct ip4opthdr opts[] = {
+		{
+			.type = 10,
+			.len = 4,
+			.data = (__u8*)"\x10\x10",
+			.data_len = 2,
+		},
+		{
+			.type = TRACE_IPV4_OPT_TYPE,
+			.len = 4,
+			.data = (__u8*)"\x00\x01",
+			.data_len = 2,
+		},
+		{
+			.type = 11,
+			.len = 4,
+			.data = (__u8*)"\x11\x11",
+			.data_len = 2,
+		},
+	};
+
+	return gen_packet_with_options(ctx, opts, 3, 12);
+}
+
+CHECK("tc", "remove_trace_ip_option_middle_of_three")
+int test_remove_trace_ip_option_middle_of_three_check(struct __ctx_buff *ctx)
+{
+	test_init();
+
+	remove_trace_ip_opt_v4(ctx);
+	__s16 found_trace_id = trace_id_from_ctx(ctx);
+
+	if (found_trace_id != TRACE_ID_NOT_FOUND) {
+		test_fatal("trace_id_from_ctx(ctx) = %d; want %d\n", found_trace_id, TRACE_ID_NOT_FOUND);
+	}
+
+	test_finish();
+}
+
+/* Test three options with the trace ID option being last of the three.
+ */
+PKTGEN("tc", "remove_trace_ip_option_last_of_three")
+int test_remove_trace_ip_option_last_of_three_pktgen(struct __ctx_buff *ctx)
+{
+	struct ip4opthdr opts[] = {
+		{
+			.type = 10,
+			.len = 4,
+			.data = (__u8*)"\x10\x10",
+			.data_len = 2,
+		},
+		{
+			.type = 11,
+			.len = 4,
+			.data = (__u8*)"\x11\x11",
+			.data_len = 2,
+		},
+		{
+			.type = TRACE_IPV4_OPT_TYPE,
+			.len = 4,
+			.data = (__u8*)"\x00\x01",
+			.data_len = 2,
+		},
+	};
+
+	return gen_packet_with_options(ctx, opts, 3, 12);
+}
+
+CHECK("tc", "remove_trace_ip_option_last_of_three")
+int test_remove_trace_ip_option_last_of_three_check(struct __ctx_buff *ctx)
+{
+	test_init();
+
+	remove_trace_ip_opt_v4(ctx);
+	__s16 found_trace_id = trace_id_from_ctx(ctx);
+
+	if (found_trace_id != TRACE_ID_NOT_FOUND) {
+		test_fatal("trace_id_from_ctx(ctx) = %d; want %d\n", found_trace_id, TRACE_ID_NOT_FOUND);
+	}
+
+	test_finish();
+}
+
+/* Test two options with the trace ID coming after an unusually sized option.
+ */
+PKTGEN("tc", "remove_trace_ip_option_after_other_option_with_diff_len")
+int test_remove_trace_ip_option_after_other_option_with_diff_len_pktgen(struct __ctx_buff *ctx)
+{
+	struct ip4opthdr opts[] = {
+		{
+			.type = 11,
+			.len = 12, // large option
+			.data = (__u8*)"\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00",
+			.data_len = 10,
+		},
+		{
+			.type = TRACE_IPV4_OPT_TYPE,
+			.len = 4,
+			.data = (__u8*)"\x00\x01",
+			.data_len = 2,
+		},
+	};
+
+	return gen_packet_with_options(ctx, opts, 2, 16);
+}
+
+CHECK("tc", "remove_trace_ip_option_after_other_option_with_diff_len")
+int test_remove_trace_ip_option_after_other_option_with_diff_len_check(struct __ctx_buff *ctx)
+{
+	test_init();
+
+	remove_trace_ip_opt_v4(ctx);
+	__s16 found_trace_id = trace_id_from_ctx(ctx);
+
+	if (found_trace_id != TRACE_ID_NOT_FOUND) {
+		test_fatal("trace_id_from_ctx(ctx) = %d; want %d\n", found_trace_id, TRACE_ID_NOT_FOUND);
+	}
+
+	test_finish();
+}
+
+/* Test multiple options with the trace ID coming after a NOOP option.
+ */
+PKTGEN("tc", "remove_trace_ip_option_after_ipopt_noop")
+int test_remove_trace_ip_option_after_ipopt_noop_pktgen(struct __ctx_buff *ctx)
+{
+	struct ip4opthdr opts[] = {
+		{
+			.type = IPOPT_NOOP,
+			.len = 0, // Single byte option.
+			.data_len = 0,
+		},
+		{
+			.type = IPOPT_NOOP,
+			.len = 0, // Single byte option.
+			.data_len = 0,
+		},
+		{
+			.type = TRACE_IPV4_OPT_TYPE,
+			.len = 4,
+			.data = (__u8*)"\x00\x01",
+			.data_len = 2,
+		},
+		{
+			.type = IPOPT_NOOP,
+			.len = 0, // Single byte option.
+			.data_len = 0,
+		},
+		{
+			.type = IPOPT_NOOP,
+			.len = 0, // Single byte option.
+			.data_len = 0,
+		},
+	};
+
+	return gen_packet_with_options(ctx, opts, 5, 8);
+}
+
+CHECK("tc", "remove_trace_ip_option_after_ipopt_noop")
+int test_remove_trace_ip_option_after_ipopt_noop_check(struct __ctx_buff *ctx)
+{
+	test_init();
+
+	remove_trace_ip_opt_v4(ctx);
+	__s16 found_trace_id = trace_id_from_ctx(ctx);
+
+	if (found_trace_id != TRACE_ID_NOT_FOUND) {
+		test_fatal("trace_id_from_ctx(ctx) = %d; want %d\n", found_trace_id, TRACE_ID_NOT_FOUND);
+	}
+
+	test_finish();
 }
 
 /* Test a single option specifying the trace ID with no special cases.

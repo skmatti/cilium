@@ -14,6 +14,7 @@
 #include "lib/google/plugin.h"
 #include "lib/google_multinic.h"
 #include "lib/google/google_perimeter_elb.h"
+#include "lib/google/packet_tracer.h"
 
 /**
  * This file contains hook implementations for hook points inside the container
@@ -77,7 +78,7 @@ static __always_inline int
 pre_ctr_ingress_del4(struct __ctx_buff *ctx __maybe_unused,
 		     struct goog_ctr_ingress_del4_ctx *stage_ctx __maybe_unused)
 {
-	return HOOK_ACT_CONTINUE;
+	return goog_ctr_ingress_remove_trace_ip_option_v4(ctx);
 }
 
 /**
@@ -124,6 +125,12 @@ pre_ctr_egress_start4(struct __ctx_buff *ctx __maybe_unused,
 
 	if (ret != HOOK_ACT_CONTINUE)
 		return ret;
+
+	ret = goog_ctr_egress_add_trace_ip_option_v4(ctx);
+
+	if (ret != HOOK_ACT_CONTINUE)
+		return ret;
+
 	return goog_sfc_reset_egress_state();
 }
 
@@ -151,6 +158,10 @@ static __always_inline int
 pre_ctr_egress_pol4(struct __ctx_buff *ctx __maybe_unused,
 		    struct goog_ctr_egress_pol4_ctx *stage_ctx __maybe_unused)
 {
+	int ret = goog_ctr_egress_pol4_add_trace_ip_option_v4(ctx);
+	if (ret != HOOK_ACT_CONTINUE)
+		return ret;
+
 	return goog_sfc_maybe_skip_egress_policy();
 }
 
