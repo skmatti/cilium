@@ -33,7 +33,7 @@ spec:
                 "CLUSTER_SIZE": "conformant_cluster",
                 "NUM_NETWORKS": "2",
                 "TEST_TYPE": "bm_e2e",
-                "BM_E2E_TEST_LABELS": "flat-ip,conformance,ingress,loadbalancer,egress-nat"
+                "BM_E2E_TEST_LABELS": "ingress,egress-nat,loadbalancer,networkpolicy"
               }
             project: anthos-networking-ci
             proxyPort: "8222"
