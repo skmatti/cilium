@@ -31,17 +31,15 @@ spec:
           - /test/ginkgo
           - --keep-going
           - --timeout=2h
-          - --label-filter=sample
+          - --label-filter=sample-multicluster
           - -vv
           - --no-color
           - --output-dir={{ RuntimePath "." }}
           - --junit-report=junit_results.xml
           - /test/e2e.test
           env:
-            HTTP_PROXY_C1: '{{ ResourceVar ((Ref "Cluster" "oob1").Name) "HTTP_PROXY" }}'
-            HTTPS_PROXY_C1: '{{ ResourceVar ((Ref "Cluster" "oob1").Name) "HTTPS_PROXY" }}'
-            KUBECONFIG_C1: '{{ KubeconfigPath "user" ((Ref "Cluster" "oob1").Name) }}'
-            HTTP_PROXY_C2: '{{ ResourceVar ((Ref "Cluster" "oob2").Name) "HTTP_PROXY" }}'
-            HTTPS_PROXY_C2: '{{ ResourceVar ((Ref "Cluster" "oob2").Name) "HTTPS_PROXY" }}'
-            KUBECONFIG_C2: '{{ KubeconfigPath "user" ((Ref "Cluster" "oob2").Name) }}'
+            ARTIFACTS_BASE: '{{ Env "ARTIFACTS_BASE" }}'
+            HTTP_PROXY: '{{ ResourceVar ((Ref "Cluster" "oob1").Name) "HTTP_PROXY" }}'
+            HTTPS_PROXY: '{{ ResourceVar ((Ref "Cluster" "oob1").Name) "HTTPS_PROXY" }}'
+            KUBECONFIG: '{{ KubeconfigPath "user" ((Ref "Cluster" "oob1").Name) }}'
             RESULTS_DIR: '{{ RuntimePath "." }}' # Write results to root of artifacts dir.

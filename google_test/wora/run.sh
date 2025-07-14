@@ -155,11 +155,13 @@ CLUSTER_REFS=$(calculate_cluster_refs "${CLUSTER_ARTIFACTS}")
 
 # Folder for nested WORA runs, to make file layout more clear.
 WORA_ARTIFACTS="${ARTIFACTS}/wora"
+ARTIFACTS_BASE="${ARTIFACTS}"
 
 # Upload-external-clusters name should match namePrefix in WORA yaml. Because
 # test is going to have its own junit.xml, suppress kt2 junit generation.
 # Status-check-interval is increased to work around incorrect calculation of
 # rookery status.
+ARTIFACTS_BASE="${ARTIFACTS_BASE}" \
 ARTIFACTS="${WORA_ARTIFACTS}" \
   kubetest2-tailorbird \
   --verbose \

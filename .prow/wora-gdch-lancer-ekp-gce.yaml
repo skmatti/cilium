@@ -373,10 +373,6 @@ presubmits:
         value: sut-gdch-lancer-abm-gce-multicluster.yaml
       - name: WORA_CONFIG
         value: multicluster_integration_test.yaml
-      - name: WORA_GINKGO_LABEL_FILTER
-        # TODO: b/384532838 - enable feature tests as features are merged.
-        # egressnat||hostfirewall||l3vm||loadbalancer||sample||tailcall||vpc
-        value: l3vm||sample
       command:
       - runner.sh
       args:
