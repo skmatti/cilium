@@ -23,11 +23,27 @@ run_tests_and_report() {
   }
   trap log_and_cleanup EXIT
 
+  local cmd_status
   # Run the tests
-  GO_TEST_FLAGS=-v make "${test_target}" > "${tmp_output}" 2>&1
-  retval=$?
-  go-junit-report -iocopy -set-exit-code -debug.print-events -in "${tmp_output}" -out "${output_file}" || true
-  return "${retval}"
+  if GO_TEST_FLAGS=-v make "${test_target}" >"${tmp_output}" 2>&1; then
+    cmd_status=0
+  else
+    cmd_status=1
+  fi
+
+  local report_status
+  # Generate the report
+  if go-junit-report -iocopy -set-exit-code -debug.print-events -in "${tmp_output}" -out "${output_file}"; then
+    report_status=0
+  else
+    report_status=1
+  fi
+
+  if [[ "${cmd_status}" -eq 0 && "${report_status}" -eq 0 ]]; then
+    return 0
+  else
+    return 1
+  fi
 }
 
 make precheck
