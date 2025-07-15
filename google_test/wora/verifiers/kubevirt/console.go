@@ -11,8 +11,8 @@ import (
 
 	expect "github.com/google/goexpect"
 	virtv1 "kubevirt.io/api/core/v1"
-	kubevirtcorev1 "kubevirt.io/client-go/generated/kubevirt/clientset/versioned/typed/core/v1"
 	"kubevirt.io/client-go/kubecli"
+	kubevirtcorev1 "kubevirt.io/client-go/kubevirt/typed/core/v1"
 
 	klog "gke-internal.googlesource.com/syllogi/sanitized-klog/third_party/klogv2"
 )
