@@ -181,11 +181,16 @@ func (rc *remoteCluster) Status() *models.RemoteCluster {
 		status.Synced.Identities = rc.remoteIdentityCache.Synced()
 	}
 
-	status.Ready = status.Ready &&
-		status.Synced.Nodes && status.Synced.Services &&
-		status.Synced.Identities && status.Synced.Endpoints
+	status.Ready = status.Ready && isReady(status.Synced.Nodes, status.NumNodes) &&
+		isReady(status.Synced.Services, status.NumSharedServices) &&
+		isReady(status.Synced.Endpoints, status.NumEndpoints) &&
+		isReady(status.Synced.Identities, status.NumIdentities)
 
 	return status
+}
+
+func isReady(synced bool, numEntries int64) bool {
+	return synced || numEntries == 0
 }
 
 func (rc *remoteCluster) onUpdateConfig(newConfig cmtypes.CiliumClusterConfig) error {
