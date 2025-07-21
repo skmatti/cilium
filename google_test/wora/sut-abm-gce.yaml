@@ -53,7 +53,7 @@ spec:
           name: k8s-net-post-provisioner-execution
         spec:
           targets:
-          - namePrefix: wora-sut-gdch-abm-gce
+          - namePrefix: wora-sut-abm-gce
             kind: Cluster
             namespace: tailorbird-users
           env:
