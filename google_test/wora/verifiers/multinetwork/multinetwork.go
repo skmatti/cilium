@@ -268,7 +268,7 @@ var _ = Describe("Verifiers/multinetwork", Label("multinetwork"), Ordered, func(
 			},
 		}
 
-		err = utils.CreateNodeportService(ctx, cl, &svc)
+		err = utils.CreateService(ctx, cl, &svc)
 		Expect(err).NotTo(HaveOccurred())
 
 		// Wait for service NodePort to come up.
@@ -318,7 +318,7 @@ var _ = Describe("Verifiers/multinetwork", Label("multinetwork"), Ordered, func(
 			},
 			Spec: corev1.ServiceSpec{
 				Type:                  corev1.ServiceTypeNodePort,
-				ExternalTrafficPolicy: corev1.ServiceExternalTrafficPolicyTypeLocal,
+				ExternalTrafficPolicy: corev1.ServiceExternalTrafficPolicyTypeCluster,
 				Selector: map[string]string{
 					labelKey:      labelValue,
 					nwSelectorKey: nwSelectorValue,
@@ -336,7 +336,7 @@ var _ = Describe("Verifiers/multinetwork", Label("multinetwork"), Ordered, func(
 			},
 		}
 
-		err = utils.CreateNodeportService(ctx, cl, &svc)
+		err = utils.CreateService(ctx, cl, &svc)
 		Expect(err).NotTo(HaveOccurred())
 
 		// Wait for service NodePort to come up.
@@ -433,7 +433,7 @@ var _ = Describe("Verifiers/multinetwork", Label("multinetwork"), Ordered, func(
 			Expect(err).NotTo(HaveOccurred())
 		}
 
-		err = utils.CreateNodeportService(ctx, cl, &svc)
+		err = utils.CreateService(ctx, cl, &svc)
 		Expect(err).NotTo(HaveOccurred())
 
 		err = utils.WaitForServiceReadiness(ctx, cl, svcName, testNamespace, corev1.ServiceTypeLoadBalancer)

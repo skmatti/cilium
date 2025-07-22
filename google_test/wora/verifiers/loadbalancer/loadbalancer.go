@@ -57,7 +57,7 @@ var _ = Describe("LoadBalancer", Label("loadbalancer"), Ordered, func() {
 		Expect(err).NotTo(HaveOccurred())
 
 		// Create the load balancer service with backend pods
-		err = utils.CreateService(ctx, cl, serviceName, testNamespace, serviceName, servicePort, 8080)
+		err = utils.CreateLBService(ctx, cl, serviceName, testNamespace, serviceName, servicePort, 8080)
 		Expect(err).NotTo(HaveOccurred())
 	})
 

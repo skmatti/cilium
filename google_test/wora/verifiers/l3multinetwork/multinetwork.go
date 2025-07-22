@@ -219,7 +219,7 @@ var _ = Describe("Verifiers/l3multinetwork", Label("l3multinetwork"), Ordered, f
 			},
 		}
 
-		err = utils.CreateNodeportService(ctx, cl, &svc)
+		err = utils.CreateService(ctx, cl, &svc)
 		Expect(err).NotTo(HaveOccurred())
 
 		// Wait for service NodePort to come up.
@@ -287,7 +287,7 @@ var _ = Describe("Verifiers/l3multinetwork", Label("l3multinetwork"), Ordered, f
 			},
 		}
 
-		err = utils.CreateNodeportService(ctx, cl, &svc)
+		err = utils.CreateService(ctx, cl, &svc)
 		Expect(err).NotTo(HaveOccurred())
 
 		// Wait for service NodePort to come up.
@@ -397,7 +397,7 @@ var _ = Describe("Verifiers/l3multinetwork", Label("l3multinetwork"), Ordered, f
 			},
 		}
 
-		err = utils.CreateNodeportService(ctx, cl, &svc)
+		err = utils.CreateService(ctx, cl, &svc)
 		Expect(err).NotTo(HaveOccurred())
 
 		err = utils.WaitForServiceReadiness(ctx, cl, svcName, testNamespace, corev1.ServiceTypeLoadBalancer)

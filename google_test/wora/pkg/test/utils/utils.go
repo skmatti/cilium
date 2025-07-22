@@ -219,8 +219,8 @@ type NetworkInfo struct {
 	IPAMMode      networkv1.IPAMModeType
 }
 
-// Create nodeport svc for multi-networking
-func CreateNodeportService(ctx context.Context, cl k8sclient.Client, service *corev1.Service) error {
+// CreateService create a service from corev1 object
+func CreateService(ctx context.Context, cl k8sclient.Client, service *corev1.Service) error {
 	if err := cl.Create(ctx, service); err != nil {
 		if apierrors.IsAlreadyExists(err) {
 			klog.Infof("Service already exists.")
@@ -742,7 +742,7 @@ func ExecuteCommandFromBootstapper(ctx context.Context, cl k8sclient.Client, com
 
 func RunCurlFromBootstrapper(ctx context.Context, cl k8sclient.Client, targetIP string, port int32, retryConfig wait.Waiting) error {
 	// Construct the command.
-	command := fmt.Sprintf("curl http://%s:%d", targetIP, port)
+	command := fmt.Sprintf("curl --http0.9 http://%s:%d", targetIP, port)
 	curlExecuted := func(ctx context.Context) error {
 
 		output, err := ExecuteCommandFromBootstapper(ctx, cl, command)
@@ -819,8 +819,8 @@ func kubectlAction(action, manifest string) error {
 	return nil
 }
 
-// createService creates a service of type load balancer.
-func CreateService(ctx context.Context, cl k8sclient.Client, serviceName, serviceNamespace, backendSelector string, servicePort int, targetPort int) error {
+// CreateLBService creates a service of type load balancer.
+func CreateLBService(ctx context.Context, cl k8sclient.Client, serviceName, serviceNamespace, backendSelector string, servicePort int, targetPort int) error {
 	singleStack := corev1.IPFamilyPolicySingleStack
 	service := &corev1.Service{
 		ObjectMeta: metav1.ObjectMeta{
@@ -847,15 +847,8 @@ func CreateService(ctx context.Context, cl k8sclient.Client, serviceName, servic
 			Type:            corev1.ServiceTypeLoadBalancer,
 		},
 	}
-	if err := cl.Create(ctx, service); err != nil {
-		if apierrors.IsAlreadyExists(err) {
-			klog.Info("Service already exists.")
-			return nil
-		}
-		return fmt.Errorf("failed to create service: %v", err)
-	}
-	klog.Infof("service %s created successfully", service.Name)
-	return nil
+
+	return CreateService(ctx, cl, service)
 }
 
 func CreateL2Network(ctx context.Context, nc *networkclientset.Clientset, ipamModeExternal gcpnetworkv1.IPAMModeType, networkName, interfaceName, testGateway, testNameServer string) error {

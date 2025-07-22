@@ -106,7 +106,7 @@ var _ = Describe("InternalLB", Label("internallb"), Ordered, func() {
 		}
 
 		// Create the internal load balancer service
-		err = utils.CreateService(ctx, cl, serviceName, testNamespace, serviceName, servicePort, int(8080))
+		err = utils.CreateLBService(ctx, cl, serviceName, testNamespace, serviceName, servicePort, int(8080))
 		Expect(err).NotTo(HaveOccurred())
 	})
 
