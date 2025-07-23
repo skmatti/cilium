@@ -201,6 +201,10 @@ func (r *NetworkReconciler) unloadEBPFOnParent(ctx context.Context, network *net
 		return err
 	}
 
+	if err := r.deleteMultiNICHostEndpoint(network.Name, devToUnload); err != nil {
+		return fmt.Errorf("failed to delete multi nic host endpoint: %v", err)
+	}
+
 	if err := os.RemoveAll(path.Join(multinicObjDir, devToUnload)); err != nil {
 		return fmt.Errorf("failed to remove multinic object dir: %v", err)
 	}

@@ -337,46 +337,49 @@ func (l *loader) reloadHostDatapath(ep datapath.Endpoint, spec *ebpf.CollectionS
 	}
 	defer coll.Close()
 
-	// Attach cil_to_host to cilium_host ingress.
-	if err := attachSKBProgram(host, coll.Programs[symbolToHostEp], symbolToHostEp,
-		bpffsDeviceLinksDir(bpf.CiliumPath(), host), netlink.HANDLE_MIN_INGRESS, option.Config.EnableTCX); err != nil {
-		return fmt.Errorf("interface %s ingress: %w", ep.InterfaceName(), err)
-	}
-	// Attach cil_from_host to cilium_host egress.
-	if err := attachSKBProgram(host, coll.Programs[symbolFromHostEp], symbolFromHostEp,
-		bpffsDeviceLinksDir(bpf.CiliumPath(), host), netlink.HANDLE_MIN_EGRESS, option.Config.EnableTCX); err != nil {
-		return fmt.Errorf("interface %s egress: %w", ep.InterfaceName(), err)
-	}
+	// Do not load multi nic host firewall programs on cilium_host and cilium_net interfaces.
+	if !ep.IsMultiNICHost() {
+		// Attach cil_to_host to cilium_host ingress.
+		if err := attachSKBProgram(host, coll.Programs[symbolToHostEp], symbolToHostEp,
+			bpffsDeviceLinksDir(bpf.CiliumPath(), host), netlink.HANDLE_MIN_INGRESS, option.Config.EnableTCX); err != nil {
+			return fmt.Errorf("interface %s ingress: %w", ep.InterfaceName(), err)
+		}
+		// Attach cil_from_host to cilium_host egress.
+		if err := attachSKBProgram(host, coll.Programs[symbolFromHostEp], symbolFromHostEp,
+			bpffsDeviceLinksDir(bpf.CiliumPath(), host), netlink.HANDLE_MIN_EGRESS, option.Config.EnableTCX); err != nil {
+			return fmt.Errorf("interface %s egress: %w", ep.InterfaceName(), err)
+		}
 
-	if err := commit(); err != nil {
-		return fmt.Errorf("committing bpf pins: %w", err)
-	}
+		if err := commit(); err != nil {
+			return fmt.Errorf("committing bpf pins: %w", err)
+		}
 
-	// Replace program on cilium_net.
-	net, err := safenetlink.LinkByName(defaults.SecondHostDevice)
-	if err != nil {
-		return fmt.Errorf("retrieving device %s: %w", defaults.SecondHostDevice, err)
-	}
+		// Replace program on cilium_net.
+		net, err := safenetlink.LinkByName(defaults.SecondHostDevice)
+		if err != nil {
+			return fmt.Errorf("retrieving device %s: %w", defaults.SecondHostDevice, err)
+		}
 
-	secondConsts, secondRenames, err := l.patchHostNetdevDatapath(ep, defaults.SecondHostDevice)
-	if err != nil {
-		return err
-	}
+		secondConsts, secondRenames, err := l.patchHostNetdevDatapath(ep, defaults.SecondHostDevice)
+		if err != nil {
+			return err
+		}
 
-	coll, commit, err = loadDatapath(spec, secondRenames, secondConsts)
-	if err != nil {
-		return err
-	}
-	defer coll.Close()
+		coll, commit, err = loadDatapath(spec, secondRenames, secondConsts)
+		if err != nil {
+			return err
+		}
+		defer coll.Close()
 
-	// Attach cil_to_host to cilium_net.
-	if err := attachSKBProgram(net, coll.Programs[symbolToHostEp], symbolToHostEp,
-		bpffsDeviceLinksDir(bpf.CiliumPath(), net), netlink.HANDLE_MIN_INGRESS, option.Config.EnableTCX); err != nil {
-		return fmt.Errorf("interface %s ingress: %w", defaults.SecondHostDevice, err)
-	}
+		// Attach cil_to_host to cilium_net.
+		if err := attachSKBProgram(net, coll.Programs[symbolToHostEp], symbolToHostEp,
+			bpffsDeviceLinksDir(bpf.CiliumPath(), net), netlink.HANDLE_MIN_INGRESS, option.Config.EnableTCX); err != nil {
+			return fmt.Errorf("interface %s ingress: %w", defaults.SecondHostDevice, err)
+		}
 
-	if err := commit(); err != nil {
-		return fmt.Errorf("committing bpf pins: %w", err)
+		if err := commit(); err != nil {
+			return fmt.Errorf("committing bpf pins: %w", err)
+		}
 	}
 
 	// Replace programs on physical devices, ignoring devices that don't exist.
