@@ -59,16 +59,6 @@ function verify_cilium_overridden {
   done
 }
 
-function enable_additional_vxlans {
-  local cluster_type="${1:?}"
-  local vxlan_dstport="${2:?}"
-  local tool_image="us-docker.pkg.dev/anthos-networking-ci/apps/enable-additional-vxlan:latest"
-  remote_execution_from_gce_bootstrapper "gcloud auth activate-service-account --key-file=bootstrapper-sa.json"
-  remote_execution_from_gce_bootstrapper "gcloud auth configure-docker us-docker.pkg.dev --quiet"
-  remote_execution_from_gce_bootstrapper "docker run --pull=always -v \${PWD}:/workspace '${tool_image}' enable-additional-vxlan --new-vxlan-name vxlan1 --new-vxlan-ID 43 --new-vxlan-network 10.100.0.0/21 --cluster-type '${cluster_type}' --vxlan-dstport ${vxlan_dstport}"
-  remote_execution_from_gce_bootstrapper "docker run --pull=always -v \${PWD}:/workspace '${tool_image}' enable-additional-vxlan --new-vxlan-name vxlan2 --new-vxlan-ID 44 --new-vxlan-network 10.150.0.0/21 --cluster-type '${cluster_type}' --vxlan-dstport ${vxlan_dstport}"
-}
-
 function enable_http_server {
   local tool_image="us-docker.pkg.dev/anthos-networking-ci/apps/http-server:latest"
   remote_execution_from_gce_bootstrapper "gcloud auth activate-service-account --key-file=bootstrapper-sa.json"
@@ -84,10 +74,6 @@ fi
 
 if [[ -n "${KUBECONFIG}" ]] && [[ -n "${CILIUM_IMAGE_WITH_TAG:-}" ]] && [[ "${DISABLE_UPGRADE_VERIFICATION}" != "true" ]]; then
   verify_cilium_overridden "${CILIUM_IMAGE_WITH_TAG}"
-fi
-
-if [[ -e "${ARTIFACTS}/.kubetest2-tailorbird/tailorbird-request.yaml" ]] && [[ -n "${ADD_VXLANS_CLUSTER_TYPE:-}" ]]; then
-  enable_additional_vxlans "${ADD_VXLANS_CLUSTER_TYPE}" "${VXLAN_DSTPORT:-0}"
 fi
 
 # Start http server in bootstapper
