@@ -170,10 +170,79 @@ fi
 # Find out how many clusters are requested in the config.
 NUM_CLUSTERS=$(num_clusters "${TBCONFIG}")
 
-# Check that platform is baremetal-gke when multiple clusters are requested.
-if [[ "${NUM_CLUSTERS}" -gt 1 ]] && [[ "${PLATFORM}" != "baremetal-gke" ]]; then
-  echo "Multiple clusters are only supported for baremetal-gke platform." >&2
-  exit 1
+# The following functions are used to add support for multistage and
+# multicluster tests in abm.
+
+function split_csv_to_lines_with_default {
+  local csv_string="${1:?}"
+  local default_value="${2:?}"
+  local item
+
+  if [[ -z "${csv_string}" ]]; then
+    return 0
+  fi
+
+  local -a items
+  # shellcheck disable=SC2312
+  mapfile -t items < <(echo "${csv_string}" | tr ',' '\n' | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
+
+  for item in "${items[@]}"; do
+    if [[ "${item}" = "_" ]]; then
+      item="${default_value}"
+    fi
+    echo "${item}"
+  done
+}
+
+function validate_array_with_length {
+  local expected_length="${1:?}"
+  local -n arr="${2:?}" # nameref to the array
+  if [[ "${#arr[@]}" != "${expected_length}" ]]; then
+    echo "The number of items in array '${2}' (${#arr[@]}) does not match the expected length (${expected_length})." >&2
+    exit 1
+  fi
+}
+
+function create_addon_config_urls {
+  local array_length="${1:?}"
+  local -n arr="${2:?}"
+  local prefix="${3:?}"
+  local name="${4:?}"
+  local suffix="${5:?}"
+
+  if [[ "${array_length}" -eq 1 ]]; then
+    arr=("${prefix}/${name}${suffix}")
+    return
+  fi
+
+  arr=()
+  for i in $(seq 1 "${array_length}"); do
+    arr+=("${prefix}/${name}-${i}${suffix}")
+  done
+}
+
+# Find out if we are running a multistage test.
+if [[ -v TARGET_CILIUM_IMAGES_WITH_TAG || -v TARGET_CILIUM_OPERATOR_IMAGES_WITH_TAG || -v TARGET_PATCH_CONTENT_DIR ]]; then
+  IS_MULTISTAGE=true
+else
+  IS_MULTISTAGE=false
+fi
+export IS_MULTISTAGE
+
+# Check that platform is baremetal-gke for multicluster or multistage.
+if [[ "${PLATFORM}" != "baremetal-gke" ]]; then
+  if [[ "${NUM_CLUSTERS}" -gt 1 ]]; then
+    echo "Multiple clusters are only supported for baremetal-gke platform." >&2
+    echo "PLATFORM=${PLATFORM}" >&2
+    exit 1
+  fi
+  if [[ "${IS_MULTISTAGE}" = "true" ]]; then
+    echo "Multistage tests are only supported for baremetal-gke platform." >&2
+    echo "TARGET_CILIUM_IMAGES_WITH_TAG=${TARGET_CILIUM_IMAGES_WITH_TAG}" >&2
+    echo "TARGET_CILIUM_OPERATOR_IMAGES_WITH_TAG=${TARGET_CILIUM_OPERATOR_IMAGES_WITH_TAG}" >&2
+    echo "TARGET_PATCH_CONTENT_DIR=${TARGET_PATCH_CONTENT_DIR}" >&2
+    exit 1
+  fi
 fi
 
 # Insert resource owner into SUT and WORA config.
@@ -185,11 +254,11 @@ PROJECT=${GCP_PROJECT:-"anthos-networking-ci"}
 IMAGE_REGISTRY=${IMAGE_REGISTRY:-"gcr.io/${PROJECT}"}
 DOCKER_IMAGE_TAG=${DOCKER_IMAGE_TAG:-}
 CILIUM_DOCKER_IMAGE_TAG=${CILIUM_DOCKER_IMAGE_TAG:-}
-ADDON_CONFIG_NAME=addonConfig-${RUN_ID}.yaml
+ADDON_CONFIG_NAME=addonConfig-${RUN_ID}
 ADDON_CONFIG_BUCKET_URL=gs://anthos-networking-ci-artifacts/addon-configs
 # PATCH_CONTENT_DIR defaults to an option that only patches the Cilium
 # and Cilium operator images. See http://b/327682436#comment3.
-PATCH_CONTENT_DIR=${ROOT}/${PATCH_CONTENT_DIR:-addon/patch_content/abm-1.32.x-gke/overlays/image-only}
+DEFAULT_PATCH_CONTENT_DIR="addon/patch_content/abm-1.32.x-gke/overlays/image-only"
 
 # Build the corresponding Cilium images and upload to the registry.
 # This step is only performed if CILIUM_GITREF is specified.
@@ -202,20 +271,102 @@ if [[ -n "${CILIUM_GITREF:-}" ]]; then
   fi
 fi
 
+function provision_abm {
+  local default_cilium_image_with_tag=${IMAGE_REGISTRY}/cilium/cilium:${CILIUM_DOCKER_IMAGE_TAG}
+  local default_operator_image_with_tag=${IMAGE_REGISTRY}/cilium/operator-generic:${DOCKER_IMAGE_TAG}
+  local -a cilium_images_with_tag
+  local -a operator_images_with_tag
+  local -a patch_content_dirs
+  local -a addon_config_urls
+
+  local default_csv="_"
+  for i in $(seq 2 "${NUM_CLUSTERS}"); do
+    default_csv+=",_"
+  done
+
+  mapfile -t cilium_images_with_tag < <(split_csv_to_lines_with_default "${CILIUM_IMAGES_WITH_TAG:-${default_csv}}" "${default_cilium_image_with_tag}")
+  mapfile -t operator_images_with_tag < <(split_csv_to_lines_with_default "${CILIUM_OPERATOR_IMAGES_WITH_TAG:-${default_csv}}" "${default_operator_image_with_tag}")
+  mapfile -t patch_content_dirs < <(split_csv_to_lines_with_default "${PATCH_CONTENT_DIR:-${default_csv}}" "${DEFAULT_PATCH_CONTENT_DIR}")
+
+  # All tests: number of images match number of clusters.
+  for arr in "cilium_images_with_tag" "operator_images_with_tag" "patch_content_dirs"; do
+    validate_array_with_length "${NUM_CLUSTERS}" "${arr}"
+  done
+
+  # Define add-on config urls.
+  create_addon_config_urls "${NUM_CLUSTERS}" addon_config_urls "${ADDON_CONFIG_BUCKET_URL}" "${ADDON_CONFIG_NAME}" ".yaml"
+
+  # Multistage tests: if set, number of images match number of clusters.
+  if [[ "${IS_MULTISTAGE}" = "true" ]]; then
+    local -a target_cilium_images_with_tag
+    local -a target_operator_images_with_tag
+    local -a target_patch_content_dirs
+    local -a target_addon_config_urls
+    mapfile -t target_cilium_images_with_tag < <(split_csv_to_lines_with_default "${TARGET_CILIUM_IMAGES_WITH_TAG:-${default_csv}}" "${default_cilium_image_with_tag}")
+    mapfile -t target_operator_images_with_tag < <(split_csv_to_lines_with_default "${TARGET_CILIUM_OPERATOR_IMAGES_WITH_TAG:-${default_csv}}" "${default_operator_image_with_tag}")
+    mapfile -t target_patch_content_dirs < <(split_csv_to_lines_with_default "${TARGET_PATCH_CONTENT_DIR:-${default_csv}}" "${DEFAULT_PATCH_CONTENT_DIR}")
+
+    # Multistage tests: number of images match number of clusters.
+    for arr in "target_cilium_images_with_tag" "target_operator_images_with_tag" "target_patch_content_dirs"; do
+      validate_array_with_length "${NUM_CLUSTERS}" "${arr}"
+    done
+
+    # Define add-on config urls for multistage tests.
+    create_addon_config_urls "${NUM_CLUSTERS}" target_addon_config_urls "${ADDON_CONFIG_BUCKET_URL}" "${ADDON_CONFIG_NAME}-target" ".yaml"
+    export MULTISTAGE_ADDON_CONFIG_GSPATH="${target_addon_config_urls[0]}"
+  fi
+
+  local add_suffix
+  if [[ "${NUM_CLUSTERS}" -gt 1 ]]; then
+    add_suffix="true"
+  else
+    add_suffix="false"
+  fi
+
+  # Generate add-on configurations for each cluster.
+  for i in $(seq 1 "${NUM_CLUSTERS}"); do
+    j=$((i - 1))
+    env \
+      ABSOLUTE_PATH_TBCONFIG="${TBCONFIG}" \
+      ADD_SUFFIX="${add_suffix}" \
+      ADDON_CONFIG_URL="${addon_config_urls[${j}]}" \
+      CREATE_NAMESPACE="true" \
+      CILIUM_IMAGE_REF="${cilium_images_with_tag[${j}]}" \
+      OPERATOR_IMAGE_REF="${operator_images_with_tag[${j}]}" \
+      PATCH_CONTENT_DIR="${ROOT}/${patch_content_dirs[${j}]}" \
+      CLUSTER_ID="${i}" \
+      WORKDIR="${ROOT}/${WORKDIR}" \
+      CILIUM_GITREF="${CILIUM_GITREF:-}" \
+      RUN_ID="${RUN_ID}" \
+      "${ROOT}/provision_abm.sh"
+  done
+
+  # Multistage tests: if set, generate add-on configurations for each target cluster.
+  if [[ "${IS_MULTISTAGE}" = "true" ]]; then
+    for i in $(seq 1 "${NUM_CLUSTERS}"); do
+      j=$((i - 1))
+      env \
+        ABSOLUTE_PATH_TBCONFIG="${TBCONFIG}" \
+        ADD_SUFFIX="${add_suffix}" \
+        ADDON_CONFIG_URL="${target_addon_config_urls[${j}]}" \
+        GENERATE_ADDON_ONLY="true" \
+        CREATE_NAMESPACE="false" \
+        CILIUM_IMAGE_REF="${target_cilium_images_with_tag[${j}]}" \
+        OPERATOR_IMAGE_REF="${target_operator_images_with_tag[${j}]}" \
+        PATCH_CONTENT_DIR="${ROOT}/${target_patch_content_dirs[${j}]}" \
+        CLUSTER_ID="${i}" \
+        WORKDIR="${ROOT}/${WORKDIR}" \
+        CILIUM_GITREF="${CILIUM_GITREF:-}" \
+        RUN_ID="${RUN_ID}" \
+        "${ROOT}/provision_abm.sh"
+    done
+  fi
+}
+
 # Update the cluster rookery file.
 case "${PLATFORM}" in
   baremetal-gke)
-    ABSOLUTE_PATH_TBCONFIG="${TBCONFIG}" \
-      ADDON_CONFIG_NAME="${ADDON_CONFIG_NAME}" \
-      ADDON_CONFIG_BUCKET_URL="${ADDON_CONFIG_BUCKET_URL}" \
-      IMAGE_REGISTRY="${IMAGE_REGISTRY}" \
-      DOCKER_IMAGE_TAG="${DOCKER_IMAGE_TAG}" \
-      CREATE_NAMESPACE="false" \
-      CILIUM_DOCKER_IMAGE_TAG="${CILIUM_DOCKER_IMAGE_TAG}" \
-      PATCH_CONTENT_DIR=${PATCH_CONTENT_DIR} \
-      WORKDIR="${ROOT}/${WORKDIR}" \
-      CILIUM_GITREF="${CILIUM_GITREF:-}" \
-      "${ROOT}/provision_abm.sh"
+    provision_abm
     ;;
   baremetal-gke-baremetal | vsphere-gke-baremetal)
     ABSOLUTE_PATH_TBCONFIG="${TBCONFIG}" \

@@ -85,7 +85,7 @@ configure-docker: ## Configure docker.
 	gcloud auth configure-docker \
 		$(subst $(eval) $(eval),$(comma),$(sort $(foreach path,$(WORA_BASE_IMAGE_REGISTRY) $(WORA_IMAGE_REGISTRY) $(ADVANCEDDATAPATH_BASE_IMAGE_REGISTRY) $(ADVANCEDDATAPATH_IMAGE_REGISTRY),$(firstword $(subst /, , $(path))))))
 
-ifeq ($(WORA_DOCKERFILE_DIR),$(CURDIR))
+ifeq ($(WORA_DOCKERFILE_DIR),$(filter $(WORA_DOCKERFILE_DIR), $(CURDIR) multistage))
 
 DOCKER_BUILD_EXTRA_ARGS += --build-arg=VENDOR="$(VENDOR)"
 

@@ -490,13 +490,74 @@ presubmits:
       - name: CILIUM_GITREF
         value: HEAD
       - name: PATCH_CONTENT_DIR
-        value: addon/patch_content/abm-1.31.x-gke/overlays/gdch-lancer
+        value: addon/patch_content/abm-1.31.x-gke/overlays/gdch-lancer,addon/patch_content/abm-1.31.x-gke/overlays/gdch-lancer
       - name: TBCONFIG
         value: sut-gdch-lancer-abm-gce-multicluster.yaml
       - name: WORA_CONFIG
         value: multicluster_integration_test.yaml
       - name: WORA_GINKGO_LABEL_FILTER
         value: bpfprog||egressnat||externallb||geneve||hostfirewall||internallb||l3vm||loadbalancer||multigateway_egressnat||sample||strict||tailcall
+      command:
+      - runner.sh
+      args:
+      - ./google_test/wora/prow_entrypoint.sh
+- name: wora-multistage-abm-gce-lancer_cilium
+  cluster: anthos-networking-ci-us-west1-b
+  trigger: /test wora-multistage-abm-gce-lancer_cilium$
+  rerun_command: /test wora-multistage-abm-gce-lancer_cilium
+  always_run: false
+  skip_fetch_head: true
+  decorate: true
+  decoration_config:
+    gcs_configuration:
+      bucket: "anthos-networking-ci"
+      path_strategy: "explicit"
+    timeout: 240m
+  labels:
+    preset-cookie-file: "true"
+    preset-cookie-file-env: "true"
+    preset-dind-enabled: "true"
+    prow.k8s.io/gerrit-report-label: "Verified"
+    prow.k8s.io/pubsub.project: "anthos-baremetal-ci"
+    prow.k8s.io/pubsub.topic: "prow-etl-trigger"
+    prow.k8s.io/pubsub.runID: "prow-etl-presubmit-tests"
+  path_alias: gke-internal.googlesource.com/third_party/cilium
+  spec:
+    containers:
+    - image: gcr.io/tailorbird/kubetest2-tailorbird:latest
+      resources:
+        requests:
+          ephemeral-storage: 150Gi
+        limits:
+          ephemeral-storage: 300Gi
+      securityContext:
+        # needed for docker-in-docker
+        privileged: true
+      env:
+      - name: CILIUM_GITREF
+        value: HEAD
+      - name: CILIUM_IMAGES_WITH_TAG
+        value: gcr.io/anthos-baremetal-staging/cilium/cilium:v1.16.10-gdch1.33-gke.43
+      - name: CILIUM_OPERATOR_IMAGES_WITH_TAG
+        value: gcr.io/anthos-baremetal-staging/cilium/operator:v1.16.10-gdch1.33-gke.43
+      - name: DISABLE_UPGRADE_VERIFICATION
+        value: "true"
+      - name: DOCKER_BUILD_EXTRA_ARGS
+        value: --build-arg=K8S_VERSION=v1.31.6
+      - name: PATCH_CONTENT_DIR
+        value: addon/patch_content/abm-1.31.x-gke/overlays/gdch-lancer
+      - name: TARGET_CILIUM_IMAGES_WITH_TAG
+        value: "_"
+      - name: "TARGET_CILIUM_OPERATOR_IMAGES_WITH_TAG"
+        value: "_"
+      - name: "TARGET_PATCH_CONTENT_DIR"
+        value: addon/patch_content/abm-1.31.x-gke/overlays/gdch-lancer
+      - name: TBCONFIG
+        value: sut-gdch-lancer-abm-gce.yaml
+      - name: WORA_CONFIG
+        value: multistage_test.yaml
+      - name: WORA_DOCKERFILE_DIR
+        value: multistage
       command:
       - runner.sh
       args:

@@ -17,6 +17,16 @@ if [[ -z ${CREATE_NAMESPACE:-} ]]; then
   exit 1
 fi
 
+if [[ -z ${CLUSTER_NAMESPACE:-} ]]; then
+  echo "ERROR: must specify CLUSTER_NAMESPACE." >&2
+  exit 1
+fi
+
+if [[ -z ${CLUSTER_ID:-} ]]; then
+  echo "ERROR: must specify CLUSTER_ID." >&2
+  exit 1
+fi
+
 if [[ -z ${CREATE_GCR_SECRET:-} ]]; then
   echo "ERROR: must specify CREATE_GCR_SECRET." >&2
   exit 1
@@ -27,23 +37,18 @@ if [[ -z ${BMCTL_VERSION:-} ]]; then
   exit 1
 fi
 
-if [[ -z ${ADDON_CONFIG_BUCKET_URL:-} ]]; then
-  echo "ERROR: must specify ADDON_CONFIG_BUCKET_URL, the path to GCS bucket folder where the Tailorbird can access the addon Configuration." >&2
+if [[ -z ${ADDON_CONFIG_URL:-} ]]; then
+  echo "ERROR: must specify ADDON_CONFIG_URL, the path to GCS file where the Tailorbird can access the addon Configuration." >&2
   exit 1
 fi
 
-if [[ -z ${ADDON_CONFIG_NAME:-} ]]; then
-  echo "ERROR: must specify ADDON_CONFIG_NAME, the name of the addon Configuration." >&2
+if [[ -z ${CILIUM_IMAGE_REF:-} ]]; then
+  echo "ERROR: must specify CILIUM_IMAGE_REF, reference for cilium image." >&2
   exit 1
 fi
 
-if [[ -z ${IMAGE_REGISTRY:-} ]]; then
-  echo "ERROR: must specify IMAGE_REGISTRY, the base registry for docker images." >&2
-  exit 1
-fi
-
-if [[ -z ${DOCKER_IMAGE_TAG:-} ]]; then
-  echo "ERROR: must specify DOCKER_IMAGE_TAG, the image tag for docker images other than cilium." >&2
+if [[ -z ${OPERATOR_IMAGE_REF:-} ]]; then
+  echo "ERROR: must specify OPERATOR_IMAGE_REF, reference for cilium operator image." >&2
   exit 1
 fi
 
@@ -52,63 +57,51 @@ if [[ -z ${PATCH_CONTENT_DIR:-} ]]; then
   exit 1
 fi
 
-# Cilium image built by internal target have a suffix as -dpv2, see details in
-# https://source.corp.google.com/h/gke-internal/third_party/cilium/+/master:Makefile.docker.google;l=47;drc=6f2df58eb047ac3ff455fe3930c0a90f8ed8a949
-if [[ -z ${CILIUM_DOCKER_IMAGE_TAG:-} ]]; then
-  echo "ERROR: must specify CILIUM_DOCKER_IMAGE_TAG, the image tag for cilium docker images. In google:cilium the cilium image built by internal target have a suffix as -dpv2."
-  exit 1
-fi
-
 echo "RUN_ID                  = ${RUN_ID}"
 echo "CREATE_NAMESPACE        = ${CREATE_NAMESPACE}"
 echo "CREATE_GCR_SECRET       = ${CREATE_GCR_SECRET}"
 echo "BMCTL_VERSION           = ${BMCTL_VERSION}"
-echo "ADDON_CONFIG_BUCKET_URL = ${ADDON_CONFIG_BUCKET_URL}"
-echo "ADDON_CONFIG_NAME       = ${ADDON_CONFIG_NAME}"
-echo "IMAGE_REGISTRY          = ${IMAGE_REGISTRY}"
-echo "DOCKER_IMAGE_TAG        = ${DOCKER_IMAGE_TAG}"
+echo "ADDON_CONFIG_URL        = ${ADDON_CONFIG_URL}"
+echo "CILIUM_IMAGE_REF        = ${CILIUM_IMAGE_REF}"
+echo "OPERATOR_IMAGE_REF      = ${OPERATOR_IMAGE_REF}"
 echo "WORKDIR                 = ${WORKDIR}"
 
 # Function to update the image for operator.yaml
 function update_operator_image {
-  local registry="${1:?}"
-  local tag="${2:?}"
-  local generated_content_tmp_dir="${3:?}"
-  generated_operator_yaml=${generated_content_tmp_dir}/$(find "${generated_content_tmp_dir}"/ -name '*anet-operator*' | sed "s/.*\///")
-  local image="${registry}/cilium/operator-generic:${tag}"
-  export image
+  local image="${1:?}"
+  local tmp_dir="${2:?}"
+  generated_operator_yaml=${tmp_dir}/$(find "${tmp_dir}"/ -name '*anet-operator*' | sed "s/.*\///")
+  env image="${image}" \
   yq -i '(.spec.template.spec.containers[] | select(.name=="cilium-operator") | .image) = strenv(image)' "${generated_operator_yaml}"
 }
 
 # Function to update the image for anet.yaml
 function update_cilium_image {
-  local registry="${1:?}"
-  local tag="${2:?}"
-  local generated_content_tmp_dir="${3:?}"
-  generated_anet_yaml=${generated_content_tmp_dir}/$(find "${generated_content_tmp_dir}"/ -name '*anetd*' | sed "s/.*\///")
-  local image="${registry}/cilium/cilium:${tag}"
-  export image
-  yq -i '(.spec.template.spec.containers[] | select(.image=="*/cilium/cilium:*") | .image) = strenv(image)' "${generated_anet_yaml}"
-  yq -i '(.spec.template.spec.initContainers[] | select(.image=="*/cilium/cilium:*") | .image) = strenv(image)' "${generated_anet_yaml}"
+  local image="${1:?}"
+  local tmp_dir="${2:?}"
+  generated_anet_yaml=${tmp_dir}/$(find "${tmp_dir}"/ -name '*anetd*' | sed "s/.*\///")
+  env image="${image}" \
+  yq -i '(.spec.template.spec.containers[] | select(.image=="*/cilium/cilium:*") | .image) = strenv(image)
+  | (.spec.template.spec.initContainers[] | select(.image=="*/cilium/cilium:*") | .image) = strenv(image)' "${generated_anet_yaml}"
 }
 
 # Function to update the cluster name & id in cilium config
 function update_cilium_cluster_name_id {
-  local cluster_id="${1:-}"
-  if [[ -n "${cluster_id}" ]]; then
-    local generated_content_tmp_dir="${2:?}"
-    generated_configmap_yaml=${generated_content_tmp_dir}/$(find "${generated_content_tmp_dir}"/ -name '*cilium-config*' | sed "s/.*\///")
-    export cluster_name_suffix="-${cluster_id}"
-    export cluster_id
-    yq -i '.data.cluster-id = strenv(cluster_id)' "${generated_configmap_yaml}"
-    yq -i '.data.cluster-name += strenv(cluster_name_suffix)' "${generated_configmap_yaml}"
+  local cluster_id="${1:?}"
+  local tmp_dir="${2:?}"
+  generated_configmap_yaml=${tmp_dir}/$(find "${tmp_dir}"/ -name '*cilium-config*' | sed "s/.*\///")
+
+  if yq -e '.data.cluster-id and .data.cluster-name' "${generated_configmap_yaml}" > /dev/null; then
+    env \
+    cluster_id="${cluster_id}" \
+    cluster_name_suffix="-${cluster_id}" \
+    yq -i '.data.cluster-id = strenv(cluster_id) | .data.cluster-name += strenv(cluster_name_suffix)' "${generated_configmap_yaml}"
   fi
 }
 
 # Function to attach generated secret to the given sa config.
 function attach_sa_secret {
   local gcr_secret_name="${1:?}"
-  export gcr_secret_name
   local original_sa_config_path="${2:?}"
   local updated_sa_config_path="${3:?}"
 
@@ -116,6 +109,7 @@ function attach_sa_secret {
     cp "${original_sa_config_path}" "${updated_sa_config_path}"
   fi
 
+  env gcr_secret_name="${gcr_secret_name}" \
   yq -i '( .imagePullSecrets += [{"name": strenv(gcr_secret_name)}])' "${updated_sa_config_path}"
 }
 
@@ -124,15 +118,15 @@ function generate_addon_config {
   local addon_config_path="${1:?}"
   local namespace="${2:?}"
   local patch_content_dir="${3:?}"
-  local generated_content_tmp_dir="${4:?}"
-  export namespace
+  local tmp_dir="${4:?}"
+  env namespace="${namespace}" \
   yq '
   .metadata.name = strenv(RUN_ID) |
   .metadata.namespace = strenv(namespace) |
   .spec.anthosBareMetalVersions[0] = env(BMCTL_VERSION)
 ' "${SCRIPT_DIR}"/addon/configuration.yaml >"${addon_config_path}"
 
-  for file in "${generated_content_tmp_dir}"/*.yaml; do
+  for file in "${tmp_dir}"/*.yaml; do
     if [[ -f "${file}" ]]; then
       api_version=$(yq '.apiVersion' "${file}")
       export api_version
@@ -201,17 +195,16 @@ function generate_complete_addon_config {
   local patch_content_dir="${2:?}"
   local create_namespace="${3:?}"
   local create_gcr_secret="${4:?}"
-  local image_registry="${5:?}"
-  local docker_image_tag="${6:?}"
-  local cilium_docker_image_tag="${7:?}"
+  local cilium_image_ref="${5:?}"
+  local operator_image_ref="${6:?}"
   # addon_config_name is the actually name of the file being uploaded to gcs.
-  local addon_config_name="${8:?}"
-  local namespace_name="${9:?}"
-  local cluster_id="${10:-}"
-  local generated_content_tmp_dir
+  local addon_config_name="${7:?}"
+  local namespace_name="${8:?}"
+  local cluster_id="${9:-}"
+  local tmp_dir
 
-  generated_content_tmp_dir="$(mktemp -d -t generated_content.XXXXX)"
-  trap 'rm -r "${generated_content_tmp_dir}"; trap - RETURN' RETURN
+  tmp_dir="$(mktemp -d -t generated_content.XXXXX)"
+  trap 'rm -r "${tmp_dir}"; trap - RETURN' RETURN
 
   local namespace_config_path=${generated_config_dir}/addon_configuration_namespace.yaml
   local addon_configuration_only_path=${generated_config_dir}/addon_configuration.yaml
@@ -220,36 +213,37 @@ function generate_complete_addon_config {
 
   # Process content for addon configurations.
   if [[ -n $(find "${PATCH_CONTENT_DIR}" -name "kustomization*") ]]; then
-    kubectl kustomize "${patch_content_dir}" -o "${generated_content_tmp_dir}"/
+    kubectl kustomize "${patch_content_dir}" -o "${tmp_dir}"/
     # Delete the generated placeholder var file.
-    find "${generated_content_tmp_dir}"/ -name 'default_v1_configmap_vars-*' -delete
+    find "${tmp_dir}"/ -name 'default_v1_configmap_vars-*' -delete
   else
-    cp "${PATCH_CONTENT_DIR}"/* "${generated_content_tmp_dir}"/
+    cp "${PATCH_CONTENT_DIR}"/* "${tmp_dir}"/
   fi
 
-  update_operator_image "${image_registry}" "${docker_image_tag}" "${generated_content_tmp_dir}"
-  update_cilium_image "${image_registry}" "${cilium_docker_image_tag}" "${generated_content_tmp_dir}"
-  update_cilium_cluster_name_id "${cluster_id}" "${generated_content_tmp_dir}"
+  update_operator_image "${operator_image_ref}" "${tmp_dir}"
+  update_cilium_image "${cilium_image_ref}" "${tmp_dir}"
+  update_cilium_cluster_name_id "${cluster_id}" "${tmp_dir}"
   if [[ ${create_gcr_secret} = true ]]; then
-    generated_serviceaccount_yaml=$(find "${generated_content_tmp_dir}"/ -name '*serviceaccount*')
+    generated_serviceaccount_yaml=$(find "${tmp_dir}"/ -name '*serviceaccount*')
     if [[ -n ${generated_serviceaccount_yaml} ]]; then
       attach_sa_secret "${gcr_secret_name}" "${generated_serviceaccount_yaml}" "${generated_serviceaccount_yaml}"
     fi
   fi
-  generate_addon_config "${addon_configuration_only_path}" "${namespace_name}" "${patch_content_dir}" "${generated_content_tmp_dir}"
+  generate_addon_config "${addon_configuration_only_path}" "${namespace_name}" "${patch_content_dir}" "${tmp_dir}"
 
   # Remove full addon config if it already exists.
   if [[ -f "${addon_config_name}" ]]; then
     rm "${addon_config_name}"
   fi
 
+  cat "${addon_configuration_only_path}" >"${addon_config_name}"
   # Only baremetal-gke need namespace config.
   if [[ ${create_namespace} = true ]]; then
     # Process the namespace config
     generate_namespace_config "${namespace_config_path}" "${namespace_name}"
     # Merge the two configurations, print them one by one to ensure the
     # namespace is created before the addon config.
-    awk 'FNR==1{print "---"}{print}' "${namespace_config_path}" "${addon_configuration_only_path}" | sed '1d' >>"${addon_config_name}"
+    awk 'FNR==1{print "---"}{print}' "${namespace_config_path}" "${addon_configuration_only_path}" | sed '1d' >"${addon_config_name}"
   fi
 
   if [[ ${create_gcr_secret} = true ]]; then
@@ -261,7 +255,7 @@ function generate_complete_addon_config {
     # Attach secret to cilium-operator sa.
     attach_sa_secret "${gcr_secret_name}" "${SCRIPT_DIR}/addon/cilium_operator_serviceaccount.yaml" "${generated_config_dir}/updated_cilium_operator_serviceaccount.yaml"
     # Combine yaml files in order
-    awk 'FNR==1{print "---"}{print}' "${gcr_secret_config_path}" "${generated_config_dir}/updated_default_serviceaccount.yaml" "${generated_config_dir}/updated_cilium_operator_serviceaccount.yaml" "${addon_configuration_only_path}" | sed '1d' >>"${addon_config_name}"
+    awk 'FNR==1{print "---"}{print}' "${gcr_secret_config_path}" "${generated_config_dir}/updated_default_serviceaccount.yaml" "${generated_config_dir}/updated_cilium_operator_serviceaccount.yaml" "${addon_configuration_only_path}" | sed '1d' >"${addon_config_name}"
   fi
 }
 
@@ -269,10 +263,10 @@ function generate_complete_addon_config {
 
 rm -rf "${GENERATED_CONFIGS_DIR}"
 mkdir -p "${GENERATED_CONFIGS_DIR}"
-cluster_namespace="${CLUSTER_NAMESPACE:-"cluster-${RUN_ID}-cluster"}"
-cluster_id=${CLUSTER_ID:-""}
 
-generate_complete_addon_config "${GENERATED_CONFIGS_DIR}" "${PATCH_CONTENT_DIR}" "${CREATE_NAMESPACE}" "${CREATE_GCR_SECRET}" "${IMAGE_REGISTRY}" "${DOCKER_IMAGE_TAG}" "${CILIUM_DOCKER_IMAGE_TAG}" "${WORKDIR}/${ADDON_CONFIG_NAME}" "${cluster_namespace}" "${cluster_id}"
+local_addon_config_path="${WORKDIR}/$(basename "${ADDON_CONFIG_URL}")"
+
+generate_complete_addon_config "${GENERATED_CONFIGS_DIR}" "${PATCH_CONTENT_DIR}" "${CREATE_NAMESPACE}" "${CREATE_GCR_SECRET}" "${CILIUM_IMAGE_REF}" "${OPERATOR_IMAGE_REF}" "${local_addon_config_path}" "${CLUSTER_NAMESPACE}" "${CLUSTER_ID}"
 
 # Push the configuration to gcs bucket.
-gcloud storage cp "${WORKDIR}/${ADDON_CONFIG_NAME}" "${ADDON_CONFIG_BUCKET_URL}/${ADDON_CONFIG_NAME}"
+gcloud storage cp "${local_addon_config_path}" "${ADDON_CONFIG_URL}"

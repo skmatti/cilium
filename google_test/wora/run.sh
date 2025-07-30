@@ -94,10 +94,15 @@ CLUSTER_REFS=$(calculate_cluster_refs "${CLUSTER_ARTIFACTS}")
 WORA_ARTIFACTS="${ARTIFACTS}/wora"
 ARTIFACTS_BASE="${ARTIFACTS}"
 
+function unsetResourceVars() {
+  unset HTTP_PROXY
+  unset HTTPS_PROXY
+  unset KUBECONFIG
+}
+
 # unset proxy environment variables, so it wouldn't mess up with gcloud
 # interactions.
-unset HTTP_PROXY
-unset HTTPS_PROXY
+unsetResourceVars
 
 # Upload-external-clusters name should match namePrefix in WORA yaml. Because
 # test is going to have its own junit.xml, suppress kt2 junit generation.
@@ -136,5 +141,32 @@ function check_junit_files_for_errors() {
     done
   done
 }
+
+check_junit_files_for_errors
+
+if [[ "${IS_MULTISTAGE:-false}" != "true" ]]; then
+  exit 0
+fi
+
+echo "INFO: Multistage testing requested, updating cluster to desired Cilium version."
+
+unsetResourceVars
+
+ARTIFACTS_BASE="${ARTIFACTS_BASE}" \
+TARGET_ADDON_CONFIG="${MULTISTAGE_ADDON_CONFIG_GSPATH:-}" \
+"$(dirname -- "${BASH_SOURCE[0]}")"/multistage/infra.sh
+
+echo "INFO: Cilium updated, running tests again."
+ARTIFACTS_BASE="${ARTIFACTS_BASE}" \
+ARTIFACTS="${WORA_ARTIFACTS}/phase2" \
+  kubetest2-tailorbird \
+  --verbose \
+  --run-id="${TEST_RUN_ID}" \
+  --tbenv="${TBENV:?}" \
+  --tbconfig="${WORA_CONFIG:?}" \
+  --upload-external-clusters="${CLUSTER_REFS}" \
+  --client-polling-interval=90s \
+  --up \
+  --down
 
 check_junit_files_for_errors
