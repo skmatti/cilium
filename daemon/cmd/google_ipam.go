@@ -21,6 +21,7 @@ func (d *Daemon) UpdateMultiNetworkIPAMAllocators(annotations map[string]string)
 	if !ok {
 		return nil
 	}
+	log.Infof("Updating multi network IPAM allocators with node annotation: %s", mns)
 	nws, err := types.BuildMultiNetworkCIDRs(mns)
 	if err != nil {
 		return err

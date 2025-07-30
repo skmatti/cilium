@@ -454,12 +454,12 @@ func (r *NetworkReconciler) handleNodeEvent(ctx context.Context, event resource.
 	var err error
 	nodeFromEvent := event.Object
 	if r.lastNode != nil && !nodeAnnotationsUpdated(r.lastNode, nodeFromEvent) {
-		r.Log.Infof("No annotations updated, ignoring node event")
-		return err
+		r.Log.Infof("No annotations updated, ignoring node event. existing networks annotations: %s", nodeFromEvent.Annotations[networkv1.MultiNetworkAnnotationKey])
+		return nil
 	}
 	r.Log.Infof("Node annotations changed from recent event, proceeding with networks reconciliation")
 	// Parse the annotations on the node and extract the networks to reconcile on.
-	nws := mapNodeToNetwork(ctx, event.Object)
+	nws := mapNodeToNetwork(ctx, nodeFromEvent)
 	var rerrs []error
 	for _, nw := range nws {
 		if err := r.reconcile(ctx, nw); err != nil {
@@ -470,7 +470,7 @@ func (r *NetworkReconciler) handleNodeEvent(ctx context.Context, event resource.
 		err = fmt.Errorf("error while reconciling one or more networks on node: %s", r.NodeName)
 	} else {
 		// update local node copy with node from latest event
-		r.lastNode = nodeFromEvent
+		r.lastNode = nodeFromEvent.DeepCopy()
 	}
 	return err
 }
