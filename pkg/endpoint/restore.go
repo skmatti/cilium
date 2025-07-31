@@ -630,6 +630,11 @@ func (ep *Endpoint) fromSerializedEndpoint(r *serializableEndpoint) {
 		ep.properties = map[string]interface{}{}
 	}
 	ep.NetNsCookie = r.NetnsCookie
+	// The 'containerIfName' field replaces the old 'ifNameInPod' field.
+	// When restoring, we first check for the new field. If it's empty,
+	// we fall back to the old 'IfNameInPod' field to ensure we can
+	// restore endpoints created by older Cilium versions.
+	ep.containerIfName = r.ContainerIfName
 	if ep.containerIfName == "" {
 		ep.containerIfName = r.IfNameInPod
 	}
