@@ -13,11 +13,12 @@ import (
 	v1 "github.com/cilium/cilium/pkg/k8s/slim/k8s/api/core/v1"
 	"github.com/cilium/cilium/pkg/k8s/watchers"
 	"github.com/stretchr/testify/require"
-	ipamv1alpha1 "gke-internal.googlesource.com/anthos-networking/ipam-controller/api/v1alpha1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/utils/pointer"
+
+	ipamv1alpha1 "gke-internal.googlesource.com/anthos-networking/ipam-controller/api/v1alpha1"
 )
 
 func TestCreateEndpointQueueConsul(t *testing.T) {
@@ -265,5 +266,9 @@ func (m *mockMultiNICClient) GetGKENetworkParamSet(ctx context.Context, ref *net
 }
 
 func (m *mockMultiNICClient) GetClusterCIDRConfigForNetwork(ctx context.Context, nwName string) (*ipamv1alpha1.ClusterCIDRConfig, error) {
+	return nil, nil
+}
+
+func (c *mockMultiNICClient) GetNetworkDevices(ctx context.Context) ([]string, error) {
 	return nil, nil
 }

@@ -29,6 +29,7 @@ import (
 	"github.com/cilium/cilium/pkg/datapath/tables"
 	datapath "github.com/cilium/cilium/pkg/datapath/types"
 	"github.com/cilium/cilium/pkg/defaults"
+	multinicclients "github.com/cilium/cilium/pkg/gke/multinic/clients"
 	multinicep "github.com/cilium/cilium/pkg/gke/multinic/endpoint"
 	iputil "github.com/cilium/cilium/pkg/ip"
 	"github.com/cilium/cilium/pkg/lock"
@@ -94,6 +95,10 @@ type loader struct {
 	compilationLock datapath.CompilationLock
 	configWriter    datapath.ConfigWriter
 	nodeHandler     datapath.NodeHandler
+
+	// client used to query and update Network and NetworkInterface resources
+	// when multinic is enabled
+	GoogleMultinicClient multinicclients.MultiNetworkHelperClient
 }
 
 type Params struct {
@@ -105,6 +110,9 @@ type Params struct {
 	CompilationLock datapath.CompilationLock
 	ConfigWriter    datapath.ConfigWriter
 	NodeHandler     datapath.NodeHandler
+
+	// google specific variables
+	GoogleMultinicClient multinicclients.MultiNetworkHelperClient
 }
 
 // newLoader returns a new loader.
@@ -118,6 +126,9 @@ func newLoader(p Params) *loader {
 		compilationLock:   p.CompilationLock,
 		configWriter:      p.ConfigWriter,
 		nodeHandler:       p.NodeHandler,
+
+		// google specific variables
+		GoogleMultinicClient: p.GoogleMultinicClient,
 	}
 }
 
@@ -229,7 +240,7 @@ func (l *loader) patchHostNetdevDatapath(ep datapath.Endpoint, ifName string) (m
 	return opts, strings, nil
 }
 
-func isObsoleteDev(dev string, devices []string) bool {
+func isObsoleteDev(dev string, devices []string, networkDevices []string) bool {
 	// exclude devices we never attach to/from_netdev to.
 	for _, prefix := range defaults.ExcludedDevicePrefixes {
 		if strings.HasPrefix(dev, prefix) {
@@ -239,6 +250,13 @@ func isObsoleteDev(dev string, devices []string) bool {
 
 	// exclude devices that will still be managed going forward.
 	for _, d := range devices {
+		if dev == d {
+			return false
+		}
+	}
+
+	// exclude devices that are part of the network devices.
+	for _, d := range networkDevices {
 		if dev == d {
 			return false
 		}
@@ -257,7 +275,7 @@ func isObsoleteDev(dev string, devices []string) bool {
 // before 1.13, most filters were named e.g. bpf_host.o:[to-host], to be changed to
 // cilium-<device> in 1.13, then to cil_to_host-<device> in 1.14. As a result, this
 // function only cleans up filters following the current naming scheme.
-func removeObsoleteNetdevPrograms(devices []string) error {
+func removeObsoleteNetdevPrograms(devices []string, networkDevices []string) error {
 	links, err := safenetlink.LinkList()
 	if err != nil {
 		return fmt.Errorf("retrieving all netlink devices: %w", err)
@@ -267,7 +285,7 @@ func removeObsoleteNetdevPrograms(devices []string) error {
 	ingressDevs := []netlink.Link{}
 	egressDevs := []netlink.Link{}
 	for _, l := range links {
-		if !isObsoleteDev(l.Attrs().Name, devices) {
+		if !isObsoleteDev(l.Attrs().Name, devices, networkDevices) {
 			continue
 		}
 
@@ -444,9 +462,17 @@ func (l *loader) reloadHostDatapath(ep datapath.Endpoint, spec *ebpf.CollectionS
 		}
 	}
 
+	var networkDevices []string
+	if l.GoogleMultinicClient != nil {
+		networkDevices, err = l.GoogleMultinicClient.GetNetworkDevices(context.Background())
+		if err != nil {
+			return err
+		}
+	}
+
 	// call at the end of the function so that we can easily detect if this removes necessary
 	// programs that have just been attached.
-	if err := removeObsoleteNetdevPrograms(devices); err != nil {
+	if err := removeObsoleteNetdevPrograms(devices, networkDevices); err != nil {
 		log.WithError(err).Error("Failed to remove obsolete netdev programs")
 	}
 

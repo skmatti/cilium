@@ -28,11 +28,14 @@ import (
 	k8sClient "github.com/cilium/cilium/pkg/k8s/client"
 	"github.com/cilium/cilium/pkg/k8s/resource"
 	slimv1 "github.com/cilium/cilium/pkg/k8s/slim/k8s/api/core/v1"
-	ipamversioned "gke-internal.googlesource.com/anthos-networking/ipam-controller/api/client/clientset/versioned"
-	ipamv1alpha1 "gke-internal.googlesource.com/anthos-networking/ipam-controller/api/v1alpha1"
+	"github.com/cilium/cilium/pkg/node"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	v1 "k8s.io/client-go/applyconfigurations/core/v1"
+
+	anutils "gke-internal.googlesource.com/anthos-networking/apis/v2/utils"
+	ipamversioned "gke-internal.googlesource.com/anthos-networking/ipam-controller/api/client/clientset/versioned"
+	ipamv1alpha1 "gke-internal.googlesource.com/anthos-networking/ipam-controller/api/v1alpha1"
 )
 
 // MultiNetworkHelperClient interface defines the methods useful for multinetwork resources handling.
@@ -57,6 +60,9 @@ type MultiNetworkHelperClient interface {
 
 	// GetClusterCIDRConfigForNetwork fetches the clusterCIDRCofig based on the Network.
 	GetClusterCIDRConfigForNetwork(ctx context.Context, nwName string) (*ipamv1alpha1.ClusterCIDRConfig, error)
+
+	// Get Devices attached to networks
+	GetNetworkDevices(ctx context.Context) ([]string, error)
 }
 
 // MultiNetworkHelperClientImpl is an implementation of the MultiNetworkHelperClient interface
@@ -178,4 +184,33 @@ func (c *MultiNetworkHelperClientImpl) GetGKENetworkParamSet(ctx context.Context
 		return nil, fmt.Errorf("gkenetworkparamset %s/%s not found: %v", *ref.Namespace, ref.Name, err)
 	}
 	return gnp, nil
+}
+
+func refersToGNP(nw *networkv1.Network) bool {
+	ref := nw.Spec.ParametersRef
+	if ref == nil {
+		return false
+	}
+	return ref.Group == networkv1.GroupName && strings.EqualFold(ref.Kind, "gkenetworkparamset")
+}
+
+func (c *MultiNetworkHelperClientImpl) GetNetworkDevices(ctx context.Context) ([]string, error) {
+	devices := []string{}
+	nwStore, err := c.Networks.Store(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get network store: %w", err)
+	}
+	networks := nwStore.List()
+	for _, nw := range networks {
+		// Skipping networks with paramset pointing to GKENetworkParamset.
+		if refersToGNP(nw) {
+			continue
+		}
+		ifName, _, err := anutils.InterfaceInfo(nw, node.GetAnnotations())
+		if err != nil {
+			continue
+		}
+		devices = append(devices, ifName)
+	}
+	return devices, nil
 }
