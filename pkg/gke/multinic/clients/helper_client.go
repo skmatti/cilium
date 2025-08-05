@@ -147,7 +147,7 @@ func (c *MultiNetworkHelperClientImpl) PatchNetworkInterfaceAnnotations(ctx cont
 		return fmt.Errorf("failed to marshal network interface annotations: %v", err)
 	}
 	patch := fmt.Sprintf(`{"metadata":{"annotations":%s}}`, raw)
-	_, err = c.NWClient.NetworkingV1().NetworkInterfaces(obj.Namespace).Patch(ctx, intf.Name, types.StrategicMergePatchType, []byte(patch), metav1.PatchOptions{})
+	_, err = c.NWClient.NetworkingV1().NetworkInterfaces(obj.Namespace).Patch(ctx, intf.Name, types.MergePatchType, []byte(patch), metav1.PatchOptions{})
 	return err
 }
 
