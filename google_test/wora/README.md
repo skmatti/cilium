@@ -49,8 +49,7 @@ There are several configurations defined:
 1. `sut-abm-gce.yaml` (default): ABM on GCE.
 2. `sut-abm-atl.yaml`: ABM on vSphere (in the ATL lab).
 3. `sut-abm-mtv.yaml`: ABM on vSphere (in the MTV lab).
-4. `sut-gdce.yaml`: GDCE staging.
-5. `sut-gke.yaml`: GKE (with nightly build of the advanced datapath component).
+4. `sut-gke.yaml`: GKE (with nightly build of the advanced datapath component).
 
 `WORA_BASE_IMAGE_TAG`: Image tag for the application plugin base image. Test
 binaries are added to this image to create the application plugin image used for
@@ -83,8 +82,7 @@ below).
 
 There are currently periodic and presubmit jobs defined [here][ciliumprowjobs].
 
-[ciliumprowjobs]:
-  https://source.corp.google.com/h/gke-internal/codesearch/+/master:test-infra/prow/gob/config/gke-internal-review.googlesource.com/third_party/cilium/gke-internal_cilium.yaml
+[ciliumprowjobs]: https://source.corp.google.com/h/gke-internal/codesearch/+/master:test-infra/prow/gob/config/gke-internal-review.googlesource.com/third_party/cilium/gke-internal_cilium.yaml
 
 ### Periodic jobs
 
@@ -98,31 +96,19 @@ The following jobs are currently running periodically and displayed on TestGrid:
    the ATL lab, using a locally-built version of Cilium.
 4. [wora-abm-mtv_cilium][]: General end-to-end test suite on ABM on vSphere in
    the MTV lab, using a locally-built version of Cilium.
-5. [wora-gdce_cilium][]: General end-to-end test suite on GDCE staging, using a
-   locally-built version of Cilium.
-6. [wora-conformance-gdce_cilium][]: Kubernetes conformance test suite on GDCE
-   staging, using a locally-built version of Cilium.
-7. [wora-gke_cilium][]: General end-to-end test suite on GKE, using a nightly
+5. [wora-gke_cilium][]: General end-to-end test suite on GKE, using a nightly
    build of the GKE advanced datapath component.
-8. [wora-conformance-gke_cilium][]: Kubernetes conformance test suite on GKE,
+6. [wora-conformance-gke_cilium][]: Kubernetes conformance test suite on GKE,
    using a nightly build of the GKE advanced datapath component.
 
 > Note: The first six jobs above set `CILIUM_GITREF=v1.13-anthos1.28`.
 
-[wora-abm-gce_cilium]:
-  https://testgrid.corp.google.com/cilium#wora-abm-gce_cilium
-[wora-conformance-abm-gce_cilium]:
-  https://testgrid.corp.google.com/cilium#wora-conformance-abm-gce_cilium
-[wora-abm-atl_cilium]:
-  https://testgrid.corp.google.com/cilium#wora-abm-atl_cilium
-[wora-abm-mtv_cilium]:
-  https://testgrid.corp.google.com/cilium#wora-abm-mtv_cilium
-[wora-gdce_cilium]: https://testgrid.corp.google.com/cilium#wora-gdce_cilium
-[wora-conformance-gdce_cilium]:
-  https://testgrid.corp.google.com/cilium#wora-conformance-gdce_cilium
+[wora-abm-gce_cilium]: https://testgrid.corp.google.com/cilium#wora-abm-gce_cilium
+[wora-conformance-abm-gce_cilium]: https://testgrid.corp.google.com/cilium#wora-conformance-abm-gce_cilium
+[wora-abm-atl_cilium]: https://testgrid.corp.google.com/cilium#wora-abm-atl_cilium
+[wora-abm-mtv_cilium]: https://testgrid.corp.google.com/cilium#wora-abm-mtv_cilium
 [wora-gke_cilium]: https://testgrid.corp.google.com/cilium#wora-gke_cilium
-[wora-conformance-gke_cilium]:
-  https://testgrid.corp.google.com/cilium#wora-conformance-gke_cilium
+[wora-conformance-gke_cilium]: https://testgrid.corp.google.com/cilium#wora-conformance-gke_cilium
 
 ### Presubmit jobs
 
@@ -140,16 +126,10 @@ comments:
    MTV lab.
 6. `/test wora-conformance-abm-mtv`: Kubernetes conformance test suite on ABM on
    GCE.
-7. `/test wora-gdce`: General end-to-end test on GDCE staging. This job builds
-   Cilium from the `v1.12.6-anthos1.15-gke4.2` branch, matching the Cilium
-   branch currently used in GDCE staging.
-8. `/test wora-conformance-gdce`: General end-to-end test on GDCE staging. This
-   job builds Cilium from the `v1.12.6-anthos1.15-gke4.2` branch, matching the
-   Cilium branch currently used in GDCE staging.
-9. `/test wora-gke`: General end-to-end test suite on GKE, using a nightly build
+7. `/test wora-gke`: General end-to-end test suite on GKE, using a nightly build
    of the GKE advanced datapath component.
-10. `/test wora-conformance-gke`: Kubernetes conformance test suite on GKE,
-    using a nightly build of the GKE advanced datapath component.
+8. `/test wora-conformance-gke`: Kubernetes conformance test suite on GKE,
+   using a nightly build of the GKE advanced datapath component.
 
 > Note: Jobs 1–6 above skip the Cilium build. This is due to a bug building
 > Cilium from `HEAD` on `master` ([b/327440595][]). Jobs that build Cilium from
@@ -172,8 +152,7 @@ Other variables may be set as described in
 You can also add `RUN_DOWN=false` to suppress SUT termination at the end. This
 allows multiple runs with same SUT.
 
-[cilium]:
-  https://gke-internal-review.git.corp.google.com/admin/repos/third_party/cilium
+[cilium]: https://gke-internal-review.git.corp.google.com/admin/repos/third_party/cilium
 
 ## References
 
@@ -181,12 +160,8 @@ allows multiple runs with same SUT.
 - [Project page][project].
 
 [b/327440595]: https://b.corp.google.com/issues/327440595
-[ciliumwora]:
-  https://source.corp.google.com/h/gke-internal/third_party/cilium/+/master:google_test/wora/
-[design]:
-  https://goto.google.com/anthos-networking-e2e-test-infrastructure-design
+[ciliumwora]: https://source.corp.google.com/h/gke-internal/third_party/cilium/+/master:google_test/wora/
+[design]: https://goto.google.com/anthos-networking-e2e-test-infrastructure-design
 [project]: https://goto.google.com/asmg-anthos-networking-ci-project
-[prototype]:
-  https://source.corp.google.com/h/team/tailorbird-team/tailorbird/+/master:tests/e2e/wora/
-[worabase]:
-  https://source.corp.google.com/h/gke-internal/anthos-networking/+/main:test-infra/anthos-networking-test-workloads/
+[prototype]: https://source.corp.google.com/h/team/tailorbird-team/tailorbird/+/master:tests/e2e/wora/
+[worabase]: https://source.corp.google.com/h/gke-internal/anthos-networking/+/main:test-infra/anthos-networking-test-workloads/

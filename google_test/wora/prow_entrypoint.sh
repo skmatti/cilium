@@ -154,7 +154,7 @@ function num_clusters {
 PLATFORM=$(cluster_platform "${TBCONFIG}")
 
 # Remove proxy env on platforms where it is not supported.
-if [[ ${PLATFORM} = gdce-gke ]] || [[ ${PLATFORM} = gcp-gke ]]; then
+if [[ ${PLATFORM} = gcp-gke ]]; then
   remove_env "${WORA_CONFIG}" HTTPS_PROXY HTTP_PROXY
 fi
 
@@ -215,18 +215,6 @@ case "${PLATFORM}" in
       WORKDIR="${ROOT}/${WORKDIR}" \
       CILIUM_GITREF="${CILIUM_GITREF:-}" \
       "${ROOT}/provision_abm.sh"
-    ;;
-  gdce-gke)
-    working_copy "${ROOT}/gdce_plugin_template.yaml" "${ROOT}/${WORKDIR}"
-    ABSOLUTE_PATH_TBCONFIG="${TBCONFIG}" \
-      ADDON_CONFIG_NAME="${ADDON_CONFIG_NAME}" \
-      ADDON_CONFIG_BUCKET_URL="${ADDON_CONFIG_BUCKET_URL}" \
-      IMAGE_REGISTRY="${IMAGE_REGISTRY}" \
-      DOCKER_IMAGE_TAG="${DOCKER_IMAGE_TAG}" \
-      CILIUM_DOCKER_IMAGE_TAG="${CILIUM_DOCKER_IMAGE_TAG}" \
-      WORKDIR="${ROOT}/${WORKDIR}" \
-      CILIUM_GITREF="${CILIUM_GITREF:-}" \
-      "${ROOT}/provision_gdce.sh"
     ;;
   gcp-gke)
     make -C "${ROOT}" \
