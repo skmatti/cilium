@@ -1,6 +1,7 @@
 resources:
 - ../../image-only-templates
 - gdch-cilium-config-lancer.yaml
+- gdch-coredns-template.yaml
 
 patchesStrategicMerge:
   - overwrite-patch.yaml
