@@ -614,6 +614,16 @@ func (cmd *Cmd) Add(args *skel.CmdArgs) (err error) {
 			if err != nil {
 				return fmt.Errorf("unable to set up veth on host side: %w", err)
 			}
+
+			// b/437135099: To support custom default route in Multi-networking, lxc needs to be assgined a IP otherwise ARPs will be
+			// dropped by rp_filter. This only applies to GKE, hence use ipamOption.IPAMDelegatedPlugin to enable the change.
+			if conf.IpamMode == ipamOption.IPAMDelegatedPlugin {
+				err = connector.SetLXCVethAddress(cniID, state.HostAddr)
+				if err != nil {
+					return fmt.Errorf("unable to assign IP address to veth: %w", err)
+				}
+			}
+
 			defer func() {
 				if err != nil {
 					if err2 := netlink.LinkDel(veth); err2 != nil {

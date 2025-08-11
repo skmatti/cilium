@@ -1332,3 +1332,17 @@ func populateInterfaceStatus(intf *networkv1.NetworkInterface, network *networkv
 	}
 	return nil
 }
+
+// SetLXCVethAddress sets the given IP address to the LXC veth pair.
+func SetLXCVethAddress(id string, addr *models.NodeAddressing) error {
+	ip := net.ParseIP(addr.IPV4.IP)
+	lxcIfName := Endpoint2IfName(id)
+	link, err := safenetlink.LinkByName(lxcIfName)
+	if err != nil {
+		return fmt.Errorf("failed to find link %s: %w", lxcIfName, err)
+	}
+	if err := netlink.AddrAdd(link, &netlink.Addr{IPNet: &net.IPNet{IP: ip, Mask: net.CIDRMask(32, 32)}}); err != nil {
+		return fmt.Errorf("failed to add address %s to link %s: %w", ip.String(), lxcIfName, err)
+	}
+	return nil
+}
