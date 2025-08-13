@@ -2135,13 +2135,13 @@ ipv4_policy(struct __ctx_buff *ctx, struct iphdr *ip4, int ifindex, __u32 src_la
 
 skip_policy_enforcement:
 	if (ret == CT_NEW) {
-#if defined(ENABLE_NODEPORT) && defined(ENABLE_IPSEC)
+#if defined(ENABLE_NODEPORT) && (defined(ENABLE_IPSEC) || defined(ENABLE_GOOGLE_MULTI_NIC))
 		/* Needed for hostport support, until
 		 * https://github.com/cilium/cilium/issues/32897 is fixed.
 		 */
 		ct_state_new.node_port = ct_has_nodeport_egress_entry4(get_ct_map4(tuple),
 								       tuple, NULL, false);
-#endif /* ENABLE_NODEPORT && ENABLE_IPSEC */
+#endif /* ENABLE_NODEPORT && (ENABLE_IPSEC || ENABLE_GOOGLE_MULTI_NIC) */
 		ct_state_new.src_sec_id = src_label;
 		ct_state_new.from_tunnel = from_tunnel;
 		ct_state_new.proxy_redirect = *proxy_port > 0;
