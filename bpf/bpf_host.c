@@ -782,8 +782,15 @@ handle_ipv4_cont(struct __ctx_buff *ctx, __u32 secctx, const bool from_host,
 	if (!revalidate_data(ctx, &data, &data_end, &ip4))
 		return DROP_INVALID;
 
-	if (ret != HOOK_ACT_CONTINUE)
+	switch (ret) {
+	case HOOK_ACT_SKIP:
+		// TODO: b/438550519
+		goto to_endpoint;
+	case HOOK_ACT_CONTINUE:
+		break;
+	default:
 		return ret;
+	}
 
 	if ((from_host && stage_ctx.stage_ctx.goog_host_ingress_fwd4_ctx.__common.go_to_endpoint) ||
 		(!from_host && stage_ctx.stage_ctx.goog_netdev_ingress_fwd4_ctx.__common.go_to_endpoint))

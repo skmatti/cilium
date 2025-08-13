@@ -79,8 +79,6 @@ int pre_netdev_ingress_fwd4(struct __ctx_buff *ctx,
 		return ret;
 
 	ret = goog_mn_maybe_deliver_to_ep(ctx, &stage_ctx->__common);
-	if (ret == HOOK_ACT_SKIP)
-		return HOOK_ACT_CONTINUE;
 	if (ret != HOOK_ACT_CONTINUE)
 		return ret;
 
@@ -147,8 +145,6 @@ int pre_host_ingress_fwd4(struct __ctx_buff *ctx,
 		return ret;
 
 	ret = goog_mn_maybe_deliver_to_ep(ctx, &stage_ctx->__common);
-	if (ret == HOOK_ACT_SKIP)
-		return HOOK_ACT_CONTINUE;
 	if (ret != HOOK_ACT_CONTINUE)
 		return ret;
 
