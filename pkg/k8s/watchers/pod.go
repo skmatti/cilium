@@ -497,6 +497,10 @@ func (k *K8sPodWatcher) updateK8sPodV1(oldK8sPod, newK8sPod *slim_corev1.Pod) er
 
 			// Synchronize Pod labels with CiliumEndpoint labels if there is a change.
 			updateCiliumEndpointLabels(k.clientset, podEP, newK8sPod.Labels)
+
+			if err = k.multinicEndpointsLabelUpdate(podNSName, oldPodLabels, newPodLabels); err != nil {
+				return err
+			}
 		}
 
 		if annotationsChanged {
@@ -530,6 +534,8 @@ func (k *K8sPodWatcher) updateK8sPodV1(oldK8sPod, newK8sPod *slim_corev1.Pod) er
 				})
 			}
 			realizePodAnnotationUpdate(podEP)
+
+			k.multinicEndpointsAnnotationUpdate(podNSName, annoChangedProxy, annoChangedBandwidth, annoChangedNoTrack)
 		}
 	}
 
