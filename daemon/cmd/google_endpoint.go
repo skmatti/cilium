@@ -246,11 +246,11 @@ func (d *Daemon) createMultiNICEndpoints(ctx context.Context, multiNICWaitCh cha
 		multinicTemplate.PodStackRedirectIfindex = int64(defaultNetInPodIfIndex)
 
 		// netCR is always set, otherwise we error
-		intfCR, netCR, err := d.getInterfaceAndNetworkCR(ctx, &ref, pod)
+		originalIntfCR, netCR, err := d.getInterfaceAndNetworkCR(ctx, &ref, pod)
 		if err != nil {
 			return d.errorDuringMultiNICCreation(primaryEp, PutEndpointIDInvalidCode, fmt.Errorf("failed getting interface and network CR for pod %q: %v", podID, err))
 		}
-
+		intfCR := originalIntfCR.DeepCopy()
 		var netParamsRef client.Object
 		var isDefaultNetInfcTemp bool
 		var skipRouteInstallation bool
@@ -298,7 +298,6 @@ func (d *Daemon) createMultiNICEndpoints(ctx context.Context, multiNICWaitCh cha
 				// context cancellation or time out. This allows the calling function to handle any necessary
 				// cleanup, even if the setup process fails or times out.
 				cleanup = connector.ConstructCleanupFunc(ref.InterfaceName, multinicTemplate.NetworkNamespace, podResources, netCR)
-				originalIntfCR := intfCR.DeepCopy()
 				if err = connector.SetupL2Interface(ctx, ref.InterfaceName, pod.Name, podResources, netCR, intfCR, multinicTemplate, d.dhcpClient, d.ipam); err != nil {
 					if !reflect.DeepEqual(originalIntfCR.Annotations, intfCR.Annotations) {
 						// Patch interface CR annotations via multinicClient

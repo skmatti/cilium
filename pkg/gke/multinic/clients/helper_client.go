@@ -30,7 +30,6 @@ import (
 	slimv1 "github.com/cilium/cilium/pkg/k8s/slim/k8s/api/core/v1"
 	ipamversioned "gke-internal.googlesource.com/anthos-networking/ipam-controller/api/client/clientset/versioned"
 	ipamv1alpha1 "gke-internal.googlesource.com/anthos-networking/ipam-controller/api/v1alpha1"
-	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	v1 "k8s.io/client-go/applyconfigurations/core/v1"
@@ -125,12 +124,7 @@ func (c *MultiNetworkHelperClientImpl) GetNetwork(ctx context.Context, name stri
 }
 
 func (c *MultiNetworkHelperClientImpl) PatchNetworkInterfaceStatus(ctx context.Context, obj *networkv1.NetworkInterface) error {
-	intf, err := c.GetNetworkInterface(ctx, obj.Name, obj.Namespace)
-	if err != nil {
-		return err
-	}
-	intf.Status = *obj.Status.DeepCopy()
-	_, err = c.NWClient.NetworkingV1().NetworkInterfaces(obj.Namespace).UpdateStatus(ctx, intf, metav1.UpdateOptions{})
+	_, err := c.NWClient.NetworkingV1().NetworkInterfaces(obj.Namespace).UpdateStatus(ctx, obj, metav1.UpdateOptions{})
 	return err
 }
 
@@ -152,13 +146,7 @@ func (c *MultiNetworkHelperClientImpl) PatchNetworkInterfaceAnnotations(ctx cont
 }
 
 func (c *MultiNetworkHelperClientImpl) PatchPodAnnotation(ctx context.Context, obj *slimv1.Pod, anno map[string]string) error {
-	pod := &corev1.Pod{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      obj.Name,
-			Namespace: obj.Namespace,
-		},
-	}
-	_, err := c.Clientset.CoreV1().Pods(pod.Namespace).ApplyStatus(ctx, v1.Pod(obj.Name, obj.Namespace).WithAnnotations(anno),
+	_, err := c.Clientset.CoreV1().Pods(obj.Namespace).ApplyStatus(ctx, v1.Pod(obj.Name, obj.Namespace).WithAnnotations(anno),
 		metav1.ApplyOptions{
 			FieldManager: "anetd-multinetwork-helper",
 		})
