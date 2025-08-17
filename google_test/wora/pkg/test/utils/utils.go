@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	gcpnetworkv1 "github.com/GoogleCloudPlatform/gke-networking-api/apis/network/v1"
@@ -19,6 +20,7 @@ import (
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/client-go/kubernetes"
@@ -665,32 +667,40 @@ func WaitForPodDeletion(ctx context.Context, cl k8sclient.Client, podName, names
 	})
 }
 
-func GetRequiredNumberOfNodeIPsByLabel(ctx context.Context, cl k8sclient.Client, labelKey string, requiredNumberOfNodeIPs int) ([]string, error) {
-	if requiredNumberOfNodeIPs <= 0 {
-		return nil, fmt.Errorf("required number of nodeIPs is %v", requiredNumberOfNodeIPs)
+// Node specfies a node name and its IP address.
+type Node struct {
+	Name string
+	IP   string
+}
+
+func GetRequiredNumberOfNodesByLabel(ctx context.Context, cl k8sclient.Client, labelKey string, required int) ([]Node, error) {
+	if required <= 0 {
+		return nil, fmt.Errorf("required number of nodeIPs is %v", required)
 	}
 	nodeList, err := GetNodeListByLabel(ctx, cl, labelKey)
 	if err != nil {
 		return nil, err
 	}
-	var nodeIPs []string
-	currentNodeIPcount := 0
+	var nodes []Node
 	for _, node := range nodeList.Items {
-		if currentNodeIPcount >= requiredNumberOfNodeIPs {
+		idx := slices.IndexFunc(node.Status.Addresses, func(addr corev1.NodeAddress) bool {
+			return addr.Type == corev1.NodeInternalIP
+		})
+		if idx == -1 {
+			continue
+		}
+		nodes = append(nodes, Node{
+			Name: node.Name,
+			IP:   node.Status.Addresses[idx].Address,
+		})
+		if len(nodes) == required {
 			break
 		}
-		for _, address := range node.Status.Addresses {
-			if address.Type == corev1.NodeInternalIP {
-				nodeIPs = append(nodeIPs, address.Address)
-				currentNodeIPcount++
-				break
-			}
-		}
 	}
-	if len(nodeIPs) < requiredNumberOfNodeIPs {
-		return nil, fmt.Errorf("required number of nodes: %v less than available number of nodes: %v with lable: %s", requiredNumberOfNodeIPs, len(nodeIPs), labelKey)
+	if len(nodes) < required {
+		return nil, fmt.Errorf("required number of nodes: %v less than available number of nodes: %v with label: %s", required, len(nodes), labelKey)
 	}
-	return nodeIPs, nil
+	return nodes, nil
 }
 
 func WaitForServiceReadiness(ctx context.Context, c k8sclient.Client, serviceName string, serviceNamespace string, serviceType corev1.ServiceType) error {
@@ -908,7 +918,8 @@ func CreateLBService(ctx context.Context, cl k8sclient.Client, serviceName, serv
 	return CreateService(ctx, cl, service)
 }
 
-func CreateL2Network(ctx context.Context, nc *networkclientset.Clientset, ipamModeExternal gcpnetworkv1.IPAMModeType, networkName, interfaceName, testGateway, testNameServer string) error {
+// CreateL2NetworkAndWaitForReady creates L2 network and waits for it to be ready.
+func CreateL2NetworkAndWaitForReady(ctx context.Context, cl k8sclient.Client, nc *networkclientset.Clientset, ipamModeExternal gcpnetworkv1.IPAMModeType, networkName, interfaceName string) error {
 	networkObject := &gcpnetworkv1.Network{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: networkName,
@@ -916,9 +927,9 @@ func CreateL2Network(ctx context.Context, nc *networkclientset.Clientset, ipamMo
 		Spec: gcpnetworkv1.NetworkSpec{
 			Type:     gcpnetworkv1.L2NetworkType,
 			IPAMMode: &ipamModeExternal,
-			Gateway4: &testGateway,
+			Gateway4: ptr.To("0.0.0.0"),
 			DNSConfig: &gcpnetworkv1.DNSConfig{
-				Nameservers: []string{testNameServer},
+				Nameservers: []string{"0.0.0.0"},
 			},
 			NodeInterfaceMatcher: gcpnetworkv1.NodeInterfaceMatcher{
 				InterfaceName: &interfaceName,
@@ -927,11 +938,40 @@ func CreateL2Network(ctx context.Context, nc *networkclientset.Clientset, ipamMo
 		},
 	}
 
-	_, err := networkutils.CreateNetwork(ctx, nc, networkObject)
-	if apierrors.IsAlreadyExists(err) {
-		klog.Warningf("Network %s already exists, proceeding with validation", networkName)
-	} else if err == nil {
-		klog.Infof("Network %s creation applied successfully", networkName)
+	if _, err := networkutils.CreateNetwork(ctx, nc, networkObject); err != nil {
+		if !apierrors.IsAlreadyExists(err) {
+			return err
+		}
+		klog.Warningf("Network %s already exists", networkName)
 	}
-	return err
+	klog.Infof("Network %s created successfully", networkName)
+
+	return WaitForNetworkReady(ctx, cl, networkName)
+}
+
+func WaitForNetworkReady(ctx context.Context, cl k8sclient.Client, networkName string) error {
+	if err := wait.WaitForSuccessContext(ctx, "Wait for network readiness", wait.WaitingMedium, func(ctx context.Context) error {
+		network := &gcpnetworkv1.Network{}
+		if err := cl.Get(ctx, k8sclient.ObjectKey{Name: networkName}, network); err != nil {
+			if apierrors.IsNotFound(err) {
+				return fmt.Errorf("network %s not found: %w", networkName, wait.ErrNotRetriable)
+			}
+			return fmt.Errorf("failed to get network %s: %v", networkName, err)
+		}
+		if network.Status.Conditions == nil {
+			return fmt.Errorf("network %q has no status conditions yet", network.Name)
+		}
+		condition := meta.FindStatusCondition(network.Status.Conditions, "Ready")
+		if condition == nil {
+			return fmt.Errorf("network %q does not have a Ready condition yet", network.Name)
+		}
+		if condition.Status == metav1.ConditionTrue {
+			return nil
+		}
+		return fmt.Errorf("network %q Ready condition is %s (Reason: %s, Message: %s)",
+			network.Name, condition.Status, condition.Reason, condition.Message)
+	}); err != nil {
+		return fmt.Errorf("failed to wait for network readiness: %v", err)
+	}
+	return nil
 }

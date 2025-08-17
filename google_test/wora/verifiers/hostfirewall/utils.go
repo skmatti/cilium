@@ -8,10 +8,10 @@ import (
 	ciliumlabels "github.com/cilium/cilium/pkg/labels"
 	ciliumapi "github.com/cilium/cilium/pkg/policy/api"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	k8sclient "sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-func applyCCNPWithIngressPolicy(cl k8sclient.Client, policyName string, nodeSelectorIP string, ingressLabelKey string, ingressLabelValue string) error {
+func applyIngressCCNP(cl client.Client, policyName, nodeSelectorIP, sourceLabelKey, sourceLabelValue string) error {
 	// Cilium Clusterwide NetworkPolicy object
 	ccnp := &ciliumv2.CiliumClusterwideNetworkPolicy{
 		TypeMeta: metav1.TypeMeta{
@@ -47,7 +47,7 @@ func applyCCNPWithIngressPolicy(cl k8sclient.Client, policyName string, nodeSele
 							ciliumapi.NewESFromK8sLabelSelector(
 								ciliumlabels.LabelSourceK8sKeyPrefix, &slim_metav1.LabelSelector{
 									MatchLabels: map[string]string{
-										ingressLabelKey: ingressLabelValue,
+										sourceLabelKey: sourceLabelValue,
 									},
 								},
 							),
@@ -57,15 +57,5 @@ func applyCCNPWithIngressPolicy(cl k8sclient.Client, policyName string, nodeSele
 			},
 		},
 	}
-	err := cl.Create(context.Background(), ccnp)
-	return err
-}
-
-func deleteCCNP(ctx context.Context, cl k8sclient.Client, ccnpName string) error {
-	err := cl.Delete(context.Background(), &ciliumv2.CiliumClusterwideNetworkPolicy{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: ccnpName,
-		},
-	})
-	return err
+	return cl.Create(context.Background(), ccnp)
 }
