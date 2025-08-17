@@ -30,15 +30,13 @@ import (
 
 const (
 	allowEgressPod       = "allow-egress-pod"
-	perimeterVM          = "perimeter-vm"
-	perimeterVMIP        = "192.168.0.100"
 	allowEgressVM        = "allow-egress-vm"
-	allowEgressVMIP      = "192.168.0.101"
 	testNamespace        = "egressnat"
+	perimeterVM          = "perimeter-vm"
 	perimeterNetworkName = "g-org-1-perimeter-cluster"
 	defaultNetworkName   = "g-default-vpc"
 	egressNATIP          = "10.200.32.15"
-	internetIp           = "10.248.0.1"
+	clusterExternalIP    = "10.248.0.1"
 	allowEgressLabelKey  = "egress.networking.gke.io/enabled"
 )
 
@@ -166,7 +164,7 @@ var _ = Describe("Verifiers/EgressNAT", Label("egressnat"), Ordered, func() {
 				Name: perimeterNetworkName,
 			},
 		}
-		err := utils.DeleteAndWait(ctx, cl, network, "network")
+		err := utils.DeleteAndWait(ctx, cl, network)
 		Expect(err).NotTo(HaveOccurred())
 
 		klog.Infof("Deleting l3 default network %s", defaultNetworkName)
@@ -175,7 +173,7 @@ var _ = Describe("Verifiers/EgressNAT", Label("egressnat"), Ordered, func() {
 				Name: defaultNetworkName,
 			},
 		}
-		err = utils.DeleteAndWait(ctx, cl, network, "network")
+		err = utils.DeleteAndWait(ctx, cl, network)
 		Expect(err).NotTo(HaveOccurred())
 
 		klog.Infof("Deleting test namespace %s", testNamespace)
@@ -184,7 +182,7 @@ var _ = Describe("Verifiers/EgressNAT", Label("egressnat"), Ordered, func() {
 				Name: testNamespace,
 			},
 		}
-		err = utils.DeleteIfExists(ctx, cl, ns, "namespace")
+		err = utils.DeleteIfExists(ctx, cl, ns)
 		Expect(err).NotTo(HaveOccurred())
 	})
 
@@ -207,15 +205,19 @@ var _ = Describe("Verifiers/EgressNAT", Label("egressnat"), Ordered, func() {
 		}
 		// Validate all pods are deleted before next test
 		for _, podName := range testPods {
-			err = wait.WaitForSuccessContext(ctx, "Delete pod", wait.WaitingMedium, func(ctx context.Context) error {
+			err := wait.WaitForSuccessContext(ctx, "Delete pod", wait.WaitingMedium, func(ctx context.Context) error {
 				pod := &corev1.Pod{}
-				err = cl.Get(ctx, k8sclient.ObjectKey{Name: podName, Namespace: testNamespace}, pod)
-				if err == nil {
-					return fmt.Errorf("pod %s was not deleted successfully", podName)
+				getErr := cl.Get(ctx, k8sclient.ObjectKey{Name: podName, Namespace: testNamespace}, pod)
+				if getErr != nil {
+					if apierrors.IsNotFound(getErr) {
+						klog.Infof("Pod %s deleted successfully", podName)
+						return nil
+					}
+					return getErr
 				}
-				klog.Infof("Pod %s deleted successfully", podName)
-				return nil
+				return fmt.Errorf("pod %s still exists and was not deleted successfully", podName)
 			})
+			Expect(err).NotTo(HaveOccurred(), "Failed to wait for pod deletion for pod %s", podName)
 		}
 		// Reset cleanupFuncs and testPods before next test
 		cleanupFuncs = nil
@@ -225,6 +227,8 @@ var _ = Describe("Verifiers/EgressNAT", Label("egressnat"), Ordered, func() {
 	It("Verifies pod should egress traffic to perimeter cluster on different nodes", func() {
 		allowEgressPodName := allowEgressPod + "--diff-node"
 		perimeterVMName := perimeterVM + "--diff-node"
+		perimeterVMIP := "192.168.0.150"
+		allowEgressVMIP := "" // Not used for pod
 		// Add anti-affinity to ensure the Perimeter VM Pod is not scheduled on the same node as the allowEgress Pod
 		podAntiAffinity := &corev1.Affinity{
 			PodAntiAffinity: &corev1.PodAntiAffinity{
@@ -241,13 +245,15 @@ var _ = Describe("Verifiers/EgressNAT", Label("egressnat"), Ordered, func() {
 			},
 		}
 		// Verify allowEgressPod can do egress NAT from perimeterVM
-		testPods, cleanupFuncs, err = testEgressNATFromPod(ctx, cl, allowEgressPodName, perimeterVMName, podAntiAffinity, false)
-		Expect(err).NotTo(HaveOccurred(), fmt.Sprintf("pod %s is not able to connect to internet via egress pod %s", allowEgressPodName, perimeterVMName))
+		testPods, cleanupFuncs, err = testEgressNATFromPod(ctx, cl, allowEgressPodName, perimeterVMName, podAntiAffinity, false, perimeterVMIP, allowEgressVMIP)
+		Expect(err).NotTo(HaveOccurred(), fmt.Sprintf("pod %s is not able to connect to external IP via egress pod %s", allowEgressPodName, perimeterVMName))
 	})
 
 	It("Verifies pod should egress traffic to perimeter cluster on same node", func() {
 		allowEgressPodName := allowEgressPod + "--same-node"
 		perimeterVMName := perimeterVM + "--same-node"
+		perimeterVMIP := "192.168.0.151"
+		allowEgressVMIP := "" // Not used for pod
 		// Add affinity to ensure the Perimeter VM Pod is scheduled on the same node as the allowEgress Pod
 		podAffinity := &corev1.Affinity{
 			PodAffinity: &corev1.PodAffinity{
@@ -264,13 +270,15 @@ var _ = Describe("Verifiers/EgressNAT", Label("egressnat"), Ordered, func() {
 			},
 		}
 		// Verify allowEgressPod can do egress NAT from perimeterVM
-		testPods, cleanupFuncs, err = testEgressNATFromPod(ctx, cl, allowEgressPodName, perimeterVMName, podAffinity, false)
-		Expect(err).NotTo(HaveOccurred(), fmt.Sprintf("pod %s is not able to connect to internet via egress pod %s", allowEgressPodName, perimeterVMName))
+		testPods, cleanupFuncs, err = testEgressNATFromPod(ctx, cl, allowEgressPodName, perimeterVMName, podAffinity, false, perimeterVMIP, allowEgressVMIP)
+		Expect(err).NotTo(HaveOccurred(), fmt.Sprintf("pod %s is not able to connect to external IP via egress pod %s", allowEgressPodName, perimeterVMName))
 	})
 
 	It("Verifies VM should egress traffic to perimeter cluster on different nodes", func() {
 		allowEgressVMName := allowEgressVM + "--diff-node"
 		perimeterVMName := perimeterVM + "--diff-node"
+		perimeterVMIP := "192.168.0.152"
+		allowEgressVMIP := "192.168.0.153"
 		// Add anti-affinity to ensure the Perimeter VM Pod is not scheduled on the same node as the allowEgress Pod
 		podAntiAffinity := &corev1.Affinity{
 			PodAntiAffinity: &corev1.PodAntiAffinity{
@@ -287,13 +295,15 @@ var _ = Describe("Verifiers/EgressNAT", Label("egressnat"), Ordered, func() {
 			},
 		}
 		// Verify allowEgressPod can do egress NAT from perimeterVM
-		testPods, cleanupFuncs, err = testEgressNATFromPod(ctx, cl, allowEgressVMName, perimeterVMName, podAntiAffinity, true)
-		Expect(err).NotTo(HaveOccurred(), fmt.Sprintf("vm %s is not able to connect to internet via egress perimeter vm %s", allowEgressVMName, perimeterVMName))
+		testPods, cleanupFuncs, err = testEgressNATFromPod(ctx, cl, allowEgressVMName, perimeterVMName, podAntiAffinity, true, perimeterVMIP, allowEgressVMIP)
+		Expect(err).NotTo(HaveOccurred(), fmt.Sprintf("vm %s is not able to connect to external IP via egress perimeter vm %s", allowEgressVMName, perimeterVMName))
 	})
 
 	It("Verifies VM should egress pod traffic to perimeter cluster on same node", func() {
 		allowEgressVMName := allowEgressVM + "--same-node"
 		perimeterVMName := perimeterVM + "--same-node"
+		perimeterVMIP := "192.168.0.154"
+		allowEgressVMIP := "192.168.0.155"
 		// Add affinity to ensure the Perimeter VM Pod is scheduled on the same node as the allowEgress Pod
 		podAffinity := &corev1.Affinity{
 			PodAffinity: &corev1.PodAffinity{
@@ -310,41 +320,44 @@ var _ = Describe("Verifiers/EgressNAT", Label("egressnat"), Ordered, func() {
 			},
 		}
 		// Verify allowEgressPod can do egress NAT from perimeterVM
-		testPods, cleanupFuncs, err = testEgressNATFromPod(ctx, cl, allowEgressVMName, perimeterVMName, podAffinity, true)
-		Expect(err).NotTo(HaveOccurred(), fmt.Sprintf("vm %s is not able to connect to internet via egress perimeter vm %s", allowEgressVMName, perimeterVMName))
+		testPods, cleanupFuncs, err = testEgressNATFromPod(ctx, cl, allowEgressVMName, perimeterVMName, podAffinity, true, perimeterVMIP, allowEgressVMIP)
+		Expect(err).NotTo(HaveOccurred(), fmt.Sprintf("vm %s is not able to connect to external IP via egress perimeter vm %s", allowEgressVMName, perimeterVMName))
 	})
 })
 
-func testEgressNATFromPod(ctx context.Context, cl k8sclient.Client, allowEgressPodName, perimeterVMName string, affinity *corev1.Affinity, isEmulatedL3VMPod bool) ([]string, []func(), error) {
+func testEgressNATFromPod(ctx context.Context, cl k8sclient.Client, allowEgressPodName, perimeterVMName string, affinity *corev1.Affinity, isEmulatedL3VMPod bool, perimeterVMIP, allowEgressVMIP string) ([]string, []func(), error) {
 	var testPods []string
 	var cleanupFuncs []func()
-	var cleanupAlowEgressPod func()
+	var cleanupAllowEgressPod func()
 	var err error
+	var allowEgressIP string
+
 	if isEmulatedL3VMPod {
-		cleanupAlowEgressPod, err = createEmulatedL3VMPod(ctx, cl, allowEgressPodName, testNamespace, allowEgressVMIP,
+		cleanupAllowEgressPod, err = createEmulatedL3VMPod(ctx, cl, allowEgressPodName, testNamespace, allowEgressVMIP,
 			utils.WithLabel("app", allowEgressPodName), utils.WithLabel(allowEgressLabelKey, "true"))
 		if err != nil {
 			return testPods, cleanupFuncs, fmt.Errorf("failed to create vm pod %s : %v", allowEgressPodName, err)
 		}
 	} else {
-		cleanupAlowEgressPod, err = utils.CreatePod(ctx, cl, allowEgressPodName, testNamespace,
+		cleanupAllowEgressPod, err = utils.CreatePod(ctx, cl, allowEgressPodName, testNamespace,
 			utils.WithLabel("app", allowEgressPodName), utils.WithLabel(allowEgressLabelKey, "true"))
 		if err != nil {
 			return testPods, cleanupFuncs, fmt.Errorf("failed to create pod %s : %v", allowEgressPodName, err)
 		}
 	}
 	testPods = append(testPods, allowEgressPodName)
-	cleanupFuncs = append(cleanupFuncs, cleanupAlowEgressPod)
-	allowEgressIP, err := utils.FetchPodIP(ctx, cl, allowEgressPodName, testNamespace)
+	cleanupFuncs = append(cleanupFuncs, cleanupAllowEgressPod)
 	if isEmulatedL3VMPod {
 		allowEgressIP = allowEgressVMIP
-	}
-	if err != nil {
-		return testPods, cleanupFuncs, fmt.Errorf("failed to fetch ip for pod %s: %v", allowEgressPodName, err)
+	} else {
+		allowEgressIP, err = utils.FetchPodIP(ctx, cl, allowEgressPodName, testNamespace)
+		if err != nil {
+			return testPods, cleanupFuncs, fmt.Errorf("failed to fetch ip for pod %s: %v", allowEgressPodName, err)
+		}
 	}
 	cmds := []string{
-		fmt.Sprintf("ip addr add %s/32 dev eth1; ", internetIp),
-		fmt.Sprintf("ip route add %s/32 dev eth1 src %s; ", allowEgressIP, internetIp),
+		fmt.Sprintf("ip addr add %s/32 dev eth1; ", clusterExternalIP),
+		fmt.Sprintf("ip route add %s/32 dev eth1 src %s; ", allowEgressIP, clusterExternalIP),
 	}
 	cleanup, err := createEmulatedPerimeterVMPod(ctx, cl, perimeterVMName, testNamespace, perimeterVMIP, cmds, utils.WithLabel("app", perimeterVMName), utils.WithAffinity(affinity), utils.WithResponderContainer())
 	if err != nil {
@@ -354,7 +367,7 @@ func testEgressNATFromPod(ctx context.Context, cl k8sclient.Client, allowEgressP
 	cleanupFuncs = append(cleanupFuncs, cleanup)
 	// Verify Perimeter VM basic connectivity with pod and vm
 	klog.Infof("Running curl from allow egress pod %s:%s directly to Perimeter VM %s:%s", allowEgressPodName, allowEgressIP, perimeterVMName, perimeterVMIP)
-	err = utils.VerifyCurlFromPod(ctx, cl, allowEgressPodName, perimeterVMName, perimeterVMIP, utils.ResponderPort, testNamespace, true)
+	err = utils.VerifyCurlFromPod(ctx, testNamespace, allowEgressPodName, perimeterVMIP, utils.ResponderPort, true, perimeterVMName)
 	if err != nil {
 		return testPods, cleanupFuncs, fmt.Errorf("pod %s is not able to connect to perimeter vm pod %s: %v", allowEgressPodName, perimeterVMName, err)
 	}
@@ -367,30 +380,30 @@ func testEgressNATFromPod(ctx context.Context, cl k8sclient.Client, allowEgressP
 	cleanupFuncs = append(cleanupFuncs, cleanupCiliumEgressGatewayPolicy)
 
 	// Verify EgressNAT traffic
-	klog.Infof("Running curl from allow egress pod %s:%s to internet ip %s via pod %s:%s", allowEgressPodName, allowEgressIP, internetIp, perimeterVMName, perimeterVMIP)
-	err = utils.VerifyCurlFromPod(ctx, cl, allowEgressPodName, perimeterVMName, internetIp, utils.ResponderPort, testNamespace, true)
+	klog.Infof("Running curl from allow egress pod %s:%s to external IP %s via pod %s:%s", allowEgressPodName, allowEgressIP, clusterExternalIP, perimeterVMName, perimeterVMIP)
+	err = utils.VerifyCurlFromPod(ctx, testNamespace, allowEgressPodName, clusterExternalIP, utils.ResponderPort, true, perimeterVMName)
 	if err != nil {
-		return testPods, cleanupFuncs, fmt.Errorf("pod %s is not able to connect to internet via egress pod %s: %v", allowEgressPodName, perimeterVMName, err)
+		return testPods, cleanupFuncs, fmt.Errorf("pod %s is not able to connect to external IP via egress pod %s: %v", allowEgressPodName, perimeterVMName, err)
 	}
 	// Verify traffic not working after the label removed
 	err = removePodEgressLabel(ctx, cl, allowEgressPodName)
 	if err != nil {
 		return testPods, cleanupFuncs, fmt.Errorf("pod %s is not able to update label: %v", allowEgressPodName, err)
 	}
-	klog.Infof("Expected failed curl from allow egress pod %s:%s to internet ip %s via pod %s:%s", allowEgressPodName, allowEgressIP, internetIp, perimeterVMName, perimeterVMIP)
-	err = utils.VerifyCurlFromPod(ctx, cl, allowEgressPodName, perimeterVMName, internetIp, utils.ResponderPort, testNamespace, false)
+	klog.Infof("Expected failed curl from allow egress pod %s:%s to external IP %s via pod %s:%s", allowEgressPodName, allowEgressIP, clusterExternalIP, perimeterVMName, perimeterVMIP)
+	err = utils.VerifyCurlFromPod(ctx, testNamespace, allowEgressPodName, clusterExternalIP, utils.ResponderPort, false, "")
 	if err != nil {
-		return testPods, cleanupFuncs, fmt.Errorf("pod %s is able to connect to internet via egress pod %s without egress label %s: %v", allowEgressPodName, perimeterVMName, allowEgressLabelKey, err)
+		return testPods, cleanupFuncs, fmt.Errorf("pod %s is able to connect to external IP via egress pod %s without egress label %s: %v", allowEgressPodName, perimeterVMName, allowEgressLabelKey, err)
 	}
 	// Verify traffic working again after the label added
 	err = addPodEgressLabel(ctx, cl, allowEgressPodName)
 	if err != nil {
 		return testPods, cleanupFuncs, fmt.Errorf("pod %s is not able to update label: %v", allowEgressPodName, err)
 	}
-	klog.Infof("Expected successful curl from allow egress pod %s:%s to internet ip %s via pod %s:%s", allowEgressPodName, allowEgressIP, internetIp, perimeterVMName, perimeterVMIP)
-	err = utils.VerifyCurlFromPod(ctx, cl, allowEgressPodName, perimeterVMName, internetIp, utils.ResponderPort, testNamespace, true)
+	klog.Infof("Expected successful curl from allow egress pod %s:%s to external IP %s via pod %s:%s", allowEgressPodName, allowEgressIP, clusterExternalIP, perimeterVMName, perimeterVMIP)
+	err = utils.VerifyCurlFromPod(ctx, testNamespace, allowEgressPodName, clusterExternalIP, utils.ResponderPort, true, perimeterVMName)
 	if err != nil {
-		return testPods, cleanupFuncs, fmt.Errorf("pod %s is not able to connect to internet via egress pod %s with re-added egress label: %v", allowEgressPodName, perimeterVMName, err)
+		return testPods, cleanupFuncs, fmt.Errorf("pod %s is not able to connect to external IP via egress pod %s with re-added egress label: %v", allowEgressPodName, perimeterVMName, err)
 	}
 	return testPods, cleanupFuncs, nil
 }

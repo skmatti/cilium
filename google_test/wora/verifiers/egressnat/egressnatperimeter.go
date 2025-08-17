@@ -80,7 +80,7 @@ var _ = Describe("Verifiers/EgressNATPerimeter", Label("egressnatperimeter"), Or
 				Name: testNamespace,
 			},
 		}
-		err = utils.DeleteIfExists(ctx, cl, ns, "namespace")
+		err = utils.DeleteIfExists(ctx, cl, ns)
 		Expect(err).NotTo(HaveOccurred())
 	})
 
@@ -192,7 +192,7 @@ func testEgressNATFromPodPerimeterCluster(ctx context.Context, cl k8sclient.Clie
 	}
 	// Verify EgressNAT traffic
 	klog.Infof("Running curl from allow egress pod %s to bootstrapper ip %s SNATed by %s", allowEgressPodName, bootstrapperIP, egressNATIP)
-	err = utils.RunCurlCommandWithExpectedResponseFromPod(ctx, cl, allowEgressPodName, bootstrapperIP, utils.ResponderPort, testNamespace, egressNATIP)
+	err = utils.VerifyCurlFromPod(ctx, testNamespace, allowEgressPodName, bootstrapperIP, utils.ResponderPort, true, egressNATIP)
 	if err != nil {
 		return testPods, cleanupFuncs, fmt.Errorf("pod %s is not able to connect to bootstrapper SNATed by %s: %v", allowEgressPodName, egressNATIP, err)
 	}
@@ -202,7 +202,7 @@ func testEgressNATFromPodPerimeterCluster(ctx context.Context, cl k8sclient.Clie
 		return testPods, cleanupFuncs, fmt.Errorf("pod %s is not able to update label: %v", allowEgressPodName, err)
 	}
 	klog.Infof("Expected failed curl from allow egress pod %s to bootstrapper ip %s SNATed by %s", allowEgressPodName, bootstrapperIP, egressNATIP)
-	err = utils.VerifyCurlFromPod(ctx, cl, allowEgressPodName, "bootstrapper", bootstrapperIP, utils.ResponderPort, testNamespace, false)
+	err = utils.VerifyCurlFromPod(ctx, testNamespace, allowEgressPodName, bootstrapperIP, utils.ResponderPort, false, "")
 	if err != nil {
 		return testPods, cleanupFuncs, fmt.Errorf("pod %s is able to connect to bootstrapper without egress label %s: %v", allowEgressPodName, allowEgressLabelKey, err)
 	}
@@ -212,7 +212,7 @@ func testEgressNATFromPodPerimeterCluster(ctx context.Context, cl k8sclient.Clie
 		return testPods, cleanupFuncs, fmt.Errorf("pod %s is not able to update label: %v", allowEgressPodName, err)
 	}
 	klog.Infof("Running curl from allow egress pod %s to bootstrapper ip %s SNATed by %s", allowEgressPodName, bootstrapperIP, egressNATIP)
-	err = utils.RunCurlCommandWithExpectedResponseFromPod(ctx, cl, allowEgressPodName, bootstrapperIP, utils.ResponderPort, testNamespace, egressNATIP)
+	err = utils.VerifyCurlFromPod(ctx, testNamespace, allowEgressPodName, bootstrapperIP, utils.ResponderPort, true, egressNATIP)
 	if err != nil {
 		return testPods, cleanupFuncs, fmt.Errorf("pod %s is not able to connect to bootstrapper SNATed by %s: %v", allowEgressPodName, egressNATIP, err)
 	}

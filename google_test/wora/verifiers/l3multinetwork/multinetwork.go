@@ -323,7 +323,7 @@ var _ = Describe("Verifiers/l3multinetwork", Label("l3multinetwork"), Ordered, f
 				Name: clusterCIDRConfigName,
 			},
 		}
-		err = utils.DeleteIfExists(ctx, cl, ccc, "ccc")
+		err = utils.DeleteIfExists(ctx, cl, ccc)
 		Expect(err).NotTo(HaveOccurred())
 
 		err = c.CoreV1().Pods(testNamespace).DeleteCollection(ctx, metav1.DeleteOptions{}, metav1.ListOptions{})
@@ -413,7 +413,7 @@ var _ = Describe("Verifiers/l3multinetwork", Label("l3multinetwork"), Ordered, f
 		Expect(err).ToNot(HaveOccurred())
 
 		// delete multinetwork LoadBalancer service
-		err = utils.DeleteIfExists(ctx, cl, &svc, "service")
+		err = utils.DeleteIfExists(ctx, cl, &svc)
 		Expect(err).NotTo(HaveOccurred())
 	})
 

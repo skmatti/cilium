@@ -359,7 +359,7 @@ var _ = Describe("Verifiers/multinetwork", Label("multinetwork"), Ordered, func(
 		Expect(err).ToNot(HaveOccurred())
 
 		// delete multinetwork nodeport service
-		err = utils.DeleteIfExists(ctx, cl, &svc, "service")
+		err = utils.DeleteIfExists(ctx, cl, &svc)
 		Expect(err).NotTo(HaveOccurred())
 	})
 
@@ -449,7 +449,7 @@ var _ = Describe("Verifiers/multinetwork", Label("multinetwork"), Ordered, func(
 		Expect(err).ToNot(HaveOccurred())
 
 		// delete multinetwork LoadBalancer service
-		err = utils.DeleteIfExists(ctx, cl, &svc, "service")
+		err = utils.DeleteIfExists(ctx, cl, &svc)
 		Expect(err).NotTo(HaveOccurred())
 	})
 

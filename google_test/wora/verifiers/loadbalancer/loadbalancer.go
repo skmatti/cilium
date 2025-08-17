@@ -8,12 +8,13 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	"gke-internal.googlesource.com/third_party/cilium/google_test/wora/e2e/pkg/test/wait"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
 	k8sclient "sigs.k8s.io/controller-runtime/pkg/client"
+
+	"gke-internal.googlesource.com/third_party/cilium/google_test/wora/e2e/pkg/test/wait"
 
 	klog "gke-internal.googlesource.com/syllogi/sanitized-klog/third_party/klogv2"
 	e2escheme "gke-internal.googlesource.com/third_party/cilium/google_test/wora/e2e/pkg/test/scheme"
@@ -70,7 +71,7 @@ var _ = Describe("LoadBalancer", Label("loadbalancer"), Ordered, func() {
 				Namespace: testNamespace,
 			},
 		}
-		err := utils.DeleteIfExists(ctx, cl, service, "service")
+		err := utils.DeleteIfExists(ctx, cl, service)
 		Expect(err).NotTo(HaveOccurred())
 
 		// Delete the test namespace
@@ -80,7 +81,7 @@ var _ = Describe("LoadBalancer", Label("loadbalancer"), Ordered, func() {
 				Name: testNamespace,
 			},
 		}
-		err = utils.DeleteIfExists(ctx, cl, ns, "namespace")
+		err = utils.DeleteIfExists(ctx, cl, ns)
 		Expect(err).NotTo(HaveOccurred())
 	})
 

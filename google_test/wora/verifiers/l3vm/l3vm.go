@@ -120,7 +120,7 @@ var _ = Describe("Verifiers/L3VM", Label("l3vm"), Ordered, func() {
 				Name: networkName,
 			},
 		}
-		err := utils.DeleteAndWait(ctx, cl, network, "network")
+		err := utils.DeleteAndWait(ctx, cl, network)
 		Expect(err).NotTo(HaveOccurred())
 
 		klog.Infof("Deleting test namespace %s", testNamespace)
@@ -129,7 +129,7 @@ var _ = Describe("Verifiers/L3VM", Label("l3vm"), Ordered, func() {
 				Name: testNamespace,
 			},
 		}
-		err = utils.DeleteIfExists(ctx, cl, ns, "namespace")
+		err = utils.DeleteIfExists(ctx, cl, ns)
 		Expect(err).NotTo(HaveOccurred())
 	})
 
@@ -235,7 +235,7 @@ var _ = Describe("Verifiers/L3VM", Label("l3vm"), Ordered, func() {
 
 		err = cl.Create(ctx, job)
 		Expect(err).NotTo(HaveOccurred(), "Failed to create curl job")
-		defer utils.DeleteIfExists(ctx, cl, job, "job")
+		defer utils.DeleteIfExists(ctx, cl, job)
 
 		err = wait.WaitForSuccessContext(ctx, "Curl job complete", wait.WaitingMedium, func(ctx context.Context) error {
 			if err := cl.Get(ctx, k8sclient.ObjectKeyFromObject(job), job); err != nil {
@@ -274,7 +274,7 @@ var _ = Describe("Verifiers/L3VM", Label("l3vm"), Ordered, func() {
 		klog.Infof("Start affinity curl job to IP %s", l3VMIP1)
 		err = cl.Create(ctx, job)
 		Expect(err).NotTo(HaveOccurred(), "Failed to create curl job")
-		defer utils.DeleteIfExists(ctx, cl, job, "job")
+		defer utils.DeleteIfExists(ctx, cl, job)
 
 		err = wait.WaitForSuccessContext(ctx, "Curl job complete", wait.WaitingMedium, func(ctx context.Context) error {
 			if err := cl.Get(ctx, k8sclient.ObjectKeyFromObject(job), job); err != nil {
@@ -328,7 +328,7 @@ var _ = Describe("Verifiers/L3VM", Label("l3vm"), Ordered, func() {
 		}
 		err = cl.Create(ctx, lbService)
 		Expect(err).NotTo(HaveOccurred(), "Failed to create LoadBalancer service")
-		defer utils.DeleteIfExists(ctx, cl, lbService, "service")
+		defer utils.DeleteIfExists(ctx, cl, lbService)
 		klog.Infof("LoadBalancer service '%s' created", serviceName)
 
 		jobName := lbTestCurlJobName
@@ -337,7 +337,7 @@ var _ = Describe("Verifiers/L3VM", Label("l3vm"), Ordered, func() {
 
 		err = cl.Create(ctx, job)
 		Expect(err).NotTo(HaveOccurred(), "Failed to create curl job targeting LoadBalancer")
-		defer utils.DeleteIfExists(ctx, cl, job, "job")
+		defer utils.DeleteIfExists(ctx, cl, job)
 
 		klog.Infof("Waiting for curl job '%s' targeting LoadBalancer to complete...", jobName)
 		err = wait.WaitForSuccessContext(ctx, fmt.Sprintf("Curl job %s complete", jobName), wait.WaitingMedium, func(ctx context.Context) error {
@@ -386,7 +386,7 @@ func testConnectivityBetweenPods(ctx context.Context, cl k8sclient.Client, pod1,
 	cleanupFuncs = append(cleanupFuncs, cleanup2)
 
 	klog.Infof("Running curl from pod %s:%s to pod %s:%s", pod1, pod1IP, pod2, pod2IP)
-	err = utils.VerifyCurlFromPod(ctx, cl, pod1, pod2, pod2IP, utils.ResponderPort, testNamespace, true)
+	err = utils.VerifyCurlFromPod(ctx, testNamespace, pod1, pod2IP, utils.ResponderPort, true, pod2)
 	if err != nil {
 		return testPods, cleanupFuncs, fmt.Errorf("pod %s is not able to reach pod %s: %v", pod1, pod2, err)
 	}

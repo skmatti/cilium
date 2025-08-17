@@ -51,7 +51,7 @@ var _ = Describe("Verifiers/hostfirewall", Label("hostfirewall"), Ordered, func(
 	BeforeAll(func() {
 		ctx, _ = context.WithTimeout(context.Background(), 20*time.Minute)
 		kubeconfig := os.Getenv("KUBECONFIG")
-		Expect(kubeconfig).ToNot(BeEmpty())
+		Expect(kubeconfig).ToNot(BeEmpty(), "KUBECONFIG env var must be set")
 		Expect(kubeconfig).To(BeAnExistingFile(), "kubeconfig file should exist")
 
 		config, err = clientcmd.BuildConfigFromFlags("", kubeconfig)
@@ -107,15 +107,23 @@ var _ = Describe("Verifiers/hostfirewall", Label("hostfirewall"), Ordered, func(
 
 			// pod0-on-worker0 is on worker0 node and on hostfirewall-ns-1 namespace with label testPod=label1
 			// pod0-on-controlplane0 is on controlplane0 node and on hostfirewall-ns-1 namespace with label testPod=label1
-			err = utils.RunCurlFromPodWithTimeoutLimit(ctx, cl, pod0onWorker0, hostNetworkPodOnWorker1, worker1ip, utils.ResponderPort, testNamespace1, curlTimeoutSeconds)
+			err = utils.VerifyCurlFromPod(ctx, testNamespace1, pod0onWorker0, worker1ip, utils.ResponderPort, true, "")
 			Expect(err).ToNot(HaveOccurred())
-			err = utils.RunCurlFromPodWithTimeoutLimit(ctx, cl, pod0onControlPlane0, hostNetworkPodOnWorker1, worker1ip, utils.ResponderPort, testNamespace1, curlTimeoutSeconds)
+			err = utils.VerifyCurlFromPod(ctx, testNamespace1, pod0onControlPlane0, worker1ip, utils.ResponderPort, true, "")
 			Expect(err).ToNot(HaveOccurred())
 
-			err = deleteAndWaitForPodDeletion(ctx, cl, pod0onControlPlane0, testNamespace1)
+			err = utils.DeleteAndWait(ctx, cl, &corev1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      pod0onControlPlane0,
+					Namespace: testNamespace1},
+			})
 			Expect(err).ToNot(HaveOccurred(), "Failed to delete the pod")
 
-			err = deleteAndWaitForPodDeletion(ctx, cl, pod0onWorker0, testNamespace1)
+			err = utils.DeleteAndWait(ctx, cl, &corev1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      pod0onWorker0,
+					Namespace: testNamespace1},
+			})
 			Expect(err).ToNot(HaveOccurred(), "Failed to delete the pod")
 
 		})
@@ -130,15 +138,24 @@ var _ = Describe("Verifiers/hostfirewall", Label("hostfirewall"), Ordered, func(
 			_, err = utils.CreatePod(ctx, cl, pod1onControlPlane0, testNamespace2, utils.WithNodeSelector(controlplaneip), utils.WithLabel(testLabelKey, testLabelValue1))
 			Expect(err).ToNot(HaveOccurred())
 
-			err = utils.RunCurlFromPodWithTimeoutLimit(ctx, cl, pod1onWorker0, hostNetworkPodOnWorker1, worker1ip, utils.ResponderPort, testNamespace1, curlTimeoutSeconds)
+			err = utils.VerifyCurlFromPod(ctx, testNamespace1, pod1onWorker0, worker1ip, utils.ResponderPort, true, "")
 			Expect(err).ToNot(HaveOccurred())
-			err = utils.RunCurlFromPodWithTimeoutLimit(ctx, cl, pod1onControlPlane0, hostNetworkPodOnWorker1, worker1ip, utils.ResponderPort, testNamespace2, curlTimeoutSeconds)
+			err = utils.VerifyCurlFromPod(ctx, testNamespace2, pod1onControlPlane0, worker1ip, utils.ResponderPort, true, "")
 			Expect(err).ToNot(HaveOccurred())
-
-			err = deleteAndWaitForPodDeletion(ctx, cl, pod1onControlPlane0, testNamespace2)
+			err = utils.DeleteAndWait(ctx, cl, &corev1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: testNamespace2,
+					Name:      pod1onControlPlane0,
+				},
+			})
 			Expect(err).ToNot(HaveOccurred(), "Failed to delete the pod")
 
-			err = deleteAndWaitForPodDeletion(ctx, cl, pod1onWorker0, testNamespace1)
+			err = utils.DeleteAndWait(ctx, cl, &corev1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: testNamespace1,
+					Name:      pod1onWorker0,
+				},
+			})
 			Expect(err).ToNot(HaveOccurred(), "Failed to delete the pod")
 		})
 	})
@@ -158,15 +175,25 @@ var _ = Describe("Verifiers/hostfirewall", Label("hostfirewall"), Ordered, func(
 
 			// pod0-on-worker0 is on worker0 node and on hostfirewall-ns-1 namespace with label testPod=label2
 			// pod0-on-controlplane0 is on controlplane0 node and on hostfirewall-ns-1 namespace with label testPod=label2
-			err = utils.RunCurlFromPodWithTimeoutLimit(ctx, cl, pod0onWorker0, hostNetworkPodOnWorker1, worker1ip, utils.ResponderPort, testNamespace1, curlTimeoutSeconds)
-			Expect(err).To(HaveOccurred())
-			err = utils.RunCurlFromPodWithTimeoutLimit(ctx, cl, pod0onControlPlane0, hostNetworkPodOnWorker1, worker1ip, utils.ResponderPort, testNamespace1, curlTimeoutSeconds)
-			Expect(err).To(HaveOccurred())
+			err = utils.VerifyCurlFromPod(ctx, testNamespace1, pod0onWorker0, worker1ip, utils.ResponderPort, false, "")
+			Expect(err).ToNot(HaveOccurred())
+			err = utils.VerifyCurlFromPod(ctx, testNamespace1, pod0onControlPlane0, worker1ip, utils.ResponderPort, false, "")
+			Expect(err).ToNot(HaveOccurred())
 
-			err = deleteAndWaitForPodDeletion(ctx, cl, pod0onControlPlane0, testNamespace1)
+			err = utils.DeleteAndWait(ctx, cl, &corev1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: testNamespace1,
+					Name:      pod1onControlPlane0,
+				},
+			})
 			Expect(err).ToNot(HaveOccurred(), "Failed to delete the pod")
 
-			err = deleteAndWaitForPodDeletion(ctx, cl, pod0onWorker0, testNamespace1)
+			err = utils.DeleteAndWait(ctx, cl, &corev1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: testNamespace1,
+					Name:      pod0onWorker0,
+				},
+			})
 			Expect(err).ToNot(HaveOccurred(), "Failed to delete the pod")
 		})
 
@@ -181,21 +208,41 @@ var _ = Describe("Verifiers/hostfirewall", Label("hostfirewall"), Ordered, func(
 			_, err = utils.CreatePod(ctx, cl, pod1onControlPlane0, testNamespace2, utils.WithNodeSelector(controlplaneip), utils.WithLabel(testLabelKey, testLabelValue2))
 			Expect(err).ToNot(HaveOccurred())
 
-			err = utils.RunCurlFromPodWithTimeoutLimit(ctx, cl, pod1onWorker0, hostNetworkPodOnWorker1, worker1ip, utils.ResponderPort, testNamespace1, curlTimeoutSeconds)
-			Expect(err).To(HaveOccurred())
-			err = utils.RunCurlFromPodWithTimeoutLimit(ctx, cl, pod1onControlPlane0, hostNetworkPodOnWorker1, worker1ip, utils.ResponderPort, testNamespace2, curlTimeoutSeconds)
-			Expect(err).To(HaveOccurred())
+			err = utils.VerifyCurlFromPod(ctx, testNamespace1, pod1onWorker0, worker1ip, utils.ResponderPort, false, "")
+			Expect(err).ToNot(HaveOccurred())
 
-			err = deleteAndWaitForPodDeletion(ctx, cl, pod1onControlPlane0, testNamespace2)
+			err = utils.VerifyCurlFromPod(ctx, testNamespace2, pod1onControlPlane0, worker1ip, utils.ResponderPort, false, "")
+			Expect(err).ToNot(HaveOccurred())
+
+			err = utils.DeleteAndWait(ctx, cl, &corev1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: testNamespace2,
+					Name:      pod1onControlPlane0,
+				},
+			})
 			Expect(err).ToNot(HaveOccurred(), "Failed to delete the pod")
 
-			err = deleteAndWaitForPodDeletion(ctx, cl, pod1onWorker0, testNamespace1)
+			err = utils.DeleteAndWait(ctx, cl, &corev1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: testNamespace1,
+					Name:      pod1onWorker0,
+				},
+			})
 			Expect(err).ToNot(HaveOccurred(), "Failed to delete the pod")
 		})
 	})
 	AfterAll(func() {
-		deleteCCNP(cl, config, CCNPonWorkerNode1)
-		deleteAndWaitForPodDeletion(ctx, cl, hostNetworkPodOnWorker1, testNamespace1)
+		if cl == nil {
+			return
+		}
+		deleteCCNP(ctx, cl, CCNPonWorkerNode1)
+		err = utils.DeleteAndWait(ctx, cl, &corev1.Pod{
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: testNamespace1,
+				Name:      hostNetworkPodOnWorker1,
+			},
+		})
+		Expect(err).NotTo(HaveOccurred())
 
 		klog.Infof("Deleting test namespace %s", testNamespace1)
 		ns := &corev1.Namespace{
@@ -203,7 +250,7 @@ var _ = Describe("Verifiers/hostfirewall", Label("hostfirewall"), Ordered, func(
 				Name: testNamespace1,
 			},
 		}
-		err = utils.DeleteIfExists(ctx, cl, ns, "namespace")
+		err = utils.DeleteIfExists(ctx, cl, ns)
 		Expect(err).NotTo(HaveOccurred())
 
 		klog.Infof("Deleting test namespace %s", testNamespace2)
@@ -212,7 +259,7 @@ var _ = Describe("Verifiers/hostfirewall", Label("hostfirewall"), Ordered, func(
 				Name: testNamespace2,
 			},
 		}
-		err = utils.DeleteIfExists(ctx, cl, ns, "namespace")
+		err = utils.DeleteIfExists(ctx, cl, ns)
 		Expect(err).NotTo(HaveOccurred())
 	})
 })

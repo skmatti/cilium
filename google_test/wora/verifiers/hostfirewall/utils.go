@@ -8,10 +8,7 @@ import (
 	ciliumlabels "github.com/cilium/cilium/pkg/labels"
 	ciliumapi "github.com/cilium/cilium/pkg/policy/api"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/rest"
 	k8sclient "sigs.k8s.io/controller-runtime/pkg/client"
-
-	"gke-internal.googlesource.com/third_party/cilium/google_test/wora/e2e/pkg/test/utils"
 )
 
 func applyCCNPWithIngressPolicy(cl k8sclient.Client, policyName string, nodeSelectorIP string, ingressLabelKey string, ingressLabelValue string) error {
@@ -64,17 +61,11 @@ func applyCCNPWithIngressPolicy(cl k8sclient.Client, policyName string, nodeSele
 	return err
 }
 
-func deleteCCNP(cl k8sclient.Client, config *rest.Config, ccnpName string) error {
+func deleteCCNP(ctx context.Context, cl k8sclient.Client, ccnpName string) error {
 	err := cl.Delete(context.Background(), &ciliumv2.CiliumClusterwideNetworkPolicy{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: ccnpName,
 		},
 	})
-	return err
-}
-
-func deleteAndWaitForPodDeletion(ctx context.Context, cl k8sclient.Client, podName, namespace string) error {
-	utils.DeletePod(ctx, cl, podName, namespace)
-	err := utils.WaitForPodDeletion(ctx, cl, podName, namespace)
 	return err
 }

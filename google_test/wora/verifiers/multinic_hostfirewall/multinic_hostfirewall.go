@@ -5,24 +5,23 @@ import (
 	"os"
 	"time" // Do not use pkg/time in test code.
 
+	networkv1 "github.com/GoogleCloudPlatform/gke-networking-api/apis/network/v1"
+	networkclientset "github.com/GoogleCloudPlatform/gke-networking-api/client/network/clientset/versioned"
 	ciliumv2 "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2"
 	ciliumapi "github.com/cilium/cilium/pkg/policy/api"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	klog "gke-internal.googlesource.com/syllogi/sanitized-klog/third_party/klogv2"
-	e2escheme "gke-internal.googlesource.com/third_party/cilium/google_test/wora/e2e/pkg/test/scheme"
-	"gke-internal.googlesource.com/third_party/cilium/google_test/wora/e2e/pkg/test/utils"
-
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
-
-	networkv1 "github.com/GoogleCloudPlatform/gke-networking-api/apis/network/v1"
-	networkclientset "github.com/GoogleCloudPlatform/gke-networking-api/client/network/clientset/versioned"
-	testwait "gke-internal.googlesource.com/third_party/cilium/google_test/wora/e2e/pkg/test/wait"
 	k8sclient "sigs.k8s.io/controller-runtime/pkg/client"
+
+	klog "gke-internal.googlesource.com/syllogi/sanitized-klog/third_party/klogv2"
+	e2escheme "gke-internal.googlesource.com/third_party/cilium/google_test/wora/e2e/pkg/test/scheme"
+	"gke-internal.googlesource.com/third_party/cilium/google_test/wora/e2e/pkg/test/utils"
+	testwait "gke-internal.googlesource.com/third_party/cilium/google_test/wora/e2e/pkg/test/wait"
 )
 
 const (
@@ -38,7 +37,7 @@ const (
 	hostNetworkPodOnWorker1 = "worker1-hostnetwork-pod"
 	workerNodeLabel         = "node-role.kubernetes.io/worker="
 	curlTimeoutSeconds      = 30
-	testNamespace           = "multinic-test-ns"
+	testNamespace           = "multinic-hostfirewall"
 	policyEnforcementDelay  = 30 * time.Second
 	overallTimeout          = 20 * time.Minute
 )
@@ -170,12 +169,12 @@ var _ = Describe("Verifiers/multinic_hostfirewall", Label("multinic-hostfirewall
 	Context("Connectivity Validation", func() {
 		It("Validates connectivity between nodes based on policies", func() {
 			klog.Infof("Attempting curl from %s to %s (%s) on blue-network (expecting failure)", hostNetworkPodOnWorker0, hostNetworkPodOnWorker1, worker1ifaceBlue.ip)
-			err = utils.RunCurlFromPodWithTimeoutLimit(ctx, cl, hostNetworkPodOnWorker0, hostNetworkPodOnWorker1, worker1ifaceBlue.ip, utils.ResponderPort, testNamespace, curlTimeoutSeconds)
-			Expect(err).To(HaveOccurred(), "Curl from %s to %s via blue-network %s should have failed due to policy, but succeeded.", hostNetworkPodOnWorker0, hostNetworkPodOnWorker1, blueInterfaceName)
+			err = utils.VerifyCurlFromPod(ctx, testNamespace, hostNetworkPodOnWorker0, worker1ifaceBlue.ip, utils.ResponderPort, false, "")
+			Expect(err).ToNot(HaveOccurred(), "Curl from %s to %s via blue-network %s should have failed due to policy, but succeeded.", hostNetworkPodOnWorker0, hostNetworkPodOnWorker1, blueInterfaceName)
 			klog.Infof("Curl from %s to %s on blue-network %s failed as expected.", hostNetworkPodOnWorker0, hostNetworkPodOnWorker1, blueInterfaceName)
 
 			klog.Infof("Attempting curl from %s to %s (%s) on green-network (expecting success)", hostNetworkPodOnWorker0, hostNetworkPodOnWorker1, worker1ifaceGreen.ip)
-			err = utils.RunCurlFromPodWithTimeoutLimit(ctx, cl, hostNetworkPodOnWorker0, hostNetworkPodOnWorker1, worker1ifaceGreen.ip, utils.ResponderPort, testNamespace, curlTimeoutSeconds)
+			err = utils.VerifyCurlFromPod(ctx, testNamespace, hostNetworkPodOnWorker0, worker1ifaceGreen.ip, utils.ResponderPort, true, "")
 			Expect(err).NotTo(HaveOccurred(), "Curl from %s to %s via green-network %s failed, but should have succeeded.", hostNetworkPodOnWorker0, hostNetworkPodOnWorker1, greenInterfaceName)
 			klog.Infof("Curl from  %s to %s on green-network %s succeeded as expected.", hostNetworkPodOnWorker0, hostNetworkPodOnWorker1, greenInterfaceName)
 		})
@@ -226,7 +225,7 @@ var _ = Describe("Verifiers/multinic_hostfirewall", Label("multinic-hostfirewall
 				Name: blueNetworkPolicyName,
 			},
 		}
-		err = utils.DeleteAndWait(ctx, cl, networkPolicy, "ccnp")
+		err = utils.DeleteAndWait(ctx, cl, networkPolicy)
 		Expect(err).NotTo(HaveOccurred(), "Error during cleanup of policy %s", blueNetworkPolicyName)
 
 		klog.Infof("Deleting CiliumClusterwideNetworkPolicy %s", greenNetworkPolicyName)
@@ -235,13 +234,13 @@ var _ = Describe("Verifiers/multinic_hostfirewall", Label("multinic-hostfirewall
 				Name: greenNetworkPolicyName,
 			},
 		}
-		err = utils.DeleteAndWait(ctx, cl, networkPolicy, "ccnp")
+		err = utils.DeleteAndWait(ctx, cl, networkPolicy)
 		Expect(err).NotTo(HaveOccurred(), "Error during cleanup of policy %s", greenNetworkPolicyName)
 
 		// Delete test namespace
 		klog.Infof("Deleting test namespace %s", testNamespace)
 		nsToDelete := &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: testNamespace}}
-		err = utils.DeleteAndWait(ctx, cl, nsToDelete, "namespace")
+		err = utils.DeleteAndWait(ctx, cl, nsToDelete)
 		Expect(err).NotTo(HaveOccurred(), "Failed to delete test namespace %s", testNamespace)
 
 		// Delete the networks

@@ -15,7 +15,6 @@ import (
 
 	gcpnetworkv1 "github.com/GoogleCloudPlatform/gke-networking-api/apis/network/v1"
 	networkclientset "github.com/GoogleCloudPlatform/gke-networking-api/client/network/clientset/versioned"
-	networkutils "gke-internal.googlesource.com/anthos-networking/test-infra/pkg/network"
 	"golang.org/x/crypto/ssh"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -27,6 +26,7 @@ import (
 	"k8s.io/utils/ptr"
 	k8sclient "sigs.k8s.io/controller-runtime/pkg/client"
 
+	networkutils "gke-internal.googlesource.com/anthos-networking/test-infra/pkg/network"
 	klog "gke-internal.googlesource.com/syllogi/sanitized-klog/third_party/klogv2"
 	"gke-internal.googlesource.com/third_party/cilium/google_test/wora/e2e/pkg/test/wait"
 )
@@ -382,49 +382,98 @@ func cleanupResources(ctx context.Context, cl k8sclient.Client, podName, namespa
 	}
 }
 
-// RunCurlFromPod executes a curl command from a specific pod to test connectivity
-func RunCurlFromPod(ctx context.Context, cl k8sclient.Client, sourcePodName, targetPodName, targetIP string, port int, namespace string) error {
-	cmd := exec.Command("kubectl", "exec", sourcePodName, "-n", namespace, "--", "curl", fmt.Sprintf("http://%s:%d", targetIP, port))
-	return runCurlCommand(cmd, sourcePodName, targetIP, port, targetPodName)
+// CurlOptions specifies options for running a curl command from a pod.
+type CurlOptions struct {
+	SourcePodName   string
+	SourceNamespace string
+	TargetIP        string
+	TargetPort      int
+	TimeoutSeconds  int
+	// WantFailure, if true, indicates that the curl command is expected to fail.
+	// The default expected failure is a timeout (exit status 28).
+	WantFailure bool
+	// WantOutput, if not empty, specifies a substring to look for in the curl
+	// response or error. If WantFailure is false, it overrides the default
+	// success string ("200 OK"). If WantFailure is true, it overrides the
+	// default failure string ("exit status 28").
+	WantOutput string
 }
 
-func RunCurlFromPodWithTimeoutLimit(ctx context.Context, cl k8sclient.Client, sourcePodName, targetPodName, targetIP string, port int, namespace string, timeout int) error {
-	cmd := exec.Command(
-		"kubectl", "exec", sourcePodName, "-n", namespace, "--",
-		"curl", "--max-time", fmt.Sprintf("%d", timeout), fmt.Sprintf("http://%s:%d", targetIP, port),
+// RunCurlFromPod executes a curl command from a pod with the specified options.
+func RunCurlFromPod(opts CurlOptions) error {
+	const (
+		curlSuccessMsg = "200 OK"
+		curlTimeoutMsg = "exit status 28"
 	)
-	return runCurlCommand(cmd, sourcePodName, targetIP, port, targetPodName)
-}
 
-func runCurlCommand(cmd *exec.Cmd, sourcePodName, targetIP string, port int, expectedResponse string) error {
-	output, err := cmd.CombinedOutput()
+	curlArgs := []string{"-sf"} // -s for silent, -f to fail on server errors
+	if opts.TimeoutSeconds > 0 {
+		curlArgs = append(curlArgs, "--max-time", fmt.Sprintf("%d", opts.TimeoutSeconds))
+	}
+	curlArgs = append(curlArgs, fmt.Sprintf("http://%s:%d", opts.TargetIP, opts.TargetPort))
+
+	cmdArgs := []string{"exec", opts.SourcePodName, "-n", opts.SourceNamespace, "--", "curl"}
+	cmdArgs = append(cmdArgs, curlArgs...)
+	cmd := exec.Command("kubectl", cmdArgs...)
+
+	outputBytes, err := cmd.CombinedOutput()
+	output := string(outputBytes)
+
+	if opts.WantFailure {
+		if err == nil {
+			return fmt.Errorf("expected curl to fail, but it succeeded, output: %s", output)
+		}
+
+		expectedFailureMsg := curlTimeoutMsg
+		if opts.WantOutput != "" {
+			expectedFailureMsg = opts.WantOutput
+		}
+
+		if !strings.Contains(err.Error(), expectedFailureMsg) {
+			return fmt.Errorf("expected curl to fail with substring %q, but got different error: %v, output: %s", expectedFailureMsg, err, output)
+		}
+		return nil // Expected failure occurred.
+	}
+
+	// We expect success.
 	if err != nil {
-		return fmt.Errorf("failed to execute curl command: %v, output: %s", err, string(output))
+		return fmt.Errorf("expected curl to succeed, but got error: %v, output: %s", err, output)
 	}
 
-	if !strings.Contains(string(output), "200 OK") && !strings.Contains(string(output), expectedResponse) {
-		return fmt.Errorf("unexpected curl response: %s", string(output))
+	expectedOutput := curlSuccessMsg
+	if opts.WantOutput != "" {
+		expectedOutput = opts.WantOutput
 	}
 
-	klog.Infof("Curl command successful from pod %s to %s:%d", sourcePodName, targetIP, port)
+	if !strings.Contains(output, expectedOutput) {
+		return fmt.Errorf("curl response did not contain expected substring %q, output: %s", expectedOutput, output)
+	}
 	return nil
 }
 
-func RunCurlCommandWithExpectedResponseFromPod(ctx context.Context, cl k8sclient.Client, sourcePodName, targetIP string, port int, namespace, expectedResponse string) error {
-	cmd := exec.Command("kubectl", "exec", sourcePodName, "-n", namespace, "--", "curl", fmt.Sprintf("http://%s:%d", targetIP, port))
-	return runCurlCommand(cmd, sourcePodName, targetIP, port, expectedResponse)
-}
+// VerifyCurlFromPod retries a curl command with a 1-minute timeout and expects
+// a number of consecutive successful or failed connections.
+func VerifyCurlFromPod(ctx context.Context, namespace, sourcePodName, targetIP string, port int, wantSuccess bool, wantOutput string) error {
+	const minConsecutiveChecks = 2
+	cmdStr := fmt.Sprintf("from %s/%s to %s:%d", namespace, sourcePodName, targetIP, port)
+	waitMsg := fmt.Sprintf("Expected %d consecutive successful curls %s", minConsecutiveChecks, cmdStr)
+	if !wantSuccess {
+		waitMsg = fmt.Sprintf("Expected %d consecutive failed curls %s", minConsecutiveChecks, cmdStr)
+	}
+	opts := CurlOptions{
+		SourcePodName:   sourcePodName,
+		SourceNamespace: namespace,
+		TargetIP:        targetIP,
+		TargetPort:      port,
+		TimeoutSeconds:  1,
+		WantFailure:     !wantSuccess,
+		WantOutput:      wantOutput,
+	}
 
-// VerifyCurlFromPod retry curl command with 1 min timeout and expected 2 consecutive expected connection
-func VerifyCurlFromPod(ctx context.Context, cl k8sclient.Client, sourcePodName, targetPodName, targetIP string, port int, namespace string, expectSuccess bool) error {
-	minConsecutiveSuccess := 2
-	return wait.WaitForSuccessContext(ctx, fmt.Sprintf("Expected %d consecutive curl %t", minConsecutiveSuccess, expectSuccess), wait.WaitingMedium, func(ctx context.Context) error {
-		for i := 1; i < minConsecutiveSuccess+1; i++ {
-			err := RunCurlFromPodWithTimeoutLimit(ctx, cl, sourcePodName, targetPodName, targetIP, port, namespace, 1)
-			if expectSuccess && err != nil {
-				return fmt.Errorf("expect curl success, %d time fail: %v", i, err)
-			} else if !expectSuccess && err == nil {
-				return fmt.Errorf("expect curl fail, %d time success", i)
+	return wait.WaitForSuccessContext(ctx, waitMsg, wait.WaitingMedium, func(ctx context.Context) error {
+		for i := 0; i < minConsecutiveChecks; i++ {
+			if err := RunCurlFromPod(opts); err != nil {
+				return fmt.Errorf("curl check failed on attempt %d: %w", i+1, err)
 			}
 		}
 		return nil
@@ -516,40 +565,52 @@ func FetchPodLogs(ctx context.Context, c kubernetes.Interface, podName, namespac
 	return string(logs), nil
 }
 
-// DeleteIfExists deletes a Kubernetes object, ignoring "not found" errors.
-func DeleteIfExists(ctx context.Context, cl k8sclient.Client, obj k8sclient.Object, objType string) error {
-	err := cl.Delete(ctx, obj)
-	name := fmt.Sprintf("%s object %s", objType, obj.GetName())
-	if err != nil {
-		if apierrors.IsNotFound(err) {
-			klog.Infof("%s already deleted", name)
-			return nil
-		} else {
-			return fmt.Errorf("failed to delete %s: %v", name, err)
-		}
+// DeleteAndWait deletes a Kubernetes object and waits for it to be removed.
+func DeleteAndWait(ctx context.Context, cl k8sclient.Client, obj k8sclient.Object) error {
+	if err := DeleteIfExists(ctx, cl, obj); err != nil {
+		return err
 	}
+	return WaitForDeletion(ctx, cl, obj)
+}
 
-	klog.Infof("%s deleted successfully", name)
+// DeleteIfExists deletes a Kubernetes object, ignoring "not found" errors.
+func DeleteIfExists(ctx context.Context, cl k8sclient.Client, obj k8sclient.Object) error {
+	gvks, _, err := cl.Scheme().ObjectKinds(obj)
+	if err != nil {
+		return fmt.Errorf("failed to get object kinds: %v", err)
+	}
+	objKind := gvks[0].Kind
+	objKey := k8sclient.ObjectKeyFromObject(obj)
+
+	if err := cl.Delete(ctx, obj); err != nil {
+		if apierrors.IsNotFound(err) {
+			return nil
+		}
+		return fmt.Errorf("failed to delete %s %s: %v", objKind, objKey, err)
+	}
+	klog.Infof("%s %s deleted successfully", objKind, objKey)
 	return nil
 }
 
-// DeleteAndWait deletes a Kubernetes object and waits for it to be removed.
-func DeleteAndWait(ctx context.Context, cl k8sclient.Client, obj k8sclient.Object, objType string) error {
-	err := DeleteIfExists(ctx, cl, obj, objType)
+// WaitForDeletion deletes a Kubernetes object and wait for it to be deleted.
+func WaitForDeletion(ctx context.Context, cl k8sclient.Client, obj k8sclient.Object) error {
+	gvks, _, err := cl.Scheme().ObjectKinds(obj)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to get object kinds: %v", err)
 	}
-
-	name := fmt.Sprintf("%s object %s", objType, obj.GetName())
-	return wait.WaitForSuccessContext(ctx, fmt.Sprintf("delete %s", name), wait.WaitingMedium, func(ctx context.Context) error {
-		err := cl.Get(ctx, k8sclient.ObjectKeyFromObject(obj), obj)
+	objKind := gvks[0].Kind
+	objKey := k8sclient.ObjectKeyFromObject(obj)
+	return wait.WaitForSuccessContext(ctx, fmt.Sprintf("Wait for %s deletion", objKind), wait.WaitingMedium, func(ctx context.Context) error {
+		newObj := obj.DeepCopyObject().(k8sclient.Object)
+		err := cl.Get(ctx, objKey, newObj)
 		if err != nil {
 			if apierrors.IsNotFound(err) {
 				return nil
 			}
-			return fmt.Errorf("failed to get %s: %v", name, err)
+			return err
 		}
-		return fmt.Errorf("%s still exists", name)
+		klog.Infof("%s %s still exists, retrying", objKind, objKey)
+		return fmt.Errorf("%s %s is still present", objKind, objKey)
 	})
 }
 
@@ -585,10 +646,6 @@ func ValidateCiliumConfigFlag(ctx context.Context, cl k8sclient.Client, cfg []Ci
 		}
 	}
 	return true, nil
-}
-
-func DeletePod(ctx context.Context, cl k8sclient.Client, podName, namespace string) {
-	cleanupResources(ctx, cl, podName, namespace, nil)
 }
 
 func WaitForPodDeletion(ctx context.Context, cl k8sclient.Client, podName, namespace string) error {

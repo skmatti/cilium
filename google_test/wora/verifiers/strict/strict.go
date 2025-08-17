@@ -82,7 +82,7 @@ var _ = Describe("Verifiers/Strict", Label("strict"), Ordered, func() {
 				Name: testNamespace,
 			},
 		}
-		err = utils.DeleteIfExists(ctx, cl, ns, "namespace")
+		err = utils.DeleteIfExists(ctx, cl, ns)
 		Expect(err).NotTo(HaveOccurred())
 	})
 

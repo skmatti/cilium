@@ -84,7 +84,7 @@ var _ = Describe("Verifiers/Geneve", Label("geneve"), Ordered, func() {
 				Name: testNamespace,
 			},
 		}
-		err = utils.DeleteIfExists(ctx, cl, ns, "namespace")
+		err = utils.DeleteIfExists(ctx, cl, ns)
 		Expect(err).NotTo(HaveOccurred())
 	})
 
@@ -173,7 +173,7 @@ var _ = Describe("Verifiers/Geneve", Label("geneve"), Ordered, func() {
 			// Make sure stopTCPDump is always called.
 			defer stopTCPDump(tcpdumpPod, testNamespace)
 
-			if err := utils.RunCurlFromPod(ctx, cl, testPod1Name, testPod2Name, pod2IP, utils.ResponderPort, testNamespace); err != nil {
+			if err := utils.VerifyCurlFromPod(ctx, testNamespace, testPod1Name, pod2IP, utils.ResponderPort, true, testPod2Name); err != nil {
 				return err
 			}
 

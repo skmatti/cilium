@@ -26,7 +26,6 @@ const (
 	backendpod    = "lb-endpoint-pod"
 	workerVM      = "worker-vm"
 	workerPod     = "worker-pod"
-	workerVMIP    = "192.168.0.100"
 	testNamespace = "internallb"
 	networkName   = "g-default-vpc"
 	serviceName   = "internallb"
@@ -117,7 +116,7 @@ var _ = Describe("InternalLB", Label("internallb"), Ordered, func() {
 				Name: networkName,
 			},
 		}
-		err := utils.DeleteAndWait(ctx, cl, network, "network")
+		err := utils.DeleteAndWait(ctx, cl, network)
 		Expect(err).NotTo(HaveOccurred())
 
 		// Delete the load balancer service created for the test
@@ -128,7 +127,7 @@ var _ = Describe("InternalLB", Label("internallb"), Ordered, func() {
 				Namespace: testNamespace,
 			},
 		}
-		err = utils.DeleteIfExists(ctx, cl, service, "service")
+		err = utils.DeleteIfExists(ctx, cl, service)
 		Expect(err).NotTo(HaveOccurred())
 
 		klog.Infof("Deleting test namespace %s", testNamespace)
@@ -137,7 +136,7 @@ var _ = Describe("InternalLB", Label("internallb"), Ordered, func() {
 				Name: testNamespace,
 			},
 		}
-		err = utils.DeleteIfExists(ctx, cl, ns, "namespace")
+		err = utils.DeleteIfExists(ctx, cl, ns)
 		Expect(err).NotTo(HaveOccurred())
 	})
 
@@ -160,16 +159,19 @@ var _ = Describe("InternalLB", Label("internallb"), Ordered, func() {
 		}
 		// Validate all pods are deleted before next test
 		for _, podName := range testPods {
-			klog.Infof(podName)
-			err = wait.WaitForSuccessContext(ctx, "Delete pod", wait.WaitingMedium, func(ctx context.Context) error {
+			err := wait.WaitForSuccessContext(ctx, "Delete pod", wait.WaitingMedium, func(ctx context.Context) error {
 				pod := &corev1.Pod{}
-				err = cl.Get(ctx, k8sclient.ObjectKey{Name: podName, Namespace: testNamespace}, pod)
-				if err == nil {
-					return fmt.Errorf("pod %s was not deleted successfully", podName)
+				getErr := cl.Get(ctx, k8sclient.ObjectKey{Name: podName, Namespace: testNamespace}, pod)
+				if getErr != nil {
+					if apierrors.IsNotFound(getErr) {
+						klog.Infof("Pod %s deleted successfully", podName)
+						return nil
+					}
+					return getErr
 				}
-				klog.Infof("Pod %s deleted successfully", podName)
-				return nil
+				return fmt.Errorf("pod %s still exists and was not deleted successfully", podName)
 			})
+			Expect(err).NotTo(HaveOccurred(), "Failed to wait for pod deletion for pod %s", podName)
 		}
 		// Reset cleanupFuncs and testPods before next test
 		cleanupFuncs = nil
@@ -178,30 +180,34 @@ var _ = Describe("InternalLB", Label("internallb"), Ordered, func() {
 
 	It("Verify ILB behavior from a worker pod", func() {
 		workerPodName := workerPod
-		testPods, cleanupFuncs, err = testInternalLB(ctx, cl, workerPodName, false, false)
+		workerVMIP := "" // Not used for pod
+		testPods, cleanupFuncs, err = testInternalLB(ctx, cl, workerPodName, workerVMIP, false, false)
 		Expect(err).NotTo(HaveOccurred())
 	})
 
 	It("Verify ILB behavior from a worker vm", func() {
 		workerPodName := workerVM
-		testPods, cleanupFuncs, err = testInternalLB(ctx, cl, workerPodName, true, false)
+		workerVMIP := "192.168.0.100"
+		testPods, cleanupFuncs, err = testInternalLB(ctx, cl, workerPodName, workerVMIP, true, false)
 		Expect(err).NotTo(HaveOccurred())
 	})
 
 	It("Verify ILB behavior from a worker pod with backend on cp node", func() {
 		workerPodName := workerPod
-		testPods, cleanupFuncs, err = testInternalLB(ctx, cl, workerPodName, false, true)
+		workerVMIP := "" // Not used for pod
+		testPods, cleanupFuncs, err = testInternalLB(ctx, cl, workerPodName, workerVMIP, false, true)
 		Expect(err).NotTo(HaveOccurred())
 	})
 
 	It("Verify ILB behavior from a worker vm with backend on cp node", func() {
 		workerPodName := workerVM
-		testPods, cleanupFuncs, err = testInternalLB(ctx, cl, workerPodName, true, true)
+		workerVMIP := "192.168.0.101"
+		testPods, cleanupFuncs, err = testInternalLB(ctx, cl, workerPodName, workerVMIP, true, true)
 		Expect(err).NotTo(HaveOccurred())
 	})
 })
 
-func testInternalLB(ctx context.Context, cl k8sclient.Client, workerPodName string, isEmulatedl3Pod, sameNode bool) ([]string, []func(), error) {
+func testInternalLB(ctx context.Context, cl k8sclient.Client, workerPodName, workerVMIP string, isEmulatedl3Pod, sameNode bool) ([]string, []func(), error) {
 	var testPods []string
 	var cleanupFuncs []func()
 	var cleanupFunc func()
@@ -210,9 +216,11 @@ func testInternalLB(ctx context.Context, cl k8sclient.Client, workerPodName stri
 	affinity := &corev1.Affinity{}
 
 	cleanupFunc, err = utils.CreatePod(ctx, cl, backendpod, testNamespace, utils.WithLabel("app", serviceName), utils.WithResponderContainer())
+	cleanupFuncs = append(cleanupFuncs, cleanupFunc)
 	if err != nil {
-		klog.Errorf("Failed to create backend pod %s: %v", backendpod, err)
+		return testPods, cleanupFuncs, fmt.Errorf("failed to create backend pod %s: %v", backendpod, err)
 	}
+	testPods = append(testPods, backendpod)
 	if sameNode {
 		affinity.PodAffinity = &corev1.PodAffinity{
 			RequiredDuringSchedulingIgnoredDuringExecution: []corev1.PodAffinityTerm{
@@ -240,17 +248,16 @@ func testInternalLB(ctx context.Context, cl k8sclient.Client, workerPodName stri
 			},
 		}
 	}
-	testPods = append(testPods, backendpod)
-	cleanupFuncs = append(cleanupFuncs, cleanupFunc)
 	if isEmulatedl3Pod {
 		cleanupFunc, err = createEmulatedL3VMPod(ctx, cl, workerPodName, workerVMIP, utils.WithLabel("app", "worker"), utils.WithAffinity(affinity))
 	} else {
 		cleanupFunc, err = utils.CreatePod(ctx, cl, workerPodName, testNamespace, utils.WithLabel("app", "worker"), utils.WithAffinity(affinity))
 	}
-	if err != nil {
-		return testPods, cleanupFuncs, fmt.Errorf("failed to create vm worker pod %s: %v", workerPodName, err)
-	}
 	cleanupFuncs = append(cleanupFuncs, cleanupFunc)
+	if err != nil {
+		return testPods, cleanupFuncs, fmt.Errorf("failed to create worker pod/vm %s: %v", workerPodName, err)
+	}
+	testPods = append(testPods, workerPodName)
 
 	err = utils.WaitForServiceReadiness(ctx, cl, serviceName, testNamespace, corev1.ServiceTypeLoadBalancer)
 	if err != nil {
@@ -264,7 +271,7 @@ func testInternalLB(ctx context.Context, cl k8sclient.Client, workerPodName stri
 	}
 
 	for _, ingress := range service.Status.LoadBalancer.Ingress {
-		err = utils.VerifyCurlFromPod(ctx, cl, workerPodName, serviceName, ingress.IP, servicePort, testNamespace, true)
+		err = utils.VerifyCurlFromPod(ctx, testNamespace, workerPodName, ingress.IP, servicePort, true, backendpod)
 		if err != nil {
 			return testPods, cleanupFuncs, fmt.Errorf("failed to verify curl to service IP %s: %v", ingress, err)
 		}

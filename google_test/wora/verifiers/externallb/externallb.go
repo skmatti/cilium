@@ -25,10 +25,7 @@ import (
 const (
 	backendpod                   = "lb-endpoint-pod"
 	perimeterVM                  = "perimeter-vm"
-	perimeterVMIP                = "192.168.0.100"
-	perimeterExternalVMIP        = "10.10.10.10"
 	backendVM                    = "lb-endpoint-vm"
-	backendVMIP                  = "192.168.0.101"
 	testNamespace                = "externallb"
 	perimeterNetworkName         = "g-org-1-perimeter-cluster-internal"
 	perimeterExternalNetworkName = "g-org-1-perimeter-cluster-external"
@@ -186,7 +183,7 @@ var _ = Describe("ExternalLB", Label("externallb"), Ordered, func() {
 				Name: perimeterNetworkName,
 			},
 		}
-		err = utils.DeleteAndWait(ctx, cl, network, "network")
+		err = utils.DeleteAndWait(ctx, cl, network)
 		Expect(err).NotTo(HaveOccurred())
 
 		klog.Infof("Deleting l3 default netowrk %s", defaultNetworkName)
@@ -195,7 +192,7 @@ var _ = Describe("ExternalLB", Label("externallb"), Ordered, func() {
 				Name: defaultNetworkName,
 			},
 		}
-		err = utils.DeleteAndWait(ctx, cl, network, "network")
+		err = utils.DeleteAndWait(ctx, cl, network)
 		Expect(err).NotTo(HaveOccurred())
 
 		klog.Infof("Deleting l3 perimeter external netowrk %s", perimeterExternalNetworkName)
@@ -204,7 +201,7 @@ var _ = Describe("ExternalLB", Label("externallb"), Ordered, func() {
 				Name: perimeterExternalNetworkName,
 			},
 		}
-		err = utils.DeleteAndWait(ctx, cl, network, "network")
+		err = utils.DeleteAndWait(ctx, cl, network)
 		Expect(err).NotTo(HaveOccurred())
 
 		klog.Infof("Deleting test namespace %s", testNamespace)
@@ -213,12 +210,13 @@ var _ = Describe("ExternalLB", Label("externallb"), Ordered, func() {
 				Name: testNamespace,
 			},
 		}
-		err = utils.DeleteIfExists(ctx, cl, ns, "namespace")
+		err = utils.DeleteIfExists(ctx, cl, ns)
 		Expect(err).NotTo(HaveOccurred())
 	})
 
 	AfterEach(func() {
-		if CurrentSpecReport().Failed() {
+		failed := CurrentSpecReport().Failed()
+		if failed {
 			// Collect logs for all test pods if the test failed
 			for _, podName := range testPods {
 				podLogs, err := utils.FetchPodLogs(ctx, clientset, podName, testNamespace)
@@ -236,15 +234,19 @@ var _ = Describe("ExternalLB", Label("externallb"), Ordered, func() {
 		}
 		// Validate all pods are deleted before next test
 		for _, podName := range testPods {
-			err = wait.WaitForSuccessContext(ctx, "Delete pod", wait.WaitingMedium, func(ctx context.Context) error {
+			err := wait.WaitForSuccessContext(ctx, "Delete pod", wait.WaitingMedium, func(ctx context.Context) error {
 				pod := &corev1.Pod{}
-				err = cl.Get(ctx, k8sclient.ObjectKey{Name: podName, Namespace: testNamespace}, pod)
-				if err == nil {
-					return fmt.Errorf("pod %s was not deleted successfully", podName)
+				getErr := cl.Get(ctx, k8sclient.ObjectKey{Name: podName, Namespace: testNamespace}, pod)
+				if getErr != nil {
+					if apierrors.IsNotFound(getErr) {
+						klog.Infof("Pod %s deleted successfully", podName)
+						return nil
+					}
+					return getErr
 				}
-				klog.Infof("Pod %s deleted successfully", podName)
-				return nil
+				return fmt.Errorf("pod %s still exists and was not deleted successfully", podName)
 			})
+			Expect(err).NotTo(HaveOccurred(), "Failed to wait for pod deletion for pod %s", podName)
 		}
 		// Reset cleanupFuncs and testPods before next test
 		cleanupFuncs = nil
@@ -254,7 +256,11 @@ var _ = Describe("ExternalLB", Label("externallb"), Ordered, func() {
 	It("Verifies perimeter cluster traffic to pod on same node", func() {
 		backendPodName := backendpod + "--same-node"
 		perimeterVMName := perimeterVM + "--same-node"
-		podAntiAffinity := &corev1.Affinity{
+		perimeterInternalIP := "192.168.0.100"
+		perimeterExternalIP := "10.10.10.10"
+		backendVMIP := "" // Not used for non-emulated pod
+
+		podAffinity := &corev1.Affinity{
 			PodAffinity: &corev1.PodAffinity{
 				RequiredDuringSchedulingIgnoredDuringExecution: []corev1.PodAffinityTerm{
 					{
@@ -269,20 +275,24 @@ var _ = Describe("ExternalLB", Label("externallb"), Ordered, func() {
 			},
 		}
 		emulatedL3VMPod := false
-		testPods, cleanupFuncs, err = testELBLancerFromPod(ctx, cl, backendPodName, perimeterVMName, podAntiAffinity, emulatedL3VMPod)
+		testPods, cleanupFuncs, err = testELBLancerFromPod(ctx, cl, backendPodName, perimeterVMName, podAffinity, emulatedL3VMPod, backendVMIP, perimeterInternalIP, perimeterExternalIP)
 		Expect(err).NotTo(HaveOccurred(), fmt.Sprintf("external traffic not able to reach %s via %s : %v", backendPodName, perimeterVMName, err))
 	})
 
 	It("Verifies perimeter cluster traffic to worker vm on same node", func() {
-		backendPodName := backendpod + "--same-node"
+		backendVMName := backendVM + "--same-node"
 		perimeterVMName := perimeterVM + "--same-node"
-		podAntiAffinity := &corev1.Affinity{
+		perimeterInternalIP := "192.168.0.102"
+		perimeterExternalIP := "10.10.10.11"
+		backendVMIP := "192.168.0.103"
+
+		podAffinity := &corev1.Affinity{
 			PodAffinity: &corev1.PodAffinity{
 				RequiredDuringSchedulingIgnoredDuringExecution: []corev1.PodAffinityTerm{
 					{
 						LabelSelector: &metav1.LabelSelector{
 							MatchLabels: map[string]string{
-								"app": backendPodName,
+								"app": backendVMName,
 							},
 						},
 						TopologyKey: "kubernetes.io/hostname",
@@ -291,13 +301,17 @@ var _ = Describe("ExternalLB", Label("externallb"), Ordered, func() {
 			},
 		}
 		emulatedL3VMPod := true
-		testPods, cleanupFuncs, err = testELBLancerFromPod(ctx, cl, backendPodName, perimeterVMName, podAntiAffinity, emulatedL3VMPod)
-		Expect(err).NotTo(HaveOccurred(), fmt.Sprintf("external traffic not able to reach %s via %s : %v", backendPodName, perimeterVMName, err))
+		testPods, cleanupFuncs, err = testELBLancerFromPod(ctx, cl, backendVMName, perimeterVMName, podAffinity, emulatedL3VMPod, backendVMIP, perimeterInternalIP, perimeterExternalIP)
+		Expect(err).NotTo(HaveOccurred(), fmt.Sprintf("external traffic not able to reach %s via %s : %v", backendVMName, perimeterVMName, err))
 	})
 
 	It("Verifies perimeter cluster traffic to pod on different node", func() {
 		backendPodName := backendpod + "--diff-node"
 		perimeterVMName := perimeterVM + "--diff-node"
+		perimeterInternalIP := "192.168.0.104"
+		perimeterExternalIP := "10.10.10.12"
+		backendVMIP := "" // Not used for non-emulated pod
+
 		podAntiAffinity := &corev1.Affinity{
 			PodAntiAffinity: &corev1.PodAntiAffinity{
 				RequiredDuringSchedulingIgnoredDuringExecution: []corev1.PodAffinityTerm{
@@ -313,20 +327,24 @@ var _ = Describe("ExternalLB", Label("externallb"), Ordered, func() {
 			},
 		}
 		emulatedL3VMPod := false
-		testPods, cleanupFuncs, err = testELBLancerFromPod(ctx, cl, backendPodName, perimeterVMName, podAntiAffinity, emulatedL3VMPod)
+		testPods, cleanupFuncs, err = testELBLancerFromPod(ctx, cl, backendPodName, perimeterVMName, podAntiAffinity, emulatedL3VMPod, backendVMIP, perimeterInternalIP, perimeterExternalIP)
 		Expect(err).NotTo(HaveOccurred(), fmt.Sprintf("external traffic not able to reach %s via %s : %v", backendPodName, perimeterVMName, err))
 	})
 
 	It("Verifies perimeter cluster traffic to worker vm on different node", func() {
-		backendPodName := backendpod + "--diff-node"
+		backendVMName := backendVM + "--diff-node"
 		perimeterVMName := perimeterVM + "--diff-node"
+		perimeterInternalIP := "192.168.0.105"
+		perimeterExternalIP := "10.10.10.13"
+		backendVMIP := "192.168.0.106"
+
 		podAntiAffinity := &corev1.Affinity{
 			PodAntiAffinity: &corev1.PodAntiAffinity{
 				RequiredDuringSchedulingIgnoredDuringExecution: []corev1.PodAffinityTerm{
 					{
 						LabelSelector: &metav1.LabelSelector{
 							MatchLabels: map[string]string{
-								"app": backendPodName,
+								"app": backendVMName,
 							},
 						},
 						TopologyKey: "kubernetes.io/hostname",
@@ -335,48 +353,54 @@ var _ = Describe("ExternalLB", Label("externallb"), Ordered, func() {
 			},
 		}
 		emulatedL3VMPod := true
-		testPods, cleanupFuncs, err = testELBLancerFromPod(ctx, cl, backendPodName, perimeterVMName, podAntiAffinity, emulatedL3VMPod)
-		Expect(err).NotTo(HaveOccurred(), fmt.Sprintf("external traffic not able to reach %s via %s : %v", backendPodName, perimeterVMName, err))
+		testPods, cleanupFuncs, err = testELBLancerFromPod(ctx, cl, backendVMName, perimeterVMName, podAntiAffinity, emulatedL3VMPod, backendVMIP, perimeterInternalIP, perimeterExternalIP)
+		Expect(err).NotTo(HaveOccurred(), fmt.Sprintf("external traffic not able to reach %s via %s : %v", backendVMName, perimeterVMName, err))
 	})
 })
 
 // testELBLancerFromPod created perimeter vm and a backend pod and verifies the connectivity from perimeter vm to backend pod
-func testELBLancerFromPod(ctx context.Context, cl k8sclient.Client, backendPodName, perimeterVMName string, affinity *corev1.Affinity, isEmulatedL3VMPod bool) ([]string, []func(), error) {
+func testELBLancerFromPod(ctx context.Context, cl k8sclient.Client, backendPodName, perimeterVMName string, affinity *corev1.Affinity, isEmulatedL3VMPod bool, backendVMIP, perimeterInternalIP, perimeterExternalIP string) ([]string, []func(), error) {
 	var testPods []string
 	var cleanupFuncs []func()
 	var cleanupBackendPod func()
 	var err error
+	var podBackendIP string
+
 	if isEmulatedL3VMPod {
 		cleanupBackendPod, err = createEmulatedL3VMPod(ctx, cl, backendPodName, testNamespace, backendVMIP, utils.WithLabel("app", backendPodName), utils.WithResponderContainer())
 		if err != nil {
-			return testPods, cleanupFuncs, err
+			cleanupFuncs = append(cleanupFuncs, cleanupBackendPod)
+			return testPods, cleanupFuncs, fmt.Errorf("failed to create emulated L3 VM pod %s: %v", backendPodName, err)
 		}
+		podBackendIP = backendVMIP
 	} else {
 		cleanupBackendPod, err = utils.CreatePod(ctx, cl, backendPodName, testNamespace, utils.WithLabel("app", backendPodName), utils.WithResponderContainer())
 		if err != nil {
+			cleanupFuncs = append(cleanupFuncs, cleanupBackendPod)
 			return testPods, cleanupFuncs, fmt.Errorf("failed to create pod %s: %v", backendPodName, err)
+		}
+		podBackendIP, err = utils.FetchPodIP(ctx, cl, backendPodName, testNamespace)
+		if err != nil {
+			cleanupFuncs = append(cleanupFuncs, cleanupBackendPod)
+			testPods = append(testPods, backendPodName)
+			return testPods, cleanupFuncs, fmt.Errorf("failed to fetch ip for pod %s: %v", backendPodName, err)
 		}
 	}
 	testPods = append(testPods, backendPodName)
 	cleanupFuncs = append(cleanupFuncs, cleanupBackendPod)
-	backendIP, err := utils.FetchPodIP(ctx, cl, backendPodName, testNamespace)
-	if isEmulatedL3VMPod {
-		backendIP = backendVMIP
-	}
-	if err != nil {
-		return testPods, cleanupFuncs, fmt.Errorf("failed to fetch ip for pod %s: %v", backendPodName, err)
-	}
+
 	cmds := []string{}
-	cleanup, err := createEmulatedPerimeterVMPod(ctx, cl, perimeterVMName, testNamespace, perimeterVMIP, perimeterExternalVMIP, cmds, utils.WithLabel("app", perimeterVMName), utils.WithAffinity(affinity))
+	cleanup, err := createEmulatedPerimeterVMPod(ctx, cl, perimeterVMName, testNamespace, perimeterInternalIP, perimeterExternalIP, cmds, utils.WithLabel("app", perimeterVMName), utils.WithAffinity(affinity))
 	if err != nil {
+		cleanupFuncs = append(cleanupFuncs, cleanup)
 		return testPods, cleanupFuncs, fmt.Errorf("failed to create vm pod %s with affinity: %v", perimeterVMName, err)
 	}
 	testPods = append(testPods, perimeterVMName)
 	cleanupFuncs = append(cleanupFuncs, cleanup)
 
 	// Verify ELB traffic
-	klog.Infof("Running curl from perimeter vm %s:%s to backend pod %s:%s", perimeterVMName, perimeterVMIP, backendPodName, backendIP)
-	err = utils.VerifyCurlFromPod(ctx, cl, perimeterVMName, backendPodName, backendIP, 8080, testNamespace, true)
+	klog.Infof("Running curl from perimeter vm %s:%s to backend pod %s:%s", perimeterVMName, perimeterInternalIP, backendPodName, podBackendIP)
+	err = utils.VerifyCurlFromPod(ctx, testNamespace, perimeterVMName, podBackendIP, 8080, true, backendPodName)
 	if err != nil {
 		return testPods, cleanupFuncs, fmt.Errorf("perimeter vm %s is not able to connect to backend %s: %v", perimeterVMName, backendPodName, err)
 	}
