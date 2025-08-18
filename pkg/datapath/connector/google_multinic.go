@@ -1357,15 +1357,14 @@ func fetchGateway4FromAnntations(anns map[string]string) (string, error) {
 }
 
 // SetLXCVethAddress sets the given IP address to the LXC veth pair.
-func SetLXCVethAddress(id string, addr *models.NodeAddressing) error {
-	ip := net.ParseIP(addr.IPV4.IP)
+func SetLXCVethAddress(id string, ipNet *net.IPNet) error {
 	lxcIfName := Endpoint2IfName(id)
 	link, err := safenetlink.LinkByName(lxcIfName)
 	if err != nil {
 		return fmt.Errorf("failed to find link %s: %w", lxcIfName, err)
 	}
-	if err := netlink.AddrAdd(link, &netlink.Addr{IPNet: &net.IPNet{IP: ip, Mask: net.CIDRMask(32, 32)}}); err != nil {
-		return fmt.Errorf("failed to add address %s to link %s: %w", ip.String(), lxcIfName, err)
+	if err := netlink.AddrAdd(link, &netlink.Addr{IPNet: ipNet}); err != nil {
+		return fmt.Errorf("failed to add address %s to link %s: %w", ipNet, lxcIfName, err)
 	}
 	return nil
 }
