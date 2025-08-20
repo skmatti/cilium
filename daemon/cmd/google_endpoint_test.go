@@ -12,7 +12,6 @@ import (
 	slim_corev1 "github.com/cilium/cilium/pkg/k8s/slim/k8s/api/core/v1"
 	v1 "github.com/cilium/cilium/pkg/k8s/slim/k8s/api/core/v1"
 	"github.com/cilium/cilium/pkg/k8s/watchers"
-	"github.com/cilium/cilium/pkg/testutils"
 	"github.com/stretchr/testify/require"
 	ipamv1alpha1 "gke-internal.googlesource.com/anthos-networking/ipam-controller/api/v1alpha1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -21,7 +20,17 @@ import (
 	"k8s.io/utils/pointer"
 )
 
-func (ds *DaemonSuite) TestCreateEndpointQueue(t *testing.T) {
+func TestCreateEndpointQueueConsul(t *testing.T) {
+	ds := setupDaemonConsulSuite(t)
+	ds.testCreateEndpointQueue(t)
+}
+
+func TestCreateEndpointQueueEtcd(t *testing.T) {
+	ds := setupDaemonEtcdSuite(t)
+	ds.testCreateEndpointQueue(t)
+}
+
+func (ds *DaemonSuite) testCreateEndpointQueue(t *testing.T) {
 	epTemplate := getEPTemplate(t, ds.d)
 	epTemplate.K8sPodName = "foo-pod"
 	epTemplate.K8sNamespace = "foo-ns"
@@ -30,28 +39,36 @@ func (ds *DaemonSuite) TestCreateEndpointQueue(t *testing.T) {
 	require.Empty(t, err)
 }
 
-// multinetworkingEnabledDaemon enables multinetworking for the Suite's underlying Daemon.
-// The returned function restores the original Daemon.
+// multinetworkingEnabledDaemon enables multinetworking for the daemon.
+// The returned function restores the original daemon state.
 // Note: this function is not concurrent safe (i.e. test cannot t.Parallel())
-func multinetworkingEnabledDaemon(ds *DaemonSuite) func() {
-	oldMgr := ds.d.endpointManager
+func multinetworkingEnabledDaemon(d *Daemon) func() {
+	oldMgr := d.endpointManager
 	mgr := endpointmanager.New(&dummyEpSyncher{}, nil, nil)
 	mgr.SetEnableGoogleMultiNIC(true)
-	ds.d.endpointManager = mgr
-	ds.d.googleMultiNICEnabled = true
+	d.endpointManager = mgr
+	d.googleMultiNICEnabled = true
 	return func() {
-		ds.d.googleMultiNICEnabled = false
-		ds.d.endpointManager = oldMgr
+		d.googleMultiNICEnabled = false
+		d.endpointManager = oldMgr
 	}
 }
 
-func (ds *DaemonSuite) TestCreateMultiNICEndpointsNoK8sEnabled(t *testing.T) {
-	testutils.PrivilegedTest(t)
+func TestCreateMultiNICEndpointsNoK8sEnabledConsul(t *testing.T) {
+	ds := setupDaemonConsulSuite(t)
+	ds.testCreateMultiNICEndpointsNoK8sEnabled(t)
+}
 
+func TestCreateMultiNICEndpointsNoK8sEnabledEtcd(t *testing.T) {
+	ds := setupDaemonEtcdSuite(t)
+	ds.testCreateMultiNICEndpointsNoK8sEnabled(t)
+}
+
+func (ds *DaemonSuite) testCreateMultiNICEndpointsNoK8sEnabled(t *testing.T) {
 	epTemplate := getEPTemplate(t, ds.d)
 	epTemplate.K8sPodName = "foo-pod"
 	epTemplate.K8sNamespace = "foo-ns"
-	revert := multinetworkingEnabledDaemon(ds)
+	revert := multinetworkingEnabledDaemon(ds.d)
 	defer revert()
 	ep, _, err := ds.d.createEndpoint(context.TODO(), ds, epTemplate)
 	require.NoError(t, err)
@@ -68,11 +85,19 @@ func (ds *DaemonSuite) TestCreateMultiNICEndpointsNoK8sEnabled(t *testing.T) {
 	require.Len(t, eps, 0)
 }
 
-func (ds *DaemonSuite) TestCreateMultiNICEndpointsNoK8sPodName(t *testing.T) {
-	testutils.PrivilegedTest(t)
+func TestCreateMultiNICEndpointsNoK8sPodNameConsul(t *testing.T) {
+	ds := setupDaemonConsulSuite(t)
+	ds.testCreateMultiNICEndpointsNoK8sPodName(t)
+}
 
+func TestCreateMultiNICEndpointsNoK8sPodNameEtcd(t *testing.T) {
+	ds := setupDaemonEtcdSuite(t)
+	ds.testCreateMultiNICEndpointsNoK8sPodName(t)
+}
+
+func (ds *DaemonSuite) testCreateMultiNICEndpointsNoK8sPodName(t *testing.T) {
 	ds.d.multinicClient = &mockMultiNICClient{}
-	revert := multinetworkingEnabledDaemon(ds)
+	revert := multinetworkingEnabledDaemon(ds.d)
 	defer revert()
 	epTemplate := getEPTemplate(t, ds.d)
 	// Create the primary endpoint
@@ -91,9 +116,7 @@ func (ds *DaemonSuite) TestCreateMultiNICEndpointsNoK8sPodName(t *testing.T) {
 	require.Len(t, eps, 0)
 }
 
-func (ds *DaemonSuite) TestConvertNetworkSpec(t *testing.T) {
-	testutils.PrivilegedTest(t)
-
+func TestConvertNetworkSpec(t *testing.T) {
 	intf := convertNetworkSpecToInterface(nil)
 	require.Nil(t, intf)
 
@@ -135,10 +158,20 @@ func (f *fakeEndpointMetadataFetcher) Fetch(nsName, podName string) (*slim_corev
 	return nil, nil, errors.New("pod not found")
 }
 
-func (ds *DaemonSuite) TestDeleteEndpointsMissingPod(t *testing.T) {
+func TestDeleteEndpointsMissingPodConsul(t *testing.T) {
+	ds := setupDaemonConsulSuite(t)
+	ds.testDeleteEndpointsMissingPod(t)
+}
+
+func TestDeleteEndpointsMissingPodEtcd(t *testing.T) {
+	ds := setupDaemonEtcdSuite(t)
+	ds.testDeleteEndpointsMissingPod(t)
+}
+
+func (ds *DaemonSuite) testDeleteEndpointsMissingPod(t *testing.T) {
 	epTemplate := getEPTemplate(t, ds.d)
 	epTemplate.K8sPodName = "foo-pod"
-	revert := multinetworkingEnabledDaemon(ds)
+	revert := multinetworkingEnabledDaemon(ds.d)
 	defer revert()
 	ep, _, err := ds.d.createEndpoint(context.TODO(), ds, epTemplate)
 	require.NoError(t, err)
@@ -152,7 +185,17 @@ func (ds *DaemonSuite) TestDeleteEndpointsMissingPod(t *testing.T) {
 	require.Len(t, eps, 0)
 }
 
-func (ds *DaemonSuite) TestDefaultNetwork(t *testing.T) {
+func TestDefaultNetworkConsul(t *testing.T) {
+	ds := setupDaemonConsulSuite(t)
+	ds.testDefaultNetwork(t)
+}
+
+func TestDefaultNetworkEtcd(t *testing.T) {
+	ds := setupDaemonEtcdSuite(t)
+	ds.testDefaultNetwork(t)
+}
+
+func (ds *DaemonSuite) testDefaultNetwork(t *testing.T) {
 	ds.d.multinicClient = &mockMultiNICClient{}
 
 	var networkCR *networkv1.Network
