@@ -805,6 +805,15 @@ __snat_v4_nat(struct __ctx_buff *ctx, struct ipv4_ct_tuple *tuple,
 	if (ret < 0)
 		return ret;
 
+#ifdef ENABLE_GOOGLE_IP_OPTION
+	/* The verifier will complain about a potential NULL pointer dereference
+	 * on 'state' if we don't check for it here.
+	 * returning DROP_INVALID because state should never be NULL here.
+	 */
+	if (!state)
+		return DROP_INVALID;
+#endif  /* ENABLE_GOOGLE_IP_OPTION */
+
 	ret = snat_v4_rewrite_headers(ctx, tuple->nexthdr, ETH_HLEN, has_l4_header, l4_off,
 				      tuple->saddr, state->to_saddr, IPV4_SADDR_OFF,
 				      tuple->sport, state->to_sport, port_off);

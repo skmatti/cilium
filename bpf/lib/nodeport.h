@@ -31,6 +31,7 @@
 #ifdef ENABLE_GOOGLE_VPC
 #include "google/vpc.h"
 #endif
+#include "lib/google/packet_tracer.h"
 
 #define nodeport_nat_egress_ipv4_hook(ctx, ip4, info, tuple, l4_off, ext_err) CTX_ACT_OK
 #define nodeport_rev_dnat_ingress_ipv4_hook(ctx, ip4, tuple, tunnel_endpoint, src_sec_identity, \
@@ -3020,6 +3021,17 @@ static __always_inline int nodeport_svc_lb4(struct __ctx_buff *ctx,
 				key, tuple, svc, &ct_state_svc,
 				has_l4_header, skip_l3_xlate, &cluster_id,
 				ext_err, 0, 0);
+
+#ifdef ENABLE_GOOGLE_IP_OPTION
+        /* To handle cases where after DNAT packet can match some key in google_traffic_tag_map */
+		if (!IS_ERR(ret)) {
+			/* avoid overriding ret unless it's an error */
+			int err = check_and_add_trace_ip_opt_post_dnat(ctx);
+			if (IS_ERR(err))
+				ret = err;
+		}
+#endif  /* ENABLE_GOOGLE_IP_OPTION */
+
 #ifdef SERVICE_NO_BACKEND_RESPONSE
 		if (ret == DROP_NO_SERVICE) {
 			/* Packet is TX'ed back out, avoid EDT false-positives: */
@@ -3408,6 +3420,18 @@ int tail_handle_snat_fwd_ipv4(struct __ctx_buff *ctx)
 #endif
 
 	ret = nodeport_snat_fwd_ipv4(ctx, cluster_id, &saddr, &trace, &ext_err);
+
+   /* To handle cases where after SNAT packet can match some key in google_traffic_tag_map.
+    * No need to tag in case of ENABLE_GOOGLE_NORTH_SOUTH_IP_OPTION_TRACING
+    * because tag will be removed in the following steps.
+	* avoid overriding ret value unless its an error.
+    */
+	if (!IS_ERR(ret)) {
+		int err = check_and_add_trace_ip_opt_post_snat(ctx);
+		if (IS_ERR(err))
+			ret = err;
+	}
+
 	if (IS_ERR(ret))
 		return send_drop_notify_error_ext(ctx, UNKNOWN_ID, ret, ext_err,
 						  CTX_ACT_DROP, METRIC_EGRESS);
@@ -3448,8 +3472,18 @@ int tail_handle_snat_fwd_ipv4(struct __ctx_buff *ctx)
 #endif
 
 #if defined(ENABLE_GOOGLE_MULTI_NIC) && defined(IS_BPF_HOST)
-	return multinic_redirect_ipv4(ctx);
+	ret = multinic_redirect_ipv4(ctx);
 #endif
+
+	/* removing ip-options tag for the north bound traffic.
+	 * detagging only for packet leaving the
+	 * cluster and not for the redirected case
+	 */
+	if (ret == CTX_ACT_OK) {
+		ret = check_and_remove_trace_ip_opt_ns(ctx);
+		if (IS_ERR(ret))
+			return send_drop_notify_error(ctx, 0, ret, CTX_ACT_DROP, METRIC_INGRESS);
+	}
 
 	return ret;
 }
@@ -3480,6 +3514,14 @@ __handle_nat_fwd_ipv4(struct __ctx_buff *ctx, __u32 cluster_id __maybe_unused,
 
 	if (is_defined(IS_BPF_HOST) && snat_done)
 		ctx_snat_done_set(ctx);
+
+	/* no need to remove tag for unsuccessful tail_call */
+	if (!IS_ERR(ret)) {
+		/* avoid overriding ret unless it's an error */
+		int err = check_and_remove_trace_ip_opt_ns(ctx);
+		if (IS_ERR(err))
+			ret = err;
+	}
 
 	return ret;
 }

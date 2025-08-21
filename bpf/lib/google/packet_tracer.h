@@ -441,9 +441,132 @@ static __always_inline int check_and_remove_trace_ip_opt(struct __ctx_buff *ctx)
 	return CTX_ACT_OK;
 }
 
+static __always_inline int check_and_add_trace_ip_opt_post_dnat(struct __ctx_buff *ctx){
+	return check_and_add_trace_ip_opt(ctx);
+}
+#ifdef ENABLE_GOOGLE_NORTH_SOUTH_IP_OPTION_TRACING
+/*
+ * check_and_remove_trace_ip_opt_ns is a convinent function call for removing trace ip-option header
+ * for North-South traffic.
+ * removal only take place if the destination is not a part of the clustermesh.
+ */
+static __always_inline int check_and_remove_trace_ip_opt_ns(struct __ctx_buff *ctx)
+{
+	__u16 proto = 0;
+	validate_ethertype(ctx, &proto);
+	switch (proto) {
+#ifdef ENABLE_IPV4
+	case bpf_htons(ETH_P_IP):
+		{
+			void *data, *data_end;
+			struct iphdr *ip4;
+			struct remote_endpoint_info *info;
+			unsigned int dst_id = 0;
+			if (!revalidate_data(ctx, &data, &data_end, &ip4))
+				return DROP_INVALID;
+
+			info = lookup_ip4_remote_endpoint(ip4->daddr, 0);
+			if (info == NULL) {
+				dst_id = WORLD_ID;
+			} else {
+				dst_id = info->sec_identity;
+			}
+
+			/* destination should not be inside cluster */
+			if (!identity_is_cluster(dst_id)) {
+				int err = remove_trace_ip_opt_v4(ctx);
+				if (IS_ERR(err))
+					return err;
+			}
+		}
+		break;
+#endif /* ENABLE_IPV4 */
+#ifdef ENABLE_IPV6
+	case bpf_htons(ETH_P_IPV6):
+		break;
+#endif /* ENABLE_IPV6 */
+	default:
+		break;
+	}
+	return CTX_ACT_OK;
+}
+
+/*
+ * add_trace_ip_opt_ns is a convenient function call for adding the trace ip-option header
+ * for North-South traffic.
+ * Addition only takes place if the source is not part of the clustermesh and if the tag is
+ * not already present and there exist a key in the eBPF google_traffic_tag_map for the
+ * current packet.
+ */
+static __always_inline int check_and_add_trace_ip_opt_ns(struct __ctx_buff *ctx)
+{
+	__u16 proto = 0;
+	validate_ethertype(ctx, &proto);
+	switch (proto) {
+#ifdef ENABLE_IPV4
+	case bpf_htons(ETH_P_IP):
+		{
+			__u16 trace_id = 0;
+			void *data, *data_end;
+			struct iphdr *ip4;
+			struct remote_endpoint_info *info;
+			unsigned int src_id = 0;
+			if(!revalidate_data(ctx, &data, &data_end, &ip4)) {
+				return DROP_INVALID;
+			}
+
+			info = lookup_ip4_remote_endpoint(ip4->saddr, 0);
+			if (info == NULL) {
+				src_id = WORLD_ID;
+			} else {
+				src_id = info->sec_identity;
+			}
+			/* source should not be inside cluster */
+			if (!identity_is_cluster(src_id)) {
+				trace_id = find_trace_id_from_map_v4(ctx, ip4);
+				/* only tag the packet if there is an entry for it in google_traffic_tag_map */
+				/* and ip-options header is absent from the packet */
+				if (trace_id != 0 && !trace_id_from_ip4(ctx, ip4)) {
+					int err = add_trace_ip_opt_v4(ctx, ip4, trace_id);
+					if (IS_ERR(err))
+						return err;
+				}
+			}
+		}
+		break;
+#endif /* ENABLE_IPV4 */
+#ifdef ENABLE_IPV6
+	case bpf_htons(ETH_P_IPV6):
+		break;
+#endif /* ENABLE_IPV6 */
+	default:
+		break;
+	}
+	return CTX_ACT_OK;
+}
+
+static __always_inline int check_and_add_trace_ip_opt_post_snat(struct __ctx_buff *ctx __maybe_unused){
+	return CTX_ACT_OK;
+}
+#else
+static __always_inline int check_and_remove_trace_ip_opt_ns(struct __ctx_buff *ctx __maybe_unused)
+{
+	return CTX_ACT_OK;
+}
+
+static __always_inline int check_and_add_trace_ip_opt_ns(struct __ctx_buff *ctx __maybe_unused)
+{
+	return CTX_ACT_OK;
+}
+
+static __always_inline int check_and_add_trace_ip_opt_post_snat(struct __ctx_buff *ctx){
+	return check_and_add_trace_ip_opt(ctx);
+}
+#endif /* ENABLE_GOOGLE_NORTH_SOUTH_IP_OPTION_TRACING */
+
 #ifdef IS_BPF_LXC
 /**
- * goog_ctr_egress_add_trace_ip_option_v4 - adds ip-options header to the container's egress packet.
+ * goog_ctr_egress_add_trace_ip_option_v4 - add ip-options header to the container's egress packet.
  */
 static __always_inline int
 goog_ctr_egress_add_trace_ip_option_v4(struct __ctx_buff *ctx)
@@ -489,12 +612,45 @@ goog_ctr_ingress_remove_trace_ip_option_v4(struct __ctx_buff *ctx)
 	return HOOK_ACT_CONTINUE;
 }
 #endif /* IS_BPF_LXC */
+#ifdef IS_BPF_HOST
+/**
+ * goog_netdev_ingress_add_trace_ip_option_ns_v4 - add ip-options tag for the south bound traffic.
+ */
+static __always_inline int
+goog_netdev_ingress_add_trace_ip_option_ns_v4(struct __ctx_buff *ctx)
+{
+	int err = check_and_add_trace_ip_opt_ns(ctx);
+	if (IS_ERR(err))
+		return err;
+
+	return HOOK_ACT_CONTINUE;
+}
+#endif /* IS_BPF_HOST */
 #else
 /*
  * Disable the feature by replacing all the funcs with ones that simply return
  * TRACE_ID_DISABLED.
  */
 
+static __always_inline int check_and_remove_trace_ip_opt_ns(struct __ctx_buff *ctx __maybe_unused)
+{
+	return CTX_ACT_OK;
+}
+
+static __always_inline int check_and_add_trace_ip_opt_ns(struct __ctx_buff *ctx __maybe_unused)
+{
+	return CTX_ACT_OK;
+}
+
+static __always_inline int check_and_add_trace_ip_opt_post_dnat(struct __ctx_buff *ctx __maybe_unused)
+{
+	return CTX_ACT_OK;
+}
+
+static __always_inline int check_and_add_trace_ip_opt_post_snat(struct __ctx_buff *ctx __maybe_unused)
+{
+	return CTX_ACT_OK;
+}
 #ifdef IS_BPF_LXC
 static __always_inline int
 goog_ctr_egress_add_trace_ip_option_v4(struct __ctx_buff *ctx __maybe_unused)
@@ -514,4 +670,11 @@ goog_ctr_ingress_remove_trace_ip_option_v4(struct __ctx_buff *ctx __maybe_unused
 	return HOOK_ACT_CONTINUE;
 }
 #endif /* IS_BPF_LXC */
+#ifdef IS_BPF_HOST
+static __always_inline int
+goog_netdev_ingress_add_trace_ip_option_ns_v4(struct __ctx_buff *ctx __maybe_unused)
+{
+	return HOOK_ACT_CONTINUE;
+}
+#endif /* IS_BPF_HOST */
 #endif /* ENABLE_GOOGLE_IP_OPTION_TRACING */

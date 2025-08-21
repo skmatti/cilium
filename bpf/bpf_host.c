@@ -67,6 +67,7 @@
 
 #include "lib/google/hooks_common.h"
 #include "lib/google/hooks_host.h"
+#include "lib/google/packet_tracer.h"
 
 #define host_egress_policy_hook(ctx, src_sec_identity, ext_err) CTX_ACT_OK
 /* Bit 0 is skipped for robustness, as it's used in some places to indicate from_host itself. */
@@ -1550,6 +1551,7 @@ int cil_to_netdev(struct __ctx_buff *ctx __maybe_unused)
 	__u32 __maybe_unused vlan_id;
 	int ret = CTX_ACT_OK;
 	__s8 ext_err = 0;
+	int err;
 
 	bpf_clear_meta(ctx);
 
@@ -1806,6 +1808,15 @@ exit:
 #endif
 	if (IS_ERR(ret))
 		goto drop_err;
+
+   /* removing ip-options tag for the north bound traffic.
+    * not overriding ret to preserve value returned by multinic_redirect_ipv4.
+	*/
+	err = check_and_remove_trace_ip_opt_ns(ctx);
+	if (IS_ERR(err)) {
+		ret = err;
+		goto drop_err;
+	}
 
 	send_trace_notify(ctx, TRACE_TO_NETWORK, src_sec_identity, dst_sec_identity,
 			  TRACE_EP_ID_UNKNOWN,

@@ -10,6 +10,7 @@
 #include "lib/google/geneve.h"
 #include "lib/google/google_perimeter_elb.h"
 #include "lib/google/vpc.h"
+#include "lib/google/packet_tracer.h"
 
 /**
  * This file contains hook implementations for hook points inside the host
@@ -49,7 +50,13 @@ static __always_inline
 int pre_netdev_ingress_start(struct __ctx_buff *ctx,
 			     struct goog_netdev_ingress_start_ctx *stage_ctx __maybe_unused)
 {
-	return goog_geneve_pre_netdev_ingress_start(ctx);
+	int ret;
+
+	ret = goog_geneve_pre_netdev_ingress_start(ctx);
+	if (ret != HOOK_ACT_CONTINUE)
+		return ret;
+
+	return goog_netdev_ingress_add_trace_ip_option_ns_v4(ctx);
 }
 
 static __always_inline
