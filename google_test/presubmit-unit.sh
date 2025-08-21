@@ -26,7 +26,8 @@ VM_NAME="prow-unit-$date-$(git rev-parse --short=5 HEAD)-ttl1d"
 ZONE="us-west1-b"
 MACHINE_TYPE="c2-standard-8"
 HOST_NAME="$VM_NAME.$ZONE.$PROJECT"
-BASE_DIR="/home/${USER}"
+USER="${USER:-$(whoami)}"
+BASE_DIR="/tmp"
 HOST_TEST_REPORT_DIR="${BASE_DIR}/reports"
 
 function log {
@@ -39,10 +40,7 @@ function error {
 }
 
 function auth {
-  # This is set through:
-  # https://gke-internal.googlesource.com/test-infra/+/refs/heads/master/prow/gob/config.yaml#36
-  log "Activating service account"
-  gcloud auth activate-service-account --key-file=$GOOGLE_APPLICATION_CREDENTIALS
+  log "Setting gcloud config"
   gcloud config set project $PROJECT
   gcloud config set compute/zone $ZONE
 }

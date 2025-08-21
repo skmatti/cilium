@@ -1,17 +1,19 @@
 presubmits:
 - name: gke-advanced-datapath-presubmit-ebpf-gdch-rocky9
+  cluster: anthos-networking-ci-us-west1-b
   trigger: /test ebpf-gdch-rocky9
   rerun_command: /test ebpf-gdch-rocky9
   always_run: false
   skip_fetch_head: true
   decorate: true
   decoration_config:
+    gcs_configuration:
+      bucket: "anthos-networking-ci"
+      path_strategy: "explicit"
     timeout: 240m
   labels:
     preset-cookie-file: "true"
     preset-cookie-file-env: "true"
-    preset-service-account: "true"
-    preset-k8s-ssh: "true"
     prow.k8s.io/gerrit-report-label: Unit-Verified
   path_alias: gke-internal.googlesource.com/third_party/cilium
   spec:
@@ -30,18 +32,20 @@ presubmits:
       - runner.sh
       - ./google_test/upstream_test/prow_entrypoint.sh
 - name: gke-advanced-datapath-presubmit-ebpf-gdch-rocky86-v1-13-r82
+  cluster: anthos-networking-ci-us-west1-b
   trigger: /test ebpf-gdch-rocky86-v1-13-r82
   rerun_command: /test ebpf-gdch-rocky86-v1-13-r82
   always_run: false
   skip_fetch_head: true
   decorate: true
   decoration_config:
+    gcs_configuration:
+      bucket: "anthos-networking-ci"
+      path_strategy: "explicit"
     timeout: 240m
   labels:
     preset-cookie-file: "true"
     preset-cookie-file-env: "true"
-    preset-service-account: "true"
-    preset-k8s-ssh: "true"
     prow.k8s.io/gerrit-report-label: Unit-Verified
   path_alias: gke-internal.googlesource.com/third_party/cilium
   spec:
@@ -60,18 +64,20 @@ presubmits:
       - runner.sh
       - ./google_test/upstream_test/prow_entrypoint.sh
 - name: gke-advanced-datapath-presubmit-ebpf-gdch-rocky86-v1-14-r208
+  cluster: anthos-networking-ci-us-west1-b
   trigger: /test ebpf-gdch-rocky86-v1-14-r41
   rerun_command: /test ebpf-gdch-rocky86-v1-14-r41
   always_run: false
   skip_fetch_head: true
   decorate: true
   decoration_config:
+    gcs_configuration:
+      bucket: "anthos-networking-ci"
+      path_strategy: "explicit"
     timeout: 240m
   labels:
     preset-cookie-file: "true"
     preset-cookie-file-env: "true"
-    preset-service-account: "true"
-    preset-k8s-ssh: "true"
     prow.k8s.io/gerrit-report-label: Unit-Verified
   path_alias: gke-internal.googlesource.com/third_party/cilium
   spec:
@@ -90,18 +96,20 @@ presubmits:
       - runner.sh
       - ./google_test/upstream_test/prow_entrypoint.sh
 - name: gke-advanced-datapath-presubmit-ebpf-gdch-rocky86-v1-12-r143
+  cluster: anthos-networking-ci-us-west1-b
   trigger: /test ebpf-gdch-rocky86-v1-12-r143
   rerun_command: /test ebpf-gdch-rocky86-v1-12-r143
   always_run: false
   skip_fetch_head: true
   decorate: true
   decoration_config:
+    gcs_configuration:
+      bucket: "anthos-networking-ci"
+      path_strategy: "explicit"
     timeout: 240m
   labels:
     preset-cookie-file: "true"
     preset-cookie-file-env: "true"
-    preset-service-account: "true"
-    preset-k8s-ssh: "true"
     prow.k8s.io/gerrit-report-label: Unit-Verified
   path_alias: gke-internal.googlesource.com/third_party/cilium
   spec:

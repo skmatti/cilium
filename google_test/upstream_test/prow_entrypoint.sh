@@ -92,6 +92,7 @@ TIMESTAMP=$(TZ=:America/Los_Angeles date +%Y-%m-%d-%H-%M-%S)
 PROJECT="${GCP_PROJECT:-gke-anthos-datapath-presubmits}"
 ZONE=us-west1-b
 TEST_VM_NAME="prow-${BUILD_ID}-${TIMESTAMP}-$(git rev-parse --short=5 HEAD)-ttl1d"
+USER="${USER:-$(whoami)}"
 HOST_NAME="$TEST_VM_NAME.$ZONE.$PROJECT"
 ARTIFACTS="${ARTIFACTS:-/logs/artifacts}"
 PROW_INTERNAL_SOURCE_CODE_PATH="${PROW_INTERNAL_SOURCE_CODE_PATH:-/home/prow/go/src/gke-internal.googlesource.com/third_party/cilium/}"
@@ -141,10 +142,7 @@ echo "IMAGE_FAMILY = ${IMAGE_FAMILY}"
 echo "IMAGE_REF = ${IMAGE_REF}"
 
 function auth {
-  # This is set through:
-  # https://gke-internal.googlesource.com/test-infra/+/refs/heads/master/prow/gob/config.yaml#36
-  log 'Activating service account.'
-  gcloud auth activate-service-account --key-file="${GOOGLE_APPLICATION_CREDENTIALS}"
+  log 'Setting up gcloud config.'
   gcloud config set project "${PROJECT}"
   gcloud config set compute/zone "${ZONE}"
 }
@@ -208,7 +206,7 @@ function wait_for_config_ssh {
 function copy_back_report {
   log "Copying the test report back to ${ARTIFACTS}."
   for path in "$@"; do
-    scp "prow@${HOST_NAME}:${path}/*" "${ARTIFACTS}" || true
+    scp "${USER}@${HOST_NAME}:${path}/*" "${ARTIFACTS}" || true
   done
 }
 
@@ -227,13 +225,13 @@ function remove_symlinks_in_repo {
 function copy_code_from_prow_to_test_vm {
   local source_code_path=$1
   log 'Copying test source code from job pod to GCE test VM.'
-  scp -r "${source_code_path}" "prow@${HOST_NAME}:${TEST_VM_WORKDIR}/"
+  scp -r "${source_code_path}" "${USER}@${HOST_NAME}:${TEST_VM_WORKDIR}/"
 }
 
 function rexec {
   local cmd=$*
   log "Running remote cmd ${cmd} on instance ${TEST_VM_NAME}"
-  ssh "prow@${HOST_NAME}" "$cmd"
+  ssh "${USER}@${HOST_NAME}" "$cmd"
 }
 
 auth

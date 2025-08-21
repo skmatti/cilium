@@ -1,26 +1,30 @@
 presubmits:
 - name: gke-advanced-datapath-presubmit-ebpf-ubuntu2404
+  cluster: anthos-networking-ci-us-west1-b
   trigger: /test ebpf-ubuntu2404
   rerun_command: /test ebpf-ubuntu2404
   always_run: true
   skip_fetch_head: true
   decorate: true
   decoration_config:
+    gcs_configuration:
+      bucket: "anthos-networking-ci"
+      path_strategy: "explicit"
     timeout: 240m
   labels:
     preset-cookie-file: "true"
     preset-cookie-file-env: "true"
-    preset-service-account: "true"
-    preset-k8s-ssh: "true"
     prow.k8s.io/gerrit-report-label: Unit-Verified
     prow.k8s.io/pubsub.project: "anthos-baremetal-ci"
-    prow.k8s.io/pubsub.topic: "prow-etl-trigger"
     prow.k8s.io/pubsub.runID: "row-etl-presubmit-tests"
+    prow.k8s.io/pubsub.topic: "prow-etl-trigger"
   path_alias: gke-internal.googlesource.com/third_party/cilium
   spec:
     containers:
     - image: gcr.io/gke-test-infra/kubekins-e2e:v20240104-dc2c09a68a-1.29
       env:
+      - name: USER
+        value: prow
       - name: GCP_PROJECT
         value: anthos-networking-ci
       - name: TEST_TYPE
@@ -33,27 +37,31 @@ presubmits:
       - runner.sh
       - ./google_test/upstream_test/prow_entrypoint.sh
 - name: gke-advanced-datapath-presubmit-ebpf-ubuntu2204
+  cluster: anthos-networking-ci-us-west1-b
   trigger: /test ebpf-ubuntu2204
   rerun_command: /test ebpf-ubuntu2204
   always_run: true
   skip_fetch_head: true
   decorate: true
   decoration_config:
+    gcs_configuration:
+      bucket: "anthos-networking-ci"
+      path_strategy: "explicit"
     timeout: 240m
   labels:
     preset-cookie-file: "true"
     preset-cookie-file-env: "true"
-    preset-service-account: "true"
-    preset-k8s-ssh: "true"
     prow.k8s.io/gerrit-report-label: Unit-Verified
     prow.k8s.io/pubsub.project: "anthos-baremetal-ci"
-    prow.k8s.io/pubsub.topic: "prow-etl-trigger"
     prow.k8s.io/pubsub.runID: "row-etl-presubmit-tests"
+    prow.k8s.io/pubsub.topic: "prow-etl-trigger"
   path_alias: gke-internal.googlesource.com/third_party/cilium
   spec:
     containers:
     - image: gcr.io/gke-test-infra/kubekins-e2e:v20240104-dc2c09a68a-1.29
       env:
+      - name: USER
+        value: prow
       - name: GCP_PROJECT
         value: anthos-networking-ci
       - name: TEST_TYPE
@@ -66,23 +74,27 @@ presubmits:
       - runner.sh
       - ./google_test/upstream_test/prow_entrypoint.sh
 - name: gke-advanced-datapath-presubmit-ebpf-ubuntu2204-upstream
+  cluster: anthos-networking-ci-us-west1-b
   trigger: /test ebpf-ubuntu2204
   rerun_command: /test ebpf-ubuntu2204
   always_run: false
   skip_fetch_head: true
   decorate: true
   decoration_config:
+    gcs_configuration:
+      bucket: "anthos-networking-ci"
+      path_strategy: "explicit"
     timeout: 240m
   labels:
     preset-cookie-file: "true"
     preset-cookie-file-env: "true"
-    preset-service-account: "true"
-    preset-k8s-ssh: "true"
   path_alias: gke-internal.googlesource.com/third_party/cilium
   spec:
     containers:
     - image: gcr.io/gke-test-infra/kubekins-e2e:v20240104-dc2c09a68a-1.29
       env:
+      - name: USER
+        value: prow
       - name: GCP_PROJECT
         value: anthos-networking-ci
       - name: TEST_TYPE
@@ -97,23 +109,27 @@ presubmits:
       - runner.sh
       - ./google_test/upstream_test/prow_entrypoint.sh
 - name: gke-advanced-datapath-presubmit-ebpf-rocky86-upstream
+  cluster: anthos-networking-ci-us-west1-b
   trigger: /test ebpf-rocky86
   rerun_command: /test ebpf-rocky86
   always_run: false
   skip_fetch_head: true
   decorate: true
   decoration_config:
+    gcs_configuration:
+      bucket: "anthos-networking-ci"
+      path_strategy: "explicit"
     timeout: 240m
   labels:
     preset-cookie-file: "true"
     preset-cookie-file-env: "true"
-    preset-service-account: "true"
-    preset-k8s-ssh: "true"
   path_alias: gke-internal.googlesource.com/third_party/cilium
   spec:
     containers:
     - image: gcr.io/gke-test-infra/kubekins-e2e:v20240104-dc2c09a68a-1.29
       env:
+      - name: USER
+        value: prow
       - name: GCP_PROJECT
         value: anthos-networking-ci
       - name: TEST_TYPE
@@ -128,27 +144,31 @@ presubmits:
       - runner.sh
       - ./google_test/upstream_test/prow_entrypoint.sh
 - name: gke-advanced-datapath-presubmit-ebpf-cos117
+  cluster: anthos-networking-ci-us-west1-b
   trigger: /test ebpf-cos117
   rerun_command: /test ebpf-cos117
   always_run: true
   skip_fetch_head: true
   decorate: true
   decoration_config:
+    gcs_configuration:
+      bucket: "anthos-networking-ci"
+      path_strategy: "explicit"
     timeout: 240m
   labels:
     preset-cookie-file: "true"
     preset-cookie-file-env: "true"
-    preset-service-account: "true"
-    preset-k8s-ssh: "true"
     prow.k8s.io/gerrit-report-label: Unit-Verified
     prow.k8s.io/pubsub.project: "anthos-baremetal-ci"
-    prow.k8s.io/pubsub.topic: "prow-etl-trigger"
     prow.k8s.io/pubsub.runID: "row-etl-run-id"
+    prow.k8s.io/pubsub.topic: "prow-etl-trigger"
   path_alias: gke-internal.googlesource.com/third_party/cilium
   spec:
     containers:
     - image: gcr.io/gke-test-infra/kubekins-e2e:v20240104-dc2c09a68a-1.29
       env:
+      - name: USER
+        value: prow
       - name: GCP_PROJECT
         value: anthos-networking-ci
       - name: TEST_TYPE
@@ -161,27 +181,31 @@ presubmits:
       - runner.sh
       - ./google_test/upstream_test/prow_entrypoint.sh
 - name: gke-advanced-datapath-presubmit-ebpf-cos113
+  cluster: anthos-networking-ci-us-west1-b
   trigger: /test ebpf-cos113
   rerun_command: /test ebpf-cos113
   always_run: true
   skip_fetch_head: true
   decorate: true
   decoration_config:
+    gcs_configuration:
+      bucket: "anthos-networking-ci"
+      path_strategy: "explicit"
     timeout: 240m
   labels:
     preset-cookie-file: "true"
     preset-cookie-file-env: "true"
-    preset-service-account: "true"
-    preset-k8s-ssh: "true"
     prow.k8s.io/gerrit-report-label: Unit-Verified
     prow.k8s.io/pubsub.project: "anthos-baremetal-ci"
-    prow.k8s.io/pubsub.topic: "prow-etl-trigger"
     prow.k8s.io/pubsub.runID: "row-etl-presubmit-tests"
+    prow.k8s.io/pubsub.topic: "prow-etl-trigger"
   path_alias: gke-internal.googlesource.com/third_party/cilium
   spec:
     containers:
     - image: gcr.io/gke-test-infra/kubekins-e2e:v20240104-dc2c09a68a-1.29
       env:
+      - name: USER
+        value: prow
       - name: GCP_PROJECT
         value: anthos-networking-ci
       - name: TEST_TYPE
@@ -194,27 +218,31 @@ presubmits:
       - runner.sh
       - ./google_test/upstream_test/prow_entrypoint.sh
 - name: gke-advanced-datapath-presubmit-ebpf-cos109
+  cluster: anthos-networking-ci-us-west1-b
   trigger: /test ebpf-cos109
   rerun_command: /test ebpf-cos109
   always_run: true
   skip_fetch_head: true
   decorate: true
   decoration_config:
+    gcs_configuration:
+      bucket: "anthos-networking-ci"
+      path_strategy: "explicit"
     timeout: 240m
   labels:
     preset-cookie-file: "true"
     preset-cookie-file-env: "true"
-    preset-service-account: "true"
-    preset-k8s-ssh: "true"
     prow.k8s.io/gerrit-report-label: Unit-Verified
     prow.k8s.io/pubsub.project: "anthos-baremetal-ci"
-    prow.k8s.io/pubsub.topic: "prow-etl-trigger"
     prow.k8s.io/pubsub.runID: "row-etl-run-id"
+    prow.k8s.io/pubsub.topic: "prow-etl-trigger"
   path_alias: gke-internal.googlesource.com/third_party/cilium
   spec:
     containers:
     - image: gcr.io/gke-test-infra/kubekins-e2e:v20240104-dc2c09a68a-1.29
       env:
+      - name: USER
+        value: prow
       - name: GCP_PROJECT
         value: anthos-networking-ci
       - name: TEST_TYPE
@@ -227,24 +255,28 @@ presubmits:
       - runner.sh
       - ./google_test/upstream_test/prow_entrypoint.sh
 - name: gke-advanced-datapath-presubmit-ebpf-rhel8-10
+  cluster: anthos-networking-ci-us-west1-b
   trigger: /test ebpf-rhel810
   rerun_command: /test ebpf-rhel810
   always_run: false
   skip_fetch_head: true
   decorate: true
   decoration_config:
+    gcs_configuration:
+      bucket: "anthos-networking-ci"
+      path_strategy: "explicit"
     timeout: 240m
   labels:
     preset-cookie-file: "true"
     preset-cookie-file-env: "true"
-    preset-service-account: "true"
-    preset-k8s-ssh: "true"
     prow.k8s.io/gerrit-report-label: Unit-Verified
   path_alias: gke-internal.googlesource.com/third_party/cilium
   spec:
     containers:
     - image: gcr.io/gke-test-infra/kubekins-e2e:v20240104-dc2c09a68a-1.29
       env:
+      - name: USER
+        value: prow
       - name: GCP_PROJECT
         value: anthos-networking-ci
       - name: TEST_TYPE
@@ -257,24 +289,28 @@ presubmits:
       - runner.sh
       - ./google_test/upstream_test/prow_entrypoint.sh
 - name: gke-advanced-datapath-presubmit-ebpf-rhel8-8
+  cluster: anthos-networking-ci-us-west1-b
   trigger: /test ebpf-rhel88
   rerun_command: /test ebpf-rhel88
   always_run: false
   skip_fetch_head: true
   decorate: true
   decoration_config:
+    gcs_configuration:
+      bucket: "anthos-networking-ci"
+      path_strategy: "explicit"
     timeout: 240m
   labels:
     preset-cookie-file: "true"
     preset-cookie-file-env: "true"
-    preset-service-account: "true"
-    preset-k8s-ssh: "true"
     prow.k8s.io/gerrit-report-label: Unit-Verified
   path_alias: gke-internal.googlesource.com/third_party/cilium
   spec:
     containers:
     - image: gcr.io/gke-test-infra/kubekins-e2e:v20240104-dc2c09a68a-1.29
       env:
+      - name: USER
+        value: prow
       - name: GCP_PROJECT
         value: anthos-networking-ci
       - name: TEST_TYPE
@@ -287,24 +323,28 @@ presubmits:
       - runner.sh
       - ./google_test/upstream_test/prow_entrypoint.sh
 - name: gke-advanced-datapath-presubmit-ebpf-rhel8-9
+  cluster: anthos-networking-ci-us-west1-b
   trigger: /test ebpf-rhel89
   rerun_command: /test ebpf-rhel89
   always_run: false
   skip_fetch_head: true
   decorate: true
   decoration_config:
+    gcs_configuration:
+      bucket: "anthos-networking-ci"
+      path_strategy: "explicit"
     timeout: 240m
   labels:
     preset-cookie-file: "true"
     preset-cookie-file-env: "true"
-    preset-service-account: "true"
-    preset-k8s-ssh: "true"
     prow.k8s.io/gerrit-report-label: Unit-Verified
   path_alias: gke-internal.googlesource.com/third_party/cilium
   spec:
     containers:
     - image: gcr.io/gke-test-infra/kubekins-e2e:v20240104-dc2c09a68a-1.29
       env:
+      - name: USER
+        value: prow
       - name: GCP_PROJECT
         value: anthos-networking-ci
       - name: TEST_TYPE
@@ -317,24 +357,28 @@ presubmits:
       - runner.sh
       - ./google_test/upstream_test/prow_entrypoint.sh
 - name: gke-advanced-datapath-presubmit-ebpf-rhel9-2
+  cluster: anthos-networking-ci-us-west1-b
   trigger: /test ebpf-rhel92
   rerun_command: /test ebpf-rhel92
   always_run: false
   skip_fetch_head: true
   decorate: true
   decoration_config:
+    gcs_configuration:
+      bucket: "anthos-networking-ci"
+      path_strategy: "explicit"
     timeout: 240m
   labels:
     preset-cookie-file: "true"
     preset-cookie-file-env: "true"
-    preset-service-account: "true"
-    preset-k8s-ssh: "true"
     prow.k8s.io/gerrit-report-label: Unit-Verified
   path_alias: gke-internal.googlesource.com/third_party/cilium
   spec:
     containers:
     - image: gcr.io/gke-test-infra/kubekins-e2e:v20240104-dc2c09a68a-1.29
       env:
+      - name: USER
+        value: prow
       - name: GCP_PROJECT
         value: anthos-networking-ci
       - name: TEST_TYPE
@@ -347,27 +391,31 @@ presubmits:
       - runner.sh
       - ./google_test/upstream_test/prow_entrypoint.sh
 - name: gke-advanced-datapath-presubmit-ebpf-rhel9-4
+  cluster: anthos-networking-ci-us-west1-b
   trigger: /test ebpf-rhel94
   rerun_command: /test ebpf-rhel94
   always_run: true
   skip_fetch_head: true
   decorate: true
   decoration_config:
+    gcs_configuration:
+      bucket: "anthos-networking-ci"
+      path_strategy: "explicit"
     timeout: 240m
   labels:
     preset-cookie-file: "true"
     preset-cookie-file-env: "true"
-    preset-service-account: "true"
-    preset-k8s-ssh: "true"
     prow.k8s.io/gerrit-report-label: Unit-Verified
     prow.k8s.io/pubsub.project: "anthos-baremetal-ci"
-    prow.k8s.io/pubsub.topic: "prow-etl-trigger"
     prow.k8s.io/pubsub.runID: "row-etl-presubmit-tests"
+    prow.k8s.io/pubsub.topic: "prow-etl-trigger"
   path_alias: gke-internal.googlesource.com/third_party/cilium
   spec:
     containers:
     - image: gcr.io/gke-test-infra/kubekins-e2e:v20240104-dc2c09a68a-1.29
       env:
+      - name: USER
+        value: prow
       - name: GCP_PROJECT
         value: anthos-networking-ci
       - name: TEST_TYPE
@@ -380,27 +428,31 @@ presubmits:
       - runner.sh
       - ./google_test/upstream_test/prow_entrypoint.sh
 - name: gke-advanced-datapath-presubmit-ebpf-edgeos
+  cluster: anthos-networking-ci-us-west1-b
   trigger: /test ebpf-edgeos
   rerun_command: /test ebpf-edgeos
   always_run: false
   skip_fetch_head: true
   decorate: true
   decoration_config:
+    gcs_configuration:
+      bucket: "anthos-networking-ci"
+      path_strategy: "explicit"
     timeout: 240m
   labels:
     preset-cookie-file: "true"
     preset-cookie-file-env: "true"
-    preset-service-account: "true"
-    preset-k8s-ssh: "true"
     prow.k8s.io/gerrit-report-label: Unit-Verified
     prow.k8s.io/pubsub.project: "anthos-baremetal-ci"
-    prow.k8s.io/pubsub.topic: "prow-etl-trigger"
     prow.k8s.io/pubsub.runID: "row-etl-presubmit-tests"
+    prow.k8s.io/pubsub.topic: "prow-etl-trigger"
   path_alias: gke-internal.googlesource.com/third_party/cilium
   spec:
     containers:
     - image: gcr.io/gke-test-infra/kubekins-e2e:v20240104-dc2c09a68a-1.29
       env:
+      - name: USER
+        value: prow
       - name: GCP_PROJECT
         value: anthos-networking-ci
       - name: TEST_TYPE
@@ -413,26 +465,30 @@ presubmits:
       - runner.sh
       - ./google_test/upstream_test/prow_entrypoint.sh
 - name: gke-advanced-datapath-presubmit-ebpf-new-os-evaluation
+  cluster: anthos-networking-ci-us-west1-b
   trigger: /test ebpf-new-os
   rerun_command: /test ebpf-new-os
   always_run: false
   skip_fetch_head: true
   decorate: true
   decoration_config:
+    gcs_configuration:
+      bucket: "anthos-networking-ci"
+      path_strategy: "explicit"
     timeout: 240m
   labels:
     preset-cookie-file: "true"
     preset-cookie-file-env: "true"
-    preset-service-account: "true"
-    preset-k8s-ssh: "true"
     prow.k8s.io/pubsub.project: "anthos-baremetal-ci"
-    prow.k8s.io/pubsub.topic: "prow-etl-trigger"
     prow.k8s.io/pubsub.runID: "row-etl-presubmit-tests"
+    prow.k8s.io/pubsub.topic: "prow-etl-trigger"
   path_alias: gke-internal.googlesource.com/third_party/cilium
   spec:
     containers:
     - image: gcr.io/gke-test-infra/kubekins-e2e:v20240104-dc2c09a68a-1.29
       env:
+      - name: USER
+        value: prow
       - name: GCP_PROJECT
         value: anthos-networking-ci
       - name: TEST_TYPE
