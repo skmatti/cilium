@@ -83,6 +83,11 @@ type Config struct {
 	// first Stream ID IP option. This feature ignores packets where the SID
 	// option is not in the first 3 IP options. The default is false.
 	EnableGoogleIPOptionTracing bool `mapstructure:"enable-ip-option-tracing"`
+	// EnableGoogleNorthSouthIpOptionTracing enables a Google-specific packet tracing
+	// detagging for north bound traffic (packets leaving the cluster).
+	// EnableGoogleIPOptionTracing flag should be enabled for EnableGoogleNorthSouthIpOptionTracing to
+	// start packet detagging for north bound traffic.
+	EnableGoogleNorthSouthIpOptionTracing bool `mapstructure:"enable-north-south-ip-option-tracing"`
 	// EnableGoogleBPFGeneve determines whether to encap and decap traffic by BPF Geneve. Default is false, which means
 	// encap and decap is done by kernel.
 	EnableGoogleBPFGeneve bool
@@ -143,12 +148,13 @@ var defaultConfig = Config{
 	GoogleRestrictK8sNPScopeToLocalCluster: false,
 
 	// EnableGoogleIPOptionTracing is disabled by default.
-	EnableGoogleIPOptionTracing: false,
-	EnableGoogleBPFGeneve:       false,
-	XDPMode:                     option.XDPModeDisabled,
-	XDPDevices:                  []string{},
-	EnableGoogleVPC:             false,
-	GoogleIPSecMode:             GoogleIPSecModeDisabled,
+	EnableGoogleIPOptionTracing:               false,
+	EnableGoogleNorthSouthIpOptionTracing:     false,
+	EnableGoogleBPFGeneve:                     false,
+	XDPMode:                                   option.XDPModeDisabled,
+	XDPDevices:                                []string{},
+	EnableGoogleVPC:                           false,
+	GoogleIPSecMode:                           GoogleIPSecModeDisabled,
 	EgressGatewayPendingIdentityExpirySeconds: 300,
 	DisableClusterIDValidation:                false,
 	// TODO: (b/439930952) move these perimeter elb flags into a cell
@@ -216,6 +222,9 @@ func (cfg Config) Flags(flags *pflag.FlagSet) {
 	flags.Bool(option.EnableGoogleIPOptionTracing, cfg.EnableGoogleIPOptionTracing, "Enables packet tracing using a trace ID in the IP option header")
 	flags.MarkHidden(option.EnableGoogleIPOptionTracing)
 
+	flags.Bool(option.EnableGoogleNorthSouthIpOptionTracing, defaultConfig.EnableGoogleNorthSouthIpOptionTracing, "Enable Google North-South IP option detagging mode")
+	flags.MarkHidden(option.EnableGoogleNorthSouthIpOptionTracing)
+
 	flags.Bool(option.EnableGoogleBPFGeneve, cfg.EnableGoogleBPFGeneve, "Enable Google VPC mode")
 	flags.MarkHidden(option.EnableGoogleBPFGeneve)
 
@@ -267,6 +276,14 @@ func configure(cfg Config, daemonCfg *option.DaemonConfig) (out struct {
 	if cfg.EnableGoogleIPOptionTracing {
 		out.NodeDefines["ENABLE_GOOGLE_IP_OPTION_TRACING"] = "1"
 	}
+
+	if cfg.EnableGoogleNorthSouthIpOptionTracing {
+		if !cfg.EnableGoogleIPOptionTracing {
+			return out, fmt.Errorf("enabling North South traffic detagging requires Google IP Options Tracing to be enabled")
+		}
+		out.NodeDefines["ENABLE_GOOGLE_NORTH_SOUTH_IP_OPTION_TRACING"] = "1"
+	}
+
 	if cfg.EnableGoogleBPFGeneve {
 		out.NodeDefines["ENABLE_GOOGLE_GENEVE"] = "1"
 	}

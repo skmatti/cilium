@@ -57,6 +57,10 @@ const (
 	// EnableGoogleMultiNICHaipin is the name of the option to enable gogole multi nic hairpin support.
 	EnableGoogleMultiNICHairpin = "enable-google-multi-nic-hairpin"
 
+	// EnableGoogleNorthSouthIpOptionTracing is the name of the option to enable packet tracing
+	// detagging for north bound traffic.
+	EnableGoogleNorthSouthIpOptionTracing = "enable-north-south-ip-option-tracing"
+
 	// DevicePrefixesToExclude excludes google-managed devices with the provided prefixes.
 	DevicePrefixesToExclude = "device-prefixes-to-exclude"
 
