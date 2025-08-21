@@ -10,8 +10,11 @@ data:
   auto-direct-node-routes-ipv4: "false"
   auto-direct-node-routes-ipv6: "false"
   blacklist-conflicting-routes: "false"
+  bpf-lb-algorithm: random
   bpf-lb-dsr-dispatch: geneve
   bpf-lb-external-clusterip: "false"
+  bpf-lb-maglev-hash-seed: JLfvgnHc2kaSUFaI
+  bpf-lb-maglev-table-size: "16381"
   bpf-lb-map-max: "524288"
   bpf-lb-mode: dsr
   bpf-lb-preserve-world-id: "false"
@@ -22,7 +25,9 @@ data:
   cluster-id: "1"
   cluster-name: org-1-admin-zone1
   cni-exclusive: "false"
+  cni-log-file: /var/run/cilium/cilium-cni.log
   cni-uninstall: "false"
+  conntrack-gc-max-interval: 10m
   custom-cni-conf: "false"
   debug: "false"
   device-prefixes-to-exclude: "eth0"
@@ -48,6 +53,7 @@ data:
   enable-google-bpf-geneve: "true"
   enable-google-multi-nic: "true"
   enable-google-multi-nic-egress-nat: "true"
+  enable-google-multi-nic-hairpin: "true"
   enable-google-multi-nic-host-firewall: "true"
   enable-google-perimeter-features: "false"
   enable-google-persistent-ip: "false"
@@ -105,6 +111,7 @@ data:
   monitor-aggregation: medium
   monitor-aggregation-flags: all
   monitor-aggregation-interval: 5s
+  mtu: "1410"
   node-port-bind-protection: "true"
   operator-prometheus-serve-addr: :6942
   perimeter-endpoint-network: g-perimeter-network
@@ -119,6 +126,7 @@ data:
   tunnel-protocol: geneve
   vlan-bpf-bypass: "0"
   wait-bpf-mount: "false"
+  write-cni-conf-when-ready: /host/etc/cni/net.d/05-cilium.conflist
   xdp-mode: disabled
 kind: ConfigMap
 metadata:
