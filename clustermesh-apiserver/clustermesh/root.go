@@ -15,12 +15,12 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"k8s.io/apimachinery/pkg/runtime"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	cmk8s "github.com/cilium/cilium/clustermesh-apiserver/clustermesh/k8s"
 	"github.com/cilium/cilium/clustermesh-apiserver/syncstate"
 	"github.com/cilium/cilium/operator/watchers"
 	operatorWatchers "github.com/cilium/cilium/operator/watchers"
+	cmconfig "github.com/cilium/cilium/pkg/clustermesh/config"
 	cmtypes "github.com/cilium/cilium/pkg/clustermesh/types"
 	cmutils "github.com/cilium/cilium/pkg/clustermesh/utils"
 	"github.com/cilium/cilium/pkg/hive"
@@ -86,7 +86,7 @@ type parameters struct {
 	SyncState      syncstate.SyncState
 
 	// Google specific fields.
-	GoogleConfig cmtypes.GoogleConfig
+	GoogleConfig cmconfig.GoogleConfig
 }
 
 func registerHooks(lc cell.Lifecycle, params parameters) error {
@@ -115,13 +115,13 @@ type identitySynchronizer struct {
 	googleSyncer *googleSyncer
 }
 
-func newIdentitySynchronizer(ctx context.Context, cinfo cmtypes.ClusterInfo, backend kvstore.BackendOperations, factory store.Factory, syncCallback func(context.Context), gs *googleSyncer) synchronizer {
+func newIdentitySynchronizer(ctx context.Context, cinfo cmtypes.ClusterInfo, backend kvstore.BackendOperations, factory store.Factory, syncCallback func(context.Context), googleSyncer *googleSyncer) synchronizer {
 	identitiesStore := factory.NewSyncStore(cinfo.Name, backend,
 		path.Join(identityCache.IdentitiesPath, "id"),
 		store.WSSWithSyncedKeyOverride(identityCache.IdentitiesPath))
 	go identitiesStore.Run(ctx)
 
-	return &identitySynchronizer{store: identitiesStore, encoder: backend.Encode, syncCallback: syncCallback, googleSyncer: gs}
+	return &identitySynchronizer{store: identitiesStore, encoder: backend.Encode, syncCallback: syncCallback, googleSyncer: googleSyncer}
 }
 
 func parseLabelArrayFromMap(base map[string]string) labels.LabelArray {
@@ -143,9 +143,10 @@ func (is *identitySynchronizer) upsert(ctx context.Context, _ resource.Key, obj 
 	}
 
 	if !is.googleSyncer.ShouldSyncIdentity(identity) {
-		log.Debugf("Not syncing identity %s", client.ObjectKeyFromObject(identity))
+		scopedLog.Debug("Not syncing identity")
 		return nil
 	}
+	identity.SecurityLabels = is.googleSyncer.OverrideIdentityLabels(identity.DeepCopy().SecurityLabels)
 
 	labelArray := parseLabelArrayFromMap(identity.SecurityLabels)
 
@@ -266,8 +267,8 @@ func newEndpointSynchronizer(ctx context.Context, cinfo cmtypes.ClusterInfo, bac
 
 func (es *endpointSynchronizer) upsert(ctx context.Context, key resource.Key, obj runtime.Object) error {
 	endpoint := obj.(*types.CiliumEndpoint)
-	if es.googleSyncer.ShouldSyncCEP(endpoint) {
-		log.Debugf("Not syncing endpoint %s", client.ObjectKeyFromObject(endpoint))
+	if !es.googleSyncer.ShouldSyncCEP(endpoint) {
+		log.WithField(logfields.Endpoint, key.String()).Debug("Not syncing endpoint")
 		return nil
 	}
 	ips := make(ipmap)
@@ -362,7 +363,7 @@ func synchronize[T runtime.Object](ctx context.Context, r resource.Resource[T], 
 func startServer(
 	startCtx cell.HookContext,
 	cinfo cmtypes.ClusterInfo,
-	ginfo cmtypes.GoogleConfig,
+	ginfo cmconfig.GoogleConfig,
 	allServices bool,
 	clientset k8sClient.Clientset,
 	backend kvstore.BackendOperations,
@@ -396,7 +397,7 @@ func startServer(
 	}
 
 	go synchronize(ctx, resources.CiliumIdentities, newIdentitySynchronizer(ctx, cinfo, backend, factory, syncState.WaitForResource(), googleSyncer))
-	if !ginfo.DisableClustermeshNodeSync {
+	if !ginfo.DisableCiliumNodeSync {
 		go synchronize(ctx, resources.CiliumNodes, newNodeSynchronizer(ctx, cinfo, backend, factory, syncState.WaitForResource()))
 	}
 	go synchronize(ctx, resources.CiliumSlimEndpoints, newEndpointSynchronizer(ctx, cinfo, backend, factory, syncState.WaitForResource(), googleSyncer))

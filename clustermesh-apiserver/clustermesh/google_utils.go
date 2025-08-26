@@ -2,60 +2,62 @@ package clustermesh
 
 import (
 	"fmt"
+	"maps"
+	"regexp"
 	"strings"
 
-	networkv1 "github.com/GoogleCloudPlatform/gke-networking-api/apis/network/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/tools/cache"
 
-	cmtypes "github.com/cilium/cilium/pkg/clustermesh/types"
-	ciliumio "github.com/cilium/cilium/pkg/k8s/apis/cilium.io"
+	cmconfig "github.com/cilium/cilium/pkg/clustermesh/config"
 	ciliumv2 "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2"
 	k8sClient "github.com/cilium/cilium/pkg/k8s/client"
 	"github.com/cilium/cilium/pkg/k8s/informer"
 	slim_corev1 "github.com/cilium/cilium/pkg/k8s/slim/k8s/api/core/v1"
 	slim_labels "github.com/cilium/cilium/pkg/k8s/slim/k8s/apis/labels"
 	slim_metav1 "github.com/cilium/cilium/pkg/k8s/slim/k8s/apis/meta/v1"
-	"github.com/cilium/cilium/pkg/k8s/slim/k8s/apis/selection"
 	"github.com/cilium/cilium/pkg/k8s/types"
 	"github.com/cilium/cilium/pkg/k8s/utils"
 	"github.com/cilium/cilium/pkg/labels"
 )
 
-const (
-	multinicAnnotation = "networking.gke.io/multinic"
-	networkNameLabel   = "k8s:networking.gke.io/network"
-)
+var labelSelectorWithColon = regexp.MustCompile(`([^,]?)k8s:([a-zA-Z0-9./-]+)`)
 
-// googleSyncer is responsible for Google-specific logic for synchronizing
-// resources to the clustermesh.
+// googleSyncer holds google-specific sync logic and configuration.
 type googleSyncer struct {
-	namespaceCache  cache.Store
-	syncMultiNicEPs bool
+	namespaceCache         cache.Store
+	endpointSelectors      []slim_labels.Selector
+	overrideIdentityLabels map[string]string
 }
 
 // newGoogleSyncer creates a new GoogleSyncer.
-func newGoogleSyncer(ginfo cmtypes.GoogleConfig, clientset k8sClient.Clientset) (*googleSyncer, error) {
+func newGoogleSyncer(ginfo cmconfig.GoogleConfig, clientset k8sClient.Clientset) (*googleSyncer, error) {
 	s := &googleSyncer{
-		syncMultiNicEPs: ginfo.SyncMultiNicEPs,
+		overrideIdentityLabels: ginfo.OverrideIdentityLabels,
+	}
+
+	var err error
+	s.endpointSelectors, err = parseLabelSelectors(ginfo.EndpointLabelSelectors)
+	if err != nil {
+		return nil, fmt.Errorf("build label selectors from %v: %w", ginfo.EndpointLabelSelectors, err)
 	}
 
 	// We only need to watch namespaces if some label restrictions are configured.
 	// Otherwise we sync everything.
-	if len(ginfo.NamespaceLabels) > 0 {
-		var err error
-		s.namespaceCache, err = newNamespaceCache(clientset, ginfo.NamespaceLabels)
+	if len(ginfo.ServiceNamespaceLabels) > 0 {
+		namespaceCache, err := newNamespaceCache(clientset, ginfo.ServiceNamespaceLabels)
 		if err != nil {
-			return nil, fmt.Errorf("failed to watch namespaces: %w", err)
+			return nil, fmt.Errorf("watch namespaces: %w", err)
 		}
+		s.namespaceCache = namespaceCache
 	}
 
 	return s, nil
 }
 
-func (gs *googleSyncer) ShouldSyncNamespace(namespace string) bool {
-	if gs.namespaceCache == nil {
+func (s *googleSyncer) ShouldSyncNamespace(namespace string) bool {
+	if s.namespaceCache == nil {
 		return true
 	}
 
@@ -64,7 +66,7 @@ func (gs *googleSyncer) ShouldSyncNamespace(namespace string) bool {
 			Name: namespace,
 		},
 	}
-	_, exists, err := gs.namespaceCache.Get(nsName)
+	_, exists, err := s.namespaceCache.Get(nsName)
 	if err != nil {
 		log.WithError(err).Errorf("failed to get namespace %q from cache", nsName)
 		return false
@@ -73,42 +75,57 @@ func (gs *googleSyncer) ShouldSyncNamespace(namespace string) bool {
 	return exists
 }
 
-func (gs *googleSyncer) ShouldSyncIdentity(identity *ciliumv2.CiliumIdentity) bool {
-	if !gs.syncMultiNicEPs {
-		return false
-	}
+func (s *googleSyncer) ShouldSyncIdentity(identity *ciliumv2.CiliumIdentity) bool {
 	if identity == nil {
 		return false
 	}
 
-	if network, ok := identity.SecurityLabels[networkNameLabel]; ok {
-		if !networkv1.IsDefaultNetwork(network) {
-			log.Debugf("Found multinic identity for endpoint %s", identity.Name)
+	return s.shouldSyncLabels(labels.Map2Labels(identity.SecurityLabels, labels.LabelSourceK8s).K8sStringMap())
+}
+
+func (s *googleSyncer) ShouldSyncCEP(ep *types.CiliumEndpoint) bool {
+	if ep == nil || ep.Identity == nil {
+		return false
+	}
+
+	return s.shouldSyncLabels(labels.NewLabelsFromModel(ep.Identity.Labels).K8sStringMap())
+}
+
+// OverrideIdentityLabels overrides the given security labels with the configured override labels.
+func (s *googleSyncer) OverrideIdentityLabels(securityLabels map[string]string) map[string]string {
+	if len(s.overrideIdentityLabels) == 0 {
+		return securityLabels
+	}
+
+	newLabels := make(map[string]string, len(securityLabels)+len(s.overrideIdentityLabels))
+	maps.Copy(newLabels, securityLabels)
+	maps.Copy(newLabels, s.overrideIdentityLabels)
+	return newLabels
+}
+
+// shouldSyncLabels checks if the labels of an identity or endpoint should be synced based on the configured selectors.
+// It returns true if at least one of the selectors matches the labels, and false otherwise.
+func (s *googleSyncer) shouldSyncLabels(labels map[string]string) bool {
+	if len(s.endpointSelectors) == 0 {
+		return true
+	}
+	endpointLabels := slim_labels.Set(labels)
+
+	// Loop through requirements with OR operator
+	for _, selector := range s.endpointSelectors {
+
+		// Matches set of AND requirement selectors
+		if selector.Matches(endpointLabels) {
 			return true
 		}
 	}
 	return false
 }
 
-func (gs *googleSyncer) ShouldSyncCEP(ep *types.CiliumEndpoint) bool {
-	if !gs.syncMultiNicEPs {
-		return false
-	}
-	if ep == nil {
-		return false
-	}
-
-	if _, ok := ep.Annotations[multinicAnnotation]; ok {
-		log.Debugf("Found multinic label for endpoint %s", ep.Name)
-		return true
-	}
-	return false
-}
-
 func newNamespaceCache(clientset k8sClient.Clientset, labels []string) (cache.Store, error) {
-	labelSelector, err := buildLabelSelector(labels)
+	labelSelector, err := parseStringAsLabelSelector(strings.Join(labels, " "))
 	if err != nil {
-		return nil, fmt.Errorf("failed to build label selector from %v: %w", labels, err)
+		return nil, fmt.Errorf("build label selector from %v: %w", labels, err)
 	}
 
 	listOpts := func(options *metav1.ListOptions) {
@@ -127,30 +144,33 @@ func newNamespaceCache(clientset k8sClient.Clientset, labels []string) (cache.St
 
 	go namespaceInformer.Run(wait.NeverStop)
 	if ok := cache.WaitForNamedCacheSync("clustermesh-apiserver", wait.NeverStop, namespaceInformer.HasSynced); !ok {
-		return nil, fmt.Errorf("failed to wait for namespace cache to sync")
+		return nil, fmt.Errorf("wait for namespace cache to sync")
 	}
 	return nsCache, nil
 }
 
-func buildLabelSelector(labels []string) (slim_labels.Selector, error) {
-	labelSelector := slim_labels.NewSelector()
-	for _, label := range labels {
-		labelNameSelector, err := slim_labels.NewRequirement(label, selection.Exists, nil)
+func parseLabelSelectors(labels []string) ([]slim_labels.Selector, error) {
+	var selectors []slim_labels.Selector
+	for _, labelStr := range labels {
+		selector, err := parseStringAsLabelSelector(labelStr)
 		if err != nil {
 			return nil, err
 		}
-		labelSelector = labelSelector.Add(*labelNameSelector)
+		selectors = append(selectors, selector)
 	}
-	return labelSelector, nil
+	return selectors, nil
 }
 
-func getIdentityNamespace(identity *ciliumv2.CiliumIdentity) (string, error) {
-	l := strings.TrimSuffix(labels.GenerateK8sLabelString(ciliumio.PodNamespaceLabel, ""), "=")
-
-	ns, found := identity.SecurityLabels[l]
-	if !found {
-		return "", fmt.Errorf("namespace label %q not found on identity %q", ciliumio.PodNamespaceLabel, identity.Name)
+func parseStringAsLabelSelector(labelStr string) (slim_labels.Selector, error) {
+	endpointSelector := slim_labels.NewSelector()
+	for _, selectorStr := range strings.Split(labelStr, " ") {
+		parsableSelectorStr := labelSelectorWithColon.ReplaceAllString(selectorStr, "${1}${2}")
+		newSelector, err := slim_labels.Parse(parsableSelectorStr)
+		if err != nil {
+			return nil, fmt.Errorf("parse label selector %q (from %q): %w", parsableSelectorStr, selectorStr, err)
+		}
+		reqs, _ := newSelector.Requirements()
+		endpointSelector = endpointSelector.Add(reqs...)
 	}
-
-	return ns, nil
+	return endpointSelector, nil
 }

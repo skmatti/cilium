@@ -1,9 +1,10 @@
 package clustermesh
 
 import (
-	cmtypes "github.com/cilium/cilium/pkg/clustermesh/types"
-	"github.com/cilium/cilium/pkg/gke/features"
 	"github.com/cilium/hive/cell"
+
+	cmconfig "github.com/cilium/cilium/pkg/clustermesh/config"
+	"github.com/cilium/cilium/pkg/gke/features"
 )
 
 var googleCell = cell.Module(
@@ -11,5 +12,5 @@ var googleCell = cell.Module(
 	"Google",
 
 	features.Cell,
-	cell.Config(cmtypes.DefaultGoogleConfig),
+	cell.Config(cmconfig.DefaultGoogleConfig),
 )
