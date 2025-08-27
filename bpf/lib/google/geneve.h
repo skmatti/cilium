@@ -781,14 +781,32 @@ geneve_decap4(struct __ctx_buff *ctx, struct geneve_metadata *metadata)
 
 /* geneve_try_decap4 tries to decapsulate the incoming packet as a GENEVE packet.
  * Returns HOOK_ACT_CONTINUE when:
- *    - the geneve decap is successful. You can check
- *      geneve_get_current_bpf_program() == GENEVE_BPF_PROGRAM_ID_FROM_OVERLAY to determine;
  *    - when the given packet is not a geneve packet;
  *    - or we do not plan to decapsulate in this stage (e.g. we do not decap certain geneve packets in XDP)
- * Returns CTX_ACT_OK when the packet needs to go to kernel.
  * Other return code is also possible.
  */
 static __always_inline int geneve_try_decap4(struct __ctx_buff *ctx)
+{
+	void *data, *data_end;
+	struct iphdr *ip4;
+
+	if (!revalidate_data(ctx, &data, &data_end, &ip4))
+		return DROP_INVALID;
+	if (!geneve_is_encapped_to_node4(ctx, ip4))
+		return HOOK_ACT_CONTINUE;
+
+	return tail_call_internal(ctx, CILIUM_CALL_GOOGLE_IPV4_GENEVE_DECAP, NULL);
+}
+
+/*
+ * A tail call which decapsulate the given GENEVE IPv4 packet.
+ * When the geneve decapsulation is successful, geneve_get_current_bpf_program() will be
+ * set to GENEVE_BPF_PROGRAM_ID_FROM_OVERLAY, then the problem will be tail-called back
+ * to the from-lxc/from-netdev section entry.
+ * Return DROP_INVALID when the given packet is not a GENEVE packet, it will be dropped.
+ */
+__section_tail(CILIUM_MAP_CALLS, CILIUM_CALL_GOOGLE_IPV4_GENEVE_DECAP)
+int tail_geneve_decap4(struct __ctx_buff *ctx)
 {
 	void *data, *data_end;
 	struct iphdr *ip4;
@@ -797,14 +815,6 @@ static __always_inline int geneve_try_decap4(struct __ctx_buff *ctx)
 	__s8 ext_err = 0;
 	int ret;
 
-	if (!revalidate_data(ctx, &data, &data_end, &ip4)) {
-		ret = DROP_INVALID;
-		goto out;
-	}
-	if (!geneve_is_encapped_to_node4(ctx, ip4)) {
-		ret = HOOK_ACT_CONTINUE;
-		goto out;
-	}
 	ret = geneve_decap4(ctx, &metadata);
 	if (IS_ERR(ret))
 		goto out;
@@ -885,7 +895,8 @@ out:
 		return send_drop_notify_error_ext(
 			ctx, src_sec_identity, ret, ext_err, CTX_ACT_DROP,
 			METRIC_INGRESS);
-	return ret;
+	// The packet has been successfully decapped, recirculate the packet.
+	return tail_call_internal(ctx, CILIUM_CALL_IPV4_FROM_NETDEV, NULL);
 }
 
 # endif /* ENABLE_IPV4 */
@@ -1002,17 +1013,7 @@ static __always_inline int google_ctx_redirect_to_overlay(struct __ctx_buff *ctx
 
 	if (unlikely(ret < 0))
 		return DROP_WRITE_ERROR;
-	/* Tail call back to the interface. We will do encapsulation and redirect packet there.
-	 * Make sure the GENEVE encap hook (i.e. geneve_redirect_to_overlay_if_encapped) is invoked
-	 * in the CILIUM_CALL_IPV4_FROM_NETDEV __section_tail in the corresponding bpf program.
-	 *
-	 * Note ideally for the case where the packet is from host, we should tail call to
-	 * CILIUM_CALL_IPV4_FROM_HOST. But since today there is not much difference between
-	 * CILIUM_CALL_IPV4_FROM_NETDEV and CILIUM_CALL_IPV4_FROM_HOST, we will just tail call
-	 * to CILIUM_CALL_IPV4_FROM_NETDEV for simplicity. This also makes this function compatible
-	 * with XDP.
-	 */
-	return tail_call_internal(ctx, CILIUM_CALL_IPV4_FROM_NETDEV, NULL);
+	return tail_call_internal(ctx, CILIUM_CALL_GOOGLE_IPV4_GENEVE_ENCAP, NULL);
 }
 
 /*
@@ -1046,11 +1047,19 @@ static __always_inline int google_geneve_ctx_redirect(
 }
 
 /*
- * Check GENEVE metadata on egress direction is set. If yes, send the packet
- * out via DIRECT ROUTING interface.
+ * A tailcall which encapsulate the packet into a geneve packet,
+ * then sending it out via DIRECT ROUTING DEVICE by using bpf_redirect().
+ *
+ * Note:
+ * The packet may go through CILIUM_CALL_IPV4_NODEPORT_NAT_FWD in this function
+ * for SNAT/Conntracking etc., where the packet will recirculate to the interface before encapsulation.
+ * We need to make sure the GENEVE encap hook (i.e. geneve_redirect_to_overlay_if_encapped) is invoked
+ * in the CILIUM_CALL_IPV4_FROM_NETDEV __section_tail in the corresponding bpf program,
+ * so that the packet will be back here for encapsulation.
  */
-static __always_inline int
-geneve_redirect_to_overlay_if_encapped(struct __ctx_buff *ctx)
+__section_tail(CILIUM_MAP_CALLS, CILIUM_CALL_GOOGLE_IPV4_GENEVE_ENCAP)
+int tail_geneve_encap_and_redirect_to_overlay(
+	struct __ctx_buff *ctx)
 {
 	const enum geneve_bpf_program_id program_id =
 		geneve_get_current_bpf_program();
@@ -1063,12 +1072,14 @@ geneve_redirect_to_overlay_if_encapped(struct __ctx_buff *ctx)
 	__s8 ext_err = 0;
 	struct geneve_encaphdr4 hdr __maybe_unused = { 0 };
 
-	// We only redirect packet after we enter the overlay domain.
+	/* We only redirect packet after we enter the overlay domain.
+	 * A packet doesn't have correct metadata should not arrive here.
+	 */
 	if (program_id != GENEVE_BPF_PROGRAM_ID_TO_OVERLAY)
-		return HOOK_ACT_CONTINUE;
+		return DROP_INVALID;
 	metadata = geneve_get_metadata(GENEVE_DIR_EGRESS);
 	if (!geneve_metadata_is_set(metadata))
-		return HOOK_ACT_CONTINUE;
+		return DROP_INVALID;
 
 	/* Load the ethertype just once: */
 	validate_ethertype(ctx, &proto);
@@ -1148,6 +1159,27 @@ out:
 
 	// Redirect packet to eth0 (or kernel when IPSec mode == software).
 	return __google_encap_redirect_v4(ctx, 0, ENCAP_IFINDEX, &trace);
+}
+
+/*
+ * Check GENEVE metadata on egress direction is set. If yes, send the packet
+ * out via DIRECT ROUTING interface.
+ */
+static __always_inline int
+geneve_redirect_to_overlay_if_encapped(struct __ctx_buff *ctx)
+{
+	const enum geneve_bpf_program_id program_id =
+		geneve_get_current_bpf_program();
+	struct geneve_metadata *metadata;
+
+	// We only redirect packet after we enter the overlay domain.
+	if (program_id != GENEVE_BPF_PROGRAM_ID_TO_OVERLAY)
+		return HOOK_ACT_CONTINUE;
+	metadata = geneve_get_metadata(GENEVE_DIR_EGRESS);
+	if (!geneve_metadata_is_set(metadata))
+		return HOOK_ACT_CONTINUE;
+
+	return tail_call_internal(ctx, CILIUM_CALL_GOOGLE_IPV4_GENEVE_ENCAP, NULL);
 }
 
 static __always_inline int geneve_reset_state(void)
