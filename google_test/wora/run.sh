@@ -143,6 +143,11 @@ CLUSTER_REFS=$(calculate_cluster_refs "${CLUSTER_ARTIFACTS}")
 WORA_ARTIFACTS="${ARTIFACTS}/wora"
 ARTIFACTS_BASE="${ARTIFACTS}"
 
+# unset proxy environment variables, so it wouldn't mess up with gcloud
+# interactions.
+unset HTTP_PROXY
+unset HTTPS_PROXY
+
 # Upload-external-clusters name should match namePrefix in WORA yaml. Because
 # test is going to have its own junit.xml, suppress kt2 junit generation.
 # Status-check-interval is increased to work around incorrect calculation of

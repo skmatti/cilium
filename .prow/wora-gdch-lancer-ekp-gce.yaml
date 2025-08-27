@@ -1,22 +1,24 @@
 presubmits:
 - name: wora-gdch-abm-gce-lancer_cilium
+  cluster: anthos-networking-ci-us-west1-b
   trigger: /test wora-gdch-abm-gce-lancer$
   rerun_command: /test wora-gdch-abm-gce-lancer
   always_run: true
   skip_fetch_head: true
   decorate: true
   decoration_config:
+    gcs_configuration:
+      bucket: "anthos-networking-ci"
+      path_strategy: "explicit"
     timeout: 240m
   labels:
     preset-cookie-file: "true"
     preset-cookie-file-env: "true"
-    preset-service-account: "true"
     preset-dind-enabled: "true"
-    preset-k8s-ssh: "true"
     prow.k8s.io/gerrit-report-label: "Verified"
     prow.k8s.io/pubsub.project: "anthos-baremetal-ci"
-    prow.k8s.io/pubsub.topic: "prow-etl-trigger"
     prow.k8s.io/pubsub.runID: "row-etl-presubmit-tests"
+    prow.k8s.io/pubsub.topic: "prow-etl-trigger"
   path_alias: gke-internal.googlesource.com/third_party/cilium
   spec:
     containers:
@@ -49,6 +51,7 @@ presubmits:
       args:
       - ./google_test/wora/prow_entrypoint.sh
 - name: wora-gdch-abm-gce-lancer-kubevirt_cilium
+  cluster: anthos-networking-ci-us-west1-b
   trigger: /test wora-gdch-abm-gce-lancer-kubevirt$
   rerun_command: /test wora-gdch-abm-gce-lancer-kubevirt
   always_run: false
@@ -57,17 +60,18 @@ presubmits:
   skip_fetch_head: true
   decorate: true
   decoration_config:
+    gcs_configuration:
+      bucket: "anthos-networking-ci"
+      path_strategy: "explicit"
     timeout: 240m
   labels:
     preset-cookie-file: "true"
     preset-cookie-file-env: "true"
-    preset-service-account: "true"
     preset-dind-enabled: "true"
-    preset-k8s-ssh: "true"
     prow.k8s.io/gerrit-report-label: "Verified"
     prow.k8s.io/pubsub.project: "anthos-baremetal-ci"
-    prow.k8s.io/pubsub.topic: "prow-etl-trigger"
     prow.k8s.io/pubsub.runID: "row-etl-presubmit-tests"
+    prow.k8s.io/pubsub.topic: "prow-etl-trigger"
   path_alias: gke-internal.googlesource.com/third_party/cilium
   spec:
     containers:
@@ -98,19 +102,21 @@ presubmits:
       args:
       - ./google_test/wora/prow_entrypoint.sh
 - name: wora-gdch-abm-gce-lancer-xdp_cilium
+  cluster: anthos-networking-ci-us-west1-b
   trigger: /test wora-gdch-abm-gce-lancer-xdp$
   rerun_command: /test wora-gdch-abm-gce-lancer-xdp
   always_run: true
   skip_fetch_head: true
   decorate: true
   decoration_config:
+    gcs_configuration:
+      bucket: "anthos-networking-ci"
+      path_strategy: "explicit"
     timeout: 240m
   labels:
     preset-cookie-file: "true"
     preset-cookie-file-env: "true"
-    preset-service-account: "true"
     preset-dind-enabled: "true"
-    preset-k8s-ssh: "true"
     prow.k8s.io/gerrit-report-label: "Verified"
   path_alias: gke-internal.googlesource.com/third_party/cilium
   spec:
@@ -143,23 +149,25 @@ presubmits:
       args:
       - ./google_test/wora/prow_entrypoint.sh
 - name: wora-conformance-abm-gce-lancer_cilium
+  cluster: anthos-networking-ci-us-west1-b
   trigger: /test wora-conformance-abm-gce-lancer$
   rerun_command: /test wora-conformance-abm-gce-lancer
   always_run: true
   skip_fetch_head: true
   decorate: true
   decoration_config:
+    gcs_configuration:
+      bucket: "anthos-networking-ci"
+      path_strategy: "explicit"
     timeout: 240m
   labels:
     preset-cookie-file: "true"
     preset-cookie-file-env: "true"
-    preset-service-account: "true"
     preset-dind-enabled: "true"
-    preset-k8s-ssh: "true"
     prow.k8s.io/gerrit-report-label: "Verified"
     prow.k8s.io/pubsub.project: "anthos-baremetal-ci"
-    prow.k8s.io/pubsub.topic: "prow-etl-trigger"
     prow.k8s.io/pubsub.runID: "row-etl-presubmit-tests"
+    prow.k8s.io/pubsub.topic: "prow-etl-trigger"
   path_alias: gke-internal.googlesource.com/third_party/cilium
   spec:
     containers:
@@ -192,23 +200,25 @@ presubmits:
       args:
       - ./google_test/wora/prow_entrypoint.sh
 - name: wora-networking-granular-abm-gce-lancer_cilium
+  cluster: anthos-networking-ci-us-west1-b
   trigger: /test wora-networking-granular-abm-gce-lancer$
   rerun_command: /test wora-networking-granular-abm-gce-lancer
   always_run: true
   skip_fetch_head: true
   decorate: true
   decoration_config:
+    gcs_configuration:
+      bucket: "anthos-networking-ci"
+      path_strategy: "explicit"
     timeout: 240m
   labels:
     preset-cookie-file: "true"
     preset-cookie-file-env: "true"
-    preset-service-account: "true"
     preset-dind-enabled: "true"
-    preset-k8s-ssh: "true"
     prow.k8s.io/gerrit-report-label: "Verified"
     prow.k8s.io/pubsub.project: "anthos-baremetal-ci"
-    prow.k8s.io/pubsub.topic: "prow-etl-trigger"
     prow.k8s.io/pubsub.runID: "row-etl-presubmit-tests"
+    prow.k8s.io/pubsub.topic: "prow-etl-trigger"
   path_alias: gke-internal.googlesource.com/third_party/cilium
   spec:
     containers:
@@ -241,23 +251,25 @@ presubmits:
       args:
       - ./google_test/wora/prow_entrypoint.sh
 - name: wora-perimeter-smoke_cilium
+  cluster: anthos-networking-ci-us-west1-b
   trigger: /test wora-perimeter-smoke$
   rerun_command: /test wora-perimeter-smoke
   always_run: true
   skip_fetch_head: true
   decorate: true
   decoration_config:
+    gcs_configuration:
+      bucket: "anthos-networking-ci"
+      path_strategy: "explicit"
     timeout: 240m
   labels:
     preset-cookie-file: "true"
     preset-cookie-file-env: "true"
-    preset-service-account: "true"
     preset-dind-enabled: "true"
-    preset-k8s-ssh: "true"
     prow.k8s.io/gerrit-report-label: "Verified"
     prow.k8s.io/pubsub.project: "anthos-baremetal-ci"
-    prow.k8s.io/pubsub.topic: "prow-etl-trigger"
     prow.k8s.io/pubsub.runID: "row-etl-presubmit-tests"
+    prow.k8s.io/pubsub.topic: "prow-etl-trigger"
   path_alias: gke-internal.googlesource.com/third_party/cilium
   spec:
     containers:
@@ -290,6 +302,7 @@ presubmits:
       args:
       - ./google_test/wora/prow_entrypoint.sh
 - name: wora-perimeter-k8s-conformance_cilium
+  cluster: anthos-networking-ci-us-west1-b
   trigger: /test wora-perimeter-k8s-conformance$
   rerun_command: /test wora-perimeter-k8s-conformance
   # TODO(b/405213696): enable conformance test after the bug is fixed.
@@ -297,18 +310,19 @@ presubmits:
   skip_fetch_head: true
   decorate: true
   decoration_config:
+    gcs_configuration:
+      bucket: "anthos-networking-ci"
+      path_strategy: "explicit"
     timeout: 240m
   labels:
     preset-cookie-file: "true"
     preset-cookie-file-env: "true"
-    preset-service-account: "true"
     preset-dind-enabled: "true"
-    preset-k8s-ssh: "true"
     # TODO(b/405213696): enable conformance test after the bug is fixed.
     # prow.k8s.io/gerrit-report-label: "Verified"
     prow.k8s.io/pubsub.project: "anthos-baremetal-ci"
-    prow.k8s.io/pubsub.topic: "prow-etl-trigger"
     prow.k8s.io/pubsub.runID: "row-etl-presubmit-tests"
+    prow.k8s.io/pubsub.topic: "prow-etl-trigger"
   path_alias: gke-internal.googlesource.com/third_party/cilium
   spec:
     containers:
@@ -341,6 +355,7 @@ presubmits:
       args:
       - ./google_test/wora/prow_entrypoint.sh
 - name: wora-perimeter-k8s-networking-granular_cilium
+  cluster: anthos-networking-ci-us-west1-b
   trigger: /test wora-perimeter-k8s-networking-granular$
   rerun_command: /test wora-perimeter-k8s-networking-granular
   # TODO(b/405213696): enable conformance test after the bug is fixed.
@@ -348,18 +363,19 @@ presubmits:
   skip_fetch_head: true
   decorate: true
   decoration_config:
+    gcs_configuration:
+      bucket: "anthos-networking-ci"
+      path_strategy: "explicit"
     timeout: 240m
   labels:
     preset-cookie-file: "true"
     preset-cookie-file-env: "true"
-    preset-service-account: "true"
     preset-dind-enabled: "true"
-    preset-k8s-ssh: "true"
     # TODO(b/405213696): enable conformance test after the bug is fixed.
     # prow.k8s.io/gerrit-report-label: "Verified"
     prow.k8s.io/pubsub.project: "anthos-baremetal-ci"
-    prow.k8s.io/pubsub.topic: "prow-etl-trigger"
     prow.k8s.io/pubsub.runID: "row-etl-presubmit-tests"
+    prow.k8s.io/pubsub.topic: "prow-etl-trigger"
   path_alias: gke-internal.googlesource.com/third_party/cilium
   spec:
     containers:
@@ -392,23 +408,25 @@ presubmits:
       args:
       - ./google_test/wora/prow_entrypoint.sh
 - name: wora-gdch-abm-gce-lancer-multicluster_cilium
+  cluster: anthos-networking-ci-us-west1-b
   trigger: /test wora-gdch-abm-gce-lancer-multicluster$
   rerun_command: /test wora-gdch-abm-gce-lancer-multicluster
   always_run: false
   skip_fetch_head: true
   decorate: true
   decoration_config:
+    gcs_configuration:
+      bucket: "anthos-networking-ci"
+      path_strategy: "explicit"
     timeout: 480m
   labels:
     preset-cookie-file: "true"
     preset-cookie-file-env: "true"
-    preset-service-account: "true"
     preset-dind-enabled: "true"
-    preset-k8s-ssh: "true"
     prow.k8s.io/gerrit-report-label: "Verified"
     prow.k8s.io/pubsub.project: "anthos-baremetal-ci"
-    prow.k8s.io/pubsub.topic: "prow-etl-trigger"
     prow.k8s.io/pubsub.runID: "row-etl-presubmit-tests"
+    prow.k8s.io/pubsub.topic: "prow-etl-trigger"
   path_alias: gke-internal.googlesource.com/third_party/cilium
   spec:
     containers:

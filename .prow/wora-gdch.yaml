@@ -1,18 +1,20 @@
 presubmits:
 - name: wora-gdch_lancer_cilium
+  cluster: anthos-networking-ci-us-west1-b
   trigger: /test wora-gdch-adhoc-lancer$
   rerun_command: /test wora-gdch-adhoc-lancer
   always_run: false
   skip_fetch_head: true
   decorate: true
   decoration_config:
+    gcs_configuration:
+      bucket: "anthos-networking-ci"
+      path_strategy: "explicit"
     timeout: 12h
   labels:
     preset-cookie-file: "true"
     preset-cookie-file-env: "true"
-    preset-service-account: "true"
     preset-dind-enabled: "true"
-    preset-k8s-ssh: "true"
   path_alias: gke-internal.googlesource.com/third_party/cilium
   spec:
     containers:

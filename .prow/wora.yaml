@@ -1,19 +1,21 @@
 presubmits:
 # Presubmit WORA jobs.
 - name: wora-abm-gce_cilium
+  cluster: anthos-networking-ci-us-west1-b
   trigger: /test wora-abm-gce$
   rerun_command: /test wora-abm-gce
   always_run: true
   skip_fetch_head: true
   decorate: true
   decoration_config:
+    gcs_configuration:
+      bucket: "anthos-networking-ci"
+      path_strategy: "explicit"
     timeout: 240m
   labels:
     preset-cookie-file: "true"
     preset-cookie-file-env: "true"
-    preset-service-account: "true"
     preset-dind-enabled: "true"
-    preset-k8s-ssh: "true"
     prow.k8s.io/gerrit-report-label: "Verified"
   path_alias: gke-internal.googlesource.com/third_party/cilium
   spec:
@@ -47,19 +49,21 @@ presubmits:
       args:
       - ./google_test/wora/prow_entrypoint.sh
 - name: wora-abm-island-mode-gce_cilium
+  cluster: anthos-networking-ci-us-west1-b
   trigger: /test wora-abm-island-mode-gce$
   rerun_command: /test wora-abm-island-mode-gce
   always_run: true
   skip_fetch_head: true
   decorate: true
   decoration_config:
+    gcs_configuration:
+      bucket: "anthos-networking-ci"
+      path_strategy: "explicit"
     timeout: 240m
   labels:
     preset-cookie-file: "true"
     preset-cookie-file-env: "true"
-    preset-service-account: "true"
     preset-dind-enabled: "true"
-    preset-k8s-ssh: "true"
     prow.k8s.io/gerrit-report-label: "Verified"
   path_alias: gke-internal.googlesource.com/third_party/cilium
   spec:
@@ -91,19 +95,21 @@ presubmits:
       args:
       - ./google_test/wora/prow_entrypoint.sh
 - name: wora-conformance-abm-gce_cilium
+  cluster: anthos-networking-ci-us-west1-b
   trigger: /test wora-conformance-abm-gce$
   rerun_command: /test wora-conformance-abm-gce
   always_run: false
   skip_fetch_head: true
   decorate: true
   decoration_config:
+    gcs_configuration:
+      bucket: "anthos-networking-ci"
+      path_strategy: "explicit"
     timeout: 240m
   labels:
     preset-cookie-file: "true"
     preset-cookie-file-env: "true"
-    preset-service-account: "true"
     preset-dind-enabled: "true"
-    preset-k8s-ssh: "true"
   path_alias: gke-internal.googlesource.com/third_party/cilium
   spec:
     containers:
@@ -134,19 +140,21 @@ presubmits:
       args:
       - ./google_test/wora/prow_entrypoint.sh
 - name: wora-networking-granular-abm-gce_cilium
+  cluster: anthos-networking-ci-us-west1-b
   trigger: /test wora-networking-granular-abm-gce$
   rerun_command: /test wora-networking-granular-abm-gce
   always_run: false
   skip_fetch_head: true
   decorate: true
   decoration_config:
+    gcs_configuration:
+      bucket: "anthos-networking-ci"
+      path_strategy: "explicit"
     timeout: 240m
   labels:
     preset-cookie-file: "true"
     preset-cookie-file-env: "true"
-    preset-service-account: "true"
     preset-dind-enabled: "true"
-    preset-k8s-ssh: "true"
   path_alias: gke-internal.googlesource.com/third_party/cilium
   spec:
     containers:
