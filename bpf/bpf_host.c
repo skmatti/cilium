@@ -55,6 +55,7 @@
 #include "lib/encrypt.h"
 #include "lib/wireguard.h"
 #include "lib/vxlan.h"
+#include "lib/google_host.h"
 #include "lib/google_multinic.h"
 #include "lib/google_arp.h"
 #include "lib/google_pip.h"
@@ -687,7 +688,7 @@ handle_ipv4(struct __ctx_buff *ctx, __u32 secctx __maybe_unused,
 }
 
 static __always_inline int
-handle_ipv4_cont(struct __ctx_buff *ctx, __u32 secctx, const bool from_host,
+handle_ipv4_cont(struct __ctx_buff *ctx, __u32 secctx __maybe_unused, const bool from_host,
 		 __s8 *ext_err __maybe_unused)
 {
 	struct trace_ctx __maybe_unused trace = {
@@ -698,11 +699,10 @@ handle_ipv4_cont(struct __ctx_buff *ctx, __u32 secctx, const bool from_host,
 	__u32 __maybe_unused from_host_raw;
 	void *data, *data_end;
 	struct iphdr *ip4;
-	struct remote_endpoint_info *info;
-	struct endpoint_info *ep;
 	int ret;
 	__u8 encrypt_key __maybe_unused = 0;
 	__u32 magic = MARK_MAGIC_IDENTITY;
+	bool to_endpoint = false;
 	bool from_proxy = false;
 
 	if (from_host && tc_index_from_ingress_proxy(ctx)) {
@@ -731,7 +731,8 @@ handle_ipv4_cont(struct __ctx_buff *ctx, __u32 secctx, const bool from_host,
 
 	switch (ret) {
 	case HOOK_ACT_SKIP:
-		goto to_endpoint;
+		to_endpoint = true;
+		goto skip_host_firewall;
 	case HOOK_ACT_CONTINUE:
 		break;
 	default:
@@ -766,6 +767,52 @@ handle_ipv4_cont(struct __ctx_buff *ctx, __u32 secctx, const bool from_host,
 			return ret;
 	}
 #endif /* ENABLE_HOST_FIREWALL */
+skip_host_firewall:
+	ret = goog_ipv4_from_host_netdev_fwd_store_state(&trace, magic,
+							 from_proxy,
+							 to_endpoint);
+	if (IS_ERR(ret))
+		return ret;
+
+	if (from_host)
+		return tail_call_internal(ctx,
+				          CILIUM_CALL_GOOGLE_IPV4_FROM_HOST_FWD,
+				  	  ext_err);
+	else
+		return tail_call_internal(ctx,
+				          CILIUM_CALL_GOOGLE_IPV4_FROM_NETDEV_FWD,
+				  	  ext_err);
+}
+
+
+static __always_inline int goog_handle_ipv4_fwd(struct __ctx_buff *ctx,
+						__u32 secctx, bool from_host,
+						__s8 *ext_err)
+{
+	struct trace_ctx __maybe_unused trace;
+	struct goog_host_stage_ctx stage_ctx;
+	__u8 encrypt_key __maybe_unused = 0;
+	__u32 magic = MARK_MAGIC_IDENTITY;
+	struct remote_endpoint_info *info;
+	struct endpoint_info *ep;
+	bool to_endpoint = false;
+	bool from_proxy = false;
+	void *data, *data_end;
+	struct iphdr *ip4;
+	int ret;
+
+	goog_host_init_ctx(&stage_ctx);
+
+	ret = goog_ipv4_from_lxc_fwd_restore_state(&trace, &magic, &from_proxy,
+						   &to_endpoint);
+	if (IS_ERR(ret))
+		return ret;
+
+	if (!revalidate_data(ctx, &data, &data_end, &ip4))
+		return DROP_INVALID;
+
+	if (to_endpoint)
+		goto to_endpoint;
 
 	if (from_host) {
 		stage_ctx.stage_ctx.goog_host_ingress_fwd4_ctx.__common.secctx = secctx;
@@ -979,6 +1026,34 @@ static __always_inline
 int tail_handle_ipv4_cont_from_netdev(struct __ctx_buff *ctx)
 {
 	return tail_handle_ipv4_cont(ctx, false);
+}
+
+static __always_inline
+int goog_tail_handle_ipv4_fwd(struct __ctx_buff *ctx, bool from_host)
+{
+	__u32 src_sec_identity = ctx_load_and_clear_meta(ctx, CB_SRC_LABEL);
+	int ret;
+	__s8 ext_err = 0;
+
+	ret = goog_handle_ipv4_fwd(ctx, src_sec_identity, from_host, &ext_err);
+	if (IS_ERR(ret))
+		return send_drop_notify_error_ext(ctx, src_sec_identity, ret, ext_err,
+						  CTX_ACT_DROP, METRIC_INGRESS);
+	return ret;
+}
+
+__section_tail(CILIUM_MAP_CALLS, CILIUM_CALL_GOOGLE_IPV4_FROM_HOST_FWD)
+static __always_inline
+int goog_tail_handle_ipv4_from_host_fwd(struct __ctx_buff *ctx)
+{
+	return goog_tail_handle_ipv4_fwd(ctx, true);
+}
+
+__section_tail(CILIUM_MAP_CALLS, CILIUM_CALL_GOOGLE_IPV4_FROM_NETDEV_FWD)
+static __always_inline
+int goog_tail_handle_ipv4_from_netdev_fwd(struct __ctx_buff *ctx)
+{
+	return goog_tail_handle_ipv4_fwd(ctx, false);
 }
 
 static __always_inline int

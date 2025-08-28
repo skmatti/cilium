@@ -56,6 +56,7 @@
 #include "lib/nodeport.h"
 #include "lib/policy_log.h"
 #include "lib/google_arp.h"
+#include "lib/google_lxc.h"
 #include "lib/google_multinic.h"
 #include "lib/google_arp.h"
 #include "lib/google_sfc.h"
@@ -871,9 +872,6 @@ static __always_inline int handle_ipv4_from_lxc(struct __ctx_buff *ctx, __u32 *d
 {
 	struct ct_state *ct_state, ct_state_new = {};
 	struct ipv4_ct_tuple *tuple = NULL;
-#ifdef ENABLE_ROUTING
-	union macaddr router_mac = THIS_INTERFACE_MAC;
-#endif
 	void *data, *data_end;
 	struct iphdr *ip4;
 	int ret, verdict, l4_off;
@@ -1130,6 +1128,74 @@ ct_recreate4:
 		return DROP_INVALID;
 
 skip_egress_policy:
+#ifdef ENABLE_PER_PACKET_LB
+	ct_state_new.loopback = hairpin_flow;
+	lb4_ctx_store_state(ctx, &ct_state_new, proxy_port, cluster_id);
+	ret = goog_ipv4_from_lxc_fwd_store_state(encrypt_key, tunnel_endpoint,
+						 skip_tunnel,
+						 *dst_sec_identity);
+	if (IS_ERR(ret))
+		return ret;
+#endif
+	return tail_call_internal(ctx, CILIUM_CALL_GOOGLE_IPV4_FROM_LXC_FWD,
+				  ext_err);
+}
+
+static __always_inline int goog_handle_ipv4_from_lxc_fwd(struct __ctx_buff *ctx,
+							 __u32 *dst_sec_identity,
+							 __s8 *ext_err)
+{
+#ifdef ENABLE_ROUTING
+	union macaddr router_mac = THIS_INTERFACE_MAC;
+#endif
+	struct ct_state *ct_state __maybe_unused, ct_state_new = {};
+	struct goog_ctr_stage_ctx stage_ctx;
+	struct ipv4_ct_tuple *tuple = NULL;
+	struct ct_buffer4 *ct_buffer = 0;
+	enum ct_status ct_status = 0;
+	struct trace_ctx trace = {
+		.reason = TRACE_REASON_UNKNOWN,
+		.monitor = 0,
+	};
+	__u32 tunnel_endpoint = 0;
+	bool hairpin_flow = false;
+	bool skip_tunnel = false;
+	bool from_l7lb = false;
+	void *data, *data_end;
+	__u32 cluster_id = 0;
+	__u16 proxy_port __maybe_unused = 0;
+	__u8 encrypt_key = 0;
+	struct iphdr *ip4;
+	__u32  zero = 0;
+	int ret;
+
+	goog_ctr_init_ctx(&stage_ctx);
+
+	ct_buffer = map_lookup_elem(&CT_TAIL_CALL_BUFFER4, &zero);
+	if (!ct_buffer)
+		return DROP_INVALID_TC_BUFFER;
+
+	tuple = (struct ipv4_ct_tuple *)&ct_buffer->tuple;
+	ct_state = (struct ct_state *)&ct_buffer->ct_state;
+	trace.monitor = ct_buffer->monitor;
+	ret = ct_buffer->ret;
+	ct_status = (enum ct_status)ret;
+	trace.reason = (enum trace_reason)ret;
+#if defined(ENABLE_L7_LB)
+	from_l7lb = ctx_load_meta(ctx, CB_FROM_HOST) == FROM_HOST_L7_LB;
+#endif
+#ifdef ENABLE_PER_PACKET_LB
+	/* Restore ct_state from per packet lb handling in the previous tail call. */
+	lb4_ctx_restore_state(ctx, &ct_state_new, &proxy_port, &cluster_id);
+	hairpin_flow = ct_state_new.loopback;
+#endif /* ENABLE_PER_PACKET_LB */
+	ret = goog_ipv4_from_lxc_fwd_restore_state(&encrypt_key,
+						   &tunnel_endpoint,
+						   &skip_tunnel,
+						   dst_sec_identity);
+	if (IS_ERR(ret))
+		return ret;
+
 	stage_ctx.stage_ctx.goog_ctr_egress_fwd4_ctx.rev_nat_index = ct_state_new.rev_nat_index;
 	stage_ctx.stage_ctx.goog_ctr_egress_fwd4_ctx.hairpin_flow = hairpin_flow;
 	stage_ctx.stage_ctx.goog_ctr_egress_fwd4_ctx.tuple = tuple;
@@ -1475,6 +1541,23 @@ int tail_handle_ipv4_cont(struct __ctx_buff *ctx)
 			       REASON_MISSED_CUSTOM_CALL);
 	}
 #endif
+
+	return ret;
+}
+
+__section_tail(CILIUM_MAP_CALLS, CILIUM_CALL_GOOGLE_IPV4_FROM_LXC_FWD)
+int goog_tail_handle_ipv4_fwd(struct __ctx_buff *ctx)
+{
+	__u32 dst_sec_identity = 0;
+	__s8 ext_err = 0;
+
+	int ret = goog_handle_ipv4_from_lxc_fwd(ctx, &dst_sec_identity,
+						&ext_err);
+
+	if (IS_ERR(ret))
+		return send_drop_notify_ext(ctx, SECLABEL_IPV4, dst_sec_identity,
+					    TRACE_EP_ID_UNKNOWN, ret, ext_err,
+					    CTX_ACT_DROP, METRIC_EGRESS);
 
 	return ret;
 }
