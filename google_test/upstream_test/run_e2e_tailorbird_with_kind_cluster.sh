@@ -38,12 +38,58 @@ if [[ -n "${GIT_HTTP_COOKIEFILE}" ]]; then
   export GOPRIVATE='*.googlesource.com,*.git.corp.google.com'
 fi
 
+SHA="$(git rev-parse --verify HEAD)"
+export DOCKER_IMAGE_TAG="${SHA}"
+export DOCKER_BUILD_KIT=1
+export DOCKER_CLI_EXPERIMENTAL=enabled
+export PROJECT="${GCP_PROJECT:-anthos-networking-ci}"
+export IMAGE_REGISTRY="gcr.io/${PROJECT}"
+export CILIUM_IMAGE_REPOSITORY="${IMAGE_REGISTRY}/cilium/cilium"
+export CILIUM_IMAGE_TAG="${DOCKER_IMAGE_TAG}-dpv2"
+export CILIUM_OPERATOR_IMAGE_REPOSITORY="${IMAGE_REGISTRY}/cilium/operator"
+export CILIUM_OPERATOR_GENERIC_IMAGE_REPOSITORY="${IMAGE_REGISTRY}/cilium/operator-generic"
+export HUBBLE_RELAY_IMAGE_REPOSITORY="${IMAGE_REGISTRY}/cilium/hubble-relay"
+export CLUSTERMESH_APISERVER_IMAGE_REPOSITORY="${IMAGE_REGISTRY}/cilium/clustermesh-apiserver"
+
+# Register gcloud as the credential helper for Google-supported Docker registries.
+gcloud auth configure-docker --quiet
+gcloud auth configure-docker "${IMAGE_REGISTRY%%/*}" --quiet
+
+# Build and push cilium to google cloud registry
+echo "Making Cilium images for current build and push to google cloud registry: ${IMAGE_REGISTRY}"
+
+make LOCKDEBUG=1 DOCKER_REGISTRY="${IMAGE_REGISTRY}" docker-cilium-dpv2-image
+docker push "${CILIUM_IMAGE_REPOSITORY}:${CILIUM_IMAGE_TAG}"
+
+make -B LOCKDEBUG=1 DOCKER_REGISTRY="${IMAGE_REGISTRY}" docker-operator-image
+docker push "${CILIUM_OPERATOR_IMAGE_REPOSITORY}:${DOCKER_IMAGE_TAG}"
+
+make -B LOCKDEBUG=1 DOCKER_REGISTRY="${IMAGE_REGISTRY}" docker-operator-generic-image
+docker push "${CILIUM_OPERATOR_GENERIC_IMAGE_REPOSITORY}:${DOCKER_IMAGE_TAG}"
+
+make -B LOCKDEBUG=1 DOCKER_REGISTRY="${IMAGE_REGISTRY}" docker-clustermesh-apiserver-image
+docker push "${CLUSTERMESH_APISERVER_IMAGE_REPOSITORY}:${DOCKER_IMAGE_TAG}"
+
+make LOCKDEBUG=1 DOCKER_REGISTRY="${IMAGE_REGISTRY}" docker-hubble-relay-image
+docker push "${HUBBLE_RELAY_IMAGE_REPOSITORY}:${DOCKER_IMAGE_TAG}"
+
 # Get credentials to use tailorbird and create the kind cluster
 echo "Getting credentials for tailorbird-prod..."
 gcloud container clusters get-credentials tailorbird-prod \
   --region us-west2 --project tailorbird
 
+SA_KEY="anthos-networking-ci-runner@${PROJECT}.iam.gserviceaccount.com-key.json"
+gcloud secrets versions access latest --secret=anthos-networking-ci-runner-gcr-pull-secret --project="${PROJECT}" >"${SA_KEY}"
+
 ROOKERY_CONFIG="${ROOKERY_CONFIG:-google_test/upstream_test/tailorbird/rookery-kind.yaml}"
+
+SA_KEY="${SA_KEY}" \
+DOCKER_IMAGE_TAG="${DOCKER_IMAGE_TAG}" \
+CILIUM_IMAGE_TAG="${CILIUM_IMAGE_TAG}" \
+CILIUM_IMAGE_REPOSITORY="${CILIUM_IMAGE_REPOSITORY}" \
+CILIUM_OPERATOR_IMAGE_REPOSITORY="${CILIUM_OPERATOR_IMAGE_REPOSITORY}" \
+CLUSTERMESH_APISERVER_IMAGE_REPOSITORY="${CLUSTERMESH_APISERVER_IMAGE_REPOSITORY}" \
+HUBBLE_RELAY_IMAGE_REPOSITORY="${HUBBLE_RELAY_IMAGE_REPOSITORY}" \
 kubetest2-tailorbird \
   --verbose \
   --up --down \

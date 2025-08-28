@@ -31,19 +31,21 @@ presubmits:
       - runner.sh
       - ./google_test/presubmit-unit.sh
 - name: gke-advanced-datapath-presubmit-upstream-k8s-conformance
+  cluster: anthos-networking-ci-us-west1-b
   trigger: /test upstream-k8s-conformance$
   rerun_command: /test upstream-k8s-conformance
   always_run: true
   skip_fetch_head: true
   decorate: true
   decoration_config:
+    gcs_configuration:
+      bucket: "anthos-networking-ci"
+      path_strategy: "explicit"
     timeout: 240m
   labels:
     preset-cookie-file: "true"
     preset-cookie-file-env: "true"
-    preset-service-account: "true"
     preset-dind-enabled: "true"
-    preset-k8s-ssh: "true"
     prow.k8s.io/gerrit-report-label: "Verified"
     prow.k8s.io/pubsub.project: "anthos-baremetal-ci"
     prow.k8s.io/pubsub.runID: "row-etl-presubmit-tests"
@@ -65,19 +67,21 @@ presubmits:
       args:
       - ./google_test/upstream_test/run_e2e_tailorbird_with_kind_cluster.sh
 - name: gke-advanced-datapath-presubmit-upstream-connectivity
+  cluster: anthos-networking-ci-us-west1-b
   trigger: /test upstream-connectivity$
   rerun_command: /test upstream-connectivity
   always_run: true
   skip_fetch_head: true
   decorate: true
   decoration_config:
+    gcs_configuration:
+      bucket: "anthos-networking-ci"
+      path_strategy: "explicit"
     timeout: 240m
   labels:
     preset-cookie-file: "true"
     preset-cookie-file-env: "true"
-    preset-service-account: "true"
     preset-dind-enabled: "true"
-    preset-k8s-ssh: "true"
     prow.k8s.io/pubsub.project: "anthos-baremetal-ci"
     prow.k8s.io/pubsub.runID: "row-etl-presubmit-tests"
     prow.k8s.io/pubsub.topic: "prow-etl-trigger"

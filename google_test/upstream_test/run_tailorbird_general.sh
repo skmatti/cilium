@@ -33,47 +33,13 @@ fi
 run_test_script="${test_script_from_test_type["${TEST_TYPE}"]}"
 
 # Set up job variables
-SHA="$(git rev-parse --verify HEAD)"
 CILIUM_CLI_VERSION=v0.16.13
-export DOCKER_BUILD_KIT=1
-export DOCKER_CLI_EXPERIMENTAL=enabled
-export PROJECT="${GCP_PROJECT:-anthos-networking-ci}"
-export IMAGE_REGISTRY="gcr.io/${PROJECT}"
-export CILIUM_TAG=cilium/cilium
-export CILIUM_OPERATOR_TAG=cilium/operator
-export CILIUM_OPERATOR_GENERIC_TAG=cilium/operator-generic
-export HUBBLE_RELAY_TAG=cilium/hubble-relay
-export CLUSTERMESH_APISERVER_TAG=cilium/clustermesh-apiserver
 export HTTPS_PROXY=http://localhost:8118
 export HTTP_PROXY=http://localhost:8118
-export ACCOUNT_NAME="anthos-networking-ci-runner@${PROJECT}.iam.gserviceaccount.com"
 
 echo "  ARTIFACTS        = ${ARTIFACTS}"
 echo "  KUBETEST2_RUN_ID = ${KUBETEST2_RUN_ID}"
 echo "  TEST_TYPE        = ${TEST_TYPE}"
-
-# Register gcloud as the credential helper for Google-supported Docker registries.
-gcloud auth configure-docker --quiet
-gcloud auth configure-docker "${IMAGE_REGISTRY%%/*}" --quiet
-
-# Build and push cilium to google cloud registry
-export DOCKER_IMAGE_TAG="${SHA}"
-echo "Making Cilium images for current build and push to google cloud registry: ${IMAGE_REGISTRY}"
-
-make LOCKDEBUG=1 DOCKER_REGISTRY="${IMAGE_REGISTRY}" docker-cilium-dpv2-image
-docker push "${IMAGE_REGISTRY}/${CILIUM_TAG}:${DOCKER_IMAGE_TAG}-dpv2"
-
-make -B LOCKDEBUG=1 DOCKER_REGISTRY="${IMAGE_REGISTRY}" docker-operator-image
-docker push "${IMAGE_REGISTRY}/${CILIUM_OPERATOR_TAG}:${DOCKER_IMAGE_TAG}"
-
-make -B LOCKDEBUG=1 DOCKER_REGISTRY="${IMAGE_REGISTRY}" docker-operator-generic-image
-docker push "${IMAGE_REGISTRY}/${CILIUM_OPERATOR_GENERIC_TAG}:${DOCKER_IMAGE_TAG}"
-
-make -B LOCKDEBUG=1 DOCKER_REGISTRY="${IMAGE_REGISTRY}" docker-clustermesh-apiserver-image
-docker push "${IMAGE_REGISTRY}/${CLUSTERMESH_APISERVER_TAG}:${DOCKER_IMAGE_TAG}"
-
-make LOCKDEBUG=1 DOCKER_REGISTRY="${IMAGE_REGISTRY}" docker-hubble-relay-image
-docker push "${IMAGE_REGISTRY}/${HUBBLE_RELAY_TAG}:${DOCKER_IMAGE_TAG}"
 
 # Obtain the kubeconfig and host machine info to access the kind cluster created
 for resource_directory in "${ARTIFACTS}/.kubetest2-tailorbird"/*; do
@@ -127,10 +93,8 @@ kubectl delete ds kube-proxy -n kube-system
 kubectl delete ds kindnet -n kube-system
 
 # Generate k8s secret from eligible SA for pulling images from GCR.
-export ACCOUNT_KEY=${ACCOUNT_NAME}-key.json
 export SECRETNAME=gcr-pull-secret
-gcloud secrets versions access latest --secret=anthos-networking-ci-runner-gcr-pull-secret --project="${PROJECT}" >"${ACCOUNT_KEY}"
-kubectl create secret generic --type=kubernetes.io/dockerconfigjson -n kube-system "${SECRETNAME}" --from-file=.dockerconfigjson="${ACCOUNT_KEY}"
+kubectl create secret generic --type=kubernetes.io/dockerconfigjson -n kube-system "${SECRETNAME}" --from-file=.dockerconfigjson="${SA_KEY}"
 
 # Install Cilium CLI
 curl -sSL --remote-name-all https://github.com/cilium/cilium-cli/releases/download/"${CILIUM_CLI_VERSION}"/cilium-linux-amd64.tar.gz{,.sha256sum}
@@ -141,18 +105,18 @@ cilium version
 
 # Install Cilium into the Kubernetes cluster pointed to by your current kubectl context
 cilium install --wait --chart-directory=install/kubernetes/cilium \
-  --helm-set=image.repository="${IMAGE_REGISTRY}/${CILIUM_TAG}" \
+  --helm-set=image.repository="${CILIUM_IMAGE_REPOSITORY}" \
   --helm-set=image.useDigest=false \
   --helm-set=imagePullSecrets[0].name="${SECRETNAME}" \
-  --helm-set=image.tag="${DOCKER_IMAGE_TAG}-dpv2" \
-  --helm-set=operator.image.repository="${IMAGE_REGISTRY}/${CILIUM_OPERATOR_TAG}" \
+  --helm-set=image.tag="${CILIUM_IMAGE_TAG}" \
+  --helm-set=operator.image.repository="${CILIUM_OPERATOR_IMAGE_REPOSITORY}" \
   --helm-set=operator.image.suffix="" \
   --helm-set=operator.image.tag="${DOCKER_IMAGE_TAG}" \
   --helm-set=operator.image.useDigest=false \
-  --helm-set=clustermesh.apiserver.image.repository="${IMAGE_REGISTRY}/${CLUSTERMESH_APISERVER_TAG}" \
+  --helm-set=clustermesh.apiserver.image.repository="${CLUSTERMESH_APISERVER_IMAGE_REPOSITORY}" \
   --helm-set=clustermesh.apiserver.image.tag="${DOCKER_IMAGE_TAG}" \
   --helm-set=clustermesh.apiserver.image.useDigest=false \
-  --helm-set=hubble.relay.image.repository="${IMAGE_REGISTRY}/${HUBBLE_RELAY_TAG}" \
+  --helm-set=hubble.relay.image.repository="${HUBBLE_RELAY_IMAGE_REPOSITORY}" \
   --helm-set=hubble.relay.image.tag="${DOCKER_IMAGE_TAG}" \
   --helm-set=cni.chainingMode=portmap \
   --helm-set-string=kubeProxyReplacement=true \
