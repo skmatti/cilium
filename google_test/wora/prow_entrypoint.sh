@@ -357,6 +357,38 @@ if [[ "${NUM_CLUSTERS}" -gt 1 ]]; then
     "${CILIUM_CLUSTERMESH_IMAGE_WITH_TAG}"
 fi
 
+# Runs the cluster-debug-links tool in a Docker container to generate
+# debugging links for a given test cluster.
+function add_cluster_debug_links {
+  local tbconfig="${1:?}"
+  local project="${2:?}"
+  local starttime="${3:?}"
+  local artifacts_dir="${4:?}"
+
+  local container_tbconfig_path="/config/tbconfig.yaml"
+  local container_artifacts_dir="/artifacts"
+
+  local tool_image="us-docker.pkg.dev/anthos-networking-ci/apps/cluster-debug-links:latest"
+  echo "Running cluster-debug-links container..." >&2
+  gcloud auth configure-docker us-docker.pkg.dev --quiet
+  docker run --pull=always -d \
+    -v "${tbconfig}":"${container_tbconfig_path}":ro \
+    -v "${artifacts_dir}":"${container_artifacts_dir}" \
+    "${tool_image}" cluster-debug-links \
+      --tbconfig="${container_tbconfig_path}" \
+      --project="${project}" \
+      --output-dir="${container_artifacts_dir}" \
+      --starttime="${starttime}"
+  echo "cluster-debug-links container finished successfully." >&2
+}
+
+# Generate debugging links.
+add_cluster_debug_links \
+  "${TBCONFIG}" \
+  "${PROJECT}" \
+  "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+  "${ARTIFACTS:-${ROOT}/${WORKDIR}}"
+
 CILIUM_IMAGE_WITH_TAG=${CILIUM_IMAGE_WITH_TAG:-} \
   DISABLE_UPGRADE_VERIFICATION=${DISABLE_UPGRADE_VERIFICATION:-} \
   kubetest2-tailorbird \
