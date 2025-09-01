@@ -909,7 +909,7 @@ static __always_inline int __google_encap_redirect_v4(
 	struct __ctx_buff *ctx, __u32 dstid __maybe_unused,
 	int ifindex __maybe_unused, const struct trace_ctx *trace __maybe_unused)
 {
-	int ret;
+	int ret = DROP_WRITE_ERROR;
 
 # if defined(ENABLE_IPV4) && defined(ENCAP_IFINDEX)
 	if (ifindex == ENCAP_IFINDEX) {
@@ -918,13 +918,20 @@ static __always_inline int __google_encap_redirect_v4(
 #  if __ctx_is == __ctx_skb
 #   if GOOGLE_IPSEC_MODE == GOOGLE_IPSEC_MODE_DISABLED
 		ifindex = DIRECT_ROUTING_DEV_IFINDEX;
+		ret = ctx_redirect(ctx, ifindex, 0);
+		goto to_redirect;
 #   else  /* GOOGLE_IPSEC_MODE */
 		// If IPSec is enabled, send the packet back to kernel for IPSec encryption.
-		ret = CTX_ACT_OK;
+		send_trace_notify(
+			ctx, TRACE_TO_STACK, SECLABEL, dstid, 0, ifindex,
+			TRACE_REASON_UNKNOWN, 0);
+		return CTX_ACT_OK;
 #   endif /* GOOGLE_IPSEC_MODE */
 #  else	  /* __ctx_is == __ctx_xdp */
 		ctx_move_xfer(ctx);
 		ifindex = DIRECT_ROUTING_DEV_IFINDEX;
+		ret = ctx_redirect(ctx, ifindex, 0);
+		goto to_redirect;
 #  endif  /* __ctx_is == __ctx_skb */
 	}
 # else
@@ -932,17 +939,13 @@ static __always_inline int __google_encap_redirect_v4(
 	__throw_build_bug();
 # endif /* ENABLE_IPV4 */
 
-	ret = ctx_redirect(ctx, ifindex, 0);
+__maybe_unused to_redirect:
 	if (likely(ret == CTX_ACT_REDIRECT)) {
 		cilium_capture_out(ctx);
 		send_trace_notify(
 			ctx, TRACE_TO_NETWORK, SECLABEL, dstid, 0, ifindex,
 			TRACE_REASON_UNKNOWN, 0);
-	} else if (ret == CTX_ACT_OK)
-		send_trace_notify(
-			ctx, TRACE_TO_STACK, SECLABEL, dstid, 0, ifindex,
-			TRACE_REASON_UNKNOWN, 0);
-	else if (IS_ERR(ret))
+	} else if (IS_ERR(ret))
 		return send_drop_notify_error(
 			ctx, 0, ret, CTX_ACT_DROP, METRIC_EGRESS);
 	return ret;

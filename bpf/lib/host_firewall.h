@@ -397,6 +397,15 @@ __ipv4_host_policy_egress(struct __ctx_buff *ctx, bool is_host_id __maybe_unused
 		verdict = auth_lookup(ctx, HOST_ID, dst_sec_identity, tunnel_endpoint, auth_type);
 	}
 
+# ifdef ENABLE_GOOGLE_GENEVE
+	/* When Google BPF GENEVE is enabled, do not create conntrack entry. Because
+	 * the source port of the GENEVE packet is random, as a result a ton of CT entries
+	 * will be created. And we don't really care about the conntrack for
+	 * the outer GENEVE layer anyway.
+	 */
+	if (ctx_is_overlay(ctx))
+		goto skip_conntrack;
+# endif
 	/* Only create CT entry for accepted connections */
 	if (ret == CT_NEW && verdict == CTX_ACT_OK) {
 		struct ct_state ct_state_new = {};
@@ -416,6 +425,9 @@ __ipv4_host_policy_egress(struct __ctx_buff *ctx, bool is_host_id __maybe_unused
 			return ret;
 	}
 
+# ifdef ENABLE_GOOGLE_GENEVE
+skip_conntrack:
+# endif
 	/* Emit verdict if drop or if allow for CT_NEW. */
 	if (verdict != CTX_ACT_OK || ret != CT_ESTABLISHED)
 		send_policy_verdict_notify(ctx, dst_sec_identity, tuple->dport,
