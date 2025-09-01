@@ -6,19 +6,16 @@ package clustermesh
 import (
 	"context"
 	"errors"
-	"fmt"
 	"log/slog"
 	"net"
 	"path"
-	"strings"
 	"sync"
 
 	"github.com/cilium/hive/cell"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/util/wait"
-	"k8s.io/client-go/tools/cache"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	cmk8s "github.com/cilium/cilium/clustermesh-apiserver/clustermesh/k8s"
 	"github.com/cilium/cilium/clustermesh-apiserver/syncstate"
@@ -30,17 +27,10 @@ import (
 	"github.com/cilium/cilium/pkg/identity"
 	identityCache "github.com/cilium/cilium/pkg/identity/cache"
 	"github.com/cilium/cilium/pkg/ipcache"
-	ciliumio "github.com/cilium/cilium/pkg/k8s/apis/cilium.io"
 	ciliumv2 "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2"
 	k8sClient "github.com/cilium/cilium/pkg/k8s/client"
-	"github.com/cilium/cilium/pkg/k8s/informer"
 	"github.com/cilium/cilium/pkg/k8s/resource"
-	slim_corev1 "github.com/cilium/cilium/pkg/k8s/slim/k8s/api/core/v1"
-	slim_labels "github.com/cilium/cilium/pkg/k8s/slim/k8s/apis/labels"
-	slim_metav1 "github.com/cilium/cilium/pkg/k8s/slim/k8s/apis/meta/v1"
-	"github.com/cilium/cilium/pkg/k8s/slim/k8s/apis/selection"
 	"github.com/cilium/cilium/pkg/k8s/types"
-	"github.com/cilium/cilium/pkg/k8s/utils"
 	"github.com/cilium/cilium/pkg/kvstore"
 	"github.com/cilium/cilium/pkg/kvstore/store"
 	"github.com/cilium/cilium/pkg/labels"
@@ -52,13 +42,10 @@ import (
 	"github.com/cilium/cilium/pkg/option"
 	"github.com/cilium/cilium/pkg/promise"
 	"github.com/cilium/cilium/pkg/version"
-	v1meta "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 var (
-	log             = logging.DefaultLogger.WithField(logfields.LogSubsys, "clustermesh-apiserver")
-	namespaceCache  cache.Store
-	syncMultiNicEPs bool
+	log = logging.DefaultLogger.WithField(logfields.LogSubsys, "clustermesh-apiserver")
 )
 
 func NewCmd(h *hive.Hive) *cobra.Command {
@@ -91,13 +78,15 @@ type parameters struct {
 	cell.In
 
 	ExternalWorkloadsConfig
-	ClusterInfo       cmtypes.ClusterInfo
-	GoogleClusterInfo cmtypes.GoogleClusterInfo
-	Clientset         k8sClient.Clientset
-	Resources         cmk8s.Resources
-	BackendPromise    promise.Promise[kvstore.BackendOperations]
-	StoreFactory      store.Factory
-	SyncState         syncstate.SyncState
+	ClusterInfo    cmtypes.ClusterInfo
+	Clientset      k8sClient.Clientset
+	Resources      cmk8s.Resources
+	BackendPromise promise.Promise[kvstore.BackendOperations]
+	StoreFactory   store.Factory
+	SyncState      syncstate.SyncState
+
+	// Google specific fields.
+	GoogleConfig cmtypes.GoogleConfig
 }
 
 func registerHooks(lc cell.Lifecycle, params parameters) error {
@@ -112,7 +101,7 @@ func registerHooks(lc cell.Lifecycle, params parameters) error {
 				return err
 			}
 
-			startServer(ctx, params.ClusterInfo, params.GoogleClusterInfo, params.EnableExternalWorkloads, params.Clientset, backend, params.Resources, params.StoreFactory, params.SyncState)
+			startServer(ctx, params.ClusterInfo, params.GoogleConfig, params.EnableExternalWorkloads, params.Clientset, backend, params.Resources, params.StoreFactory, params.SyncState)
 			return nil
 		},
 	})
@@ -123,15 +112,16 @@ type identitySynchronizer struct {
 	store        store.SyncStore
 	encoder      func([]byte) string
 	syncCallback func(context.Context)
+	googleSyncer *googleSyncer
 }
 
-func newIdentitySynchronizer(ctx context.Context, cinfo cmtypes.ClusterInfo, backend kvstore.BackendOperations, factory store.Factory, syncCallback func(context.Context)) synchronizer {
+func newIdentitySynchronizer(ctx context.Context, cinfo cmtypes.ClusterInfo, backend kvstore.BackendOperations, factory store.Factory, syncCallback func(context.Context), gs *googleSyncer) synchronizer {
 	identitiesStore := factory.NewSyncStore(cinfo.Name, backend,
 		path.Join(identityCache.IdentitiesPath, "id"),
 		store.WSSWithSyncedKeyOverride(identityCache.IdentitiesPath))
 	go identitiesStore.Run(ctx)
 
-	return &identitySynchronizer{store: identitiesStore, encoder: backend.Encode, syncCallback: syncCallback}
+	return &identitySynchronizer{store: identitiesStore, encoder: backend.Encode, syncCallback: syncCallback, googleSyncer: gs}
 }
 
 func parseLabelArrayFromMap(base map[string]string) labels.LabelArray {
@@ -152,14 +142,8 @@ func (is *identitySynchronizer) upsert(ctx context.Context, _ resource.Key, obj 
 		return nil
 	}
 
-	ns, err := getIdentityNamespace(identity)
-	if err != nil {
-		log.Warningf("Unable to get identity namespace: %v", err)
-		return nil
-	}
-
-	if !shouldSync(ns) && !shouldSyncIdentity(identity) {
-		log.Debugf("Not syncing identity from namespace %s", ns)
+	if !is.googleSyncer.ShouldSyncIdentity(identity) {
+		log.Debugf("Not syncing identity %s", client.ObjectKeyFromObject(identity))
 		return nil
 	}
 
@@ -263,9 +247,10 @@ type endpointSynchronizer struct {
 	store        store.SyncStore
 	cache        map[string]ipmap
 	syncCallback func(context.Context)
+	googleSyncer *googleSyncer
 }
 
-func newEndpointSynchronizer(ctx context.Context, cinfo cmtypes.ClusterInfo, backend kvstore.BackendOperations, factory store.Factory, syncCallback func(context.Context)) synchronizer {
+func newEndpointSynchronizer(ctx context.Context, cinfo cmtypes.ClusterInfo, backend kvstore.BackendOperations, factory store.Factory, syncCallback func(context.Context), googleSyncer *googleSyncer) synchronizer {
 	endpointsStore := factory.NewSyncStore(cinfo.Name, backend,
 		path.Join(ipcache.IPIdentitiesPath, ipcache.DefaultAddressSpace),
 		store.WSSWithSyncedKeyOverride(ipcache.IPIdentitiesPath))
@@ -275,13 +260,14 @@ func newEndpointSynchronizer(ctx context.Context, cinfo cmtypes.ClusterInfo, bac
 		store:        endpointsStore,
 		cache:        make(map[string]ipmap),
 		syncCallback: syncCallback,
+		googleSyncer: googleSyncer,
 	}
 }
 
 func (es *endpointSynchronizer) upsert(ctx context.Context, key resource.Key, obj runtime.Object) error {
 	endpoint := obj.(*types.CiliumEndpoint)
-	if !shouldSync(endpoint.Namespace) && !shouldSyncCEP(endpoint) {
-		log.Debugf("Not syncing endpoint from namespace %s", endpoint.Namespace)
+	if es.googleSyncer.ShouldSyncCEP(endpoint) {
+		log.Debugf("Not syncing endpoint %s", client.ObjectKeyFromObject(endpoint))
 		return nil
 	}
 	ips := make(ipmap)
@@ -376,7 +362,7 @@ func synchronize[T runtime.Object](ctx context.Context, r resource.Resource[T], 
 func startServer(
 	startCtx cell.HookContext,
 	cinfo cmtypes.ClusterInfo,
-	ginfo cmtypes.GoogleClusterInfo,
+	ginfo cmtypes.GoogleConfig,
 	allServices bool,
 	clientset k8sClient.Clientset,
 	backend kvstore.BackendOperations,
@@ -397,8 +383,6 @@ func startServer(
 		},
 	}
 
-	syncMultiNicEPs = ginfo.SyncMultiNicEPs
-
 	_, err := cmutils.EnforceClusterConfig(context.Background(), cinfo.Name, config, backend, log)
 	if err != nil {
 		log.WithError(err).Fatal("Unable to set local cluster config on kvstore")
@@ -406,19 +390,16 @@ func startServer(
 
 	ctx := context.Background()
 
-	// We only need to watch namespaces if some label restrictions are configured.
-	// Otherwise we sync everything.
-	if len(ginfo.NamespaceLabels) > 0 {
-		if err := watchNamespaces(clientset, ginfo.NamespaceLabels); err != nil {
-			log.WithError(err).Fatal("Unable to watch namespaces")
-		}
+	googleSyncer, err := newGoogleSyncer(ginfo, clientset)
+	if err != nil {
+		log.WithError(err).Fatal("Unable to create Google syncer")
 	}
 
-	go synchronize(ctx, resources.CiliumIdentities, newIdentitySynchronizer(ctx, cinfo, backend, factory, syncState.WaitForResource()))
+	go synchronize(ctx, resources.CiliumIdentities, newIdentitySynchronizer(ctx, cinfo, backend, factory, syncState.WaitForResource(), googleSyncer))
 	if !ginfo.DisableClustermeshNodeSync {
 		go synchronize(ctx, resources.CiliumNodes, newNodeSynchronizer(ctx, cinfo, backend, factory, syncState.WaitForResource()))
 	}
-	go synchronize(ctx, resources.CiliumSlimEndpoints, newEndpointSynchronizer(ctx, cinfo, backend, factory, syncState.WaitForResource()))
+	go synchronize(ctx, resources.CiliumSlimEndpoints, newEndpointSynchronizer(ctx, cinfo, backend, factory, syncState.WaitForResource(), googleSyncer))
 
 	watchers.K8sSvcCache.UseIngressAsFEIP = true
 	operatorWatchers.StartSynchronizingServices(ctx, &sync.WaitGroup{}, operatorWatchers.ServiceSyncParameters{
@@ -430,84 +411,9 @@ func startServer(
 		SharedOnly:    !allServices,
 		StoreFactory:  factory,
 		SyncCallback:  syncState.WaitForResource(),
-		SyncPredicate: shouldSync,
+		SyncPredicate: googleSyncer.ShouldSyncNamespace,
 	})
 	syncState.Stop()
 
 	log.Info("Initialization complete")
-}
-
-func watchNamespaces(clientset k8sClient.Clientset, labels []string) error {
-	labelSelector, err := buildLabelSelector(labels)
-	if err != nil {
-		return fmt.Errorf("unable to build label selector: %v", err)
-	}
-
-	modifier := func(options *v1meta.ListOptions) {
-		options.LabelSelector = labelSelector.String()
-	}
-
-	namespaceStore, namespaceInformer := informer.NewInformer(
-		utils.ListerWatcherWithModifier(
-			utils.ListerWatcherFromTyped[*slim_corev1.NamespaceList](clientset.Slim().CoreV1().Namespaces()), modifier),
-		&slim_corev1.Namespace{},
-		0,
-		cache.ResourceEventHandlerFuncs{},
-		nil,
-	)
-	namespaceCache = namespaceStore
-
-	go namespaceInformer.Run(wait.NeverStop)
-	if ok := cache.WaitForNamedCacheSync("clustermesh-apiserver", wait.NeverStop, namespaceInformer.HasSynced); !ok {
-		return fmt.Errorf("failed to wait for namespace cache to sync")
-	}
-
-	return nil
-}
-
-func buildLabelSelector(labels []string) (slim_labels.Selector, error) {
-	labelSelector := slim_labels.NewSelector()
-
-	for _, label := range labels {
-		labelNameSelector, err := slim_labels.NewRequirement(
-			label, selection.Exists, nil)
-
-		if err != nil {
-			return nil, err
-		}
-
-		labelSelector = labelSelector.Add(*labelNameSelector)
-	}
-
-	return labelSelector, nil
-}
-
-func getIdentityNamespace(identity *ciliumv2.CiliumIdentity) (string, error) {
-	l := strings.TrimSuffix(labels.GenerateK8sLabelString(ciliumio.PodNamespaceLabel, ""), "=")
-
-	ns, found := identity.SecurityLabels[l]
-	if !found {
-		return "", fmt.Errorf("no namespace label found on identity %q", identity.Name)
-	}
-
-	return ns, nil
-}
-
-var shouldSync = func(namespace string) bool {
-	if namespaceCache == nil {
-		return true
-	}
-
-	nsName := &slim_corev1.Namespace{
-		ObjectMeta: slim_metav1.ObjectMeta{
-			Name: namespace,
-		},
-	}
-	_, exists, err := namespaceCache.Get(nsName)
-	if err != nil {
-		log.WithError(err).Errorf("unable to get namespace %q from cache", nsName)
-		return false
-	}
-
-	return exists
 }

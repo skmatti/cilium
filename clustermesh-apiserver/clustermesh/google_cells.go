@@ -11,5 +11,5 @@ var googleCell = cell.Module(
 	"Google",
 
 	features.Cell,
-	cell.Config(cmtypes.DefaultGoogleClusterInfo),
+	cell.Config(cmtypes.DefaultGoogleConfig),
 )
