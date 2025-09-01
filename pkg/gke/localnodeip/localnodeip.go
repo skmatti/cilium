@@ -38,6 +38,9 @@ func setDeviceIP(ip string) {
 
 // CIDRMatchesLocalNode determines whether the CIDR matches the local node IP.
 func CIDRMatchesLocalNode(cidr string) bool {
+	if !components.IsCiliumAgent() {
+		return false
+	}
 	if nodeIP == nil {
 		log.Error("Node IP not set. Node CIDR based network policy cannot be enforced.")
 		return false

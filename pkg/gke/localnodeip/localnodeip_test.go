@@ -1,10 +1,20 @@
 package localnodeip
 
 import (
+	"os"
 	"testing"
+
+	"github.com/cilium/cilium/pkg/components"
 )
 
 func TestCIDRMatchesLocalNode(t *testing.T) {
+	// Temporarily modify os.Args[0] to simulate running as cilium-agent.
+	// Th isbool
+	originalArgs := os.Args
+	defer func() {
+		os.Args = originalArgs
+	}()
+	os.Args[0] = components.CiliumDaemonTestName
 	tests := []struct {
 		name   string
 		nodeIP string
