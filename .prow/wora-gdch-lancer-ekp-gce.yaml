@@ -51,7 +51,9 @@ presubmits:
 - name: wora-gdch-abm-gce-lancer-kubevirt_cilium
   trigger: /test wora-gdch-abm-gce-lancer-kubevirt$
   rerun_command: /test wora-gdch-abm-gce-lancer-kubevirt
-  always_run: true
+  always_run: false
+  # TODO: b/441993671 - enable it when the bug is fixed.
+  # always_run: true
   skip_fetch_head: true
   decorate: true
   decoration_config:
