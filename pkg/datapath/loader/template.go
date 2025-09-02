@@ -113,12 +113,6 @@ func (t *templateCfg) GetNodeMAC() mac.MAC {
 	return templateMAC
 }
 
-// LXCMac returns a well-known dummy MAC address which may be later
-// substituted in the ELF.
-func (t *templateCfg) LXCMac() mac.MAC {
-	return templateMAC
-}
-
 func (t *templateCfg) GetIfIndex() int {
 	return templateIfIndex
 }
@@ -251,9 +245,6 @@ func ELFVariableSubstitutions(ep datapath.Endpoint) map[string]uint64 {
 		result["THIS_INTERFACE_MAC_2"] = uint64(sliceToBe16(mac[4:6]))
 	}
 
-	lxcMAC := ep.LXCMac()
-	result["LXC_MAC_1"] = uint64(sliceToBe32(lxcMAC[0:4]))
-	result["LXC_MAC_2"] = uint64(sliceToBe16(lxcMAC[4:6]))
 	multiNicElfVariableSubstitutions(ep, result)
 
 	if ep.IsHost() {
@@ -267,9 +258,6 @@ func ELFVariableSubstitutions(ep datapath.Endpoint) map[string]uint64 {
 	} else {
 		result["LXC_ID"] = uint64(ep.GetID())
 		result["THIS_INTERFACE_IFINDEX"] = uint64(ep.GetIfIndex())
-		lxcMAC := ep.LXCMac()
-		result["LXC_MAC_1"] = uint64(sliceToBe32(lxcMAC[0:4]))
-		result["LXC_MAC_2"] = uint64(sliceToBe16(lxcMAC[4:6]))
 	}
 
 	// Contrary to IPV4_MASQUERADE, we cannot use a simple #define and

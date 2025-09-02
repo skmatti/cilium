@@ -1594,12 +1594,6 @@ static __always_inline int __tail_handle_ipv4(struct __ctx_buff *ctx,
 		return DROP_FRAG_NOSUPPORT;
 #endif
 
-	// Validate the source mac address before redirect_if_dhcp
-	// since the function changes the source mac address for
-	// DCHP packets and will fail the mac spoof check.
-	if (unlikely(!is_valid_lxc_src_mac(ctx, ip4->protocol)))
-		return DROP_GOOGLE_INVALID_SMAC;
-
 	ret = GOOGLE_HOOK(ctx, ctr_egress_svc4, CTR_EGRESS_SVC4, stage_ctx, ext_err);
 	if (ret != HOOK_ACT_CONTINUE)
 		return ret;
@@ -1736,7 +1730,7 @@ int cil_from_container(struct __ctx_buff *ctx)
 		break;
 #ifdef ENABLE_ARP_PASSTHROUGH
 	case bpf_htons(ETH_P_ARP):
-		ret = arp_validate_mac_spoof(ctx);
+		ret = CTX_ACT_OK;
 		break;
 #elif defined(ENABLE_ARP_RESPONDER)
 	case bpf_htons(ETH_P_ARP):

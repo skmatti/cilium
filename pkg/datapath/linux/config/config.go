@@ -1084,7 +1084,6 @@ func (h *HeaderfileWriter) writeStaticData(devices []string, fw io.Writer, e dat
 	fmt.Fprint(fw, defineUint32("THIS_INTERFACE_IFINDEX", uint32(e.GetIfIndex())))
 	fmt.Fprint(fw, defineUint64("ENDPOINT_NETNS_COOKIE", uint64(e.GetEndpointNetNsCookie())))
 	fmt.Fprint(fw, defineMAC("NODE_MAC", e.GetNodeMAC()))
-	fmt.Fprint(fw, defineMAC("LXC_MAC", e.LXCMac()))
 
 	secID := e.GetIdentityLocked().Uint32()
 	fmt.Fprint(fw, defineUint32("SECLABEL", secID))

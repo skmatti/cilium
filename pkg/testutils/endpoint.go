@@ -43,7 +43,6 @@ func NewTestEndpoint() TestEndpoint {
 		Id:          42,
 		Identity:    defaultIdentity,
 		MAC:         mac.MAC([]byte{0x02, 0x00, 0x60, 0x0D, 0xF0, 0x0D}),
-		LXCMAC:      mac.MAC([]byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06}),
 		IfIndex:     0,
 		Opts:        opts,
 		NetNsCookie: 0,
@@ -57,7 +56,6 @@ func NewTestHostEndpoint() TestEndpoint {
 		Id:       65535,
 		Identity: hostIdentity,
 		MAC:      mac.MAC([]byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06}),
-		LXCMAC:   mac.MAC([]byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06}),
 		IfIndex:  0,
 		Opts:     opts,
 		isHost:   true,
@@ -78,7 +76,6 @@ func (e *TestEndpoint) GetIdentityLocked() identity.NumericIdentity { return e.I
 func (e *TestEndpoint) GetEndpointNetNsCookie() uint64              { return e.NetNsCookie }
 func (e *TestEndpoint) GetSecurityIdentity() *identity.Identity     { return e.Identity }
 func (e *TestEndpoint) GetNodeMAC() mac.MAC                         { return e.MAC }
-func (e *TestEndpoint) LXCMac() mac.MAC                             { return e.LXCMAC }
 func (e *TestEndpoint) GetIfIndex() int                             { return e.IfIndex }
 func (e *TestEndpoint) GetPodStackRedirectIfindex() int             { return e.PodRedirectStackIfindex }
 func (e *TestEndpoint) GetOptions() *option.IntOptions              { return e.Opts }
