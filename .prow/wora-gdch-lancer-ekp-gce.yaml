@@ -17,8 +17,8 @@ presubmits:
     preset-dind-enabled: "true"
     prow.k8s.io/gerrit-report-label: "Verified"
     prow.k8s.io/pubsub.project: "anthos-baremetal-ci"
-    prow.k8s.io/pubsub.runID: "row-etl-presubmit-tests"
     prow.k8s.io/pubsub.topic: "prow-etl-trigger"
+    prow.k8s.io/pubsub.runID: "prow-etl-presubmit-tests"
   path_alias: gke-internal.googlesource.com/third_party/cilium
   spec:
     containers:
@@ -68,8 +68,8 @@ presubmits:
     preset-dind-enabled: "true"
     prow.k8s.io/gerrit-report-label: "Verified"
     prow.k8s.io/pubsub.project: "anthos-baremetal-ci"
-    prow.k8s.io/pubsub.runID: "row-etl-presubmit-tests"
     prow.k8s.io/pubsub.topic: "prow-etl-trigger"
+    prow.k8s.io/pubsub.runID: "prow-etl-presubmit-tests"
   path_alias: gke-internal.googlesource.com/third_party/cilium
   spec:
     containers:
@@ -163,8 +163,8 @@ presubmits:
     preset-dind-enabled: "true"
     prow.k8s.io/gerrit-report-label: "Verified"
     prow.k8s.io/pubsub.project: "anthos-baremetal-ci"
-    prow.k8s.io/pubsub.runID: "row-etl-presubmit-tests"
     prow.k8s.io/pubsub.topic: "prow-etl-trigger"
+    prow.k8s.io/pubsub.runID: "prow-etl-presubmit-tests"
   path_alias: gke-internal.googlesource.com/third_party/cilium
   spec:
     containers:
@@ -214,8 +214,8 @@ presubmits:
     preset-dind-enabled: "true"
     prow.k8s.io/gerrit-report-label: "Verified"
     prow.k8s.io/pubsub.project: "anthos-baremetal-ci"
-    prow.k8s.io/pubsub.runID: "row-etl-presubmit-tests"
     prow.k8s.io/pubsub.topic: "prow-etl-trigger"
+    prow.k8s.io/pubsub.runID: "prow-etl-presubmit-tests"
   path_alias: gke-internal.googlesource.com/third_party/cilium
   spec:
     containers:
@@ -265,8 +265,8 @@ presubmits:
     preset-dind-enabled: "true"
     prow.k8s.io/gerrit-report-label: "Verified"
     prow.k8s.io/pubsub.project: "anthos-baremetal-ci"
-    prow.k8s.io/pubsub.runID: "row-etl-presubmit-tests"
     prow.k8s.io/pubsub.topic: "prow-etl-trigger"
+    prow.k8s.io/pubsub.runID: "prow-etl-presubmit-tests"
   path_alias: gke-internal.googlesource.com/third_party/cilium
   spec:
     containers:
@@ -318,8 +318,8 @@ presubmits:
     # TODO(b/405213696): enable conformance test after the bug is fixed.
     # prow.k8s.io/gerrit-report-label: "Verified"
     prow.k8s.io/pubsub.project: "anthos-baremetal-ci"
-    prow.k8s.io/pubsub.runID: "row-etl-presubmit-tests"
     prow.k8s.io/pubsub.topic: "prow-etl-trigger"
+    prow.k8s.io/pubsub.runID: "prow-etl-presubmit-tests"
   path_alias: gke-internal.googlesource.com/third_party/cilium
   spec:
     containers:
@@ -371,8 +371,8 @@ presubmits:
     # TODO(b/405213696): enable conformance test after the bug is fixed.
     # prow.k8s.io/gerrit-report-label: "Verified"
     prow.k8s.io/pubsub.project: "anthos-baremetal-ci"
-    prow.k8s.io/pubsub.runID: "row-etl-presubmit-tests"
     prow.k8s.io/pubsub.topic: "prow-etl-trigger"
+    prow.k8s.io/pubsub.runID: "prow-etl-presubmit-tests"
   path_alias: gke-internal.googlesource.com/third_party/cilium
   spec:
     containers:
