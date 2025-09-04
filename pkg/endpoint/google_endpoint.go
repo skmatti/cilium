@@ -14,6 +14,7 @@ import (
 	"github.com/cilium/cilium/pkg/labels"
 	"github.com/cilium/cilium/pkg/mac"
 	"github.com/cilium/cilium/pkg/node"
+	"github.com/cilium/cilium/pkg/option"
 	"golang.org/x/sys/unix"
 )
 
@@ -301,4 +302,12 @@ func (e *Endpoint) ParentInterfaceIP() (string, error) {
 		return ip, nil
 	}
 	return "", nil
+}
+
+func (e *Endpoint) setGoogleConfig() {
+	if option.Config.AllowDisableSourceIPValidation {
+		if e.DatapathConfiguration.DisableSipVerification {
+			e.updateAndOverrideEndpointOptions(option.OptionMap{option.SourceIPVerification: option.OptionDisabled})
+		}
+	}
 }

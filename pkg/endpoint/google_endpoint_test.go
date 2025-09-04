@@ -3,10 +3,12 @@ package endpoint
 import (
 	"testing"
 
+	"github.com/cilium/cilium/api/v1/models"
 	"github.com/cilium/cilium/pkg/gke/features"
 	multinicep "github.com/cilium/cilium/pkg/gke/multinic/endpoint"
 	"github.com/cilium/cilium/pkg/gke/multinic/multinicconfig"
 	"github.com/cilium/cilium/pkg/labels"
+	"github.com/cilium/cilium/pkg/option"
 	"github.com/cilium/cilium/pkg/testutils"
 )
 
@@ -92,6 +94,74 @@ func TestGetK8sCEPName(t *testing.T) {
 			}
 			if got != tc.want {
 				t.Fatalf("ep.GenerateCEPName() return %s but want %s", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestSetGoogleConfig(t *testing.T) {
+	// Save original values to restore them later
+	origAllowDisableSIP := option.Config.AllowDisableSourceIPValidation
+
+	defer func() {
+		// Restore original values
+		option.Config.AllowDisableSourceIPValidation = origAllowDisableSIP
+	}()
+
+	tests := []struct {
+		name                         string
+		allowDisableSIP              bool
+		disableSipVerificationOnEP   bool
+		initialSourceIPVerification  option.OptionSetting
+		expectedSourceIPVerification option.OptionSetting
+	}{
+		{
+			name:                         "AllowDisableSourceIPValidation is false",
+			allowDisableSIP:              false,
+			disableSipVerificationOnEP:   true,
+			initialSourceIPVerification:  option.OptionEnabled,
+			expectedSourceIPVerification: option.OptionEnabled,
+		},
+		{
+			name:                         "AllowDisableSourceIPValidation is true, but DisableSipVerification is false",
+			allowDisableSIP:              true,
+			disableSipVerificationOnEP:   false,
+			initialSourceIPVerification:  option.OptionEnabled,
+			expectedSourceIPVerification: option.OptionEnabled,
+		},
+		{
+			name:                         "AllowDisableSourceIPValidation is true and DisableSipVerification is true",
+			allowDisableSIP:              true,
+			disableSipVerificationOnEP:   true,
+			initialSourceIPVerification:  option.OptionEnabled,
+			expectedSourceIPVerification: option.OptionDisabled,
+		},
+		{
+			name:                         "Option already disabled, should remain disabled",
+			allowDisableSIP:              true,
+			disableSipVerificationOnEP:   true,
+			initialSourceIPVerification:  option.OptionDisabled,
+			expectedSourceIPVerification: option.OptionDisabled,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			option.Config.AllowDisableSourceIPValidation = tt.allowDisableSIP
+
+			ep := &Endpoint{
+				DatapathConfiguration: models.EndpointDatapathConfiguration{
+					DisableSipVerification: tt.disableSipVerificationOnEP,
+				},
+				Options: option.NewIntOptions(&option.OptionLibrary{}),
+			}
+			ep.Options.SetValidated(option.SourceIPVerification, tt.initialSourceIPVerification)
+
+			ep.setGoogleConfig()
+
+			got := ep.Options.GetValue(option.SourceIPVerification)
+			if got != tt.expectedSourceIPVerification {
+				t.Errorf("setGoogleConfig() got SourceIPVerification = %v, want %v", got, tt.expectedSourceIPVerification)
 			}
 		})
 	}

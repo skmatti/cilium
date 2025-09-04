@@ -2743,6 +2743,11 @@ func (e *Endpoint) SetDefaultConfiguration() {
 		return
 	}
 	e.setDefaultPolicyConfig()
+	// setGoogleConfig needs to be called after setDefaultPolicyConfig, as the
+	// latter resets the endpoint options to the daemon's defaults.
+	// setGoogleConfig will then re-apply any Google-specific options that
+	// were persisted in the endpoint's datapath configuration.
+	e.setGoogleConfig()
 }
 
 func (e *Endpoint) setDefaultPolicyConfig() {
