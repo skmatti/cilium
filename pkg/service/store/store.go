@@ -13,6 +13,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 
 	cmtypes "github.com/cilium/cilium/pkg/clustermesh/types"
+	"github.com/cilium/cilium/pkg/gke/features"
 	"github.com/cilium/cilium/pkg/kvstore"
 	"github.com/cilium/cilium/pkg/kvstore/store"
 	"github.com/cilium/cilium/pkg/loadbalancer"
@@ -140,11 +141,13 @@ func (s *ClusterService) validate() error {
 		return errors.New("name is unset")
 	}
 
-	// Skip the ClusterID check if it matches the local one, as we assume that
-	// it has already been validated, and to allow it to be zero.
-	if s.ClusterID != option.Config.ClusterID {
-		if err := cmtypes.ValidateClusterID(s.ClusterID); err != nil {
-			return err
+	if !features.GlobalConfig.DisableClusterIDValidation {
+		// Skip the ClusterID check if it matches the local one, as we assume that
+		// it has already been validated, and to allow it to be zero.
+		if s.ClusterID != option.Config.ClusterID {
+			if err := cmtypes.ValidateClusterID(s.ClusterID); err != nil {
+				return err
+			}
 		}
 	}
 

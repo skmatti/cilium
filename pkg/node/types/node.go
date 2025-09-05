@@ -18,6 +18,7 @@ import (
 	"github.com/cilium/cilium/pkg/cidr"
 	cmtypes "github.com/cilium/cilium/pkg/clustermesh/types"
 	"github.com/cilium/cilium/pkg/defaults"
+	"github.com/cilium/cilium/pkg/gke/features"
 	ipamTypes "github.com/cilium/cilium/pkg/ipam/types"
 	ciliumv2 "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2"
 	"github.com/cilium/cilium/pkg/kvstore/store"
@@ -658,6 +659,10 @@ func (n *Node) validate() error {
 		return errors.New("cluster is unset")
 	case n.Name == "":
 		return errors.New("name is unset")
+	}
+
+	if features.GlobalConfig.DisableClusterIDValidation {
+		return nil
 	}
 
 	// Skip the ClusterID check if it matches the local one, as we assume that

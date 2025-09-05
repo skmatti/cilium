@@ -19,6 +19,7 @@ import (
 	cmtypes "github.com/cilium/cilium/pkg/clustermesh/types"
 	"github.com/cilium/cilium/pkg/clustermesh/wait"
 	"github.com/cilium/cilium/pkg/dial"
+	"github.com/cilium/cilium/pkg/gke/features"
 	"github.com/cilium/cilium/pkg/ipcache"
 	"github.com/cilium/cilium/pkg/kvstore"
 	"github.com/cilium/cilium/pkg/kvstore/store"
@@ -175,13 +176,29 @@ func (cm *ClusterMesh) NewRemoteCluster(name string, status common.StatusFunc) c
 		featureMetrics:           cm.FeatureMetrics,
 		featureMetricMaxClusters: fmt.Sprintf("%d", cm.conf.ClusterInfo.MaxConnectedClusters),
 	}
-	rc.remoteNodes = cm.conf.StoreFactory.NewWatchStore(
-		name,
-		nodeStore.ValidatingKeyCreator(
+	var nodeKeyCreator store.KeyCreator
+	var serviceKeyCreator store.KeyCreator
+	if features.GlobalConfig.DisableClusterIDValidation {
+		nodeKeyCreator = nodeStore.ValidatingKeyCreator(
+			nodeStore.ClusterNameValidator(name),
+			nodeStore.NameValidator())
+
+		serviceKeyCreator = serviceStore.KeyCreator(
+			serviceStore.ClusterNameValidator(name),
+			serviceStore.NamespacedNameValidator())
+	} else {
+		nodeKeyCreator = nodeStore.ValidatingKeyCreator(
 			nodeStore.ClusterNameValidator(name),
 			nodeStore.NameValidator(),
-			nodeStore.ClusterIDValidator(&rc.clusterID),
-		),
+			nodeStore.ClusterIDValidator(&rc.clusterID))
+		serviceKeyCreator = serviceStore.KeyCreator(
+			serviceStore.ClusterNameValidator(name),
+			serviceStore.NamespacedNameValidator(),
+			serviceStore.ClusterIDValidator(&rc.clusterID))
+	}
+	rc.remoteNodes = cm.conf.StoreFactory.NewWatchStore(
+		name,
+		nodeKeyCreator,
 		nodeStore.NewNodeObserver(cm.conf.NodeObserver, source.ClusterMesh),
 		store.RWSWithOnSyncCallback(func(ctx context.Context) { close(rc.synced.nodes) }),
 		store.RWSWithEntriesMetric(cm.conf.Metrics.TotalNodes.WithLabelValues(cm.conf.ClusterInfo.Name, cm.nodeName, rc.name)),
@@ -189,11 +206,7 @@ func (cm *ClusterMesh) NewRemoteCluster(name string, status common.StatusFunc) c
 
 	rc.remoteServices = cm.conf.StoreFactory.NewWatchStore(
 		name,
-		serviceStore.KeyCreator(
-			serviceStore.ClusterNameValidator(name),
-			serviceStore.NamespacedNameValidator(),
-			serviceStore.ClusterIDValidator(&rc.clusterID),
-		),
+		serviceKeyCreator,
 		common.NewSharedServicesObserver(
 			rc.log,
 			cm.globalServices,

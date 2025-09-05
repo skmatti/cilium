@@ -96,6 +96,13 @@ type Config struct {
 	// GoogleIPSecMode is the option to set Google IPSec mode. Possible values are "disabled" (default), "software"
 	// Use string instead of bool since we may support more modes in the future. e.g. "hardware-offload".
 	GoogleIPSecMode string
+	// DisableClusterIDValidation provides backward compatibility for a cilium-agent (v1.16+) that
+	// is processing a remote cluster's node/service KV store entries managed by an older
+	// clustermesh instance (v1.13). Newer clustermesh versions embed a cluster ID in the value of
+	// each node/service entry, and the agent validates its presence. Older ClusterMesh versions do
+	// not add this field, so we disable the validation on new cilium-agent clients. This should
+	// only be used as a temporary measure during mixed-version upgrades.
+	DisableClusterIDValidation bool
 	// EnableEgressPolicyRemoteEndpointSelection is a feature flag that enables
 	// egress policy to select endpoints from remote clusters.
 	EnableEgressPolicyRemoteEndpointSelection bool `mapstructure:"enable-egress-policy-remote-endpoint-selection"`
@@ -139,7 +146,7 @@ var defaultConfig = Config{
 	XDPDevices:                  []string{},
 	EnableGoogleVPC:             false,
 	GoogleIPSecMode:             GoogleIPSecModeDisabled,
-
+	DisableClusterIDValidation:  false,
 	// TODO: (b/439930952) move these perimeter elb flags into a cell
 	EnableEgressPolicyRemoteEndpointSelection: false,
 	EnableGatewayIPFromAnnotation:             false,
@@ -221,6 +228,9 @@ func (cfg Config) Flags(flags *pflag.FlagSet) {
 		fmt.Sprintf("GoogleIPSecMode is the option to set Google IPSec mode. Possible values are %v. Default value is %q",
 			[]string{GoogleIPSecModeDisabled, GoogleIPSecModeSoftware}, cfg.GoogleIPSecMode))
 	flags.MarkHidden(option.GoogleIPSecMode)
+
+	flags.Bool(option.DisableClusterIDValidation, cfg.DisableClusterIDValidation, "Disable remote cluster cluster ID validation for node/service kvstore entries")
+	flags.MarkHidden(option.DisableClusterIDValidation)
 
 	flags.Bool(option.EnableEgressPolicyRemoteEndpointSelection, false, "Enable egress policy to select endpoints from remote clusters")
 	flags.MarkHidden(option.EnableEgressPolicyRemoteEndpointSelection)

@@ -138,6 +138,14 @@ const (
 	// GoogleIPSecMode is the option to set Google IPSec mode. Possible values are "disabled" (default), "software", "hardware-offload".
 	GoogleIPSecMode = "google-ipsec-mode"
 
+	// DisableClusterIDValidation provides backward compatibility for a cilium-agent (v1.16+) that
+	// is processing a remote cluster's node/service KV store entries managed by an older
+	// clustermesh instance (v1.13). Newer clustermesh versions embed a cluster ID in the value of
+	// each node/service entry, and the agent validates its presence. Older ClusterMesh versions do
+	// not add this field, so we disable the validation on new cilium-agent clients. This should
+	// only be used as a temporary measure during mixed-version upgrades.
+	DisableClusterIDValidation = "disable-cluster-id-validation"
+
 	// EnableEgressPolicyRemoteEndpointSelection is a feature flag that enables
 	// egress policy to select endpoints from remote clusters.
 	EnableEgressPolicyRemoteEndpointSelection = "enable-egress-policy-remote-endpoint-selection"
