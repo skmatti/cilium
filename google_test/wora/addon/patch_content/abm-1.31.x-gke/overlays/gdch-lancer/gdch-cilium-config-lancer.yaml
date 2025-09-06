@@ -31,6 +31,7 @@ data:
   custom-cni-conf: "false"
   debug: "false"
   device-prefixes-to-exclude: "eth0"
+  disable-cluster-id-validation: "true"
   disable-cnp-status-updates: "true"
   disable-endpoint-crd: "false"
   disable-envoy-version-check: "true"
