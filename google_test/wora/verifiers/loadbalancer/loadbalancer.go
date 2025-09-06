@@ -191,6 +191,7 @@ func verifyNodePort() error {
 		klog.Infof("Attempting to connect to NodePort service via URL: %s", url)
 		err := utils.RunCurlFromBootstrapper(ctx, cl, nodeip, nodeport, wait.WaitingMedium)
 		if err != nil {
+			klog.Errorf("Failed to connect to NodePort service via URL %s: %v", url, err)
 			return err
 		}
 	}

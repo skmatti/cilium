@@ -441,6 +441,7 @@ func RunCurlFromPod(opts CurlOptions) error {
 	if err != nil {
 		return fmt.Errorf("expected curl to succeed, but got error: %v, output: %s", err, output)
 	}
+	klog.Infof("curl to %s succeed", fmt.Sprintf("http://%s:%d", opts.TargetIP, opts.TargetPort))
 
 	expectedOutput := curlSuccessMsg
 	if opts.WantOutput != "" {
@@ -809,15 +810,14 @@ func ExecuteCommandFromBootstapper(ctx context.Context, cl k8sclient.Client, com
 
 func RunCurlFromBootstrapper(ctx context.Context, cl k8sclient.Client, targetIP string, port int32, retryConfig wait.Waiting) error {
 	// Construct the command.
-	command := fmt.Sprintf("curl --http0.9 http://%s:%d", targetIP, port)
 	curlExecuted := func(ctx context.Context) error {
-
+		command := fmt.Sprintf("curl -v http://%s:%d", targetIP, port)
 		output, err := ExecuteCommandFromBootstapper(ctx, cl, command)
 		if err != nil {
 			return fmt.Errorf("failed to execute curl command: %v, output: %s", err, output)
 		}
 
-		if !strings.Contains(output, "200 OK") {
+		if !strings.Contains(output, "HTTP/1.1 200 OK") {
 			return fmt.Errorf("unexpected curl response: %s", output)
 		}
 
@@ -826,9 +826,31 @@ func RunCurlFromBootstrapper(ctx context.Context, cl k8sclient.Client, targetIP 
 	}
 	klog.Infof("Attempting curl from bootstrapper to %s:%d with retry config: Wait=%v, Every=%v, Timeout=%v",
 		targetIP, port, retryConfig.Wait, retryConfig.Every, retryConfig.Timeout)
-	if err := wait.WaitForSuccessContext(ctx, "Waiting for curl success from bootstrapper", retryConfig, curlExecuted); err != nil {
-		return fmt.Errorf("unable to connect from bootstrapper to %s:%d after retries: %w", targetIP, port, err)
+	curlErr := wait.WaitForSuccessContext(ctx, "Waiting for curl success from bootstrapper", retryConfig, curlExecuted)
+	if curlErr != nil {
+		// Try again with http0.9
+		curlExecuted0_9 := func(ctx context.Context) error {
+			command := fmt.Sprintf("curl -v --http0.9 http://%s:%d", targetIP, port)
+			output, err := ExecuteCommandFromBootstapper(ctx, cl, command)
+			if err != nil {
+				return fmt.Errorf("failed to execute curl command: %v, output: %s", err, output)
+			}
+
+			if !strings.Contains(output, "200 OK") {
+				return fmt.Errorf("unexpected curl response: %s", output)
+			}
+
+			klog.Infof("Curl command successful from bootstapper to %s:%d", targetIP, port)
+			return nil
+		}
+		klog.Infof("Attempting curl from bootstrapper with http0.9 to %s:%d with retry config: Wait=%v, Every=%v, Timeout=%v",
+			targetIP, port, retryConfig.Wait, retryConfig.Every, retryConfig.Timeout)
+		curlErr = wait.WaitForSuccessContext(ctx, "Waiting for curl success from bootstrapper", retryConfig, curlExecuted0_9)
 	}
+	if curlErr != nil {
+		return fmt.Errorf("unable to connect from bootstrapper to %s:%d after retries: %w", targetIP, port, curlErr)
+	}
+	klog.Infof("Curling from bootstrapper to %s:%d succeed!", targetIP, port)
 	return nil
 }
 
