@@ -774,7 +774,7 @@ handle_ipv4_cont(struct __ctx_buff *ctx, __u32 secctx __maybe_unused, const bool
 #endif /* ENABLE_HOST_FIREWALL */
 skip_host_firewall:
 	ret = goog_ipv4_from_host_netdev_fwd_store_state(&trace, magic,
-							 from_proxy,
+							 from_proxy, secctx,
 							 to_endpoint);
 	if (IS_ERR(ret))
 		return ret;
@@ -791,7 +791,7 @@ skip_host_firewall:
 
 
 static __always_inline int goog_handle_ipv4_fwd(struct __ctx_buff *ctx,
-						__u32 secctx, bool from_host,
+						__u32 *src_label, bool from_host,
 						__s8 *ext_err)
 {
 	struct trace_ctx __maybe_unused trace;
@@ -804,18 +804,20 @@ static __always_inline int goog_handle_ipv4_fwd(struct __ctx_buff *ctx,
 	bool from_proxy = false;
 	void *data, *data_end;
 	struct iphdr *ip4;
+	__u32 secctx;
 	int ret;
 
 	goog_host_init_ctx(&stage_ctx);
 
 	ret = goog_ipv4_from_lxc_fwd_restore_state(&trace, &magic, &from_proxy,
-						   &to_endpoint);
+						   src_label, &to_endpoint);
 	if (IS_ERR(ret))
 		return ret;
 
 	if (!revalidate_data(ctx, &data, &data_end, &ip4))
 		return DROP_INVALID;
 
+	secctx = *src_label;
 	if (to_endpoint)
 		goto to_endpoint;
 
@@ -1036,11 +1038,11 @@ int tail_handle_ipv4_cont_from_netdev(struct __ctx_buff *ctx)
 static __always_inline
 int goog_tail_handle_ipv4_fwd(struct __ctx_buff *ctx, bool from_host)
 {
-	__u32 src_sec_identity = ctx_load_and_clear_meta(ctx, CB_SRC_LABEL);
-	int ret;
+	__u32 src_sec_identity = 0;
 	__s8 ext_err = 0;
+	int ret;
 
-	ret = goog_handle_ipv4_fwd(ctx, src_sec_identity, from_host, &ext_err);
+	ret = goog_handle_ipv4_fwd(ctx, &src_sec_identity, from_host, &ext_err);
 	if (IS_ERR(ret))
 		return send_drop_notify_error_ext(ctx, src_sec_identity, ret, ext_err,
 						  CTX_ACT_DROP, METRIC_INGRESS);

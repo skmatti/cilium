@@ -10,6 +10,7 @@ struct from_host_netdev_context {
 	__u32 trace_monitor;
 	__u32 trace_reason;
 	__u32 magic;
+	__u32 secctx;
 	bool from_proxy;
 	bool to_endpoint;
 	__u8 pad[2];
@@ -25,13 +26,14 @@ struct {
 static __always_inline
 int goog_ipv4_from_host_netdev_fwd_store_state(struct trace_ctx *trace,
 					       __u32 magic, bool from_proxy,
-					       bool to_endpoint)
+					       __u32 secctx, bool to_endpoint)
 {
 	struct from_host_netdev_context ctx = {
 		.trace_reason = (__u32)trace->reason,
 		.trace_monitor = trace->monitor,
 		.magic = magic,
 		.from_proxy = from_proxy,
+		.secctx = secctx,
 		.to_endpoint = to_endpoint,
 	};
 	__u32 zero = 0;
@@ -42,7 +44,7 @@ int goog_ipv4_from_host_netdev_fwd_store_state(struct trace_ctx *trace,
 static __always_inline
 int goog_ipv4_from_lxc_fwd_restore_state(struct trace_ctx *trace,
 					 __u32 *magic, bool *from_proxy,
-					 bool *to_endpoint)
+					 __u32 *secctx, bool *to_endpoint)
 {
 	struct from_host_netdev_context *ctx;
 	__u32 zero = 0;
@@ -56,6 +58,7 @@ int goog_ipv4_from_lxc_fwd_restore_state(struct trace_ctx *trace,
 	*magic = ctx->magic;
 	*from_proxy = ctx->from_proxy;
 	*to_endpoint = ctx->to_endpoint;
+	*secctx = ctx->secctx;
 
 	return 0;
 }
