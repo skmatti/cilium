@@ -402,13 +402,42 @@ add_cluster_debug_links \
   "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
   "${ARTIFACTS:-${ROOT}/${WORKDIR}}"
 
+# Runs the snapshot-cluster-logs tool in a Docker container to snapshot
+# clusters.
+function snapshot_cluster_logs {
+  local artifacts_dir="${1:?}"
+
+  local tool_image="us-docker.pkg.dev/anthos-networking-ci/apps/snapshot-cluster-logs:latest"
+  echo "Running snapshot-cluster-logs container..." >&2
+  if docker run --pull=always -d \
+    -v "${artifacts_dir}":"${artifacts_dir}" \
+    "${tool_image}" snapshot-cluster-logs \
+      --artifacts-dir="${artifacts_dir}"; then
+    echo "snapshot-cluster-logs container finished successfully." >&2
+  else
+    echo "Warning: snapshot-cluster-logs container did not finish successfully. Continuing with script." >&2
+  fi
+}
+
+trap '
+  # Snapshot clusters. This function ignores errors.
+  snapshot_cluster_logs "${ARTIFACTS:-"${ROOT}/${WORKDIR}"}${ARTIFACTS:+/"${RUN_ID}"}"
+
+  # Run kubetest2-tailorbird teardown.
+  kubetest2-tailorbird \
+  --verbose \
+  --run-id="${RUN_ID}" \
+  --down="${RUN_DOWN:-true}" \
+  --tbconfig="${TBCONFIG}" \
+  --tbenv="${TBENV}"
+  ' EXIT
+
 CILIUM_IMAGE_WITH_TAG=${CILIUM_IMAGE_WITH_TAG:-} \
   DISABLE_UPGRADE_VERIFICATION=${DISABLE_UPGRADE_VERIFICATION:-} \
   kubetest2-tailorbird \
   --verbose \
   --run-id="${RUN_ID}" \
   --up \
-  --down="${RUN_DOWN:-true}" \
   --tbconfig="${TBCONFIG}" \
   --tbenv="${TBENV}" \
   --client-timeout="${TB_CLIENT_TIMEOUT:-3h}" \
