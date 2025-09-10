@@ -1244,10 +1244,15 @@ static __always_inline int goog_geneve_pre_netdev_ingress_fwd4_ipsec(
 	 * TODO(b/383158433): Revert this change once HW offload is available.
 	 */
 	if (geneve_get_current_bpf_program() == GENEVE_BPF_PROGRAM_ID_FROM_OVERLAY &&
-	    stage_ctx_common->ep->flags & ENDPOINT_F_HOST) {
+	    stage_ctx_common->ep && stage_ctx_common->ep->flags & ENDPOINT_F_HOST) {
+		union macaddr router_mac = THIS_INTERFACE_MAC;
 		union macaddr host_mac = HOST_IFINDEX_MAC;
-		union macaddr router_mac = NODE_MAC;
+		void *data, *data_end;
+		struct iphdr *ip4;
+		int ret;
 
+		if (!revalidate_data(ctx, &data, &data_end, &ip4))
+			return DROP_INVALID;
 		ret = ipv4_l3(ctx, ETH_HLEN, (__u8 *)&router_mac.addr,
 			      (__u8 *)&host_mac.addr, ip4);
 		if (ret != CTX_ACT_OK)
