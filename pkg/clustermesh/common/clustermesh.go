@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/cilium/hive/cell"
 	"github.com/spf13/pflag"
@@ -29,10 +30,20 @@ const (
 type Config struct {
 	// ClusterMeshConfig is the path to the clustermesh configuration directory.
 	ClusterMeshConfig string
+
+	// ClusterMeshCacheTTL is the time to live for the cache of a remote cluster after connectivity
+	// is lost. If the connection is not re-established within this duration, the cached data is
+	// revoked to prevent stale state. If not specified or set to 0s, the cache is never revoked.
+	ClusterMeshCacheTTL time.Duration
+}
+
+var DefaultConfig = Config{
+	ClusterMeshCacheTTL: 0,
 }
 
 func (def Config) Flags(flags *pflag.FlagSet) {
 	flags.String("clustermesh-config", def.ClusterMeshConfig, "Path to the ClusterMesh configuration directory")
+	flags.Duration("clustermesh-cache-ttl", def.ClusterMeshCacheTTL, "The time to live for the cache of a remote cluster after connectivity is lost. If the connection is not re-established within this duration, the cached data is revoked to prevent stale state. If not specified or set to 0s, the cache is never revoked.")
 }
 
 type StatusFunc func() *models.RemoteCluster
@@ -171,6 +182,7 @@ func (cm *clusterMesh) newRemoteCluster(name, path string) *remoteCluster {
 	}
 
 	rc.RemoteCluster = cm.conf.NewRemoteCluster(name, rc.status)
+	rc.ttlChecker = newTTLChecker(rc.logger, cm.conf.ClusterMeshCacheTTL, rc.RevokeCache)
 	return rc
 }
 

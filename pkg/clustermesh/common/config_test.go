@@ -31,7 +31,7 @@ var (
 	timeout = 5 * time.Second
 )
 
-type fakeRemoteCluster struct{ onRun, onStop, onRemove func(context.Context) }
+type fakeRemoteCluster struct{ onRun, onStop, onRemove, onRevokeCache func(context.Context) }
 
 func (f *fakeRemoteCluster) Run(ctx context.Context, _ kvstore.BackendOperations, _ types.CiliumClusterConfig, ready chan<- error) {
 	if f.onRun != nil {
@@ -47,6 +47,12 @@ func (f *fakeRemoteCluster) Stop() {
 func (f *fakeRemoteCluster) Remove(ctx context.Context) {
 	if f.onRemove != nil {
 		f.onRemove(ctx)
+	}
+}
+
+func (f *fakeRemoteCluster) RevokeCache(ctx context.Context) {
+	if f.onRevokeCache != nil {
+		f.onRevokeCache(ctx)
 	}
 }
 
