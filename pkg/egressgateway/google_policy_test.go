@@ -9,7 +9,8 @@ import (
 	"github.com/cilium/cilium/pkg/gke/features"
 	k8slbls "github.com/cilium/cilium/pkg/k8s/slim/k8s/apis/labels"
 	"github.com/cilium/cilium/pkg/maps/egressmap"
-	"github.com/onsi/gomega/format"
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 )
 
 func TestSkipEgressNATPolicy(t *testing.T) {
@@ -79,6 +80,78 @@ func TestSkipEgressNATPolicy(t *testing.T) {
 		})
 	}
 
+}
+
+func Test_PolicyConfig_regenerateGatewayConfig(t *testing.T) {
+	k := setupEgressGatewayTestSuite(t)
+
+	type fields struct {
+		policyGwConfigs []policyGatewayConfig
+	}
+	tests := []struct {
+		name   string
+		fields fields
+		want   []gatewayConfig
+	}{
+		{
+			name: "single_static_gateway_IP",
+			fields: fields{
+				policyGwConfigs: []policyGatewayConfig{
+					{
+						staticGatewayIP: netip.MustParseAddr("192.0.2.1"),
+					},
+				},
+			},
+			want: []gatewayConfig{
+				{
+					gatewayIP:                    netip.MustParseAddr("192.0.2.1"),
+					localNodeConfiguredAsGateway: false,
+				},
+			},
+		},
+		{
+			name: "multiple_static_gateway_IPs",
+			fields: fields{
+				policyGwConfigs: []policyGatewayConfig{
+					{
+						staticGatewayIP: netip.MustParseAddr("192.0.2.1"),
+					},
+					{
+						staticGatewayIP: netip.MustParseAddr("192.0.2.2"),
+					},
+				},
+			},
+			want: []gatewayConfig{
+				{
+					gatewayIP:                    netip.MustParseAddr("192.0.2.1"),
+					localNodeConfiguredAsGateway: false,
+				},
+				{
+					gatewayIP:                    netip.MustParseAddr("192.0.2.2"),
+					localNodeConfiguredAsGateway: false,
+				},
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			config := &PolicyConfig{
+				policyGwConfigs: tt.fields.policyGwConfigs,
+			}
+			config.regenerateGatewayConfig(k.manager)
+			got := config.gatewayConfigs
+			opts := []cmp.Option{
+				cmpopts.IgnoreFields(gatewayConfig{}, "ifaceName", "egressIP"),
+				cmp.Exporter(func(t reflect.Type) bool {
+					return t == reflect.TypeOf(gatewayConfig{})
+				}),
+				cmp.Comparer(func(x, y netip.Addr) bool { return x == y }),
+			}
+			if diff := cmp.Diff(tt.want, got, opts...); diff != "" {
+				t.Errorf("PolicyConfig.regenerateGatewayConfig() mismatch (-want +got):\n%s", diff)
+			}
+		})
+	}
 }
 
 func TestParseConnectionTimeouts(t *testing.T) {
@@ -172,102 +245,158 @@ func TestParseConnectionTimeouts(t *testing.T) {
 	}
 }
 
-func TestStaticGatewayIP(t *testing.T) {
-	tests := []struct {
-		name        string
-		annotations map[string]string
-		gatewayIP   netip.Addr
-	}{
-		{
-			name:        "nil_annotations",
-			annotations: nil,
-			gatewayIP:   netip.Addr{},
-		},
-		{
-			name:        "empty_annotations",
-			annotations: map[string]string{},
-			gatewayIP:   netip.Addr{},
-		},
-		{
-			name: "gateway_IP",
-			annotations: map[string]string{
-				NetworkGatewayIPAnnotationKey: "1.1.1.1",
+func TestCloudNATGatewayEncoding(t *testing.T) {
+	t.Run("encodeCloudNATGatewayInfos", func(t *testing.T) {
+		tests := []struct {
+			name    string
+			gws     []CloudNATGatewayIPs
+			want    string
+			wantErr bool
+		}{
+			{
+				name: "single gateway",
+				gws: []CloudNATGatewayIPs{
+					{EgressIP: netip.MustParseAddr("1.2.3.4"), GatewayIP: netip.MustParseAddr("10.0.0.1")},
+				},
+				want: `[{"egressIP":"1.2.3.4","gatewayIP":"10.0.0.1"}]`,
 			},
-			gatewayIP: netip.MustParseAddr("1.1.1.1"),
-		},
-		{
-			name: "empty_gateway_IP",
-			annotations: map[string]string{
-				NetworkGatewayIPAnnotationKey: "",
+			{
+				name: "multiple gateways",
+				gws: []CloudNATGatewayIPs{
+					{EgressIP: netip.MustParseAddr("1.2.3.4"), GatewayIP: netip.MustParseAddr("10.0.0.1")},
+					{EgressIP: netip.MustParseAddr("5.6.7.8"), GatewayIP: netip.MustParseAddr("10.0.0.2")},
+				},
+				want: `[{"egressIP":"1.2.3.4","gatewayIP":"10.0.0.1"},{"egressIP":"5.6.7.8","gatewayIP":"10.0.0.2"}]`,
 			},
-			gatewayIP: netip.Addr{},
-		},
-		{
-			name: "malformed_gateway_IP",
-			annotations: map[string]string{
-				NetworkGatewayIPAnnotationKey: "1.1.1.1.1",
+			{
+				name: "empty gateways",
+				gws:  []CloudNATGatewayIPs{},
+				want: `[]`,
 			},
-			gatewayIP: netip.Addr{},
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := staticGatewayIP(tt.annotations)
-			if got != tt.gatewayIP {
-				t.Errorf("got %v, want %v\n", got, tt.gatewayIP)
-			}
-		})
-	}
-}
+			{
+				name: "nil gateways",
+				gws:  nil,
+				want: `null`,
+			},
+		}
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				got, err := EncodeCloudNATGatewayInfos(tt.gws)
+				if (err != nil) != tt.wantErr {
+					t.Errorf("encodeCloudNATGatewayInfos() error = %v, wantErr %v", err, tt.wantErr)
+					return
+				}
+				if got != tt.want {
+					t.Errorf("encodeCloudNATGatewayInfos() = %v, want %v", got, tt.want)
+				}
+			})
+		}
+	})
 
-func Test_PolicyConfig_regenerateGatewayConfig(t *testing.T) {
-	type fields struct {
-		policyGwConfig *policyGatewayConfig
-	}
-	tests := []struct {
-		name   string
-		fields fields
-		want   gatewayConfig
-	}{
-		{
-			name: "static_gateway_IP",
-			fields: fields{
-				policyGwConfig: &policyGatewayConfig{
-					staticGatewayIP: netip.MustParseAddr(egressIP1),
+	t.Run("decodeCloudNATGateways", func(t *testing.T) {
+		tests := []struct {
+			name       string
+			jsonString string
+			want       []CloudNATGatewayIPs
+			wantErr    bool
+		}{
+			{
+				name:       "single gateway",
+				jsonString: `[{"egressIP":"1.2.3.4","gatewayIP":"10.0.0.1"}]`,
+				want: []CloudNATGatewayIPs{
+					{EgressIP: netip.MustParseAddr("1.2.3.4"), GatewayIP: netip.MustParseAddr("10.0.0.1")},
 				},
 			},
-			want: gatewayConfig{
-				gatewayIP:                    netip.MustParseAddr(egressIP1),
-				localNodeConfiguredAsGateway: false,
+			{
+				name:       "multiple gateways",
+				jsonString: `[{"egressIP":"1.2.3.4","gatewayIP":"10.0.0.1"},{"egressIP":"5.6.7.8","gatewayIP":"10.0.0.2"}]`,
+				want: []CloudNATGatewayIPs{
+					{EgressIP: netip.MustParseAddr("1.2.3.4"), GatewayIP: netip.MustParseAddr("10.0.0.1")},
+					{EgressIP: netip.MustParseAddr("5.6.7.8"), GatewayIP: netip.MustParseAddr("10.0.0.2")},
+				},
 			},
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			p := Params{
-				IdentityAllocator: identityAllocator,
-				// DaemonConfig: &option.DaemonConfig{
-				// 	EnableIPv4EgressGateway: true,
-				// },
-			}
-			manager := &Manager{
-				policyConfigs:           make(map[policyID]*PolicyConfig),
-				policyConfigsBySourceIP: make(map[string][]*PolicyConfig),
-				epDataStore:             make(map[endpointID]*endpointMetadata),
-				identityAllocator:       p.IdentityAllocator,
-				googleManager:           NewGoogleManager(p.FeaturesConfig.EgressGatewayPendingIdentityExpirySeconds),
-			}
+			{
+				name:       "empty gateways",
+				jsonString: `[]`,
+				want:       []CloudNATGatewayIPs{},
+			},
+			{
+				name:       "null gateways",
+				jsonString: `null`,
+				want:       nil,
+			},
+			{
+				name:       "malformed json",
+				jsonString: `[{"egressIP":"1.2.3.4"`,
+				wantErr:    true,
+			},
+		}
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				got, err := DecodeCloudNATGateways(tt.jsonString)
+				if (err != nil) != tt.wantErr {
+					t.Errorf("decodeCloudNATGateways() error = %v, wantErr %v", err, tt.wantErr)
+					return
+				}
+				if !reflect.DeepEqual(got, tt.want) {
+					t.Errorf("decodeCloudNATGateways() = %v, want %v", got, tt.want)
+				}
+			})
+		}
+	})
 
-			config := &PolicyConfig{
-				policyGwConfig: tt.fields.policyGwConfig,
-			}
-			config.regenerateGatewayConfig(manager)
-			got := config.gatewayConfig
-
-			if got.gatewayIP.String() != tt.want.gatewayIP.String() ||
-				got.localNodeConfiguredAsGateway != tt.want.localNodeConfiguredAsGateway {
-				t.Errorf("PolicyConfig.regenerateGatewayConfig() = %v, want %v", format.Object(got, 0), format.Object(tt.want, 0))
-			}
-		})
-	}
+	t.Run("getCloudNATGatewayIPs", func(t *testing.T) {
+		tests := []struct {
+			name        string
+			annotations map[string]string
+			want        []CloudNATGatewayIPs
+			wantErr     bool
+		}{
+			{
+				name: "valid annotation",
+				annotations: map[string]string{
+					CloudNATGatewaysAnnotationKey: `[{"egressIP":"1.2.3.4","gatewayIP":"10.0.0.1"}]`,
+				},
+				want: []CloudNATGatewayIPs{
+					{EgressIP: netip.MustParseAddr("1.2.3.4"), GatewayIP: netip.MustParseAddr("10.0.0.1")},
+				},
+			},
+			{
+				name:        "nil annotations",
+				annotations: nil,
+				want:        nil,
+			},
+			{
+				name:        "empty annotations",
+				annotations: map[string]string{},
+				want:        nil,
+			},
+			{
+				name: "annotation key present but empty value",
+				annotations: map[string]string{
+					CloudNATGatewaysAnnotationKey: "",
+				},
+				want: nil,
+			},
+			{
+				name: "malformed json in annotation",
+				annotations: map[string]string{
+					CloudNATGatewaysAnnotationKey: `[{"egressIP":"1.2.3.4"`,
+				},
+				wantErr: true,
+			},
+		}
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				got, err := getCloudNATGatewayIPs(tt.annotations)
+				if (err != nil) != tt.wantErr {
+					t.Errorf("getCloudNATGatewayIPs() error = %v, wantErr %v", err, tt.wantErr)
+					return
+				}
+				if !reflect.DeepEqual(got, tt.want) {
+					t.Errorf("getCloudNATGatewayIPs() = %v, want %v", got, tt.want)
+				}
+			})
+		}
+	})
 }

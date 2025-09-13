@@ -23,6 +23,9 @@ type googleEndpointMetadata struct {
 
 	// expirationTime is the timestamp when endpoint data will expire in the pending data store.
 	expirationTime time.Time
+
+	// hash is computed based on the endpoint's name, namespace, clusterID, and IP.
+	hash uint64
 }
 
 type googleEndpointID struct {
@@ -32,17 +35,6 @@ type googleEndpointID struct {
 }
 
 func getEndpointMetadataWithoutLabels(endpoint *k8sTypes.CiliumEndpoint) (*endpointMetadata, error) {
-	var addrs []netip.Addr
-
-	id := endpointID{
-		googleEndpointID: googleEndpointID{
-			NamespacedName: types.NamespacedName{
-				Name:      endpoint.GetName(),
-				Namespace: endpoint.GetNamespace(),
-			},
-		},
-	}
-
 	if endpoint.UID == "" {
 		// this can happen when CiliumEndpointSlices are in use - which is not supported in the EGW yet
 		return nil, fmt.Errorf("endpoint has empty UID")
@@ -56,6 +48,11 @@ func getEndpointMetadataWithoutLabels(endpoint *k8sTypes.CiliumEndpoint) (*endpo
 		return nil, fmt.Errorf("failed to get valid endpoint IPs")
 	}
 
+	if endpoint.Identity == nil {
+		return nil, fmt.Errorf("endpoint has no identity metadata")
+	}
+
+	var addrs []netip.Addr
 	for _, pair := range endpoint.Networking.Addressing {
 		if pair.IPV4 != "" {
 			addr, err := netip.ParseAddr(pair.IPV4)
@@ -66,20 +63,29 @@ func getEndpointMetadataWithoutLabels(endpoint *k8sTypes.CiliumEndpoint) (*endpo
 		}
 	}
 
+	id := endpointID{
+		UID: endpoint.UID,
+		googleEndpointID: googleEndpointID{
+			NamespacedName: types.NamespacedName{
+				Name:      endpoint.GetName(),
+				Namespace: endpoint.GetNamespace(),
+			},
+			clusterID: identity.NumericIdentity(uint32(endpoint.Identity.ID)).ClusterID(),
+		},
+	}
+
 	// We do not support multiple IPv4 addresses per CiliumEndpoint
 	if len(addrs) != 0 {
 		id.ip = addrs[0]
 	}
 
-	if endpoint.Identity == nil {
-		return nil, fmt.Errorf("endpoint has no identity metadata")
-	}
-
 	data := &endpointMetadata{
 		ips: addrs,
 		id:  id,
+		googleEndpointMetadata: googleEndpointMetadata{
+			hash: getEndpointHash(&id.googleEndpointID),
+		},
 	}
-	id.clusterID = identity.NumericIdentity(uint32(endpoint.Identity.ID)).ClusterID()
 
 	return data, nil
 }

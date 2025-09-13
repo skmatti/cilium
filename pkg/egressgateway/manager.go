@@ -518,9 +518,14 @@ func (manager *Manager) deleteEndpoint(endpoint *k8sTypes.CiliumEndpoint) {
 		logfields.K8sUID:          endpoint.UID,
 	})
 
-	endpointKey := endpointID{
-		UID: endpoint.UID,
+	epMeta, err := getEndpointMetadataWithoutLabels(endpoint)
+	if err != nil {
+		logger.WithError(err).
+			Error("Failed to get valid endpoint metadata, skipping update to egress policy.")
+		return
 	}
+
+	endpointKey := epMeta.id
 
 	logger.Debug("Deleted CiliumEndpoint")
 	delete(manager.epDataStore, endpointKey)
@@ -613,7 +618,12 @@ func (manager *Manager) updatePoliciesBySourceIP() {
 // and CIDR tuples (i.e. whenever one callback invocation returns true)
 func (manager *Manager) policyMatches(sourceIP netip.Addr, f func(netip.Addr, netip.Prefix, bool, *gatewayConfig) bool) bool {
 	for _, policy := range manager.policyConfigsBySourceIP[sourceIP.String()] {
+		// Sort gateways to get consistent assignments across nodes.
+		sortGwConfigs(policy.gatewayConfigs)
+
 		for _, ep := range policy.matchedEndpoints {
+			gateway := selectGateway(policy.gatewayConfigs, ep)
+
 			for _, endpointIP := range ep.ips {
 				if endpointIP != sourceIP {
 					continue
@@ -621,14 +631,14 @@ func (manager *Manager) policyMatches(sourceIP netip.Addr, f func(netip.Addr, ne
 
 				isExcludedCIDR := false
 				for _, dstCIDR := range policy.dstCIDRs {
-					if f(endpointIP, dstCIDR, isExcludedCIDR, &policy.gatewayConfig) {
+					if f(endpointIP, dstCIDR, isExcludedCIDR, gateway) {
 						return true
 					}
 				}
 
 				isExcludedCIDR = true
 				for _, excludedCIDR := range policy.excludedCIDRs {
-					if f(endpointIP, excludedCIDR, isExcludedCIDR, &policy.gatewayConfig) {
+					if f(endpointIP, excludedCIDR, isExcludedCIDR, gateway) {
 						return true
 					}
 				}
@@ -650,18 +660,20 @@ func (manager *Manager) relaxRPFilter() error {
 	ifSet := make(map[string]struct{})
 
 	for _, pc := range manager.policyConfigs {
-		if !pc.gatewayConfig.localNodeConfiguredAsGateway {
-			continue
-		}
+		for _, gatewayConfig := range pc.gatewayConfigs {
+			if !gatewayConfig.localNodeConfiguredAsGateway {
+				continue
+			}
 
-		ifaceName := pc.gatewayConfig.ifaceName
-		if _, ok := ifSet[ifaceName]; !ok {
-			ifSet[ifaceName] = struct{}{}
-			sysSettings = append(sysSettings, tables.Sysctl{
-				Name:      []string{"net", "ipv4", "conf", ifaceName, "rp_filter"},
-				Val:       "2",
-				IgnoreErr: false,
-			})
+			ifaceName := gatewayConfig.ifaceName
+			if _, ok := ifSet[ifaceName]; !ok {
+				ifSet[ifaceName] = struct{}{}
+				sysSettings = append(sysSettings, tables.Sysctl{
+					Name:      []string{"net", "ipv4", "conf", ifaceName, "rp_filter"},
+					Val:       "2",
+					IgnoreErr: false,
+				})
+			}
 		}
 	}
 

@@ -6,6 +6,7 @@ package egressgateway
 import (
 	"fmt"
 	"net/netip"
+	"slices"
 
 	"github.com/sirupsen/logrus"
 	"go4.org/netipx"
@@ -60,14 +61,12 @@ type PolicyConfig struct {
 	// id is the parsed config name and namespace
 	id types.NamespacedName
 
-	endpointSelectors []api.EndpointSelector
-	dstCIDRs          []netip.Prefix
-	excludedCIDRs     []netip.Prefix
-
-	policyGwConfig *policyGatewayConfig
-
+	endpointSelectors  []api.EndpointSelector
+	dstCIDRs           []netip.Prefix
+	excludedCIDRs      []netip.Prefix
+	policyGwConfigs    []policyGatewayConfig
+	gatewayConfigs     []gatewayConfig
 	matchedEndpoints   map[endpointID]*endpointMetadata
-	gatewayConfig      gatewayConfig
 	connectionTimeouts *egressmap.ConnectionTimeouts
 }
 
@@ -105,47 +104,49 @@ func (config *policyGatewayConfig) selectsNodeAsGateway(node nodeTypes.Node) boo
 }
 
 func (config *PolicyConfig) regenerateGatewayConfig(manager *Manager) {
-	gwc := gatewayConfig{
-		egressIP:  netip.IPv4Unspecified(),
-		gatewayIP: GatewayNotFoundIPv4,
-	}
+	config.gatewayConfigs = make([]gatewayConfig, 0, len(config.policyGwConfigs))
 
-	policyGwc := config.policyGwConfig
+	for _, policyGwc := range config.policyGwConfigs {
+		gwc := gatewayConfig{
+			egressIP:  netip.IPv4Unspecified(),
+			gatewayIP: GatewayNotFoundIPv4,
+		}
 
-	// If gateway IP is specified in the policy, use it.
-	if policyGwc.staticGatewayIP.IsValid() {
-		gwc.gatewayIP = config.policyGwConfig.staticGatewayIP
-		config.gatewayConfig = gwc
-		return
-	}
-
-	for _, node := range manager.nodes {
-		if !policyGwc.selectsNodeAsGateway(node) {
+		// If gateway IP is specified in the policy, use it.
+		if policyGwc.staticGatewayIP.IsValid() {
+			gwc.gatewayIP = policyGwc.staticGatewayIP
+			config.gatewayConfigs = append(config.gatewayConfigs, gwc)
 			continue
 		}
 
-		addr, ok := netipx.FromStdIP(node.GetK8sNodeIP())
-		if !ok {
-			continue
-		}
-		gwc.gatewayIP = addr
-
-		if node.IsLocal() {
-			err := gwc.deriveFromPolicyGatewayConfig(policyGwc)
-			if err != nil {
-				logger := log.WithFields(logrus.Fields{
-					logfields.CiliumEgressGatewayPolicyName: config.id,
-					logfields.Interface:                     policyGwc.iface,
-					logfields.EgressIP:                      policyGwc.egressIP,
-				})
-				logger.WithError(err).Error("Failed to derive policy gateway configuration")
+		for _, node := range manager.nodes {
+			if !policyGwc.selectsNodeAsGateway(node) {
+				continue
 			}
+
+			addr, ok := netipx.FromStdIP(node.GetK8sNodeIP())
+			if !ok {
+				continue
+			}
+			gwc.gatewayIP = addr
+
+			if node.IsLocal() {
+				err := gwc.deriveFromPolicyGatewayConfig(&policyGwc)
+				if err != nil {
+					logger := log.WithFields(logrus.Fields{
+						logfields.CiliumEgressGatewayPolicyName: config.id,
+						logfields.Interface:                     policyGwc.iface,
+						logfields.EgressIP:                      policyGwc.egressIP,
+					})
+					logger.WithError(err).Error("Failed to derive policy gateway configuration")
+				}
+			}
+
+			break
 		}
 
-		break
+		config.gatewayConfigs = append(config.gatewayConfigs, gwc)
 	}
-
-	config.gatewayConfig = gwc
 }
 
 // deriveFromPolicyGatewayConfig retrieves all the missing gateway configuration
@@ -195,26 +196,94 @@ func (gwc *gatewayConfig) deriveFromPolicyGatewayConfig(gc *policyGatewayConfig)
 	return nil
 }
 
+func sortGwConfigs(gwConfigs []gatewayConfig) {
+	slices.SortStableFunc(gwConfigs, func(a, b gatewayConfig) int {
+		return a.gatewayIP.Compare(b.gatewayIP)
+	})
+}
+
+func selectGateway(gwConfigs []gatewayConfig, endpoint *endpointMetadata) *gatewayConfig {
+	// Policy parsing would have errored out if there isn't at least one gateway.
+	if len(gwConfigs) == 1 {
+		return &gwConfigs[0]
+	}
+
+	return pickGateway(gwConfigs, endpoint.hash)
+}
+
 // forEachEndpointAndCIDR iterates through each combination of endpoints and
 // destination/excluded CIDRs of the receiver policy, and for each of them it
 // calls the f callback function passing the given endpoint and CIDR, together
 // with a boolean value indicating if the CIDR belongs to the excluded ones and
-// the gatewayConfig of the receiver policy
+// the gatewayConfig of the receiver policy.
+// For multigateway policies the gateways are ordered by IP and paired with each
+// endpoint using the hash of the endpoint UID.
 func (config *PolicyConfig) forEachEndpointAndCIDR(f func(netip.Addr, netip.Prefix, bool, *gatewayConfig)) {
+	// Sort gateways to get consistent assignments across nodes.
+	sortGwConfigs(config.gatewayConfigs)
 
 	for _, endpoint := range config.matchedEndpoints {
+		gateway := selectGateway(config.gatewayConfigs, endpoint)
+
 		for _, endpointIP := range endpoint.ips {
 			isExcludedCIDR := false
 			for _, dstCIDR := range config.dstCIDRs {
-				f(endpointIP, dstCIDR, isExcludedCIDR, &config.gatewayConfig)
+				f(endpointIP, dstCIDR, isExcludedCIDR, gateway)
 			}
 
 			isExcludedCIDR = true
 			for _, excludedCIDR := range config.excludedCIDRs {
-				f(endpointIP, excludedCIDR, isExcludedCIDR, &config.gatewayConfig)
+				f(endpointIP, excludedCIDR, isExcludedCIDR, gateway)
 			}
 		}
 	}
+}
+
+func parseEgressGateway(egressGateway *v2.EgressGateway, staticGatewayIP netip.Addr, CloudNATIPs []CloudNATGatewayIPs) (*policyGatewayConfig, error) {
+	if egressGateway == nil {
+		return nil, fmt.Errorf("egressGateway can't be empty")
+	}
+
+	if egressGateway.Interface != "" && egressGateway.EgressIP != "" {
+		return nil, fmt.Errorf("gateway configuration can't specify both an interface and an egress IP")
+	}
+
+	policyGwc := &policyGatewayConfig{
+		nodeSelector: api.NewESFromK8sLabelSelector("", egressGateway.NodeSelector),
+		iface:        egressGateway.Interface,
+	}
+
+	// EgressIP is not a required field, validate and parse it only if non-empty
+	if egressGateway.EgressIP != "" {
+		addr, err := netip.ParseAddr(egressGateway.EgressIP)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse egress IP %s: %w", egressGateway.EgressIP, err)
+		}
+
+		policyGwc.egressIP = addr
+	}
+
+	// The annotations are exclusive either staticGatewayIP, or CloudNATIPs, or none are specified.
+	if staticGatewayIP.IsValid() {
+		policyGwc.staticGatewayIP = staticGatewayIP
+	} else if len(CloudNATIPs) > 0 && policyGwc.egressIP.IsValid() {
+		// Search for the gateway IP for this egress IP
+		found := false
+		for _, gwIPs := range CloudNATIPs {
+			if policyGwc.egressIP == gwIPs.EgressIP {
+				policyGwc.staticGatewayIP = gwIPs.GatewayIP
+				found = true
+				break
+			}
+		}
+
+		// The multigateway annotation must contain all egress IPs. If it's not there, error out.
+		if !found {
+			return nil, fmt.Errorf("annotation cloud-nat-gateways doesn't include egress IP %s", policyGwc.egressIP)
+		}
+	}
+
+	return policyGwc, nil
 }
 
 // ParseCEGP takes a CiliumEgressGatewayPolicy CR and converts to PolicyConfig,
@@ -224,6 +293,7 @@ func ParseCEGP(cegp *v2.CiliumEgressGatewayPolicy) (*PolicyConfig, error) {
 	var endpointSelectorList []api.EndpointSelector
 	var dstCidrList []netip.Prefix
 	var excludedCIDRs []netip.Prefix
+	var policyGwConfigs []policyGatewayConfig
 
 	allowAllNamespacesRequirement := slim_metav1.LabelSelectorRequirement{
 		Key:      k8sConst.PodNamespaceLabel,
@@ -240,32 +310,40 @@ func ParseCEGP(cegp *v2.CiliumEgressGatewayPolicy) (*PolicyConfig, error) {
 		return nil, fmt.Errorf("destinationCIDRs can't be empty")
 	}
 
-	egressGateway := cegp.Spec.EgressGateway
-	if egressGateway == nil {
-		return nil, fmt.Errorf("egressGateway can't be empty")
-	}
-
-	if egressGateway.Interface != "" && egressGateway.EgressIP != "" {
-		return nil, fmt.Errorf("gateway configuration can't specify both an interface and an egress IP")
-	}
-
-	policyGwc := &policyGatewayConfig{
-		nodeSelector: api.NewESFromK8sLabelSelector("", egressGateway.NodeSelector),
-		iface:        egressGateway.Interface,
-	}
-	// EgressIP is not a required field, validate and parse it only if non-empty
-	if egressGateway.EgressIP != "" {
-		addr, err := netip.ParseAddr(egressGateway.EgressIP)
-		if err != nil {
-			return nil, fmt.Errorf("failed to parse egress IP %s: %w", egressGateway.EgressIP, err)
-		}
-		policyGwc.egressIP = addr
-	}
-
-	// When the option to select gateway IP address from the annotation is
-	// enabled, verify its presence in the annotation and use it.
+	// Parse the annotations with the gateway IP adresses if the option is enabled.
+	// staticGwIP corresponds to the single-gateway annotation "gateway-ip"
+	// CloudNATIPs corresponds top the multi-gateway annotation "cloud-nat-gateways"
+	// Both annotations are exclusive, in case both are specified, CloudNATIPs will have preference.
+	var staticGwIP netip.Addr
+	var CloudNATIPs []CloudNATGatewayIPs
 	if features.GlobalConfig.EnableGatewayIPFromAnnotation {
-		policyGwc.staticGatewayIP = staticGatewayIP(cegp.GetAnnotations())
+		var err error
+		staticGwIP, err = staticGatewayIP(cegp.GetAnnotations())
+		if err != nil {
+			return nil, fmt.Errorf("error getting static gateway IP in CiliumEgressGatewayPolicy: %w", err)
+		}
+		CloudNATIPs, err = getCloudNATGatewayIPs(cegp.GetAnnotations())
+		if err != nil {
+			return nil, fmt.Errorf("error getting Cloud NAT gateway IPs in CiliumEgressGatewayPolicy: %w", err)
+		}
+	}
+
+	for _, egressGateway := range cegp.Spec.EgressGateways {
+		policyGwc, err := parseEgressGateway(&egressGateway, netip.Addr{}, CloudNATIPs)
+		if err != nil {
+			return nil, err
+		}
+		policyGwConfigs = append(policyGwConfigs, *policyGwc)
+	}
+
+	// If there are any elements in EgressGateways skip the EgressGateway field.
+	if len(policyGwConfigs) == 0 {
+		egressGateway := cegp.Spec.EgressGateway
+		policyGwc, err := parseEgressGateway(egressGateway, staticGwIP, nil)
+		if err != nil {
+			return nil, err
+		}
+		policyGwConfigs = append(policyGwConfigs, *policyGwc)
 	}
 
 	for _, cidrString := range destinationCIDRs {
@@ -332,7 +410,7 @@ func ParseCEGP(cegp *v2.CiliumEgressGatewayPolicy) (*PolicyConfig, error) {
 		dstCIDRs:          dstCidrList,
 		excludedCIDRs:     excludedCIDRs,
 		matchedEndpoints:  make(map[endpointID]*endpointMetadata),
-		policyGwConfig:    policyGwc,
+		policyGwConfigs:   policyGwConfigs,
 		id: types.NamespacedName{
 			Name: name,
 		},
