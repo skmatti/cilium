@@ -1,7 +1,7 @@
 
 #pragma once
 
-#include <bpf/ctx/skb.h>
+#include <bpf/ctx/ctx.h>
 #include <bpf/api.h>
 #include <linux/in.h>
 
