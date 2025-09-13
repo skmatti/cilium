@@ -14,7 +14,7 @@ presubmits:
     preset-service-account: "true"
     preset-dind-enabled: "true"
     preset-k8s-ssh: "true"
-    prow.k8s.io/pubsub.project: "anthos-baremetal-ci"
+    prow.k8s.io/pubsub.project: "anthos-networking-ci"
     prow.k8s.io/pubsub.runID: "prow-etl-presubmit-tests"
     prow.k8s.io/pubsub.topic: "prow-etl-trigger"
   path_alias: gke-internal.googlesource.com/third_party/cilium
@@ -57,7 +57,7 @@ presubmits:
     preset-service-account: "true"
     preset-dind-enabled: "true"
     preset-k8s-ssh: "true"
-    prow.k8s.io/pubsub.project: "anthos-baremetal-ci"
+    prow.k8s.io/pubsub.project: "anthos-networking-ci"
     prow.k8s.io/pubsub.runID: "prow-etl-presubmit-tests"
     prow.k8s.io/pubsub.topic: "prow-etl-trigger"
   path_alias: gke-internal.googlesource.com/third_party/cilium
@@ -102,7 +102,7 @@ presubmits:
     preset-service-account: "true"
     preset-dind-enabled: "true"
     preset-k8s-ssh: "true"
-    prow.k8s.io/pubsub.project: "anthos-baremetal-ci"
+    prow.k8s.io/pubsub.project: "anthos-networking-ci"
     prow.k8s.io/pubsub.runID: "prow-etl-presubmit-tests"
     prow.k8s.io/pubsub.topic: "prow-etl-trigger"
   path_alias: gke-internal.googlesource.com/third_party/cilium

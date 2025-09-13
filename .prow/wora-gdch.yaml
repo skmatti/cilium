@@ -15,7 +15,7 @@ presubmits:
     preset-cookie-file: "true"
     preset-cookie-file-env: "true"
     preset-dind-enabled: "true"
-    prow.k8s.io/pubsub.project: "anthos-baremetal-ci"
+    prow.k8s.io/pubsub.project: "anthos-networking-ci"
     prow.k8s.io/pubsub.runID: "prow-etl-presubmit-tests"
     prow.k8s.io/pubsub.topic: "prow-etl-trigger"
   path_alias: gke-internal.googlesource.com/third_party/cilium
