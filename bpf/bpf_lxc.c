@@ -983,6 +983,18 @@ static __always_inline int handle_ipv4_from_lxc(struct __ctx_buff *ctx, __u32 *d
 	if (hairpin_flow)
 		goto skip_policy_enforcement;
 
+#if defined(ENABLE_GOOGLE_VPC) && \
+	defined(MULTI_NIC_DEVICE_TYPE) && \
+	(MULTI_NIC_DEVICE_TYPE == EP_DEV_TYPE_INDEX_MULTI_NIC_VETH)
+	/* To ensure policy is not enforced for traffic sourced from pods
+	 * running on the Kubevirt VM (wrapped inside an L3 multi-NIC endpoint),
+	 * policy checks should be skipped if the source is not LXC_IPV4.
+	 */
+	if (LXC_IPV4 != ip4->saddr) {
+		goto skip_policy_enforcement;
+	}
+#endif /* ENABLE_GOOGLE_VPC && MULTI_NIC_DEVICE_TYPE && MULTI_NIC_DEVICE_TYPE == EP_DEV_TYPE_INDEX_MULTI_NIC_VETH */
+
 	/* If the packet is in the establishing direction and it's destined
 	 * within the cluster, it must match policy or be dropped. If it's
 	 * bound for the host/outside, perform the CIDR policy check.
@@ -2165,6 +2177,18 @@ ipv4_policy(struct __ctx_buff *ctx, struct iphdr *ip4, int ifindex, __u32 src_la
 		/* proxy_port remains 0 in this case */
 		goto skip_policy_enforcement;
 	}
+
+#if defined(ENABLE_GOOGLE_VPC) && \
+defined(MULTI_NIC_DEVICE_TYPE) && \
+(MULTI_NIC_DEVICE_TYPE == EP_DEV_TYPE_INDEX_MULTI_NIC_VETH)
+	/* To ensure policy is not enforced for traffic destined to pods
+	 * running on the Kubevirt VM (wrapped inside an L3 multi-NIC endpoint),
+	 * policy checks should be skipped if the destination is not LXC_IPV4.
+	 */
+	if (LXC_IPV4 != ip4->daddr) {
+		goto skip_policy_enforcement;
+	}
+#endif /* ENABLE_GOOGLE_VPC && MULTI_NIC_DEVICE_TYPE && MULTI_NIC_DEVICE_TYPE == EP_DEV_TYPE_INDEX_MULTI_NIC_VETH */
 
 	if (skip_ingress_proxy)
 		goto skip_policy_enforcement;
