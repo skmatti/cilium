@@ -273,7 +273,7 @@ func (manager *Manager) PendingDataStoreUpdate(updateFunc func() error) error {
 // getEndpointHash will generate the endpoint hash based on its name, ns, clusterID, and IP.
 func getEndpointHash(epID *googleEndpointID) uint64 {
 	// Using "||" since it's a forbidden character on in endpoints names and namespaces.
-	return computeEndpointHash(fmt.Sprintf("%s||%s||%s||%d", epID.Name, epID.Namespace, epID.ip, epID.clusterID))
+	return computeEndpointHash(fmt.Sprintf("%s||%s||%d", epID.Namespace, epID.ip, epID.clusterID))
 }
 
 // Consistent Hashing & gateway distribution
