@@ -52,9 +52,7 @@ presubmits:
   cluster: anthos-networking-ci-us-west1-b
   trigger: /test wora-gdch-abm-gce-lancer-kubevirt$
   rerun_command: /test wora-gdch-abm-gce-lancer-kubevirt
-  always_run: false
-  # TODO: b/441993671 - enable it when the bug is fixed.
-  # always_run: true
+  always_run: true
   skip_fetch_head: true
   decorate: true
   decoration_config:
