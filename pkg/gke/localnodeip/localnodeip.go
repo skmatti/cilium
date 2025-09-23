@@ -7,6 +7,7 @@ import (
 	"github.com/cilium/cilium/pkg/components"
 	"github.com/cilium/cilium/pkg/logging"
 	"github.com/cilium/cilium/pkg/logging/logfields"
+	"github.com/cilium/cilium/pkg/option"
 )
 
 var (
@@ -39,6 +40,11 @@ func setDeviceIP(ip string) {
 // CIDRMatchesLocalNode determines whether the CIDR matches the local node IP.
 func CIDRMatchesLocalNode(cidr string) bool {
 	if !components.IsCiliumAgent() {
+		return false
+	}
+	// When PolicyCIDRMatchesNodes is enabled, we disable this check because
+	// the policy is intended to match based on Node IPs, not local IPs.
+	if option.Config.PolicyCIDRMatchesNodes() {
 		return false
 	}
 	if nodeIP == nil {
