@@ -289,9 +289,7 @@ presubmits:
       - name: WORA_CONFIG
         value: integration_test.yaml
       - name: WORA_GINKGO_LABEL_FILTER
-        # TODO: b/384532838 - enable feature tests as features are merged.
-        # egressnatperimeter||sample||tailcall
-        value: sample
+        value: egressnatperimeter||sample||tailcall
       command:
       - runner.sh
       args:
