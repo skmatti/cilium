@@ -57,7 +57,7 @@ int perimeter_tests(struct __ctx_buff *ctx __maybe_unused)
 		assert_num_equal(entry->dsr_internal, 1);
 
 		assert_num_equal(entry->src_sec_id, WORLD_ID);
-		assert_num_equal(entry->node_port, 1);
+		assert_num_equal(entry->node_port, 0);
 
 #ifdef HAVE_FIB_IFINDEX
 		assert_num_equal(entry->ifindex, NATIVE_DEV_IFINDEX);

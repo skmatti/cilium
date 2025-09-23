@@ -181,6 +181,7 @@ int elb_infra_traffic_reverse_direction_pktgen(struct __ctx_buff *ctx __maybe_un
 
 	ct_state.rev_nat_index = SOURCE_PERIMETER_NODE_REV_NAT_ID;
 	ct_state.dsr_internal = 1;
+	ct_state.node_port = 0;
 
 	int result = google_pktgen__create_existing_conn_tcp(ctx,
 							     BACKEND_IP,

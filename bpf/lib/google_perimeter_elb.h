@@ -66,7 +66,7 @@ int google_perimeter__init_perimeter_ct_entry(struct __ctx_buff *ctx,
 	int ret;
 
 	ct_state_new.src_sec_id = WORLD_ID;
-	ct_state_new.node_port = 1;
+	ct_state_new.node_port = 0;
 # ifndef HAVE_FIB_IFINDEX
 	ct_state_new.ifindex = (__u16)NATIVE_DEV_IFINDEX;
 # endif

@@ -1173,6 +1173,11 @@ func (h *HeaderfileWriter) writeTemplateConfig(fw *bufio.Writer, devices []strin
 		ctmap.WriteBPFMacros(fw, nil)
 	}
 
+	if e.IsPerimeter() {
+		// PERIMETER_ENDPOINT is set if this endpoint handles networking features like LB and ENAT.
+		fmt.Fprintf(fw, "#define PERIMETER_ENDPOINT 1\n")
+	}
+
 	// Local delivery metrics should always be set for endpoint programs.
 	fmt.Fprint(fw, "#define LOCAL_DELIVERY_METRICS 1\n")
 

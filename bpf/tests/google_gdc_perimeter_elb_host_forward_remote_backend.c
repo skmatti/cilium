@@ -15,6 +15,7 @@
 #define ENCAP_IFINDEX 4
 #define ENABLE_GOOGLE_VPC
 #define ENABLE_HOST_FIREWALL
+#define ENABLE_GOOGLE_MULTI_NIC
 
 /* TURNS ON PERIMETER ELB */
 #define ENABLE_EGRESS_GATEWAY_REDIRECT
@@ -169,8 +170,7 @@ int elb_infra_traffic_forward_direction_pktgen(struct __ctx_buff *ctx __maybe_un
 	l4->dest = bpf_htons(BACKEND_PORT);
 
 	/* Packet Data */
-	void *data =
-		pktgen__push_data(&builder, default_data, sizeof(default_data));
+	void *data = pktgen__push_data(&builder, default_data, sizeof(default_data));
 
 	if (!data)
 		return TEST_ERROR;
@@ -213,18 +213,6 @@ int elb_infra_traffic_forward_direction_setup(struct __ctx_buff *ctx)
 
 	map_update_elem(&ENDPOINTS_MAP, &ep_key, &ep_value, BPF_ANY);
 
-	/* Set up perimete node maps */
-	struct ipv4_redirect_ep redirect_ep_key = {
-		.ip4 = SOURCE_PERIMETER_NODE,
-	};
-
-	__u16 endpoint_id = SOURCE_PERIMETER_NODE_REV_NAT_ID;
-
-	map_update_elem(&GOOGLE_REDIRECT_EP_ID_V4_MAP, &redirect_ep_key,
-			&endpoint_id, BPF_ANY);
-	map_update_elem(&GOOGLE_REDIRECT_EP_IP_V4_MAP, &endpoint_id,
-			&redirect_ep_key, BPF_ANY);
-
 	tail_call_static(ctx, entry_call_map, FROM_NETDEV);
 
 	return TEST_ERROR;
@@ -265,6 +253,18 @@ int elb_infra_traffic_forward_direction_check(struct __ctx_buff *ctx __maybe_unu
 	assert_ip_equal(CLIENT_IP, l3->saddr);
 	assert_ip_equal(BACKEND_IP, l3->daddr);
 
+	// /* Inspect Redirect Maps to Make Sure Perimeter IP cache is saved */
+	struct ipv4_redirect_ep redirect_ep_key = {.ip4 = SOURCE_PERIMETER_NODE};
+
+	__u16* redirect_ep_id = map_lookup_elem(&GOOGLE_REDIRECT_EP_ID_V4_MAP, &redirect_ep_key);
+	__u16 ep_id = 0;
+
+	if (!redirect_ep_id) {
+		test_fatal("no entry found for this packet in redirect map")
+	}
+
+	ep_id = *redirect_ep_id;
+
 	/* Inspect Connection Tracking for correct rev_nat_id is saved */
 	struct ipv4_ct_tuple tuple = {};
 
@@ -280,9 +280,12 @@ int elb_infra_traffic_forward_direction_check(struct __ctx_buff *ctx __maybe_unu
 	if (!entry)
 		test_fatal("could not find contract entry for packet.");
 
-	if (entry->rev_nat_index != SOURCE_PERIMETER_NODE_REV_NAT_ID)
-		test_error("incorrect rev_nat_id: got '%d' but expected '%d'",
-			   entry->rev_nat_index, SOURCE_PERIMETER_NODE_REV_NAT_ID);
+	if (entry->dsr_internal != 1)
+		test_error("dsr bit is not set in ct entry");
+
+	if (entry->rev_nat_index != ep_id)
+		test_error("incorrect rev_nat_id: got '%d' but expected '%d'", entry->rev_nat_index, ep_id);
+
 
 	test_finish();
 }
