@@ -44,9 +44,7 @@ presubmits:
       - name: WORA_CONFIG
         value: integration_test.yaml
       - name: WORA_GINKGO_LABEL_FILTER
-        # TODO: b/412356832 - reenable kubevirt verifier when the bug is fixed.
-        # value: kubevirt||multinetwork||sample||tailcall
-        value: multinetwork||sample||tailcall
+        value: kubevirt||multinetwork||sample||tailcall
       command:
       - runner.sh
       args:
