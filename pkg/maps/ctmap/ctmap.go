@@ -494,15 +494,19 @@ func purgeCtEntry4(m *Map, key CtKey, entry *CtEntry, natMap *nat.Map, googleCtM
 	}
 
 	if googleCtMap != nil {
-		err := googleCtMap.Delete(t.(*tuple.TupleKey4Global))
-		if err != nil {
-			log.WithError(err).WithField(logfields.Key, t.String()).Error("Unable to delete Google CT entry")
+		if _, err := googleCtMap.Lookup(t.(*tuple.TupleKey4Global)); err != nil {
+			if !errors.Is(err, ebpf.ErrKeyNotExist) {
+				log.WithError(err).WithField(logfields.Key, t.String()).Error("Unable to lookup Google CT entry")
+			}
+		} else {
+			// SilentDelete deletes the map entry corresponding to the given key.
+			// If a map entry is not found this returns (false, nil). If the entry for
+			// googleCtMap is found there is no need to throw an error.
+			_, err := googleCtMap.SilentDelete(t.(*tuple.TupleKey4Global))
+			if err != nil {
+				log.WithError(err).WithField(logfields.Key, t.String()).Error("Unable to delete Google CT entry")
+			}
 		}
-
-		elementCount := 0
-		err = googleCtMap.DumpWithCallback(func(k bpf.MapKey, v bpf.MapValue) {
-			elementCount++
-		})
 	}
 
 	return nil
