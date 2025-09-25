@@ -628,10 +628,17 @@ func (d *Daemon) deleteMultiNICEndpoint(ep *endpoint.Endpoint, podChanged bool) 
 		// Since endpoint is multinic, NoIPRelease is always true
 		NoIPRelease: true,
 	}, podChanged)
+
+	// The errs slice can contain nil errors, so iterate through it and
+	// count only the actual errors.
+	var nerrs int
 	for _, err := range errs {
-		scopedLog.WithError(err).Warn("Ignoring error while deleting endpoint")
+		if err != nil {
+			nerrs++
+			scopedLog.WithError(err).Warn("Ignoring error while deleting endpoint")
+		}
 	}
-	return len(errs)
+	return nerrs
 }
 
 func (d *Daemon) deleteMultiNICEndpointQuiet(ep *endpoint.Endpoint, conf endpoint.DeleteConfig, podChanged bool) []error {
@@ -791,7 +798,23 @@ func (d *Daemon) deleteEndpoints(ctx context.Context, eps []*endpoint.Endpoint) 
 		}
 	}
 
-	for _, ep := range eps {
+	// The list of endpoints can be modified during iteration, so create a
+	// copy of the slice to iterate over.
+	epsToDelete := make([]*endpoint.Endpoint, len(eps))
+	copy(epsToDelete, eps)
+
+	deleted := make(map[uint16]struct{})
+	for _, ep := range epsToDelete {
+		if ep == nil {
+			log.Errorf("nil endpoint found in endpoint list")
+			nerrs++
+			continue
+		}
+		if _, ok := deleted[ep.ID]; ok {
+			log.Warningf("duplicate endpoint ID %d in endpoint list, skipping deletion", ep.ID)
+			continue
+		}
+		deleted[ep.ID] = struct{}{}
 		log.WithFields(logrus.Fields{
 			logfields.IPv4:        ep.GetIPv4Address(),
 			logfields.IPv6:        ep.GetIPv6Address(),
