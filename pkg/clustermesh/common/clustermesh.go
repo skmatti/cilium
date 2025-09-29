@@ -176,13 +176,18 @@ func (cm *clusterMesh) newRemoteCluster(name, path string) *remoteCluster {
 
 		logger: log.WithField(logfields.ClusterName, name),
 
-		metricLastFailureTimestamp: cm.conf.Metrics.LastFailureTimestamp.WithLabelValues(cm.conf.ClusterInfo.Name, cm.conf.NodeName, name),
-		metricReadinessStatus:      cm.conf.Metrics.ReadinessStatus.WithLabelValues(cm.conf.ClusterInfo.Name, cm.conf.NodeName, name),
-		metricTotalFailures:        cm.conf.Metrics.TotalFailures.WithLabelValues(cm.conf.ClusterInfo.Name, cm.conf.NodeName, name),
+		metricLastFailureTimestamp:  cm.conf.Metrics.LastFailureTimestamp.WithLabelValues(cm.conf.ClusterInfo.Name, cm.conf.NodeName, name),
+		metricReadinessStatus:       cm.conf.Metrics.ReadinessStatus.WithLabelValues(cm.conf.ClusterInfo.Name, cm.conf.NodeName, name),
+		metricTotalFailures:         cm.conf.Metrics.TotalFailures.WithLabelValues(cm.conf.ClusterInfo.Name, cm.conf.NodeName, name),
+		metricTotalCacheRevocations: cm.conf.Metrics.TotalCacheRevocations.WithLabelValues(name),
 	}
 
 	rc.RemoteCluster = cm.conf.NewRemoteCluster(name, rc.status)
-	rc.ttlChecker = newTTLChecker(rc.logger, cm.conf.ClusterMeshCacheTTL, rc.RevokeCache)
+	onExpiration := func(ctx context.Context) {
+		rc.metricTotalCacheRevocations.Inc()
+		rc.RevokeCache(ctx)
+	}
+	rc.ttlChecker = newTTLChecker(rc.logger, cm.conf.ClusterMeshCacheTTL, onExpiration)
 	return rc
 }
 

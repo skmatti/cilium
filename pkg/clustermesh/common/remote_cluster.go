@@ -103,9 +103,10 @@ type remoteCluster struct {
 
 	logger logrus.FieldLogger
 
-	metricLastFailureTimestamp prometheus.Gauge
-	metricReadinessStatus      prometheus.Gauge
-	metricTotalFailures        prometheus.Gauge
+	metricLastFailureTimestamp  prometheus.Gauge
+	metricReadinessStatus       prometheus.Gauge
+	metricTotalFailures         prometheus.Gauge
+	metricTotalCacheRevocations prometheus.Gauge
 }
 
 var (
