@@ -305,6 +305,15 @@ function update_label_filter {
     |= \"--label-filter=${label_filter}\"" "${config}"
 }
 
+function update_cluster_type {
+  local config="${1:?}"
+  local cluster_type="${2:?}"
+  yq -i "(.spec.applications[].spec.directives[].spec.args[]
+    | select(. == \"--cluster-type=*\"))
+    |= \"--cluster-type=${cluster_type}\"" "${config}"
+}
+
+
 function insert_clustermesh_image {
   local -r config="${1:?}"
   local -r clustermesh_image="${2:?}"
@@ -329,6 +338,11 @@ insert_control_plane \
 # This function assumes that `--label-filter` is already defined in WORA_CONFIG.
 if [[ -v WORA_GINKGO_LABEL_FILTER ]]; then
   update_label_filter "${WORA_CONFIG}" "${WORA_GINKGO_LABEL_FILTER:-}"
+fi
+
+# This function assumes that `--cluster-type` is already defined in WORA_CONFIG.
+if [[ -v WORA_GINKGO_CLUSTER_TYPE ]]; then
+  update_cluster_type "${WORA_CONFIG}" "${WORA_GINKGO_CLUSTER_TYPE:-}"
 fi
 
 if [[ -n "${CILIUM_DOCKER_IMAGE_TAG}" ]]; then

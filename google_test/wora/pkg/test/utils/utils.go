@@ -16,6 +16,7 @@ import (
 
 	gcpnetworkv1 "github.com/GoogleCloudPlatform/gke-networking-api/apis/network/v1"
 	networkclientset "github.com/GoogleCloudPlatform/gke-networking-api/client/network/clientset/versioned"
+	"github.com/pkg/sftp"
 	"golang.org/x/crypto/ssh"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -749,25 +750,25 @@ func NodePortReadiness(ctx context.Context, c k8sclient.Client, serviceName stri
 	return nil, nodeport
 }
 
-func ExecuteCommandFromBootstapper(ctx context.Context, cl k8sclient.Client, command string) (string, error) {
+func NewSSHConnectionAgainstBootstapper(ctx context.Context, cl k8sclient.Client) (*ssh.Client, error) {
 	kubeconfig := os.Getenv("KUBECONFIG")
 	directory := filepath.Dir(kubeconfig)
 	bootstrapperIP, err := extractBootstrapperIPFromFile(directory)
 	privateKeyPath := fmt.Sprintf("%s/id_rsa", directory)
 
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	// Read the private key.
 	privateKey, err := os.ReadFile(privateKeyPath)
 	if err != nil {
-		return "", fmt.Errorf("failed to read private key: %v", err)
+		return nil, fmt.Errorf("failed to read private key: %v", err)
 	}
 
 	// Create the signer from the private key.
 	signer, err := ssh.ParsePrivateKey(privateKey)
 	if err != nil {
-		return "", fmt.Errorf("failed to parse private key: %v", err)
+		return nil, fmt.Errorf("failed to parse private key: %v", err)
 	}
 
 	// Configure SSH client.
@@ -780,9 +781,17 @@ func ExecuteCommandFromBootstapper(ctx context.Context, cl k8sclient.Client, com
 	}
 
 	// Connect to the SSH server.
-	client, err := ssh.Dial("tcp", net.JoinHostPort(bootstrapperIP, "22"), config)
+	sshConnection, err := ssh.Dial("tcp", net.JoinHostPort(bootstrapperIP, "22"), config)
 	if err != nil {
-		return "", fmt.Errorf("failed to connect to SSH server: %v", err)
+		return nil, fmt.Errorf("failed to connect to SSH server: %v", err)
+	}
+	return sshConnection, nil
+}
+
+func ExecuteCommandFromBootstapper(ctx context.Context, cl k8sclient.Client, command string) (string, error) {
+	client, err := NewSSHConnectionAgainstBootstapper(ctx, cl)
+	if err != nil {
+		return "", err
 	}
 	defer client.Close()
 
@@ -806,6 +815,72 @@ func ExecuteCommandFromBootstapper(ctx context.Context, cl k8sclient.Client, com
 	}
 
 	return stdoutBuf.String(), nil
+}
+
+func ExecuteNonBlockingCommandFromBootstapper(ctx context.Context, cl k8sclient.Client, command string) (func(client *ssh.Client, session *ssh.Session) error, *ssh.Client, *ssh.Session, error) {
+	client, err := NewSSHConnectionAgainstBootstapper(ctx, cl)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+
+	// Create a new SSH session.
+	session, err := client.NewSession()
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("failed to create SSH session: %v", err)
+	}
+
+	// Execute the command.
+	err = session.Start(command)
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("failed to execute command: %v, stderr: %s", err)
+	}
+
+	closeConnectionFunc := func(client *ssh.Client, session *ssh.Session) error {
+		err := client.Close()
+		if err != nil {
+			return err
+		}
+		err = session.Close()
+		return err
+	}
+	return closeConnectionFunc, client, session, nil
+}
+
+func RetriveFileFromBootstapper(ctx context.Context, cl k8sclient.Client, remotePath string, localPath string) error {
+	sshConnection, err := NewSSHConnectionAgainstBootstapper(ctx, cl)
+	if err != nil {
+		return err
+	}
+	defer sshConnection.Close()
+	// Create SFTP client from the SSH connection
+	sftpClient, err := sftp.NewClient(sshConnection)
+	if err != nil {
+		return fmt.Errorf("failed to create SFTP client: %w", err)
+	}
+	defer sftpClient.Close()
+	remoteFile, err := sftpClient.Open(remotePath)
+	if err != nil {
+		return fmt.Errorf("failed to open remote file '%s' via SFTP: %w", remotePath, err)
+	}
+	defer remoteFile.Close()
+	localFile, err := os.Create(localPath)
+	if err != nil {
+		return fmt.Errorf("failed to create local file '%s': %w", localPath, err)
+	}
+	defer localFile.Close()
+
+	klog.Infof("Starting file transfer from remote '%s' to local '%s'...", remotePath, localPath)
+	bytesCopied, err := io.Copy(localFile, remoteFile)
+	if err != nil {
+		// If localFile.Close() or remoteFile.Close() fails, it might shadow this error
+		// Consider more sophisticated error handling for production if needed
+		_ = localFile.Close()    // Attempt to close to flush, ignore error here
+		_ = os.Remove(localPath) // Clean up partially written file
+		return fmt.Errorf("failed to copy file content from SFTP: %w", err)
+	}
+	klog.Infof("Successfully transferred %d bytes from bootstrapper:%s to localhost:%s",
+		bytesCopied, remotePath, localPath)
+	return nil
 }
 
 func RunCurlFromBootstrapper(ctx context.Context, cl k8sclient.Client, targetIP string, port int32, retryConfig wait.Waiting) error {

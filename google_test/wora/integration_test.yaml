@@ -34,6 +34,8 @@ spec:
           - --output-dir={{ RuntimePath "." }}
           - --junit-report=junit_results.xml
           - /test/e2e.test
+          - --
+          - --cluster-type=infracluster
           env:
             HTTP_PROXY: '{{ ResourceVar ((Ref "Cluster" "oob").Name) "HTTP_PROXY" }}'
             HTTPS_PROXY: '{{ ResourceVar ((Ref "Cluster" "oob").Name) "HTTPS_PROXY" }}'

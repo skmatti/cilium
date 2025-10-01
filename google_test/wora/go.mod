@@ -12,6 +12,7 @@ require (
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/onsi/ginkgo/v2 v2.23.4
 	github.com/onsi/gomega v1.36.3
+	github.com/pkg/sftp v1.13.1
 	gke-internal.googlesource.com/anthos-networking/apis/v2 v2.1.1-gke.2
 	gke-internal.googlesource.com/anthos-networking/ipam-controller v0.0.0-00010101000000-000000000000
 	gke-internal.googlesource.com/anthos-networking/test-infra v0.0.0-00010101000000-000000000000
@@ -87,6 +88,7 @@ require (
 	github.com/josharian/intern v1.0.0 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/k8snetworkplumbingwg/network-attachment-definition-client v0.0.0-20191119172530-79f836b90111 // indirect
+	github.com/kr/fs v0.1.0 // indirect
 	github.com/kr/pretty v0.3.1 // indirect
 	github.com/kr/text v0.2.0 // indirect
 	github.com/kubernetes-csi/external-snapshotter/client/v4 v4.2.0 // indirect
@@ -108,6 +110,7 @@ require (
 	github.com/pelletier/go-toml/v2 v2.0.5 // indirect
 	github.com/petermattis/goid v0.0.0-20180202154549-b0b1615b78e5 // indirect
 	github.com/pkg/browser v0.0.0-20210911075715-681adbf594b8 // indirect
+	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/power-devops/perfstat v0.0.0-20210106213030-5aafc221ea8c // indirect
 	github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring v0.68.0 // indirect
