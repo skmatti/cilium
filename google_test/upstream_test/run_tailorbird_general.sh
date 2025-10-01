@@ -104,6 +104,7 @@ rm cilium-linux-amd64.tar.gz{,.sha256sum}
 cilium version
 
 # Install Cilium into the Kubernetes cluster pointed to by your current kubectl context
+# healthChecking=false: https://github.com/cilium/cilium/issues/41975
 cilium install --wait --chart-directory=install/kubernetes/cilium \
   --helm-set=image.repository="${CILIUM_IMAGE_REPOSITORY}" \
   --helm-set=image.useDigest=false \
@@ -123,6 +124,7 @@ cilium install --wait --chart-directory=install/kubernetes/cilium \
   --helm-set=sessionAffinity=true \
   --helm-set=bpf.monitorAggregation=none \
   --helm-set=disableEnvoyVersionCheck=true \
+  --helm-set=healthChecking=false \
   --disable-check=minimum-version
 
 # Run tests
