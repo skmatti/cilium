@@ -601,6 +601,11 @@ ct_extract_ports6(struct __ctx_buff *ctx, int off, struct ipv6_ct_tuple *tuple)
 
 		break;
 	default:
+#if defined(ENABLE_EXTENDED_IP_PROTOCOLS)
+		tuple->sport = 0;
+		tuple->dport = 0;
+		break;
+#endif
 		/* Can't handle extension headers yet */
 		return DROP_CT_UNKNOWN_PROTO;
 	}
@@ -858,6 +863,11 @@ ct_extract_ports4(struct __ctx_buff *ctx, struct iphdr *ip4, int off,
 
 	default:
 		/* Can't handle extension headers yet */
+#if defined(ENABLE_EXTENDED_IP_PROTOCOLS)
+		tuple->sport = 0;
+		tuple->dport = 0;
+		break;
+#endif
 		return DROP_CT_UNKNOWN_PROTO;
 	}
 

@@ -177,6 +177,9 @@ const (
 	// identities and IP-to-identity mappings via clustermesh.
 	RemoteClusterNamespacesToSkip = "remote-cluster-namespaces-to-skip"
 
+	// EnableExtendedIPProtocols controls whether traffic with extended IP protocols is supported in datapath
+	EnableExtendedIPProtocols = "enable-extended-ip-protocols"
+
 	// EnableServiceAliasing controls service aliasing behaviour in ClusterMesh.
 	EnableServiceAliasing = "enable-service-aliasing"
 

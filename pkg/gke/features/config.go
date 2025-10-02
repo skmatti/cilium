@@ -125,6 +125,8 @@ type Config struct {
 	// PerimeterMapsGCIntervalSeconds specifies the number of seconds between successive runs of the perimeter maps GC process.
 	// This value is configurable via the "perimeter-maps-gc-interval-seconds" setting.
 	PerimeterMapsGCIntervalSeconds int `mapstructure:"perimeter-maps-gc-interval-seconds"`
+	// EnableExtendedIPProtocols controls whether traffic with extended IP protocols is supported in datapath
+	EnableExtendedIPProtocols bool `mapstructure:"enable-extended-ip-protocols"`
 }
 
 var defaultConfig = Config{
@@ -163,6 +165,7 @@ var defaultConfig = Config{
 	PerimeterEndpointNetwork:                  "g-perimeter-network",
 	EnableGooglePerimeterFeatures:             false,
 	PerimeterMapsGCIntervalSeconds:            1800,
+	EnableExtendedIPProtocols:                 false,
 }
 
 func (cfg Config) Flags(flags *pflag.FlagSet) {
@@ -263,6 +266,9 @@ func (cfg Config) Flags(flags *pflag.FlagSet) {
 
 	flags.Int(option.PerimeterMapsGCIntervalSeconds, defaultConfig.PerimeterMapsGCIntervalSeconds, "Set the interval in seconds between successive runs of the perimeter maps GC process")
 	flags.MarkHidden(option.PerimeterMapsGCIntervalSeconds)
+
+	flags.Bool(option.EnableExtendedIPProtocols, false, "Enable traffic with extended IP protocols in datapath")
+	flags.MarkHidden(option.EnableExtendedIPProtocols)
 }
 
 func configure(cfg Config, daemonCfg *option.DaemonConfig) (out struct {
@@ -320,5 +326,8 @@ func configure(cfg Config, daemonCfg *option.DaemonConfig) (out struct {
 
 	out.NodeDefines["GOOGLE_CT_MAP_V4"] = googlectmapconst.GoogleCtMapName
 
+	if cfg.EnableExtendedIPProtocols {
+		out.NodeDefines["ENABLE_EXTENDED_IP_PROTOCOLS"] = "1"
+	}
 	return
 }
