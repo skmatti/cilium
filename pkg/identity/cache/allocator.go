@@ -10,6 +10,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"slices"
 
 	"github.com/cilium/stream"
 	"github.com/google/renameio/v2"
@@ -22,6 +23,7 @@ import (
 	"github.com/cilium/cilium/pkg/identity/key"
 	"github.com/cilium/cilium/pkg/idpool"
 	api "github.com/cilium/cilium/pkg/k8s/apis/cilium.io"
+	ciliumio "github.com/cilium/cilium/pkg/k8s/apis/cilium.io"
 	clientset "github.com/cilium/cilium/pkg/k8s/client/clientset/versioned"
 	"github.com/cilium/cilium/pkg/k8s/identitybackend"
 	"github.com/cilium/cilium/pkg/kvstore"
@@ -767,9 +769,21 @@ func (m *CachingIdentityAllocator) WatchRemoteIdentities(remoteName string, remo
 		prefix = path.Join(kvstore.StateToCachePrefix(prefix), remoteName)
 	}
 
-	remoteAllocatorBackend, err := kvstoreallocator.NewKVStoreBackend(prefix, m.owner.GetNodeSuffix(), &key.GlobalIdentity{}, backend)
+	var remoteAllocatorBackend allocator.Backend
+	var err error
+	remoteAllocatorBackend, err = kvstoreallocator.NewKVStoreBackend(prefix, m.owner.GetNodeSuffix(), &key.GlobalIdentity{}, backend)
 	if err != nil {
 		return nil, fmt.Errorf("error setting up remote allocator backend: %w", err)
+	}
+
+	if len(option.Config.RemoteClusterNamespacesToSkip) > 0 {
+		remoteAllocatorBackend = &identityFilter{
+			Backend:          remoteAllocatorBackend,
+			namespacesToSkip: option.Config.RemoteClusterNamespacesToSkip,
+			log: log.WithFields(logrus.Fields{
+				logfields.ClusterName: remoteName,
+			}),
+		}
 	}
 
 	remoteAlloc, err := allocator.NewAllocator(&key.GlobalIdentity{}, remoteAllocatorBackend,
@@ -904,4 +918,53 @@ func clusterNameValidator(clusterName string) allocator.CacheValidator {
 
 		return nil
 	}
+}
+
+type identityFilter struct {
+	allocator.Backend
+	namespacesToSkip []string
+	log              *logrus.Entry
+}
+
+func (f *identityFilter) ListAndWatch(ctx context.Context, handler allocator.CacheMutations, stopChan chan struct{}) {
+	filteredHandler := &cacheMutationsFilter{
+		CacheMutations:   handler,
+		namespacesToSkip: f.namespacesToSkip,
+		log:              f.log,
+	}
+	f.Backend.ListAndWatch(ctx, filteredHandler, stopChan)
+}
+
+type cacheMutationsFilter struct {
+	allocator.CacheMutations
+	namespacesToSkip []string
+	log              *logrus.Entry
+}
+
+func (f *cacheMutationsFilter) OnUpsert(id idpool.ID, allocKey allocator.AllocatorKey) {
+	if globalKey, ok := allocKey.(*key.GlobalIdentity); ok {
+		if f.syncIdentity(id, globalKey) {
+			f.CacheMutations.OnUpsert(id, allocKey)
+			return
+		}
+		f.CacheMutations.OnDelete(id, allocKey)
+	} else {
+		f.CacheMutations.OnUpsert(id, allocKey)
+	}
+}
+
+func (f *cacheMutationsFilter) syncIdentity(id idpool.ID, globalID *key.GlobalIdentity) bool {
+	if len(f.namespacesToSkip) == 0 {
+		return true
+	}
+	labelsMap := globalID.Labels().K8sStringMap()
+	namespace, exists := labelsMap[ciliumio.PodNamespaceMetaNameLabel]
+	if exists && slices.Contains(f.namespacesToSkip, namespace) {
+		f.log.WithFields(logrus.Fields{
+			logfields.K8sNamespace: namespace,
+			logfields.Identity:     id,
+		}).Info("Ignoring identity from remote cluster because its namespace is configured to be skipped")
+		return false
+	}
+	return true
 }

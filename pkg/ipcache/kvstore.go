@@ -13,6 +13,7 @@ import (
 	"sync"
 
 	"github.com/sirupsen/logrus"
+	"golang.org/x/exp/slices"
 
 	cmtypes "github.com/cilium/cilium/pkg/clustermesh/types"
 	"github.com/cilium/cilium/pkg/identity"
@@ -331,6 +332,17 @@ func (iw *IPIdentityWatcher) OnUpdate(k storepkg.Key) {
 		// the two network endpoints that have the same IP adddress, but belongs
 		// to the different clusters.
 		ip = cmtypes.AnnotateIPCacheKeyWithClusterID(ip, iw.clusterID)
+	}
+
+	if len(option.Config.RemoteClusterNamespacesToSkip) > 0 && k8sMeta != nil {
+		if slices.Contains(option.Config.RemoteClusterNamespacesToSkip, k8sMeta.Namespace) {
+			iw.log.WithFields(logrus.Fields{
+				logfields.K8sNamespace: k8sMeta.Namespace,
+				logfields.IPAddr:       ip,
+				logfields.Identity:     peerIdentity,
+			}).Info("Skipping ipcache upsert for IP from remote cluster because its namespace is configured to be skipped")
+			return
+		}
 	}
 
 	// There is no need to delete the "old" IP addresses from this

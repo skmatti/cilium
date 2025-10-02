@@ -168,4 +168,8 @@ const (
 	// PerimeterMapsGCIntervalSeconds is the name of the option to set the interval (in seconds)
 	// between successive runs of the perimeter maps GC process.
 	PerimeterMapsGCIntervalSeconds = "perimeter-maps-gc-interval-seconds"
+
+	// RemoteClusterNamespacesToSkip specifies a list of namespaces in remote clusters to ignore when synchronizing
+	// identities and IP-to-identity mappings via clustermesh.
+	RemoteClusterNamespacesToSkip = "remote-cluster-namespaces-to-skip"
 )

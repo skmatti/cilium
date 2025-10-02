@@ -2520,6 +2520,9 @@ type DaemonConfig struct {
 	// CA certificates to use for TLS with mutual authentication (mTLS) on the
 	// metrics server. The files must contain PEM encoded data.
 	AgentMetricsServerTLSClientCAFiles []string
+
+	// RemoteClusterNamespacesToSkip specifies a list of namespaces from remote clusters to skip watching identities and IPs from.
+	RemoteClusterNamespacesToSkip []string
 }
 
 var (
@@ -3688,6 +3691,8 @@ func (c *DaemonConfig) Populate(vp *viper.Viper) {
 	if c.KVStore != "" {
 		c.IdentityRestoreGracePeriod = defaults.IdentityRestoreGracePeriodKvstore
 	}
+
+	c.RemoteClusterNamespacesToSkip = vp.GetStringSlice(RemoteClusterNamespacesToSkip)
 }
 
 func (c *DaemonConfig) populateLoadBalancerSettings(vp *viper.Viper) {
