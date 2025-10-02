@@ -18,6 +18,9 @@
 #define ENABLE_EGRESS_GATEWAY_REDIRECT
 
 /* TEST VALUES */
+#define SRC_NODE_MAC mac_one
+#define DST_NODE_MAC mac_two
+
 #define SRC_NODE_IP v4_node_one
 #define DST_NODE_IP v4_node_two
 
@@ -33,6 +36,19 @@
 #define LXC_INDEX 10
 
 #define SRC_POD_LXC
+
+#define fib_lookup mock_fib_lookup
+
+long mock_fib_lookup(__maybe_unused void *ctx,
+		     struct bpf_fib_lookup *params,
+		     __maybe_unused int plen,
+		     __maybe_unused __u32 flags)
+{
+	__bpf_memcpy_builtin(params->smac, (__u8 *)SRC_NODE_MAC, ETH_ALEN);
+	__bpf_memcpy_builtin(params->dmac, (__u8 *)DST_NODE_MAC, ETH_ALEN);
+
+	return BPF_FIB_LKUP_RET_SUCCESS;
+}
 
 #include "bpf_lxc.c"
 

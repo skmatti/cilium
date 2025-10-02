@@ -88,7 +88,7 @@ fib_do_redirect(struct __ctx_buff *ctx, const bool needs_l2_check,
 		const struct bpf_fib_lookup_padded *fib_params,
 		bool allow_neigh_map, __s8 *fib_ret, int *oif)
 {
-#if defined(MULTI_NIC_DEVICE_TYPE) || defined(ENABLE_GOOGLE_MULTI_NIC)
+#if !defined(ENABLE_GOOGLE_VPC) && !defined(PERIMETER_FEATURES) && (defined(MULTI_NIC_DEVICE_TYPE) || defined(ENABLE_GOOGLE_MULTI_NIC))
 	int r;
 	r = google_fib_do_redirect(ctx, fib_params, fib_ret, oif);
 	if(r != CTX_ACT_OK) {

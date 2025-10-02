@@ -133,7 +133,7 @@ static __always_inline int google_fib_do_redirect(struct __ctx_buff *ctx __maybe
 		return ret;
 	}
 #endif
-#elif defined(IS_BPF_HOST) && defined(ENABLE_GOOGLE_MULTI_NIC) && !defined(PERIMETER_FEATURES)
+#elif defined(IS_BPF_HOST) && defined(ENABLE_GOOGLE_MULTI_NIC)
 	// L2/L3 + ETP:Cluster (LB-Node): reply path of packets on the LB node for ETP:Cluster MN services.
 	// redirect reply packets to the interface corresponding to the network using the hostdevrouting bpf map.
 	if (DIRECT_ROUTING_DEV_IFINDEX != NATIVE_DEV_IFINDEX) {

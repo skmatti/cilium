@@ -917,8 +917,16 @@ static __always_inline int __google_encap_redirect_v4(
 		// However, ifindex is set to zero in some cases in encap.h when __ctx_is == __ctx_xdp
 #  if __ctx_is == __ctx_skb
 #   if GOOGLE_IPSEC_MODE == GOOGLE_IPSEC_MODE_DISABLED
+		void *data, *data_end;
+		struct iphdr *ip4;
+		__s8 ext_err = 0;
+		int oif;
+
+		if (!revalidate_data(ctx, &data, &data_end, &ip4))
+			return DROP_INVALID;
+
 		ifindex = DIRECT_ROUTING_DEV_IFINDEX;
-		ret = ctx_redirect(ctx, ifindex, 0);
+		ret = fib_redirect_v4(ctx, ETH_HLEN, ip4, true, false, &ext_err, &oif);
 		goto to_redirect;
 #   else  /* GOOGLE_IPSEC_MODE */
 		// If IPSec is enabled, send the packet back to kernel for IPSec encryption.
