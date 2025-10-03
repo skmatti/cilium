@@ -1394,7 +1394,7 @@ skip_vtep:
 					     ip4->daddr, encrypt_key, &key,
 					     SECLABEL_IPV4, *dst_sec_identity, &trace);
 		if (ret == DROP_NO_TUNNEL_ENDPOINT)
-#ifdef MULTI_NIC_DEVICE_TYPE
+#if !defined(ENABLE_GOOGLE_VPC) && !defined(PERIMETER_FEATURES) && defined(MULTI_NIC_DEVICE_TYPE)
 			// Pass the packet to parent interface when tunnel endpoint is not found.
 			goto maybe_pass_to_parent;
 #else
