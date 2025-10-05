@@ -370,7 +370,7 @@ int google_perimeter__from_container_elb_forward_path(struct __ctx_buff *ctx,
 	/* Backend pod is on a remote node relative to the perimeter node */
 	rep = lookup_ip4_remote_endpoint(ip4->daddr, 0);
 
-	if (rep) {
+	if (rep && identity_is_cluster(rep->sec_identity)) {
 		ret = google_vpc_lookup_ip4_remote_endpoint(rep->tunnel_endpoint, stage_ctx->cluster_id, &rep);
 
 		if (IS_ERR(ret))
