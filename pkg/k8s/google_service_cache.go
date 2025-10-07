@@ -27,6 +27,7 @@ import (
 	"fmt"
 	"net"
 	"reflect"
+	"strings"
 
 	"github.com/cilium/cilium/pkg/annotation"
 	cmtypes "github.com/cilium/cilium/pkg/clustermesh/types"
@@ -421,4 +422,148 @@ func injectGlobalILBInfo(svc *slimv1.Service, internalService *Service) {
 
 func hasGlobalILBAnnotation(data map[string]string) bool {
 	return (data[serviceAnnotationKey] == serviceAnnotationValue) || (data[serviceAnnotationKey] == globalServiceAnnotationValue)
+}
+
+func (s *ServiceCache) serviceAliasingUpdate(svcID *ServiceID, endpoints *Endpoints) error {
+	if !s.GoogleConfig.EnableServiceAliasing {
+		return nil
+	}
+
+	s.serviceAliasMapMutex.Lock()
+	defer s.serviceAliasMapMutex.Unlock()
+	if aliasID, ok := s.serviceAliasMap[*svcID]; ok {
+		// Only do port renaming for service aliased services.
+		s.renamePorts(svcID, endpoints)
+
+		svcID.Name = aliasID.Name
+		svcID.Namespace = aliasID.Namespace
+		return nil
+	}
+	return fmt.Errorf("alias not found for service: %v", svcID)
+}
+
+func (s *ServiceCache) serviceAliasingDelete(svcID *ServiceID) error {
+	if !s.GoogleConfig.EnableServiceAliasing {
+		return nil
+	}
+
+	s.serviceAliasMapMutex.Lock()
+	defer s.serviceAliasMapMutex.Unlock()
+	if aliasID, ok := s.serviceAliasMap[*svcID]; ok {
+		// cleanup renamePortMap
+		delete(s.renamePortMap, aliasID)
+
+		svcID.Name = aliasID.Name
+		svcID.Namespace = aliasID.Namespace
+		delete(s.serviceAliasMap, aliasID)
+		return nil
+	}
+	return fmt.Errorf("alias not found for service: %v", svcID)
+}
+
+func (s *ServiceCache) parseServiceAlias(svc *slimv1.Service, swg *lock.StoppableWaitGroup) {
+	if !s.GoogleConfig.EnableServiceAliasing {
+		return
+	}
+
+	scopedLog := log.WithFields(logrus.Fields{
+		"service": svc,
+	})
+	svcID := ServiceID{Name: svc.Name, Namespace: svc.Namespace}
+	oldAlias, hasOldAlias := s.serviceAliasMap[svcID]
+
+	newAliasName, hasNewAliasName := svc.Annotations[s.GoogleConfig.ServiceAliasNameAnnotation]
+	hasNewAlias := hasNewAliasName && newAliasName != "" && s.GoogleConfig.ServiceAliasNamespace != ""
+
+	var newAlias ServiceID
+	if hasNewAlias {
+		newAlias = ServiceID{Name: newAliasName, Namespace: s.GoogleConfig.ServiceAliasNamespace}
+
+		// Only do port renaming for service aliased services.
+		s.parsePortMap(svc)
+		// Only mark service as global for service aliased services.
+		markLBServiceGlobal(svc)
+	}
+	scopedLog = scopedLog.WithFields(logrus.Fields{
+		"original_service": svcID,
+		"old_alias":        oldAlias,
+		"new_alias":        newAlias,
+	})
+
+	if (!hasNewAlias && !hasOldAlias) || (oldAlias == newAlias) {
+		return
+	}
+	// If there is a change in alias, we need to send a delete event for the older service.
+	// We do this before making changes to the s.serviceAliasMap
+	s.DeleteService(svc, swg)
+
+	s.serviceAliasMapMutex.Lock()
+	defer s.serviceAliasMapMutex.Unlock()
+
+	if hasOldAlias {
+		delete(s.serviceAliasMap, svcID)
+		if !hasNewAlias {
+			// cleanup renamePortMap
+			delete(s.renamePortMap, svcID)
+		}
+	}
+
+	if hasNewAlias {
+		s.serviceAliasMap[svcID] = newAlias
+	}
+}
+
+func (s *ServiceCache) parsePortMap(svc *slimv1.Service) {
+	svcID := ServiceID{Name: svc.Name, Namespace: svc.Namespace}
+	portMap := map[string]string{}
+	for _, port := range svc.Spec.Ports {
+		portMap[port.Name] = fmt.Sprintf("%s-%d", strings.ToLower(string(port.Protocol)), port.Port)
+	}
+	s.renamePortMap[svcID] = portMap
+}
+
+func (s *ServiceCache) renamePorts(svcID *ServiceID, endpoints *Endpoints) {
+	svc, ok := s.services[*svcID]
+	if !ok {
+		return
+	}
+
+	renamePortMap, ok := s.renamePortMap[*svcID]
+	if !ok {
+		return
+	}
+
+	// For GDC-AG ForwardingRules:
+	// Change both svc and endpoint port names to match`protocol-port`
+	// pattern. This will enable service merging in remote clusters.
+	portMap := map[loadbalancer.FEPortName]*loadbalancer.L4Addr{}
+	for name, port := range svc.Ports {
+		if newName, ok := renamePortMap[string(name)]; ok {
+			portMap[loadbalancer.FEPortName(newName)] = port
+		} else {
+			portMap[name] = port
+		}
+	}
+	svc.Ports = portMap
+
+	for _, backend := range endpoints.Backends {
+		newPortConfig := map[string]*loadbalancer.L4Addr{}
+		for oldPortName := range backend.Ports {
+			if newPortName, ok := renamePortMap[oldPortName]; ok {
+				newPortConfig[newPortName] = backend.Ports[oldPortName]
+			}
+		}
+		backend.Ports = newPortConfig
+	}
+}
+
+func markLBServiceGlobal(svc *slimv1.Service) {
+	if svc.Spec.Type == slimv1.ServiceTypeLoadBalancer {
+
+		// add cilium global annotation
+		if svc.Annotations == nil {
+			svc.Annotations = make(map[string]string)
+		}
+		svc.Annotations[annotation.GlobalService] = globalServiceTrue
+	}
 }

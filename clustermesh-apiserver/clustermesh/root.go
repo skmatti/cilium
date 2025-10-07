@@ -413,6 +413,8 @@ func startServer(
 		StoreFactory:  factory,
 		SyncCallback:  syncState.WaitForResource(),
 		SyncPredicate: googleSyncer.ShouldSyncNamespace,
+
+		GoogleConfig: ginfo,
 	})
 	syncState.Stop()
 

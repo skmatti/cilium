@@ -19,6 +19,8 @@ import (
 	"github.com/cilium/cilium/pkg/lock"
 	"github.com/cilium/cilium/pkg/logging/logfields"
 	serviceStore "github.com/cilium/cilium/pkg/service/store"
+
+	cmconfig "github.com/cilium/cilium/pkg/clustermesh/config"
 )
 
 var (
@@ -101,6 +103,8 @@ type ServiceSyncParameters struct {
 	StoreFactory  store.Factory
 	SyncCallback  func(context.Context)
 	SyncPredicate func(string) bool
+
+	GoogleConfig cmconfig.GoogleConfig
 }
 
 // StartSynchronizingServices starts a controller for synchronizing services from k8s to kvstore
@@ -108,6 +112,8 @@ type ServiceSyncParameters struct {
 // will be synchronized. For clustermesh we only need to synchronize shared services, while for
 // VM support we need to sync all the services.
 func StartSynchronizingServices(ctx context.Context, wg *sync.WaitGroup, cfg ServiceSyncParameters) {
+	K8sSvcCache.GoogleConfig = cfg.GoogleConfig
+
 	kvstoreReady := make(chan struct{})
 
 	if cfg.SyncPredicate != nil {

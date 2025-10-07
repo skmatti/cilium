@@ -19,6 +19,7 @@ import (
 	core_v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/sets"
 
+	cmconfig "github.com/cilium/cilium/pkg/clustermesh/config"
 	cmtypes "github.com/cilium/cilium/pkg/clustermesh/types"
 	datapathTables "github.com/cilium/cilium/pkg/datapath/tables"
 	"github.com/cilium/cilium/pkg/datapath/types"
@@ -160,6 +161,18 @@ type ServiceCache struct {
 	// UseIngressAsFEIP sets the service cache to use the ingress IP as the
 	// frontend IP for ILB. This is required for GDC-H ILB on clustermesh.
 	UseIngressAsFEIP bool
+
+	// googleConfig includes all the google feature flags.
+	GoogleConfig cmconfig.GoogleConfig
+
+	// serviceAliasMap maps a service ID to its alias ID.
+	serviceAliasMap      map[ServiceID]ServiceID
+	serviceAliasMapMutex lock.RWMutex
+
+	// renamePortMap keeps a mapping of the original service port-name to
+	// the expected port-names for GDC-AG services.
+	// Port names for aliased services are updated using this map.
+	renamePortMap map[ServiceID]map[string]string
 }
 
 // NewServiceCache returns a new ServiceCache
@@ -180,6 +193,9 @@ func NewServiceCache(db *statedb.DB, nodeAddrs statedb.Table[datapathTables.Node
 		emitNotifications:     emitNotifications,
 		completeNotifications: completeNotifications,
 		metrics:               svcMetrics,
+
+		serviceAliasMap: make(map[ServiceID]ServiceID),
+		renamePortMap:   make(map[ServiceID]map[string]string),
 	}
 }
 
@@ -338,6 +354,10 @@ func (s *ServiceCache) ForEachService(yield func(svcID ServiceID, svc *Service, 
 // be parsed and a bool to indicate whether the service was changed in the
 // cache or not.
 func (s *ServiceCache) UpdateService(k8sSvc *slim_corev1.Service, swg *lock.StoppableWaitGroup) ServiceID {
+	swg.Add()
+	defer swg.Done()
+	s.parseServiceAlias(k8sSvc, swg)
+
 	var addrs []netip.Addr
 	if s.nodeAddrs != nil {
 		addrs = statedb.Collect(
@@ -360,7 +380,7 @@ func (s *ServiceCache) UpdateService(k8sSvc *slim_corev1.Service, swg *lock.Stop
 		mutator(k8sSvc, newService)
 	}
 
-	if features.GlobalConfig.EnableGDCILB && isIlbService(k8sSvc) {
+	if s.GoogleConfig.EnableGDCILB && isIlbService(k8sSvc) {
 		injectIlbInfo(k8sSvc, newService, s.UseIngressAsFEIP)
 	}
 
@@ -368,7 +388,7 @@ func (s *ServiceCache) UpdateService(k8sSvc *slim_corev1.Service, swg *lock.Stop
 	defer s.mutex.Unlock()
 
 	// Regular global service at this point. Simply track and continue.
-	if features.GlobalConfig.EnableGDCILB && isGlobalILBService(k8sSvc) {
+	if s.GoogleConfig.EnableGDCILB && isGlobalILBService(k8sSvc) {
 		s.globalILBUpdateLocal(svcID)
 	}
 
@@ -388,6 +408,12 @@ func (s *ServiceCache) UpdateService(k8sSvc *slim_corev1.Service, swg *lock.Stop
 	endpoints, serviceReady := s.correlateEndpoints(svcID)
 	if serviceReady {
 		updateOrDeleteEndpointsInHybrid(svcID, oldService, newService, endpoints, swg)
+
+		if err := s.serviceAliasingUpdate(&svcID, endpoints); err != nil {
+			log.Error(err)
+			return svcID
+		}
+
 		swg.Add()
 		s.emitEvent(ServiceEvent{
 			Action:       UpdateService,
@@ -408,6 +434,11 @@ func (s *ServiceCache) EnsureService(svcID ServiceID, swg *lock.StoppableWaitGro
 	defer s.mutex.RUnlock()
 	if svc, found := s.services[svcID]; found {
 		if endpoints, serviceReady := s.correlateEndpoints(svcID); serviceReady {
+			if err := s.serviceAliasingUpdate(&svcID, endpoints); err != nil {
+				log.Error(err)
+				return false
+			}
+
 			swg.Add()
 			s.emitEvent(ServiceEvent{
 				Action:       UpdateService,
@@ -432,7 +463,7 @@ func (s *ServiceCache) DeleteService(k8sSvc *slim_corev1.Service, swg *lock.Stop
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
-	if features.GlobalConfig.EnableGDCILB && isGlobalILBService(k8sSvc) {
+	if s.GoogleConfig.EnableGDCILB && isGlobalILBService(k8sSvc) {
 		s.deleteGlobalILBServiceLocal(svcID, swg)
 		return
 	}
@@ -444,6 +475,12 @@ func (s *ServiceCache) DeleteService(k8sSvc *slim_corev1.Service, swg *lock.Stop
 	if serviceOK {
 		s.metrics.DelService(oldService)
 		deleteServiceInHybrid(svcID, oldService, swg)
+
+		if err := s.serviceAliasingDelete(&svcID); err != nil {
+			log.Error(err)
+			return
+		}
+
 		swg.Add()
 		s.emitEvent(ServiceEvent{
 			Action:    DeleteService,
@@ -506,6 +543,11 @@ func (s *ServiceCache) UpdateEndpoints(newEndpoints *Endpoints, swg *lock.Stoppa
 	}
 	endpoints, serviceReady := s.correlateEndpoints(esID.ServiceID)
 	if ok && serviceReady {
+		if err := s.serviceAliasingUpdate(&esID.ServiceID, endpoints); err != nil {
+			log.Error(err)
+			return esID.ServiceID, newEndpoints
+		}
+
 		swg.Add()
 		s.emitEvent(ServiceEvent{
 			Action:       UpdateService,

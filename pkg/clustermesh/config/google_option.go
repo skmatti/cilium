@@ -39,20 +39,26 @@ var (
 
 // GoogleConfig contains Google-specific clustermesh configuration.
 type GoogleConfig struct {
-	EnableGDCILB           bool              `mapstructure:"enable-gdc-ilb"`
-	DisableCiliumNodeSync  bool              `mapstructure:"google-cm-disable-cilium-node-sync"`
-	OverrideIdentityLabels map[string]string `mapstructure:"google-cm-override-identity-labels"`
-	ServiceNamespaceLabels []string          `mapstructure:"google-cm-service-namespace-labels"`
-	EndpointLabelSelectors []string          `mapstructure:"google-cm-endpoint-selectors"`
+	EnableGDCILB               bool              `mapstructure:"enable-gdc-ilb"`
+	DisableCiliumNodeSync      bool              `mapstructure:"google-cm-disable-cilium-node-sync"`
+	OverrideIdentityLabels     map[string]string `mapstructure:"google-cm-override-identity-labels"`
+	ServiceNamespaceLabels     []string          `mapstructure:"google-cm-service-namespace-labels"`
+	EndpointLabelSelectors     []string          `mapstructure:"google-cm-endpoint-selectors"`
+	EnableServiceAliasing      bool              `mapstructure:"enable-service-aliasing"`
+	ServiceAliasNameAnnotation string            `mapstructure:"service-alias-name-annotation"`
+	ServiceAliasNamespace      string            `mapstructure:"service-alias-namespace"`
 }
 
 // DefaultGoogleConfig represents the default configuration.
 var DefaultGoogleConfig = GoogleConfig{
-	EnableGDCILB:           false,
-	DisableCiliumNodeSync:  false,
-	OverrideIdentityLabels: make(map[string]string),
-	ServiceNamespaceLabels: []string{},
-	EndpointLabelSelectors: []string{},
+	EnableGDCILB:               false,
+	DisableCiliumNodeSync:      false,
+	OverrideIdentityLabels:     make(map[string]string),
+	ServiceNamespaceLabels:     []string{},
+	EndpointLabelSelectors:     []string{},
+	EnableServiceAliasing:      false,
+	ServiceAliasNameAnnotation: "",
+	ServiceAliasNamespace:      "",
 }
 
 // Flags implements the cell.Flagger interface, to register the given flags.
@@ -72,4 +78,13 @@ func (cfg GoogleConfig) Flags(flags *flag.FlagSet) {
 	flags.StringSlice(googleCMEndpointLabelSelectors, cfg.EndpointLabelSelectors,
 		"List of endpoint label selectors to enable clustermesh distribution for. An endpoint must comply with at least one of the label selectors to be distributed. For e.g. k1,!k2 k3=v3 selects endpoints that have the label key k1, as well as endpoints that have the key-value pair k3=v3 and do not have the key k2.")
 	flags.MarkHidden(googleCMEndpointLabelSelectors)
+
+	// If service aliasing is enabled, service objects are exported in Clustermesh with alias names.
+	// Service alias name is derived from value of the service annotation key defined by ServiceAliasNameAnnotation flag.
+	// Service alias namespace is defined by ServiceAliasNamespace flag.
+	flags.Bool(option.EnableServiceAliasing, cfg.EnableServiceAliasing, fmt.Sprintf("Enable service aliasing in ClusterMesh. When enabled, ServiceEvents are renamed to use service name parsed from the `--%s` annotation on the service and the namespace is set to value of `--%s` parameter passed to clustermesh.", option.ServiceAliasNameAnnotation, option.ServiceAliasNamespace))
+
+	flags.String(option.ServiceAliasNameAnnotation, cfg.ServiceAliasNameAnnotation, "Service Annotation which specifies alias name")
+
+	flags.String(option.ServiceAliasNamespace, cfg.ServiceAliasNamespace, "Namespace to be used for service aliasing")
 }

@@ -172,4 +172,13 @@ const (
 	// RemoteClusterNamespacesToSkip specifies a list of namespaces in remote clusters to ignore when synchronizing
 	// identities and IP-to-identity mappings via clustermesh.
 	RemoteClusterNamespacesToSkip = "remote-cluster-namespaces-to-skip"
+
+	// EnableServiceAliasing controls service aliasing behaviour in ClusterMesh.
+	EnableServiceAliasing = "enable-service-aliasing"
+
+	// ServiceAliasNameAnnotation specifies the service annotation which contains the alias name.
+	ServiceAliasNameAnnotation = "service-alias-name-annotation"
+
+	// ServiceAliasNamespace specifies the namespace to be used for service aliasing.
+	ServiceAliasNamespace = "service-alias-namespace"
 )
