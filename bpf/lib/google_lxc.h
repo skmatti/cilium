@@ -9,6 +9,7 @@ struct from_lxc_context {
 	__u32 tunnel_endpoint;
 	__u8 encrypt_key;
 	bool skip_tunnel;
+	__u8 pad[6];
 };
 
 struct {
