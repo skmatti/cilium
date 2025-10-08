@@ -134,6 +134,15 @@ function remove_env {
   done
 }
 
+# Function to insert the resource owner into a rookery.
+function insert_resource_owner {
+  local config="${1:?}"
+  local owner="${2:?}"
+
+  env owner="${owner}" \
+    yq -i '.spec.resourceOwner = strenv(owner)' "${config}"
+}
+
 # Function to determine cluster platform based on provider and distribution values.
 function cluster_platform {
   local -r config="${1:?}"
@@ -166,6 +175,10 @@ if [[ "${NUM_CLUSTERS}" -gt 1 ]] && [[ "${PLATFORM}" != "baremetal-gke" ]]; then
   echo "Multiple clusters are only supported for baremetal-gke platform." >&2
   exit 1
 fi
+
+# Insert resource owner into SUT and WORA config.
+insert_resource_owner "${TBCONFIG}" "${JOB_SPEC:-"${USER}"}"
+insert_resource_owner "${WORA_CONFIG}" "${JOB_SPEC:-"${USER}"}"
 
 # Set up building and pushing images and add-on configs.
 PROJECT=${GCP_PROJECT:-"anthos-networking-ci"}
