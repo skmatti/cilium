@@ -146,7 +146,7 @@ int google_perimeter__handle_perimeter_lb_traffic(struct __ctx_buff *ctx,
 		/* Source is not external, return to bpf_lxc/bpf_host to continue normal
 		 * behaviour.
 		 */
-		return CTX_ACT_OK;
+		return HOOK_ACT_CONTINUE;
 	}
 
 	lb4_extract_tuple(ctx, ip4, ETH_HLEN, &l4_off, &tuple);
@@ -351,6 +351,8 @@ int google_perimeter__from_container_elb_forward_path(struct __ctx_buff *ctx,
 	/* Check if this is ELB traffic */
 	if (stage_ctx->ct_status == CT_REPLY || stage_ctx->ct_status == CT_RELATED)
 		return HOOK_ACT_CONTINUE;
+
+	/* TODO: lconnery (b/450614670) We need to check SRC IP identity_is_cluster */
 
 	/* Backend pod is running on the same node as the perimeter node */
 	lep = __lookup_ip4_endpoint(ip4->daddr);
