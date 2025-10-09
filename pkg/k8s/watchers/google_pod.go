@@ -10,7 +10,7 @@ import (
 	"github.com/cilium/cilium/pkg/controller"
 	"github.com/cilium/cilium/pkg/datapath/linux/bandwidth"
 	"github.com/cilium/cilium/pkg/endpoint"
-	"github.com/cilium/cilium/pkg/gke/features"
+	"github.com/cilium/cilium/pkg/gke/multinic/multinicconfig"
 	"github.com/cilium/cilium/pkg/k8s"
 	"github.com/cilium/cilium/pkg/k8s/client"
 	"github.com/cilium/cilium/pkg/labels"
@@ -21,7 +21,7 @@ import (
 )
 
 func (k *K8sPodWatcher) multinicEndpointsLabelUpdate(podNSName string, oldPodLabels, newPodLabels map[string]string) error {
-	if features.GlobalConfig.EnableGoogleMultiNICHostFirewall {
+	if multinicconfig.Enabled() {
 		return nil
 	}
 
@@ -51,7 +51,7 @@ func (k *K8sPodWatcher) multinicEndpointsLabelUpdate(podNSName string, oldPodLab
 }
 
 func (k *K8sPodWatcher) multinicEndpointsAnnotationUpdate(podNSName string, annoChangedProxy, annoChangedBandwidth, annoChangedNoTrack bool) error {
-	if features.GlobalConfig.EnableGoogleMultiNICHostFirewall {
+	if multinicconfig.Enabled() {
 		return nil
 	}
 
