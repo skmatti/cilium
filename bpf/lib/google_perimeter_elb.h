@@ -250,10 +250,10 @@ int google_perimeter__redirect_to_perimeter_gateway(struct __ctx_buff *ctx,
 	/* Check if Perimeter Gateway is a remote endpoint */
 	rep = lookup_ip4_remote_endpoint(perimeter_gw_ip, 0);
 
-	if (rep) {
-	/* Set perimeter gateway IP as a tunnel option
-	 * and send it to the node hosting the perimeter gateway.
-	 */
+	if (rep && rep->tunnel_endpoint) {
+		/* Set perimeter gateway IP as a tunnel option
+		 * and send it to the node hosting the perimeter gateway.
+		 */
 		google_perimeter__set_geneve_perimeter_egress_opt4(perimeter_gw_ip, &gopt);
 
 		return __encap_and_redirect_with_nodeid_opt(ctx, 0,

@@ -24,6 +24,7 @@
 #define DEST_LXC_ID 200
 #define HAVE_FIB_NEIGH 1
 #define GATEWAY_NODE_2_IP v4_node_one
+#define GATEWAY_NODE_BM_IP v4_node_two
 
 __section("mock-handle-policy")
 int mock_handle_policy(struct __ctx_buff *ctx __maybe_unused)
@@ -160,7 +161,8 @@ int google_egressgw_remote_ep_setup(struct __ctx_buff *ctx)
 		.ip4 = GATEWAY_NODE_IP,
 	};
 	struct remote_endpoint_info cache_value = {
-		.sec_identity = 112233
+		.sec_identity = 112233,
+		.tunnel_endpoint = GATEWAY_NODE_BM_IP,
 	};
 	map_update_elem(&IPCACHE_MAP, &cache_key, &cache_value, BPF_ANY);
 
@@ -351,7 +353,8 @@ int google_ct_egress_redirect_setup(struct __ctx_buff *ctx)
 		.ip4 = GATEWAY_NODE_2_IP,
 	};
 	struct remote_endpoint_info cache_value = {
-		.sec_identity = 445566
+		.sec_identity = 445566,
+		.tunnel_endpoint = GATEWAY_NODE_BM_IP,
 	};
 	map_update_elem(&IPCACHE_MAP, &cache_key, &cache_value, BPF_ANY);
 
@@ -384,6 +387,8 @@ int google_ct_egress_redirect_check(const struct __ctx_buff *ctx)
 		.ip_opt = GATEWAY_NODE_2_IP,
 		.src_mac = client_mac,
 		.dst_mac = ext_svc_mac,
+		.outer_src_ip = IPV4_DIRECT_ROUTING,
+		.outer_dst_ip = GATEWAY_NODE_BM_IP,
 	});
 
 	policy_delete_egress_entry();

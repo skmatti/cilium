@@ -10,6 +10,8 @@
 #include "lib/common.h"
 #include "lib/trace.h"
 #include "lib/encrypt.h"
+#include "lib/google/hooks_common.h"
+#include "lib/google/geneve.h"
 
 __section_entry
 int cil_from_network(struct __ctx_buff *ctx)
@@ -26,6 +28,11 @@ int cil_from_network(struct __ctx_buff *ctx)
 	enum trace_point obs_point_from = TRACE_FROM_NETWORK;
 
 	bpf_clear_meta(ctx);
+
+	// TODO(b/450354401): Revisit this logic when multi-attachment is implemented.
+	ret = geneve_reset_state();
+	if (ret != HOOK_ACT_CONTINUE)
+		return ret;
 
 	/* This program should be attached to the tc-ingress of
 	 * the network-facing device. Thus, as far as Cilium

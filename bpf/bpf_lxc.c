@@ -2642,6 +2642,11 @@ int cil_to_container(struct __ctx_buff *ctx)
 
 	bpf_clear_meta(ctx);
 
+	// TODO(b/450354401): Revisit this logic when multi-attachment is implemented.
+	ret = geneve_reset_state();
+	if (ret != HOOK_ACT_CONTINUE)
+		return ret;
+
 	magic = inherit_identity_from_host(ctx, &identity);
 	if (magic == MARK_MAGIC_PROXY_INGRESS || magic == MARK_MAGIC_PROXY_EGRESS)
 		trace = TRACE_FROM_PROXY;

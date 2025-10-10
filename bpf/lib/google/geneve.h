@@ -285,12 +285,7 @@ geneve_get_current_bpf_program(void)
 static __always_inline bool
 geneve_metadata_is_set(const struct geneve_metadata *metadata)
 {
-	return metadata &&
-	       (metadata->tunnel_key.tunnel_id || // VNI is set
-		metadata->opt_count || // At least one option is present
-		metadata->tunnel_key.local_ipv4 || // Source IP address is set
-		metadata->tunnel_key.remote_ipv4 // Destination IP address is set
-	       );
+	return metadata && metadata->tunnel_key.remote_ipv4;
 }
 
 /*
@@ -1315,6 +1310,12 @@ static __always_inline int google_geneve_ctx_redirect(
 		return XDP_TX;
 # endif
 	return redirect(ifindex, flags);
+}
+
+
+static __always_inline int geneve_reset_state(void)
+{
+	return HOOK_ACT_CONTINUE;
 }
 
 static __always_inline int goog_geneve_pre_ctr_egress_start4(void)

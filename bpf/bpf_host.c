@@ -1554,6 +1554,11 @@ int cil_to_netdev(struct __ctx_buff *ctx __maybe_unused)
 
 	bpf_clear_meta(ctx);
 
+	// TODO(b/450354401): Revisit this logic when multi-attachment is implemented.
+	ret = geneve_reset_state();
+	if (ret != HOOK_ACT_CONTINUE)
+		return ret;
+
 	if (magic == MARK_MAGIC_HOST || magic == MARK_MAGIC_OVERLAY || ctx_mark_is_wireguard(ctx))
 		src_sec_identity = HOST_ID;
 #ifdef ENABLE_IDENTITY_MARK
@@ -1831,6 +1836,11 @@ int cil_to_host(struct __ctx_buff *ctx)
 	bool traced = false;
 	__u32 src_id = 0;
 	__s8 ext_err = 0;
+
+	// TODO(b/450354401): Revisit this logic when multi-attachment is implemented.
+	ret = geneve_reset_state();
+	if (ret != HOOK_ACT_CONTINUE)
+		return ret;
 
 	/* Prefer ctx->mark when it is set to one of the expected values.
 	 * Also see https://github.com/cilium/cilium/issues/36329.
