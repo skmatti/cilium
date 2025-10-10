@@ -304,10 +304,11 @@ func (e *Endpoint) ParentInterfaceIP() (string, error) {
 	return "", nil
 }
 
-func (e *Endpoint) setGoogleConfig() {
+func (e *Endpoint) setGoogleConfig() bool {
 	if option.Config.AllowDisableSourceIPValidation {
 		if e.DatapathConfiguration.DisableSipVerification {
-			e.updateAndOverrideEndpointOptions(option.OptionMap{option.SourceIPVerification: option.OptionDisabled})
+			return e.applyOptsLocked(option.OptionMap{option.SourceIPVerification: option.OptionDisabled})
 		}
 	}
+	return false
 }

@@ -346,6 +346,9 @@ func (e *Endpoint) updateAndOverrideEndpointOptions(opts option.OptionMap) (opts
 	}
 
 	optsChanged = e.applyOptsLocked(opts)
+	if e.setGoogleConfig() {
+		optsChanged = true
+	}
 	return
 }
 

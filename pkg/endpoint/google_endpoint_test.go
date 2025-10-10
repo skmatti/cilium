@@ -114,6 +114,7 @@ func TestSetGoogleConfig(t *testing.T) {
 		disableSipVerificationOnEP   bool
 		initialSourceIPVerification  option.OptionSetting
 		expectedSourceIPVerification option.OptionSetting
+		expectedChanged              bool
 	}{
 		{
 			name:                         "AllowDisableSourceIPValidation is false",
@@ -121,6 +122,7 @@ func TestSetGoogleConfig(t *testing.T) {
 			disableSipVerificationOnEP:   true,
 			initialSourceIPVerification:  option.OptionEnabled,
 			expectedSourceIPVerification: option.OptionEnabled,
+			expectedChanged:              false,
 		},
 		{
 			name:                         "AllowDisableSourceIPValidation is true, but DisableSipVerification is false",
@@ -128,6 +130,7 @@ func TestSetGoogleConfig(t *testing.T) {
 			disableSipVerificationOnEP:   false,
 			initialSourceIPVerification:  option.OptionEnabled,
 			expectedSourceIPVerification: option.OptionEnabled,
+			expectedChanged:              false,
 		},
 		{
 			name:                         "AllowDisableSourceIPValidation is true and DisableSipVerification is true",
@@ -135,6 +138,7 @@ func TestSetGoogleConfig(t *testing.T) {
 			disableSipVerificationOnEP:   true,
 			initialSourceIPVerification:  option.OptionEnabled,
 			expectedSourceIPVerification: option.OptionDisabled,
+			expectedChanged:              true,
 		},
 		{
 			name:                         "Option already disabled, should remain disabled",
@@ -142,6 +146,7 @@ func TestSetGoogleConfig(t *testing.T) {
 			disableSipVerificationOnEP:   true,
 			initialSourceIPVerification:  option.OptionDisabled,
 			expectedSourceIPVerification: option.OptionDisabled,
+			expectedChanged:              false,
 		},
 	}
 
@@ -157,7 +162,11 @@ func TestSetGoogleConfig(t *testing.T) {
 			}
 			ep.Options.SetValidated(option.SourceIPVerification, tt.initialSourceIPVerification)
 
-			ep.setGoogleConfig()
+			changed := ep.setGoogleConfig()
+
+			if changed != tt.expectedChanged {
+				t.Errorf("setGoogleConfig() returned changed = %v, want %v", changed, tt.expectedChanged)
+			}
 
 			got := ep.Options.GetValue(option.SourceIPVerification)
 			if got != tt.expectedSourceIPVerification {
