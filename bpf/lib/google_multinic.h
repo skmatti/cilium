@@ -140,7 +140,7 @@ static __always_inline int google_fib_do_redirect(struct __ctx_buff *ctx __maybe
 		*oif = NATIVE_DEV_IFINDEX;
 		return fib_redirect_google_multinic(ctx, fib_params, oif, fib_ret);
 	}
-#endif /* IS_BPF_HOST && ENABLE_GOOGLE_MULTI_NIC && !PERIMETER_FEATURES */
+#endif /* IS_BPF_HOST && ENABLE_GOOGLE_MULTI_NIC */
 	return CTX_ACT_OK;
 }
 
