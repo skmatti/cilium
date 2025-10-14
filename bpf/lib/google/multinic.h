@@ -40,8 +40,8 @@ goog_mn_maybe_deliver_to_ep(struct __ctx_buff *ctx,
 	ret = try_google_L3_fast_redirect(ctx, stage_ctx->secctx, ip4,
 					  &should_to_endpoint);
 	if (should_to_endpoint)
-		ret = HOOK_ACT_SKIP;
-	else if (ret == CTX_ACT_OK)
+		stage_ctx->go_to_endpoint = true;
+	if (ret == CTX_ACT_OK)
 		ret = HOOK_ACT_CONTINUE;
 
 	return ret;

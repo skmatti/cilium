@@ -838,7 +838,6 @@ static __always_inline int goog_handle_ipv4_fwd(struct __ctx_buff *ctx,
 
 	switch (ret) {
 	case HOOK_ACT_SKIP:
-		// TODO: b/438550519
 		goto to_endpoint;
 	case HOOK_ACT_CONTINUE:
 		break;
