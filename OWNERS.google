@@ -7,6 +7,14 @@ pkrishn@google.com
 sugangli@google.com
 # go/keep-sorted end
 
+# Datapath owners from GDC-ag side
+# go/keep-sorted start
+jonohart@google.com
+kxw@google.com
+smatti@google.com
+yfshen@google.com
+# go/keep-sorted end
+
 # exec
 # go/keep-sorted start
 bannai@google.com
