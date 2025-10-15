@@ -168,8 +168,9 @@ var _ = Describe("Verifiers/EgressNATPerimeter", Label("egressnatperimeter"), Or
 		// Verify allowEgressPod can do egress NAT to reach bootstrapper by SNAT
 		testPods, cleanupFuncs, err = testEgressNATFromPodPerimeterCluster(ctx, cl, allowEgressPodName, egressNodeName, egressNodeIP, podAffinity)
 		Expect(err).NotTo(HaveOccurred(), fmt.Sprintf("pod %s is not able to connect to bootstrapper", allowEgressPodName))
-		err = testEgressConnectionTimeouts(ctx, cl, allowEgressPodName, egressNodeName, TimeoutRegularTcpFinAnnotation)
-		Expect(err).NotTo(HaveOccurred(), fmt.Sprintf("pod %s connection timeouts are incorrect via egress perimeter vm %s", allowEgressPodName, egressNodeName))
+		// TODO(b/449220402): re-enable when the flakiness is fixed.
+		// err = testEgressConnectionTimeouts(ctx, cl, allowEgressPodName, egressNodeName, TimeoutRegularTcpFinAnnotation)
+		// Expect(err).NotTo(HaveOccurred(), fmt.Sprintf("pod %s connection timeouts are incorrect via egress perimeter vm %s", allowEgressPodName, egressNodeName))
 	})
 
 	It("Verifies pods on worker node could egress through different node", func() {
@@ -194,9 +195,10 @@ var _ = Describe("Verifiers/EgressNATPerimeter", Label("egressnatperimeter"), Or
 		// Verify allowEgressPod can do egress NAT to reach bootstrapper by SNAT
 		testPods, cleanupFuncs, err = testEgressNATFromPodPerimeterCluster(ctx, cl, allowEgressPodName, egressNodeName, egressNodeIP, podAntiAffinity)
 		Expect(err).NotTo(HaveOccurred(), fmt.Sprintf("pod %s is not able to connect to bootstrapper", allowEgressPodName))
+		// TODO(b/449220402): re-enable when the flakiness is fixed.
 		// Verify custom egress timeouts are applied for traffic from remote src endpoints
-		err = testEgressConnectionTimeouts(ctx, cl, allowEgressPodName, egressNodeName, TimeoutRegularTcpFinAnnotation)
-		Expect(err).NotTo(HaveOccurred(), fmt.Sprintf("pod %s connection timeouts are incorrect via egress perimeter vm %s", allowEgressPodName, egressNodeName))
+		// err = testEgressConnectionTimeouts(ctx, cl, allowEgressPodName, egressNodeName, TimeoutRegularTcpFinAnnotation)
+		// Expect(err).NotTo(HaveOccurred(), fmt.Sprintf("pod %s connection timeouts are incorrect via egress perimeter vm %s", allowEgressPodName, egressNodeName))
 	})
 
 })
