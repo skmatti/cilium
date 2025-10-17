@@ -42,6 +42,7 @@ func newGoogleSyncer(ginfo cmconfig.GoogleConfig, clientset k8sClient.Clientset)
 	if err != nil {
 		return nil, fmt.Errorf("build label selectors from %v: %w", ginfo.EndpointLabelSelectors, err)
 	}
+	log.WithField("labelSelectors", s.endpointSelectors).Info("Parsed label selectors for endpoint and identity sync")
 
 	// We only need to watch namespaces if some label restrictions are configured.
 	// Otherwise we sync everything.
@@ -123,10 +124,12 @@ func (s *googleSyncer) shouldSyncLabels(labels map[string]string) bool {
 }
 
 func newNamespaceCache(clientset k8sClient.Clientset, labels []string) (cache.Store, error) {
-	labelSelector, err := parseStringAsLabelSelector(strings.Join(labels, " "))
+	labelSelectorStr := strings.Join(labels, ",")
+	labelSelector, err := slim_labels.Parse(labelSelectorStr)
 	if err != nil {
-		return nil, fmt.Errorf("build label selector from %v: %w", labels, err)
+		return nil, fmt.Errorf("parse %q as label selector: %w", labelSelectorStr, err)
 	}
+	log.WithField("labelSelector", labelSelectorStr).Info("Parsed label selector for namespace sync")
 
 	listOpts := func(options *metav1.ListOptions) {
 		options.LabelSelector = labelSelector.String()
@@ -149,28 +152,14 @@ func newNamespaceCache(clientset k8sClient.Clientset, labels []string) (cache.St
 	return nsCache, nil
 }
 
-func parseLabelSelectors(labels []string) ([]slim_labels.Selector, error) {
+func parseLabelSelectors(labelSelectorStrs []string) ([]slim_labels.Selector, error) {
 	var selectors []slim_labels.Selector
-	for _, labelStr := range labels {
-		selector, err := parseStringAsLabelSelector(labelStr)
+	for _, selectorStr := range labelSelectorStrs {
+		selector, err := slim_labels.Parse(selectorStr)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("parse %q as label selector: %w", selectorStr, err)
 		}
 		selectors = append(selectors, selector)
 	}
 	return selectors, nil
-}
-
-func parseStringAsLabelSelector(labelStr string) (slim_labels.Selector, error) {
-	endpointSelector := slim_labels.NewSelector()
-	for _, selectorStr := range strings.Split(labelStr, " ") {
-		parsableSelectorStr := labelSelectorWithColon.ReplaceAllString(selectorStr, "${1}${2}")
-		newSelector, err := slim_labels.Parse(parsableSelectorStr)
-		if err != nil {
-			return nil, fmt.Errorf("parse label selector %q (from %q): %w", parsableSelectorStr, selectorStr, err)
-		}
-		reqs, _ := newSelector.Requirements()
-		endpointSelector = endpointSelector.Add(reqs...)
-	}
-	return endpointSelector, nil
 }

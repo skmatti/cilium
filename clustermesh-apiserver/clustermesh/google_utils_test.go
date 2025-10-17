@@ -10,6 +10,7 @@ import (
 	cmconfig "github.com/cilium/cilium/pkg/clustermesh/config"
 	ciliumv2 "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2"
 	slim_corev1 "github.com/cilium/cilium/pkg/k8s/slim/k8s/api/core/v1"
+	slim_labels "github.com/cilium/cilium/pkg/k8s/slim/k8s/apis/labels"
 	slim_metav1 "github.com/cilium/cilium/pkg/k8s/slim/k8s/apis/meta/v1"
 	"github.com/cilium/cilium/pkg/k8s/types"
 )
@@ -22,23 +23,46 @@ func TestShouldSyncCEP(t *testing.T) {
 		},
 		Identity: &ciliumv2.EndpointIdentity{
 			Labels: []string{
-				"k8s:io.cilium.k8s.namespace.labels.resourcemanager.gdc.goog/project-namespace=test-namespace",
 				"k8s:networking.gke.io/network=default",
+			},
+		},
+	}
+	k8sNodeVMEP := &types.CiliumEndpoint{
+		ObjectMeta: slim_metav1.ObjectMeta{
+			Name:      "ep-multinic-k8s-node-vm",
+			Namespace: "default",
+		},
+		Identity: &ciliumv2.EndpointIdentity{
+			Labels: []string{
+				"k8s:networking.gke.io/network=secondary",
+				"k8s:node.virtualmachine.private.gdc.goog/node-pool-role=worker",
 			},
 		},
 	}
 	multinicEP := &types.CiliumEndpoint{
 		ObjectMeta: slim_metav1.ObjectMeta{
-			Name:      "ep",
+			Name:      "ep-multinic",
+			Namespace: "default",
+		},
+		Identity: &ciliumv2.EndpointIdentity{
+			Labels: []string{
+				"k8s:networking.gke.io/network=secondary",
+			},
+		},
+	}
+	projectEP := &types.CiliumEndpoint{
+		ObjectMeta: slim_metav1.ObjectMeta{
+			Name:      "ep-project",
 			Namespace: "default",
 		},
 		Identity: &ciliumv2.EndpointIdentity{
 			Labels: []string{
 				"k8s:io.cilium.k8s.namespace.labels.resourcemanager.gdc.goog/project-namespace=test-namespace",
-				"k8s:networking.gke.io/network=secondary",
+				"k8s:networking.gke.io/network=default",
 			},
 		},
 	}
+
 	testCases := []struct {
 		name        string
 		ep          *types.CiliumEndpoint
@@ -46,34 +70,76 @@ func TestShouldSyncCEP(t *testing.T) {
 		want        bool
 	}{
 		{
-			name:        "empty_selectors",
+			name:        "empty selectors syncs everything",
 			ep:          regularEP,
 			epSelectors: []string{},
 			want:        true,
 		},
 		{
-			name: "dont_sync_defaultnic_endpoint",
+			name:        "nil endpoint",
+			ep:          nil,
+			epSelectors: []string{"foo"},
+			want:        false,
+		},
+		{
+			name:        "sync project - no match",
+			ep:          regularEP,
+			epSelectors: []string{"io.cilium.k8s.namespace.labels.resourcemanager.gdc.goog/project-namespace"},
+			want:        false,
+		},
+		{
+			name:        "sync project - projectEP",
+			ep:          projectEP,
+			epSelectors: []string{"io.cilium.k8s.namespace.labels.resourcemanager.gdc.goog/project-namespace"},
+			want:        true,
+		},
+		{
+			name: "OR selectors - no match",
 			ep:   regularEP,
 			epSelectors: []string{
-				"k8s:io.cilium.k8s.namespace.labels.resourcemanager.gdc.goog/project-namespace !k8s:node.virtualmachine.private.gdc.goog/node-pool-role k8s:networking.gke.io/network!=default",
+				"io.cilium.k8s.namespace.labels.resourcemanager.gdc.goog/project-namespace",
+				"node.virtualmachine.private.gdc.goog/node-pool-role,networking.gke.io/network,networking.gke.io/network!=default",
 			},
 			want: false,
 		},
 		{
-			name: "should_sync_multinic_endpoint",
-			ep:   multinicEP,
+			name: "OR selectors - match first selector",
+			ep:   projectEP,
 			epSelectors: []string{
-				"k8s:io.cilium.k8s.namespace.labels.resourcemanager.gdc.goog/project-namespace !k8s:node.virtualmachine.private.gdc.goog/node-pool-role k8s:networking.gke.io/network!=default",
+				"io.cilium.k8s.namespace.labels.resourcemanager.gdc.goog/project-namespace",
+				"node.virtualmachine.private.gdc.goog/node-pool-role,networking.gke.io/network,networking.gke.io/network!=default",
 			},
 			want: true,
 		},
 		{
-			name:        "nil_cep",
-			ep:          nil,
-			epSelectors: []string{},
-			want:        false,
+			name: "OR selectors - match second selector",
+			ep:   k8sNodeVMEP,
+			epSelectors: []string{
+				"io.cilium.k8s.namespace.labels.resourcemanager.gdc.goog/project-namespace",
+				"node.virtualmachine.private.gdc.goog/node-pool-role,networking.gke.io/network,networking.gke.io/network!=default",
+			},
+			want: true,
+		},
+		{
+			name: "OR selectors with negation - match second selector",
+			ep:   multinicEP,
+			epSelectors: []string{
+				"io.cilium.k8s.namespace.labels.resourcemanager.gdc.goog/project-namespace",
+				"!node.virtualmachine.private.gdc.goog/node-pool-role,networking.gke.io/network,networking.gke.io/network!=default",
+			},
+			want: true,
+		},
+		{
+			name: "OR selectors with negation - no match",
+			ep:   k8sNodeVMEP,
+			epSelectors: []string{
+				"io.cilium.k8s.namespace.labels.resourcemanager.gdc.goog/project-namespace",
+				"!node.virtualmachine.private.gdc.goog/node-pool-role,networking.gke.io/network,networking.gke.io/network!=default",
+			},
+			want: false,
 		},
 	}
+
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			gconf := cmconfig.GoogleConfig{
@@ -81,16 +147,16 @@ func TestShouldSyncCEP(t *testing.T) {
 			}
 			syncer, err := newGoogleSyncer(gconf, nil)
 			require.NoError(t, err)
-			res := syncer.ShouldSyncCEP(tc.ep)
-			require.Equal(t, tc.want, res)
+			got := syncer.ShouldSyncCEP(tc.ep)
+			require.Equal(t, tc.want, got)
 		})
 	}
 }
 
 func TestShouldSyncIdentity(t *testing.T) {
-	regularIdentity := &ciliumv2.CiliumIdentity{
+	projectIdentity := &ciliumv2.CiliumIdentity{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "ep",
+			Name:      "ep-project",
 			Namespace: "default",
 		},
 		SecurityLabels: map[string]string{
@@ -100,12 +166,23 @@ func TestShouldSyncIdentity(t *testing.T) {
 	}
 	multinicIdentity := &ciliumv2.CiliumIdentity{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "ep",
+			Name:      "ep-multinic",
 			Namespace: "default",
 		},
 		SecurityLabels: map[string]string{
 			"k8s:networking.gke.io/network": "secondary",
 			"k8s:io.cilium.k8s.namespace.labels.resourcemanager.gdc.goog/project-namespace": "test-namespace",
+		},
+	}
+	k8sNodeVMIdentity := &ciliumv2.CiliumIdentity{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "ep-multinic-k8s-node-vm",
+			Namespace: "default",
+		},
+		SecurityLabels: map[string]string{
+			"k8s:networking.gke.io/network": "secondary",
+			"k8s:io.cilium.k8s.namespace.labels.resourcemanager.gdc.goog/project-namespace": "test-namespace",
+			"k8s:node.virtualmachine.private.gdc.goog/node-pool-role":                       "worker",
 		},
 	}
 	testCases := []struct {
@@ -115,32 +192,55 @@ func TestShouldSyncIdentity(t *testing.T) {
 		want        bool
 	}{
 		{
-			name:        "empty_selectors",
-			identity:    regularIdentity,
+			name:        "empty selectors",
+			identity:    projectIdentity,
 			epSelectors: []string{},
 			want:        true,
 		},
 		{
-			name:     "dont_sync_defaultnic_endpoint",
-			identity: regularIdentity,
+			name:        "nil identity",
+			identity:    nil,
+			epSelectors: []string{"foo"},
+			want:        false,
+		},
+		{
+			name:     "multiple selectors - no match",
+			identity: projectIdentity,
 			epSelectors: []string{
-				"k8s:io.cilium.k8s.namespace.labels.resourcemanager.gdc.goog/project-namespace !k8s:node.virtualmachine.private.gdc.goog/node-pool-role k8s:networking.gke.io/network!=default",
+				"io.cilium.k8s.namespace.labels.resourcemanager.gdc.goog/project-namespace,!node.virtualmachine.private.gdc.goog/node-pool-role,networking.gke.io/network!=default",
+				"io.cilium.k8s.namespace.labels.resourcemanager.gdc.goog/project-namespace,node.virtualmachine.private.gdc.goog/node-pool-role",
 			},
 			want: false,
 		},
 		{
-			name: "should_sync_multinic_identity",
-			epSelectors: []string{
-				"k8s:io.cilium.k8s.namespace.labels.resourcemanager.gdc.goog/project-namespace !k8s:node.virtualmachine.private.gdc.goog/node-pool-role k8s:networking.gke.io/network!=default",
-			},
+			name:     "multiple selectors - match first",
 			identity: multinicIdentity,
-			want:     true,
+			epSelectors: []string{
+				"io.cilium.k8s.namespace.labels.resourcemanager.gdc.goog/project-namespace,!node.virtualmachine.private.gdc.goog/node-pool-role,networking.gke.io/network!=default",
+				"io.cilium.k8s.namespace.labels.resourcemanager.gdc.goog/project-namespace,node.virtualmachine.private.gdc.goog/node-pool-role",
+			},
+			want: true,
 		},
 		{
-			name:        "nil_identity",
-			identity:    nil,
-			epSelectors: []string{},
+			name:     "multiple selectors - match second",
+			identity: k8sNodeVMIdentity,
+			epSelectors: []string{
+				"io.cilium.k8s.namespace.labels.resourcemanager.gdc.goog/project-namespace,!node.virtualmachine.private.gdc.goog/node-pool-role,networking.gke.io/network!=default",
+				"io.cilium.k8s.namespace.labels.resourcemanager.gdc.goog/project-namespace,node.virtualmachine.private.gdc.goog/node-pool-role",
+			},
+			want: true,
+		},
+		{
+			name:        "single selector - no match",
+			identity:    projectIdentity,
+			epSelectors: []string{"networking.gke.io/network=secondary"},
 			want:        false,
+		},
+		{
+			name:        "single selector - match",
+			identity:    k8sNodeVMIdentity,
+			epSelectors: []string{"node.virtualmachine.private.gdc.goog/node-pool-role=worker"},
+			want:        true,
 		},
 	}
 	for _, tc := range testCases {
@@ -150,11 +250,85 @@ func TestShouldSyncIdentity(t *testing.T) {
 			}
 			syncer, err := newGoogleSyncer(gconf, nil)
 			require.NoError(t, err)
-			res := syncer.ShouldSyncIdentity(tc.identity)
-			require.Equal(t, tc.want, res)
+			got := syncer.ShouldSyncIdentity(tc.identity)
+			require.Equal(t, tc.want, got)
 		})
 	}
 }
+
+func TestParseLabelSelectors(t *testing.T) {
+	testCases := []struct {
+		name              string
+		labelSelectorStrs []string
+		wantSelectors     []slim_labels.Selector
+		wantErrMsg        string
+	}{
+		{
+			name:              "empty",
+			labelSelectorStrs: []string{},
+			wantSelectors:     []slim_labels.Selector{},
+		},
+		{
+			name:              "single selector",
+			labelSelectorStrs: []string{"k1=v1"},
+			wantSelectors: func() []slim_labels.Selector {
+				s, _ := slim_labels.Parse("k1=v1")
+				return []slim_labels.Selector{s}
+			}(),
+		},
+		{
+			name:              "multiple selectors",
+			labelSelectorStrs: []string{"k1=v1", "k2"},
+			wantSelectors: func() []slim_labels.Selector {
+				s1, _ := slim_labels.Parse("k1=v1")
+				s2, _ := slim_labels.Parse("k2")
+				return []slim_labels.Selector{s1, s2}
+			}(),
+		},
+		{
+			name:              "selector with space and in operator",
+			labelSelectorStrs: []string{"k1=v1,k2,!k3", "k4 in (v4-a, v4-b)"},
+			wantSelectors: func() []slim_labels.Selector {
+				s1, _ := slim_labels.Parse("k1=v1,k2,!k3")
+				s2, _ := slim_labels.Parse("k4 in (v4-a,v4-b)")
+				return []slim_labels.Selector{s1, s2}
+			}(),
+		},
+		{
+			name:              "selector with notin",
+			labelSelectorStrs: []string{"!k2,k3 notin (v3-a,v3-b)"},
+			wantSelectors: func() []slim_labels.Selector {
+				s, _ := slim_labels.Parse("!k2,k3 notin (v3-a,v3-b)")
+				return []slim_labels.Selector{s}
+			}(),
+		},
+		{
+			name:              "invalid selector with colon",
+			labelSelectorStrs: []string{"k1=v1,"},
+			wantErrMsg:        `parse "k1=v1," as label selector`,
+		},
+		{
+			name:              "invalid selector with space",
+			labelSelectorStrs: []string{"k1=v1 !k2"},
+			wantErrMsg:        `parse "k1=v1 !k2" as label selector`,
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			selectors, err := parseLabelSelectors(tc.labelSelectorStrs)
+			if tc.wantErrMsg != "" {
+				require.Error(t, err)
+				require.Contains(t, err.Error(), tc.wantErrMsg)
+				return
+			}
+			require.NoError(t, err)
+			for i := range selectors {
+				require.Equal(t, tc.wantSelectors[i].String(), selectors[i].String())
+			}
+		})
+	}
+}
+
 func TestShouldSyncNamespace(t *testing.T) {
 	syncer := &googleSyncer{}
 	syncer.namespaceCache = cache.NewStore(cache.MetaNamespaceKeyFunc)

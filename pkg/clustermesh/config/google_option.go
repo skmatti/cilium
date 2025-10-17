@@ -75,8 +75,8 @@ func (cfg GoogleConfig) Flags(flags *flag.FlagSet) {
 	flags.StringSlice(googleCMServiceNamespaceLabels, cfg.ServiceNamespaceLabels, "List of namespace labels to enable clustermesh distribution for (empty means all namespaces are distributed)")
 	flags.MarkHidden(googleCMServiceNamespaceLabels)
 
-	flags.StringSlice(googleCMEndpointLabelSelectors, cfg.EndpointLabelSelectors,
-		"List of endpoint label selectors to enable clustermesh distribution for. An endpoint must comply with at least one of the label selectors to be distributed. For e.g. k1,!k2 k3=v3 selects endpoints that have the label key k1, as well as endpoints that have the key-value pair k3=v3 and do not have the key k2.")
+	flags.StringArray(googleCMEndpointLabelSelectors, cfg.EndpointLabelSelectors,
+		"List of endpoint label selectors to enable clustermesh distribution for. An endpoint must comply with at least one of the label selectors to be distributed. For e.g. ['k1', '!k2,k3=v3'] selects endpoints that have the label key k1, as well as endpoints that have the key-value pair k3=v3 and do not have the key k2.")
 	flags.MarkHidden(googleCMEndpointLabelSelectors)
 
 	// If service aliasing is enabled, service objects are exported in Clustermesh with alias names.
