@@ -10,6 +10,8 @@ const (
 	EnableL3MigrationFlag                        = "enable-google-multi-nic-l3-migration"
 	PopulateGCENICInfo                           = "populate-gce-nic-info"
 	EnableGoogleTunnelThroughSecondaryInterfaces = "enable-google-tunnel-through-secondary-interfaces"
+	EnableHostDeviceRoutingReconciliation        = "enable-host-device-routing-reconciliation"
+	NetworkReconcilerRetryLimit                  = "network-reconciler-retry-limit"
 )
 
 var Cell = cell.Config(defaultConfig)
@@ -30,6 +32,10 @@ type Config struct {
 	//
 	// Ref. go/island-mode-secondary-networks
 	EnableGoogleTunnelThroughSecondaryInterfaces bool `mapstructure:"enable-google-tunnel-through-secondary-interfaces"`
+	// EnableHostDeviceRoutingReconciliation enables reconciliation of host device routing records.
+	EnableHostDeviceRoutingReconciliation bool
+	// NetworkReconcilerRetryLimit is the maximum number of retries for network reconciliation. 0 means infinite retries.
+	NetworkReconcilerRetryLimit int
 }
 
 var defaultConfig = Config{
@@ -37,6 +43,8 @@ var defaultConfig = Config{
 	EnableGoogleMultiNICL3Migration:              false,
 	PopulateGCENICInfo:                           false,
 	EnableGoogleTunnelThroughSecondaryInterfaces: false,
+	EnableHostDeviceRoutingReconciliation:        true,
+	NetworkReconcilerRetryLimit:                  0,
 }
 
 func (cfg Config) Flags(flags *pflag.FlagSet) {
@@ -51,6 +59,12 @@ func (cfg Config) Flags(flags *pflag.FlagSet) {
 
 	flags.Bool(EnableGoogleTunnelThroughSecondaryInterfaces, defaultConfig.EnableGoogleTunnelThroughSecondaryInterfaces, "Enable tunneling through secondary host interfaces on L3 networks.")
 	flags.MarkHidden(EnableGoogleTunnelThroughSecondaryInterfaces)
+
+	flags.Bool(EnableHostDeviceRoutingReconciliation, defaultConfig.EnableHostDeviceRoutingReconciliation, "Enable host device routing reconciliation on L2/L3 networks.")
+	flags.MarkHidden(EnableHostDeviceRoutingReconciliation)
+
+	flags.Int(NetworkReconcilerRetryLimit, defaultConfig.NetworkReconcilerRetryLimit, "Maximum number of retries for network reconciliation. 0 means infinite retries.")
+	flags.MarkHidden(NetworkReconcilerRetryLimit)
 }
 
 func Enabled() bool {

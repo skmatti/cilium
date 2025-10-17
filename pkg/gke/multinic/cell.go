@@ -137,6 +137,7 @@ func initMultinetworking(p Params) error {
 				LocalNodeResource:   p.LocalNodeResource,
 				GoogleDeviceManager: p.GoogleDeviceManager,
 				Loader:              p.Datapath.Loader(),
+				Config:              p.Config,
 			}
 
 			if err := r.SetupMultiNetworkingIPAMAllocators(r.IPAMMgr, r.EndpointManager.GetEndpoints()); err != nil {

@@ -12,8 +12,9 @@ import (
 	"github.com/cilium/cilium/pkg/maps/multinet"
 	"github.com/cilium/cilium/pkg/node"
 	"github.com/vishvananda/netlink"
-	anutils "gke-internal.googlesource.com/anthos-networking/apis/v2/utils"
 	"golang.org/x/sys/unix"
+
+	anutils "gke-internal.googlesource.com/anthos-networking/apis/v2/utils"
 )
 
 type hostDevRoutingRecord struct {
@@ -29,14 +30,40 @@ func (r *NetworkReconciler) updateHostDeviceRouting(ctx context.Context) error {
 	nwList := nwStore.List()
 	errs := 0
 	desiredRoutingRecs := map[multinet.HostDevRoutingKey]multinet.HostDevRoutingEntry{}
+
+	r.networkErrorsLock.Lock()
+	defer r.networkErrorsLock.Unlock()
+
+	succeededThisRun := make(map[string]bool)
+	generationFailed := false
+
 	for _, n := range nwList {
+		failureCount := r.networkErrors[n.Name]
+		if r.Config.NetworkReconcilerRetryLimit > 0 && failureCount > r.Config.NetworkReconcilerRetryLimit {
+			r.Log.Debugf("Skipping host device routing records for network %s due to %d previous failures", n.Name, failureCount)
+			generationFailed = true
+			continue
+		}
+
 		recs, err := r.hostDevRoutingRecords(n)
 		if err != nil {
-			errs += 1
-			r.Log.WithError(err).Warnf("error determining host device routing records for network %s", n.Name)
+			r.networkErrors[n.Name]++
+			r.Log.WithError(err).Warnf("error determining host device routing records for network %s (failure %d)", n.Name, r.networkErrors[n.Name])
+			generationFailed = true
+			continue
 		}
+
+		succeededThisRun[n.Name] = true
+
 		for _, rec := range recs {
 			desiredRoutingRecs[rec.key] = rec.entry
+		}
+	}
+
+	for nwName := range succeededThisRun {
+		if _, failed := r.networkErrors[nwName]; failed {
+			r.Log.Infof("Network %s succeeded, resetting failure count", nwName)
+			delete(r.networkErrors, nwName)
 		}
 	}
 
@@ -57,17 +84,35 @@ func (r *NetworkReconciler) updateHostDeviceRouting(ctx context.Context) error {
 		}
 	}
 
-	for key := range existingRecords {
-		if _, ok := desiredRoutingRecs[key]; !ok {
-			_, err := multinet.HostDevRoutingMap.SilentDelete(&key)
-			if err != nil {
-				r.Log.WithError(err).Warnf("could not delete outdated host device routing records: %v", key)
-				errs += 1
-			} else {
-				r.Log.Infof("successfully deleted host device routing record: %v", key)
+	// If we failed to generate records for any network, we cannot assume that
+	// the desiredRoutingRecs map is complete. Therefore, we skip the deletion
+	// of existing records to avoid deleting valid routes for networks that
+	// failed to reconcile.
+	if !generationFailed {
+		for key := range existingRecords {
+			if _, ok := desiredRoutingRecs[key]; !ok {
+				_, err := multinet.HostDevRoutingMap.SilentDelete(&key)
+				if err != nil {
+					r.Log.WithError(err).Warnf("could not delete outdated host device routing records: %v", key)
+					errs += 1
+				} else {
+					r.Log.Infof("successfully deleted host device routing record: %v", key)
+				}
 			}
 		}
+	} else {
+		r.Log.Warn("Skipping deletion of host device routing records due to generation failures")
+		// If we had generation failures, we should return an error to trigger a retry,
+		// unless we want to respect the retry limit "give up" behavior.
+		// However, giving up should not mean reporting success if the state is partial.
+		// But to avoid infinite hot looping if we really want to give up, we might need to be careful.
+		// Given the current architecture, returning an error causes the workqueue to retry (with backoff).
+		// If we want to stop retrying, we should probably return nil.
+		// BUT, for the "secondary interface is default" test case, we NEED to retry until the interface appears.
+		// So we return an error here.
+		return fmt.Errorf("encountered errors generating host device routing records")
 	}
+
 	if errs > 0 {
 		return fmt.Errorf("error while updating host device routing map, will retry")
 	}

@@ -33,6 +33,7 @@ import (
 	v1 "github.com/cilium/cilium/pkg/k8s/slim/k8s/apis/meta/v1"
 	"github.com/cilium/cilium/pkg/logging"
 	"github.com/cilium/cilium/pkg/logging/logfields"
+	"github.com/cilium/cilium/pkg/maps/multinet"
 	"github.com/cilium/cilium/pkg/node"
 	"github.com/cilium/cilium/pkg/testutils"
 	"github.com/cilium/hive/cell"
@@ -40,10 +41,11 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/vishvananda/netlink"
 	"github.com/vishvananda/netns"
-	anutils "gke-internal.googlesource.com/anthos-networking/apis/v2/utils"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	utilpointer "k8s.io/utils/pointer"
+
+	anutils "gke-internal.googlesource.com/anthos-networking/apis/v2/utils"
 
 	"github.com/cilium/cilium/pkg/ipam"
 )
@@ -899,5 +901,231 @@ func TestUpdateNodeMultiNetworkIPAM(t *testing.T) {
 				t.Fatalf("updateMultiNetworkIPAM() returns unexpected output (-got, +want):\n%s", diff)
 			}
 		})
+	}
+}
+
+func TestUpdateHostDeviceRouting(t *testing.T) {
+	testutils.PrivilegedTest(t)
+	ctx := context.Background()
+	var networks resource.Resource[*networkv1.Network]
+	var fakeClient k8sClient.FakeClientset
+	var localNodeResource agentK8s.LocalNodeResource
+
+	hive := hive.New(
+		cell.Provide(func() multinicconfig.Config {
+			return multinicconfig.Config{
+				EnableGoogleMultiNIC: true,
+			}
+		}),
+		k8sClient.FakeClientCell,
+		multinicclients.FakeMNClientCell,
+		agentK8s.ResourcesCell,
+		cell.Invoke(func(
+			c *k8sClient.FakeClientset,
+			nws resource.Resource[*networkv1.Network],
+			ln agentK8s.LocalNodeResource,
+		) error {
+			fakeClient = *c
+			networks = nws
+			localNodeResource = ln
+			return nil
+		}),
+	)
+	tlog := hivetest.Logger(t)
+	if err := hive.Start(tlog, ctx); err != nil {
+		t.Fatalf("failed to start hive: %v", err)
+	}
+
+	// Initialize the BPF map
+	if err := multinet.HostDevRoutingMap.OpenOrCreate(); err != nil {
+		t.Fatalf("failed to open or create host dev routing map: %v", err)
+	}
+	defer multinet.HostDevRoutingMap.Unpin()
+
+	testcases := []struct {
+		desc                  string
+		networkName           string
+		interfaceName         string
+		interfaceExists       bool
+		preExistingErrorCount int
+		expectedErrorCount    int
+		checkRetryLimit       bool
+		configEnabled         bool
+		retryLimit            int
+		// preExistingRoutes maps interface index to destination CIDR
+		preExistingRoutes map[int]string
+		// checkRoutesPreserved verifies that pre-existing routes were NOT deleted
+		checkRoutesPreserved bool
+	}{
+		{
+			desc:               "interface missing, config enabled",
+			networkName:        "net-missing",
+			interfaceName:      "eth1",
+			interfaceExists:    false,
+			expectedErrorCount: 1,
+			configEnabled:      true,
+		},
+		{
+			desc:               "interface exists, config enabled",
+			networkName:        "net-exists",
+			interfaceName:      "eth2",
+			interfaceExists:    true,
+			expectedErrorCount: 0,
+			configEnabled:      true,
+		},
+		{
+			desc:               "interface missing retry limit, config enabled",
+			networkName:        "net-missing-retry",
+			interfaceName:      "eth3",
+			interfaceExists:    false,
+			expectedErrorCount: 6,
+			checkRetryLimit:    true,
+			configEnabled:      true,
+			retryLimit:         5,
+		},
+		{
+			desc:               "interface missing infinite retries, config enabled",
+			networkName:        "net-missing-infinite",
+			interfaceName:      "eth3-infinite",
+			interfaceExists:    false,
+			expectedErrorCount: 10,
+			checkRetryLimit:    true,
+			configEnabled:      true,
+			retryLimit:         0,
+		},
+		{
+			desc:               "interface missing, config disabled",
+			networkName:        "net-missing-disabled",
+			interfaceName:      "eth4",
+			interfaceExists:    false,
+			expectedErrorCount: 0,
+			configEnabled:      false,
+		},
+		{
+			desc:                  "interface exists, recovers from failure",
+			networkName:           "net-recovered",
+			interfaceName:         "eth5",
+			interfaceExists:       true,
+			preExistingErrorCount: 3,
+			expectedErrorCount:    0,
+			configEnabled:         true,
+		},
+		{
+			desc:               "interface missing, existing routes preserved",
+			networkName:        "net-missing-preserve",
+			interfaceName:      "eth6",
+			interfaceExists:    false,
+			expectedErrorCount: 1,
+			configEnabled:      true,
+			preExistingRoutes: map[int]string{
+				100: "1.2.3.4/32",
+			},
+			checkRoutesPreserved: true,
+		},
+	}
+
+	for _, tc := range testcases {
+		t.Run(tc.desc, func(t *testing.T) {
+			// Clear the BPF map before each test case to ensure isolation
+			if err := multinet.HostDevRoutingMap.DeleteAll(); err != nil {
+				t.Fatalf("failed to clear host dev routing map: %v", err)
+			}
+
+			runTestInNetNS(t, func() {
+				nw := &networkv1.Network{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: tc.networkName,
+					},
+					Spec: networkv1.NetworkSpec{
+						Type: networkv1.L2NetworkType,
+						NodeInterfaceMatcher: networkv1.NodeInterfaceMatcher{
+							InterfaceName: &tc.interfaceName,
+						},
+						Gateway4: utilpointer.String("10.0.0.255"),
+					},
+				}
+
+				// Populate network store
+				nwStore, err := networks.Store(ctx)
+				if err != nil {
+					t.Fatalf("failed to get network store: %v", err)
+				}
+				if err := nwStore.CacheStore().Add(nw); err != nil {
+					t.Fatalf("failed to add network to store: %v", err)
+				}
+
+				if tc.interfaceExists {
+					// Create dummy interface
+					defer cleanupLinks(t, tc.interfaceName)
+					l := setupParentLinkWithAttrs(t, netlink.LinkAttrs{Name: tc.interfaceName})
+
+					// Define addr
+					addr := &netlink.Addr{IPNet: &net.IPNet{IP: net.ParseIP("10.0.0.1"), Mask: net.CIDRMask(24, 32)}}
+					if err := netlink.AddrAdd(l, addr); err != nil {
+						t.Fatalf("failed to add address to link: %v,", err)
+					}
+				}
+
+				testReconciler := NetworkReconciler{
+					Clientset:         &fakeClient,
+					Networks:          networks,
+					LocalNodeResource: localNodeResource,
+					Log:               logging.DefaultLogger.WithField(logfields.LogSubsys, "test"),
+					networkErrors:     make(map[string]int),
+					Config: multinicconfig.Config{
+						EnableHostDeviceRoutingReconciliation: tc.configEnabled,
+						NetworkReconcilerRetryLimit:           tc.retryLimit,
+					},
+				}
+
+				if tc.preExistingErrorCount > 0 {
+					testReconciler.networkErrors[tc.networkName] = tc.preExistingErrorCount
+				}
+
+				if len(tc.preExistingRoutes) > 0 {
+					for ifIndex, cidr := range tc.preExistingRoutes {
+						_, ipnet, _ := net.ParseCIDR(cidr)
+						key := multinet.NewHostDevRoutingKey(uint32(ifIndex), ipnet)
+						val := multinet.NewHostDevRoutingEntry(net.ParseIP("10.0.0.1"))
+						if err := multinet.HostDevRoutingMap.Update(key, val); err != nil {
+							t.Fatalf("failed to update host dev routing map: %v", err)
+						}
+					}
+				}
+
+				iterations := 1
+				if tc.checkRetryLimit {
+					iterations = 10
+				}
+
+				for i := 0; i < iterations; i++ {
+					// Simulate logic in reconcileNetwork
+					if testReconciler.Config.EnableHostDeviceRoutingReconciliation {
+						// We ignore the error from updateHostDeviceRouting because we cannot mock the BPF map easily.
+						// We only verify that the logic reached the point of updating networkErrors.
+						_ = testReconciler.updateHostDeviceRouting(ctx)
+					}
+				}
+
+				count := testReconciler.networkErrors[tc.networkName]
+				if count != tc.expectedErrorCount {
+					t.Errorf("networkErrors[%s] = %d, want %d", tc.networkName, count, tc.expectedErrorCount)
+				}
+
+				if tc.checkRoutesPreserved {
+					existingRecs, err := existingRoutingRecords()
+					if err != nil {
+						t.Fatalf("failed to fetch existing records: %v", err)
+					}
+					if len(existingRecs) != len(tc.preExistingRoutes) {
+						t.Errorf("expected %d existing records, got %d. Accidental deletion likely occurred.", len(tc.preExistingRoutes), len(existingRecs))
+					}
+				}
+			})
+		})
+	}
+
+	if err := hive.Stop(tlog, ctx); err != nil {
+		t.Fatalf("failed to stop hive: %v", err)
 	}
 }

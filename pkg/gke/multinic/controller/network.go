@@ -25,6 +25,7 @@ import (
 	"go.uber.org/multierr"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/util/workqueue"
 
 	anutils "gke-internal.googlesource.com/anthos-networking/apis/v2/utils"
 )
@@ -32,7 +33,9 @@ import (
 const (
 	listNetworkTimeout = time.Second * 5
 	// Directory to store all object files for multinic parent devices.
-	multinicObjDir = "/var/run/cilium/state/multinic"
+	multinicObjDir      = "/var/run/cilium/state/multinic"
+	baseControllerDelay = 5 * time.Second
+	maxControllerDelay  = 20 * time.Minute
 )
 
 var (
@@ -259,13 +262,11 @@ func (r *NetworkReconciler) reconcileNetwork(ctx context.Context, node *slim_cor
 			return nil
 		}
 		if err := ensureInterface(network, intfName, r.Log); err != nil {
-			r.Log.WithError(err).Error("Unable to ensure network interface")
 			return err
 		}
 	}
 
 	if err := r.loadEBPFOnParent(ctx, network, node); err != nil {
-		r.Log.WithError(err).Error("Unable to load ebpf on parent interface")
 		return err
 	}
 	// Obtain ip/subnet for node network
@@ -274,20 +275,19 @@ func (r *NetworkReconciler) reconcileNetwork(ctx context.Context, node *slim_cor
 		r.Log.WithError(err).Error("Unable to read interface for subnets")
 	}
 	if err := addToNodeNetworkStatus(ctx, node, network.Name, ipv4, ipv6, r.Log); err != nil {
-		r.Log.WithError(err).Error("Failed to update node network status annotation")
 		return err
 	}
 	if err := r.updateMultiNetworkIPAM(ctx, network); err != nil {
-		r.Log.WithError(err).Error("Failed to update node multi-network IPAM")
 		return err
 	}
 	if err := r.IPAMMgr.ReserveGatewayIP(network); err != nil {
-		r.Log.WithError(err).Error("Failed to reserve gateway IP")
 		return err
 	}
-	if err := r.updateHostDeviceRouting(ctx); err != nil {
-		r.Log.WithError(err).Error("Failed to update host device routing map entries")
-		return err
+	if r.Config.EnableHostDeviceRoutingReconciliation {
+		if err := r.updateHostDeviceRouting(ctx); err != nil {
+			r.Log.WithError(err).Error("Failed to update host device routing map entries")
+			return err
+		}
 	}
 	r.Log.Info("Reconciled successfully")
 	return nil
@@ -310,14 +310,21 @@ func (r *NetworkReconciler) reconcileNetworkDelete(ctx context.Context, node *sl
 		r.Log.WithError(err).Errorf("Unable to delete tagged interface")
 		return err
 	}
-	if err := r.updateHostDeviceRouting(ctx); err != nil {
-		r.Log.WithError(err).Error("Failed to update host device routing map entries")
-		return err
+	if r.Config.EnableHostDeviceRoutingReconciliation {
+		if err := r.updateHostDeviceRouting(ctx); err != nil {
+			r.Log.WithError(err).Error("Failed to update host device routing map entries")
+			return err
+		}
 	}
 	if err := deleteFromNetworkStatus(ctx, node, network.Name, "", "", r.Log); err != nil {
 		r.Log.WithError(err).Errorf("Failed to update node network status annotation")
 		return err
 	}
+
+	r.networkErrorsLock.Lock()
+	delete(r.networkErrors, network.Name)
+	r.networkErrorsLock.Unlock()
+
 	r.Log.Info("Reconciled on networkDelete successfully")
 	return nil
 }
@@ -371,10 +378,17 @@ func (r *NetworkReconciler) isCiliumManaged(dev string) bool {
 }
 
 func (r *NetworkReconciler) Run(ctx context.Context, networkChan <-chan resource.Event[*networkv1.Network], localNodeChan <-chan resource.Event[*slim_corev1.Node]) {
+	r.Log.Info("Starting network controller")
+	r.workqueue = workqueue.NewRateLimitingQueue(workqueue.NewItemExponentialFailureRateLimiter(baseControllerDelay, maxControllerDelay))
+	r.networkErrors = make(map[string]int)
+
+	go r.runWorker(ctx)
+
 	for {
 		select {
 		case <-ctx.Done():
 			r.Log.Info("context is done, shutting down network controller")
+			r.workqueue.ShutDown()
 			return
 		case event, ok := <-networkChan:
 			if !ok {
@@ -390,12 +404,73 @@ func (r *NetworkReconciler) Run(ctx context.Context, networkChan <-chan resource
 	}
 }
 
+func (r *NetworkReconciler) runWorker(ctx context.Context) {
+	for r.processNextWorkItem(ctx) {
+	}
+}
+
+func (r *NetworkReconciler) processNextWorkItem(ctx context.Context) bool {
+	obj, shutdown := r.workqueue.Get()
+	if shutdown {
+		return false
+	}
+	defer r.workqueue.Done(obj)
+
+	err := r.syncHandler(ctx, obj.(string))
+	if err == nil {
+		r.workqueue.Forget(obj)
+	} else {
+		if r.Config.NetworkReconcilerRetryLimit > 0 && r.workqueue.NumRequeues(obj) >= r.Config.NetworkReconcilerRetryLimit {
+			r.Log.WithError(err).Errorf("error reconciling network %s after %d retries, giving up", obj.(string), r.Config.NetworkReconcilerRetryLimit)
+			r.workqueue.Forget(obj)
+		} else {
+			r.Log.WithError(err).Errorf("error reconciling network %s, requeueing", obj.(string))
+			r.workqueue.AddRateLimited(obj)
+		}
+	}
+	return true
+}
+
+func (r *NetworkReconciler) syncHandler(ctx context.Context, nwName string) error {
+	r.lastNetworksCacheLock.Lock()
+	if r.lastNetworksCache == nil {
+		r.lastNetworksCache = make(map[string]*networkv1.Network)
+	}
+	r.lastNetworksCacheLock.Unlock()
+
+	err := r.reconcile(ctx, nwName)
+	if err != nil {
+		return err
+	}
+	// update local copy of current network upon successfully reconciliation
+	nwStore, err := r.Networks.Store(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to fetch networks store: %v", err)
+	}
+	nw, exists, err := nwStore.GetByKey(resource.Key{Name: nwName})
+	if err != nil {
+		return fmt.Errorf("failed to fetch network %s: from store %v", nwName, err)
+	}
+
+	r.lastNetworksCacheLock.Lock()
+	defer r.lastNetworksCacheLock.Unlock()
+	if !exists {
+		delete(r.lastNetworksCache, nwName)
+	} else {
+		r.lastNetworksCache[nwName] = nw.DeepCopy()
+	}
+	return nil
+}
+
 func (r *NetworkReconciler) processNetworkEvent(ctx context.Context, event resource.Event[*networkv1.Network]) {
 	if (event.Kind != resource.Upsert && event.Kind != resource.Delete) || event.Object == nil {
 		event.Done(nil)
 		return
 	}
 	nw := event.Object
+
+	r.lastNetworksCacheLock.Lock()
+	defer r.lastNetworksCacheLock.Unlock()
 	if r.lastNetworksCache == nil {
 		r.lastNetworksCache = make(map[string]*networkv1.Network)
 	}
@@ -407,18 +482,11 @@ func (r *NetworkReconciler) processNetworkEvent(ctx context.Context, event resou
 		return
 	}
 	r.Log.Infof("Received %s event for network: %s", event.Kind, nw.Name)
-	var err error
-	// update local copy of current network upon successfully reconciliation
-	if err = r.reconcile(ctx, nw.Name); err != nil {
-		r.Log.Errorf("error while reconciling network %s: %v", nw.Name, err)
-	} else {
-		if event.Kind == resource.Delete {
-			delete(r.lastNetworksCache, nw.Name)
-		} else {
-			r.lastNetworksCache[nw.Name] = nw.DeepCopy()
-		}
-	}
-	event.Done(err)
+	r.networkErrorsLock.Lock()
+	delete(r.networkErrors, nw.Name)
+	r.networkErrorsLock.Unlock()
+	r.workqueue.Add(nw.Name)
+	event.Done(nil)
 }
 
 func networkNeedsReconcile(oldNet, newNet *networkv1.Network) bool {
