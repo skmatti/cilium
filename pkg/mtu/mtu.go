@@ -108,8 +108,10 @@ type Configuration struct {
 // specified, otherwise it will be automatically detected. if encapEnabled is
 // true, the MTU is adjusted to account for encapsulation overhead for all
 // routes involved in node to node communication.
-func NewConfiguration(authKeySize int, encryptEnabled bool, encapEnabled bool, wireguardEnabled bool, hsIpcacheDSRenabled bool, mtu int, mtuDetectIP net.IP, enableRouteMTUForCNIChaining bool) Configuration {
+func NewConfiguration(authKeySize int, encryptEnabled bool, encapEnabled bool, wireguardEnabled bool, hsIpcacheDSRenabled bool, mtu int, mtuDetectIP net.IP, enableRouteMTUForCNIChaining bool, disableRouteMTUOverhead bool) Configuration {
 	encryptOverhead := 0
+
+	originalMTU := mtu
 
 	if mtu == 0 {
 		var err error
@@ -151,7 +153,34 @@ func NewConfiguration(authKeySize int, encryptEnabled bool, encapEnabled bool, w
 		conf.tunnelMTU = 0
 	}
 
+	if disableRouteMTUOverhead {
+		conf.disableOverhead(originalMTU)
+	}
+
 	return conf
+}
+
+// DisableOverhead sets the Route MTU (Pod MTU) to the original MTU (Device MTU),
+// effectively masking any encapsulation or encryption overhead from the pod.
+// This is used when the user has explicitly requested to disable overhead subtraction.
+func (c *Configuration) disableOverhead(originalMTU int) {
+	if originalMTU == 0 || c.tunnelMTU == originalMTU {
+		log.Warning("disable-route-mtu-overhead is enabled but no manual MTU is configured. Ignoring flag to prevent unsafe MTU configuration.")
+		return
+	}
+
+	log.WithField("old", c.tunnelMTU).WithField("new", originalMTU).Info("Overriding Route MTU to match Standard MTU (DisableRouteMTUOverhead=true)")
+
+	// Calculate the delta to adjust other related MTUs proportionally if needed.
+	// We want to add back the overhead that was subtracted, so delta should be positive.
+	delta := originalMTU - c.tunnelMTU
+
+	c.tunnelMTU = originalMTU
+
+	// Adjust other related MTUs (pre/post-encryption) by the same delta to maintain
+	// relative offsets.
+	c.preEncryptMTU += delta
+	c.postEncryptMTU += delta
 }
 
 // GetRoutePostEncryptMTU return the MTU to be used on the encryption routing

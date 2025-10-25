@@ -188,4 +188,7 @@ const (
 
 	// ServiceAliasNamespace specifies the namespace to be used for service aliasing.
 	ServiceAliasNamespace = "service-alias-namespace"
+
+	// DisableRouteMTUOverheadName is the name of the DisableRouteMTUOverhead option
+	DisableRouteMTUOverheadName = "disable-route-mtu-overhead"
 )

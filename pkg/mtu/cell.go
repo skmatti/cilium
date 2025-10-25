@@ -43,14 +43,19 @@ type mtuParams struct {
 type Config struct {
 	// Enable route MTU for pod netns when CNI chaining is used
 	EnableRouteMTUForCNIChaining bool
+	// DisableRouteMTUOverhead disables the subtraction of overhead from the MTU for the route MTU
+	DisableRouteMTUOverhead bool `mapstructure:"disable-route-mtu-overhead"`
 }
 
 var defaultConfig = Config{
 	EnableRouteMTUForCNIChaining: false,
+	DisableRouteMTUOverhead:      false,
 }
 
 func (c Config) Flags(flags *pflag.FlagSet) {
 	flags.Bool("enable-route-mtu-for-cni-chaining", c.EnableRouteMTUForCNIChaining, "Enable route MTU for pod netns when CNI chaining is used")
+	flags.Bool(option.DisableRouteMTUOverheadName, c.DisableRouteMTUOverhead, "Disables the subtraction of overhead from the MTU for the route MTU")
+	flags.MarkHidden(option.DisableRouteMTUOverheadName)
 }
 
 func newForCell(lc cell.Lifecycle, p mtuParams, cc Config) MTU {
@@ -79,6 +84,7 @@ func newForCell(lc cell.Lifecycle, p mtuParams, cc Config) MTU {
 				configuredMTU,
 				externalIP,
 				cc.EnableRouteMTUForCNIChaining,
+				cc.DisableRouteMTUOverhead,
 			)
 			return nil
 		},
