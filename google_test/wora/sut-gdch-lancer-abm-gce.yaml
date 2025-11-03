@@ -67,5 +67,7 @@ spec:
             kind: Cluster
             namespace: tailorbird-users
           env:
-            POSTPROVISIONER_FEATURES: "addvxlans"
+            POSTPROVISIONER_FEATURES: "addvxlans,httpserver"
             ADD_VXLANS_CLUSTER_TYPE: "gdc-ag"
+            HTTP_SERVER_IMAGE: "us-docker.pkg.dev/anthos-networking-ci/apps/http-server:latest"
+            HTTP_SERVER_PORT: "8080"

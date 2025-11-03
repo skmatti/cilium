@@ -59,13 +59,6 @@ function verify_cilium_overridden {
   done
 }
 
-function enable_http_server {
-  local tool_image="us-docker.pkg.dev/anthos-networking-ci/apps/http-server:latest"
-  remote_execution_from_gce_bootstrapper "gcloud auth activate-service-account --key-file=bootstrapper-sa.json"
-  remote_execution_from_gce_bootstrapper "gcloud auth configure-docker us-docker.pkg.dev --quiet"
-  remote_execution_from_gce_bootstrapper "docker run --pull=always -d -p 8080:8080 -v \${PWD}:/workspace '${tool_image}' http-server"
-}
-
 # Revert KUBECONFIG change made by kt2-tb, to avoid control plane login to mess
 # up SUT cluster's kubeconfig.
 if [[ -n "${OLD_KUBECONFIG}" ]] && [[ -n "${ARTIFACTS}" ]] && [[ "${KUBECONFIG#"${ARTIFACTS}"}" != "${KUBECONFIG}" ]]; then
@@ -74,11 +67,6 @@ fi
 
 if [[ -n "${KUBECONFIG}" ]] && [[ -n "${CILIUM_IMAGE_WITH_TAG:-}" ]] && [[ "${DISABLE_UPGRADE_VERIFICATION}" != "true" ]]; then
   verify_cilium_overridden "${CILIUM_IMAGE_WITH_TAG}"
-fi
-
-# Start http server in bootstapper
-if [[ -e "${ARTIFACTS}/.kubetest2-tailorbird/tailorbird-request.yaml" ]] && [[ -n "${ADD_VXLANS_CLUSTER_TYPE:-}" ]] && [[ "${ADD_VXLANS_CLUSTER_TYPE}" == "gdc-ag" ]]; then
-  enable_http_server
 fi
 
 function calculate_cluster_artifacts() {
