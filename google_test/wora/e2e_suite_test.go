@@ -18,6 +18,7 @@ import (
 	_ "gke-internal.googlesource.com/third_party/cilium/google_test/wora/e2e/verifiers/l3multinetwork"
 	_ "gke-internal.googlesource.com/third_party/cilium/google_test/wora/e2e/verifiers/l3vm"
 	_ "gke-internal.googlesource.com/third_party/cilium/google_test/wora/e2e/verifiers/loadbalancer"
+	_ "gke-internal.googlesource.com/third_party/cilium/google_test/wora/e2e/verifiers/multicluster"
 	_ "gke-internal.googlesource.com/third_party/cilium/google_test/wora/e2e/verifiers/multinetwork"
 	_ "gke-internal.googlesource.com/third_party/cilium/google_test/wora/e2e/verifiers/multinic_hostfirewall"
 	_ "gke-internal.googlesource.com/third_party/cilium/google_test/wora/e2e/verifiers/sample"

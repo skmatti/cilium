@@ -614,6 +614,8 @@ presubmits:
         value: multistage_test.yaml
       - name: WORA_DOCKERFILE_DIR
         value: multistage
+      - name: WORA_GINKGO_LABEL_FILTER
+        value: sample
       command:
       - runner.sh
       args:
