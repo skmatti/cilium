@@ -311,6 +311,7 @@ func (c *Controller) getPacketTaggingPairFromFt(ft *v2alpha1.FlowTagger) PacketT
 		SourcePort:      ft.Spec.Source.Port,
 		DestinationIP:   ft.Spec.Destination.IP,
 		DestinationPort: ft.Spec.Destination.Port,
+		Protocol:        ft.Spec.Protocol,
 	}
 	value := ftmap.PacketTaggingValue{
 		TraceID: uint16(ft.Spec.TraceID),
@@ -405,6 +406,12 @@ func (c *Controller) validateObj(obj interface{}) (*v2alpha1.FlowTagger, error) 
 		return nil, err
 	}
 
+	// validate protocol field
+	if err := validateProtocol(ft.Spec.Protocol); err != nil {
+		err = fmt.Errorf("invalid FlowTagger object %s validation failed for protocol: %v", ft.Name, err)
+		c.eventRecorder.Eventf(ft, v1.EventTypeWarning, validationError, err.Error())
+		return nil, err
+	}
 	return ft, nil
 }
 
@@ -463,4 +470,13 @@ func validateTraceId(traceId int32) error {
 		return fmt.Errorf("traceId should be in range [1,65535]")
 	}
 	return nil
+}
+
+func validateProtocol(protocol v2alpha1.FlowTaggerProtocol) error {
+	switch protocol {
+	case v2alpha1.FlowTaggerProtocolTCP, v2alpha1.FlowTaggerProtocolUDP, v2alpha1.FlowTaggerProtocolALL:
+		return nil
+	default:
+		return fmt.Errorf("invalid protocol: %q", protocol)
+	}
 }

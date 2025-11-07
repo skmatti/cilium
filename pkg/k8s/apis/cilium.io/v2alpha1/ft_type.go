@@ -36,12 +36,31 @@ type FlowTaggerSpec struct {
 	// +kubebuilder:validation:Optional
 	Destination FlowTaggerEntity `json:"destination,omitempty"`
 
+	// Protocol for the flow tagger.
+	// If not specified, it defaults to ALL.
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:default:=ALL
+	// +kubebuilder:validation:Enum=TCP;UDP;ALL
+	Protocol FlowTaggerProtocol `json:"protocol,omitempty"`
+
 	// Trace ID.
 	// +kubebuilder:validation:Minimum=1
 	// +kubebuilder:validation:Maximum=65535
 	// +kubebuilder:validation:Required
 	TraceID int32 `json:"traceID" valid:"required"`
 }
+
+// FlowTaggerProtocol defines the protocol for the flow tagger.
+type FlowTaggerProtocol string
+
+const (
+	// FlowTaggerProtocolTCP is for TCP protocol.
+	FlowTaggerProtocolTCP FlowTaggerProtocol = "TCP"
+	// FlowTaggerProtocolUDP is for UDP protocol.
+	FlowTaggerProtocolUDP FlowTaggerProtocol = "UDP"
+	// FlowTaggerProtocolALL is for all protocols.
+	FlowTaggerProtocolALL FlowTaggerProtocol = "ALL"
+)
 
 // FlowTaggerEntity defines the properties of the flow tagger entity either source or destination.
 type FlowTaggerEntity struct {

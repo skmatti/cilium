@@ -1518,6 +1518,10 @@ func (in *FlowTagger) DeepEqual(other *FlowTagger) bool {
 		return false
 	}
 
+	if !in.Status.DeepEqual(&other.Status) {
+		return false
+	}
+
 	return true
 }
 
@@ -1553,6 +1557,9 @@ func (in *FlowTaggerSpec) DeepEqual(other *FlowTaggerSpec) bool {
 		return false
 	}
 
+	if in.Protocol != other.Protocol {
+		return false
+	}
 	if in.TraceID != other.TraceID {
 		return false
 	}

@@ -3,6 +3,8 @@ package google_traffictagmap
 import (
 	"fmt"
 	"net"
+
+	"github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2alpha1"
 )
 
 type PacketTaggingKey struct {
@@ -10,6 +12,7 @@ type PacketTaggingKey struct {
 	DestinationIP   string
 	SourcePort      uint16
 	DestinationPort uint16
+	Protocol        v2alpha1.FlowTaggerProtocol
 }
 
 func (p *PacketTaggingKey) NetworkSourceIP() (net.IP, error) {

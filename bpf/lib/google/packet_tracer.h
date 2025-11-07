@@ -19,6 +19,9 @@ struct google_traffic_tag_key {
 	__be32 dest_ip;
 	__be16 dest_port;
 	__be16 src_port;
+	__u8   protocol;
+	/* Pad to 16 bytes to meet the BPF map key size requirement for efficiency. */
+	__u8   pad[3];
 } __packed;
 
 struct google_traffic_tag_value {
@@ -80,143 +83,259 @@ static __always_inline int add_trace_ip_opt_v4(struct __ctx_buff *ctx, struct ip
 /* TODO(b/430208938): Profile find_trace_id_from_map_v4 with best and worst case. */
 static __always_inline __u16 find_trace_id_from_map_v4(struct __ctx_buff *ctx __maybe_unused, struct iphdr *ip __maybe_unused) {
 #ifdef ENABLE_IPV4
-	struct google_traffic_tag_key key;
+	struct google_traffic_tag_key key = {};
 	struct google_traffic_tag_value *value;
 	int err, l4_off = 0;
 	struct ipv4_ct_tuple tuple = {};
+	__u8 protocol;
 	/* Extract the tuple from the packet so we can freely access addrs and ports.
-	 * All values are in network byte order.
-	 */
+	* All values are in network byte order.
+	*/
 	err = lb4_extract_tuple(ctx, ip, ETH_HLEN, &l4_off, &tuple);
 	if (IS_ERR(err)) {
-		return 0; /* Drop malformed packets */
+		return 0;
 	}
 	/* CT expects a tuple with the source and destination ports reversed,
-	 * while Packet tracing uses normal tuples that match packet headers.
-	 */
+	* while Packet tracing uses normal tuples that match packet headers.
+	*/
 	ipv4_ct_tuple_swap_ports(&tuple);
+
+	protocol = tuple.nexthdr;
+
 	/*
-	 * The following code implements a fallback mechanism to find a matching
-	 * entry in the google_traffic_tag_map. It iterates through different
-	 * combinations of source IP, destination IP, source port, and destination
-	 * port, using 0 as a default value for missing fields. This allows for
-	 * flexible matching based on the available information in the map.
-	 *
-	 * The order of matching is important, as it prioritizes more specific
-	 * matches over less specific ones. For example, a match with all fields
-	 * (source IP, destination IP, source port, and destination port) is
-	 * preferred over a match with only source and destination IPs.
-	 *
-	 * Order for matching key is as below:
-	 *	key: <source_ip-dest_ip-dest_port-src_port>
-	 *	1: source_ip-dest_ip-dest_port-src_port
-	 *	2: source_ip-dest_ip-dest_port-0
-	 *	3: source_ip-dest_ip-0-src_port
-	 *	4: source_ip-dest_ip-0-0
-	 *	5: 0-dest_ip-dest_port-src_port
-	 *	6: 0-dest_ip-dest_port-0
-	 *	7: 0-dest_ip-0-0
-	 *	8: source_ip-0-dest_port-src_port
-	 *	9: source_ip-0-dest_port-0
-	 *	10: source_ip-0-0-0
-	 *
-	 * The code iterates through these cases, setting the key fields to 0
-	 * when the specific field is not required for the current case.
-	 */
+	* The following code implements a fallback mechanism to find a matching
+	* entry in the google_traffic_tag_map.
+	*
+	* Order for matching key is as below:
+	* key: <source_ip, dest_ip, dest_port, source_port, protocol>
+	*
+	* 1: <source_ip, dest_ip, dest_port, source_port, protocol>
+	* 2: <source_ip, dest_ip, dest_port, source_port, 0       >
+	* 3: <source_ip, dest_ip, dest_port, 0          , protocol>
+	* 4: <source_ip, dest_ip, 0        , source_port, protocol>
+	* 5: <source_ip, dest_ip, dest_port, 0          , 0       >
+	* 6: <source_ip, dest_ip, 0        , source_port, 0       >
+	* 7: <source_ip, dest_ip, 0        , 0          , protocol>
+	* 8: <source_ip, 0      , 0        , source_port, protocol>
+	* 9: <0        , dest_ip, dest_port, 0          , protocol>
+	* 10: <source_ip, dest_ip, 0        , 0          , 0       >
+	* 11: <source_ip, 0      , 0        , source_port, 0       >
+	* 12: <source_ip, 0      , 0        , 0          , protocol>
+	* 13: <0        , dest_ip, dest_port, 0          , 0       >
+	* 14: <0        , dest_ip, 0        , 0          , protocol>
+	* 15: <source_ip, 0      , 0        , 0          , 0       >
+	* 16: <0        , dest_ip, 0        , 0          , 0       >
+	*/
 
-	/* case 1: source_ip-dest_ip-dest_port-src_port */
-	key.source_ip = tuple.saddr;
-	key.dest_ip = tuple.daddr;
-	key.dest_port = bpf_ntohs(tuple.dport);
-	key.src_port = bpf_ntohs(tuple.sport);
+	/* 1: <source_ip, dest_ip, dest_port, source_port, protocol> */
+	key = (struct google_traffic_tag_key){
+		.source_ip = tuple.saddr,
+		.dest_ip = tuple.daddr,
+		.dest_port = bpf_ntohs(tuple.dport),
+		.src_port = bpf_ntohs(tuple.sport),
+		.protocol = protocol,
+	};
 	value = map_lookup_elem(&google_traffic_tag_map, &key);
 	if (value) {
 		return value->trace_id;
 	}
 
-	/* case 2: source_ip-dest_ip-dest_port-0 */
-	key.src_port = 0;
+	/* 2: <source_ip, dest_ip, dest_port, source_port, 0       > */
+	key = (struct google_traffic_tag_key){
+		.source_ip = tuple.saddr,
+		.dest_ip = tuple.daddr,
+		.dest_port = bpf_ntohs(tuple.dport),
+		.src_port = bpf_ntohs(tuple.sport),
+		.protocol = 0,
+	};
 	value = map_lookup_elem(&google_traffic_tag_map, &key);
 	if (value) {
 		return value->trace_id;
 	}
 
-	/* case 3: source_ip-dest_ip-0-src_port */
-	key.dest_port = 0;
-	key.src_port = bpf_ntohs(tuple.sport);
+	/* 3: <source_ip, dest_ip, dest_port, 0          , protocol> */
+	key = (struct google_traffic_tag_key){
+		.source_ip = tuple.saddr,
+		.dest_ip = tuple.daddr,
+		.dest_port = bpf_ntohs(tuple.dport),
+		.src_port = 0,
+		.protocol = protocol,
+	};
 	value = map_lookup_elem(&google_traffic_tag_map, &key);
 	if (value) {
 		return value->trace_id;
 	}
 
-	/* case 4: source_ip-dest_ip-0-0 */
-	key.dest_port = 0;
-	key.src_port = 0;
+	/* 4: <source_ip, dest_ip, 0        , source_port, protocol> */
+	key = (struct google_traffic_tag_key){
+		.source_ip = tuple.saddr,
+		.dest_ip = tuple.daddr,
+		.dest_port = 0,
+		.src_port = bpf_ntohs(tuple.sport),
+		.protocol = protocol,
+	};
 	value = map_lookup_elem(&google_traffic_tag_map, &key);
 	if (value) {
 		return value->trace_id;
 	}
 
-	/* case 5: 0-dest_ip-dest_port-src_port */
-	key.source_ip = 0;
-	key.dest_ip = tuple.daddr;
-	key.dest_port = bpf_ntohs(tuple.dport);
-	key.src_port = bpf_ntohs(tuple.sport);
+	/* 5: <source_ip, dest_ip, dest_port, 0          , 0       > */
+	key = (struct google_traffic_tag_key){
+		.source_ip = tuple.saddr,
+		.dest_ip = tuple.daddr,
+		.dest_port = bpf_ntohs(tuple.dport),
+		.src_port = 0,
+		.protocol = 0,
+	};
 	value = map_lookup_elem(&google_traffic_tag_map, &key);
 	if (value) {
 		return value->trace_id;
 	}
 
-	/* case 6: 0-dest_ip-dest_port-0 */
-	key.source_ip = 0;
-	key.dest_ip = tuple.daddr;
-	key.dest_port = bpf_ntohs(tuple.dport);
-	key.src_port = 0;
+	/* 6: <source_ip, dest_ip, 0        , source_port, 0       > */
+	key = (struct google_traffic_tag_key){
+		.source_ip = tuple.saddr,
+		.dest_ip = tuple.daddr,
+		.dest_port = 0,
+		.src_port = bpf_ntohs(tuple.sport),
+		.protocol = 0,
+	};
 	value = map_lookup_elem(&google_traffic_tag_map, &key);
 	if (value) {
 		return value->trace_id;
 	}
 
-	/* case 7: 0-dest_ip-0-0 */
-	key.source_ip = 0;
-	key.dest_ip = tuple.daddr;
-	key.dest_port = 0;
-	key.src_port = 0;
+	/* 7: <source_ip, dest_ip, 0        , 0          , protocol> */
+	key = (struct google_traffic_tag_key){
+		.source_ip = tuple.saddr,
+		.dest_ip = tuple.daddr,
+		.dest_port = 0,
+		.src_port = 0,
+		.protocol = protocol,
+	};
 	value = map_lookup_elem(&google_traffic_tag_map, &key);
 	if (value) {
 		return value->trace_id;
 	}
 
-	/* case 8: source_ip-0-dest_port-src_port */
-	key.source_ip = tuple.saddr;
-	key.dest_ip = 0;
-	key.dest_port = bpf_ntohs(tuple.dport);
-	key.src_port = bpf_ntohs(tuple.sport);
+	/* 8: <source_ip, 0      , 0        , source_port, protocol> */
+	key = (struct google_traffic_tag_key){
+		.source_ip = tuple.saddr,
+		.dest_ip = 0,
+		.dest_port = 0,
+		.src_port = bpf_ntohs(tuple.sport),
+		.protocol = protocol,
+	};
 	value = map_lookup_elem(&google_traffic_tag_map, &key);
 	if (value) {
 		return value->trace_id;
 	}
 
-	/* case 9: source_ip-0-dest_port-0 */
-	key.source_ip = tuple.saddr;
-	key.dest_ip = 0;
-	key.dest_port = bpf_ntohs(tuple.dport);
-	key.src_port = 0;
+	/* 9: <0        , dest_ip, dest_port, 0          , protocol> */
+	key = (struct google_traffic_tag_key){
+		.source_ip = 0,
+		.dest_ip = tuple.daddr,
+		.dest_port = bpf_ntohs(tuple.dport),
+		.src_port = 0,
+		.protocol = protocol,
+	};
 	value = map_lookup_elem(&google_traffic_tag_map, &key);
 	if (value) {
 		return value->trace_id;
 	}
 
-	/* case 10: source_ip-0-0-0 */
-	key.source_ip = tuple.saddr;
-	key.dest_ip = 0;
-	key.dest_port = 0;
-	key.src_port = 0;
+	/* 10: <source_ip, dest_ip, 0        , 0          , 0       > */
+	key = (struct google_traffic_tag_key){
+		.source_ip = tuple.saddr,
+		.dest_ip = tuple.daddr,
+		.dest_port = 0,
+		.src_port = 0,
+		.protocol = 0,
+	};
 	value = map_lookup_elem(&google_traffic_tag_map, &key);
 	if (value) {
 		return value->trace_id;
 	}
-#endif /* ENABLE_IPV4 */
+
+	/* 11: <source_ip, 0      , 0        , source_port, 0       > */
+	key = (struct google_traffic_tag_key){
+		.source_ip = tuple.saddr,
+		.dest_ip = 0,
+		.dest_port = 0,
+		.src_port = bpf_ntohs(tuple.sport),
+		.protocol = 0,
+	};
+	value = map_lookup_elem(&google_traffic_tag_map, &key);
+	if (value) {
+		return value->trace_id;
+	}
+
+	/* 12: <source_ip, 0      , 0        , 0          , protocol> */
+	key = (struct google_traffic_tag_key){
+		.source_ip = tuple.saddr,
+		.dest_ip = 0,
+		.dest_port = 0,
+		.src_port = 0,
+		.protocol = protocol,
+	};
+	value = map_lookup_elem(&google_traffic_tag_map, &key);
+	if (value) {
+		return value->trace_id;
+	}
+
+	/* 13: <0        , dest_ip, dest_port, 0          , 0       > */
+	key = (struct google_traffic_tag_key){
+		.source_ip = 0,
+		.dest_ip = tuple.daddr,
+		.dest_port = bpf_ntohs(tuple.dport),
+		.src_port = 0,
+		.protocol = 0,
+	};
+	value = map_lookup_elem(&google_traffic_tag_map, &key);
+	if (value) {
+		return value->trace_id;
+	}
+
+	/* 14: <0        , dest_ip, 0        , 0          , protocol> */
+	key = (struct google_traffic_tag_key){
+		.source_ip = 0,
+		.dest_ip = tuple.daddr,
+		.dest_port = 0,
+		.src_port = 0,
+		.protocol = protocol,
+	};
+	value = map_lookup_elem(&google_traffic_tag_map, &key);
+	if (value) {
+		return value->trace_id;
+	}
+
+	/* 15: <source_ip, 0      , 0        , 0          , 0       > */
+	key = (struct google_traffic_tag_key){
+		.source_ip = tuple.saddr,
+		.dest_ip = 0,
+		.dest_port = 0,
+		.src_port = 0,
+		.protocol = 0,
+	};
+	value = map_lookup_elem(&google_traffic_tag_map, &key);
+	if (value) {
+		return value->trace_id;
+	}
+
+	/* 16: <0        , dest_ip, 0        , 0          , 0       > */
+	key = (struct google_traffic_tag_key){
+		.source_ip = 0,
+		.dest_ip = tuple.daddr,
+		.dest_port = 0,
+		.src_port = 0,
+		.protocol = 0,
+	};
+	value = map_lookup_elem(&google_traffic_tag_map, &key);
+	if (value) {
+		return value->trace_id;
+	}
+
+	#endif /* ENABLE_IPV4 */
 	return 0;
 }
 
@@ -387,16 +506,17 @@ static __always_inline int check_and_add_trace_ip_opt(struct __ctx_buff *ctx)
 		{
 			void *data, *data_end;
 			struct iphdr *ip4;
-			__u16 trace_id = 0;
 
 			if (!revalidate_data(ctx, &data, &data_end, &ip4))
 				return DROP_INVALID;
 
-			trace_id = find_trace_id_from_map_v4(ctx, ip4);
-			if (trace_id != 0 && !trace_id_from_ip4(ctx, ip4)){
-				int err = add_trace_ip_opt_v4(ctx, ip4, trace_id);
-				if (IS_ERR(err))
-					return err;
+			if (!trace_id_from_ip4(ctx, ip4)) {
+				__u16 trace_id = find_trace_id_from_map_v4(ctx, ip4);
+				if (trace_id != 0) {
+					int err = add_trace_ip_opt_v4(ctx, ip4, trace_id);
+					if (IS_ERR(err))
+						return err;
+				}
 			}
 		}
 		break;

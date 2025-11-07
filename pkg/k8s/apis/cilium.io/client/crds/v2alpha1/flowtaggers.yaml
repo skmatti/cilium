@@ -53,6 +53,15 @@ spec:
                     minimum: 0
                     type: integer
                 type: object
+              protocol:
+                default: ALL
+                description: Protocol for the flow tagger. If not specified, it defaults
+                  to ALL.
+                enum:
+                - TCP
+                - UDP
+                - ALL
+                type: string
               source:
                 description: Source for the flow tagger.
                 properties:

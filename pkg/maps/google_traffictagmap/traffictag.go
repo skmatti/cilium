@@ -5,7 +5,10 @@ import (
 	"fmt"
 	"unsafe"
 
+	"golang.org/x/sys/unix"
+
 	"github.com/cilium/cilium/pkg/ebpf"
+	"github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2alpha1"
 	"github.com/cilium/cilium/pkg/types"
 )
 
@@ -17,8 +20,11 @@ const (
 	MaxEntries = 1024
 
 	// Name is the canonical name for the TrafficTag map on the filesystem.
-	Name = "google_traffic_tag_map"
+	Name        = "google_traffic_tag_map"
+	IPPROTO_ALL = 0
 )
+
+type pad1uint8 [3]uint8
 
 // Key implements the bpf.MapKey interface.
 //
@@ -30,6 +36,8 @@ type TrafficTagKey struct {
 	DestIP     types.IPv4 `align:"dest_ip"`
 	DestPort   uint16     `align:"dest_port"`
 	SourcePort uint16     `align:"src_port"`
+	Protocol   uint8      `align:"protocol"`
+	Pad        pad1uint8  `align:"pad"`
 }
 
 type TrafficTagValue struct {
@@ -88,6 +96,16 @@ func NewTrafficTagKey(k PacketTaggingKey) (TrafficTagKey, error) {
 	copy(key.DestIP[:], netDestIP.To4())
 	key.DestPort = k.DestinationPort
 	key.SourcePort = k.SourcePort
+	switch k.Protocol {
+	case v2alpha1.FlowTaggerProtocolTCP:
+		key.Protocol = unix.IPPROTO_TCP
+	case v2alpha1.FlowTaggerProtocolUDP:
+		key.Protocol = unix.IPPROTO_UDP
+	case v2alpha1.FlowTaggerProtocolALL:
+		key.Protocol = IPPROTO_ALL
+	default:
+		key.Protocol = IPPROTO_ALL
+	}
 	return key, nil
 }
 
