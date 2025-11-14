@@ -5,15 +5,17 @@ package egressnat
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"time" // Do not use pkg/time in test code.
 
-	ciliumv2 "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2"
 	ciliumv2metav1 "github.com/cilium/cilium/pkg/k8s/slim/k8s/apis/meta/v1"
 	v1 "github.com/cilium/cilium/pkg/k8s/slim/k8s/apis/meta/v1"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+
+	ciliumv2 "gke-internal.googlesource.com/third_party/cilium/pkg/k8s/apis/cilium.io/v2"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -38,6 +40,9 @@ const (
 	egressNATIP          = "10.200.32.15"
 	clusterExternalIP    = "10.248.0.1"
 	allowEgressLabelKey  = "egress.networking.gke.io/enabled"
+	HostnameLabel        = "kubernetes.io/hostname"
+	invalidHostName      = "invalid-hostname"
+	invalidEgressIP      = "10.200.32.12"
 )
 
 var _ = Describe("Verifiers/EgressNAT", Label("egressnat"), Ordered, func() {
@@ -51,7 +56,7 @@ var _ = Describe("Verifiers/EgressNAT", Label("egressnat"), Ordered, func() {
 	)
 
 	BeforeAll(func() {
-		s := e2escheme.Scheme()
+		s := e2escheme.SchemeV2()
 
 		ctx, _ = context.WithTimeout(context.Background(), 20*time.Minute)
 
@@ -239,7 +244,7 @@ var _ = Describe("Verifiers/EgressNAT", Label("egressnat"), Ordered, func() {
 								"app": allowEgressPodName,
 							},
 						},
-						TopologyKey: "kubernetes.io/hostname",
+						TopologyKey: HostnameLabel,
 					},
 				},
 			},
@@ -264,7 +269,7 @@ var _ = Describe("Verifiers/EgressNAT", Label("egressnat"), Ordered, func() {
 								"app": allowEgressPodName,
 							},
 						},
-						TopologyKey: "kubernetes.io/hostname",
+						TopologyKey: HostnameLabel,
 					},
 				},
 			},
@@ -289,7 +294,7 @@ var _ = Describe("Verifiers/EgressNAT", Label("egressnat"), Ordered, func() {
 								"app": allowEgressVMName,
 							},
 						},
-						TopologyKey: "kubernetes.io/hostname",
+						TopologyKey: HostnameLabel,
 					},
 				},
 			},
@@ -314,7 +319,7 @@ var _ = Describe("Verifiers/EgressNAT", Label("egressnat"), Ordered, func() {
 								"app": allowEgressVMName,
 							},
 						},
-						TopologyKey: "kubernetes.io/hostname",
+						TopologyKey: HostnameLabel,
 					},
 				},
 			},
@@ -373,7 +378,7 @@ func testEgressNATFromPod(ctx context.Context, cl k8sclient.Client, allowEgressP
 	}
 
 	// Create CiliumEgressGatewayPolicy for egress NAT
-	cleanupCiliumEgressGatewayPolicy, err := createCiliumEgressGatewayPolicy(ctx, cl, testNamespace, egressNATIP, perimeterVMIP)
+	cleanupCiliumEgressGatewayPolicy, err := createCiliumEgressGatewayPolicy(ctx, cl, testNamespace, []string{egressNATIP}, []string{perimeterVMIP}, map[string]string{"egress.networking.gke.io/enabled": "true"})
 	if err != nil {
 		return testPods, cleanupFuncs, fmt.Errorf("failed to create ciliumegressgatewaypolicy with egressNATIP %s and gatewayIP %s: %v", egressNATIP, perimeterVMIP, err)
 	}
@@ -474,27 +479,35 @@ func addPodEgressLabel(ctx context.Context, cl k8sclient.Client, podName string)
 	return nil
 }
 
-// createCiliumEgressGatewayPolicy creates CiliumEgressGatewayPolicy with associated egressNATIP, gatewayIP and name
-func createCiliumEgressGatewayPolicy(ctx context.Context, cl k8sclient.Client, namespace, egressNATIP, gatewayIP string) (func(), error) {
+func createCiliumEgressGatewayPolicy(ctx context.Context, cl k8sclient.Client, namespace string, expectedNATIPs, gatewayIPs []string, podSelectorLabels map[string]string) (func(), error) {
+	policyName := namespace
+
 	cleanup := func() {
-		// Delete  CiliumEgressGatewayPolicy
+		// Delete CiliumEgressGatewayPolicy
 		err := cl.Delete(ctx, &ciliumv2.CiliumEgressGatewayPolicy{
 			ObjectMeta: metav1.ObjectMeta{
-				Name: namespace,
+				Name: policyName,
 			},
 		})
 		if err != nil {
-			klog.Warningf("Failed to delete CiliumEgressGatewayPolicy %s: %v", namespace, err)
+			klog.Warningf("Failed to delete CiliumEgressGatewayPolicy %s: %v", policyName, err)
 		} else {
-			klog.Infof("Deleting CiliumEgressGatewayPolicy %s", namespace)
+			klog.Infof("Deleting CiliumEgressGatewayPolicy %s", policyName)
 		}
 	}
+
+	if len(expectedNATIPs) == 0 {
+		return func() {}, fmt.Errorf("failed to create CiliumEgressGatewayPolicy %s: expectedNATIPs list cannot be empty", policyName)
+	}
+	if len(expectedNATIPs) != len(gatewayIPs) {
+		return cleanup, fmt.Errorf("the number of expectedNATIPs (%d) must match the number of gatewayIPs (%d)", len(expectedNATIPs), len(gatewayIPs))
+	}
+
 	cegp := &ciliumv2.CiliumEgressGatewayPolicy{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: namespace,
-			Annotations: map[string]string{
-				"networking.gke.io/gateway-ip": gatewayIP,
-			},
+			Name:        policyName,
+			Annotations: make(map[string]string),
+			Labels:      make(map[string]string),
 		},
 		Spec: ciliumv2.CiliumEgressGatewayPolicySpec{
 			Selectors: []ciliumv2.EgressRule{
@@ -505,24 +518,64 @@ func createCiliumEgressGatewayPolicy(ctx context.Context, cl k8sclient.Client, n
 						},
 					},
 					PodSelector: &v1.LabelSelector{
-						MatchLabels: map[string]string{
-							"egress.networking.gke.io/enabled": "true",
-						},
+						MatchLabels: podSelectorLabels,
 					},
 				},
 			},
 			DestinationCIDRs: []ciliumv2.IPv4CIDR{
 				"0.0.0.0/0",
 			},
-			EgressGateway: &ciliumv2.EgressGateway{
-				EgressIP: egressNATIP,
-				NodeSelector: &ciliumv2metav1.LabelSelector{
-					MatchLabels: map[string]string{
-						"kubernetes.io/hostname": "",
-					},
+		},
+	}
+
+	egressGateways := []ciliumv2.EgressGateway{}
+	for _, expectedNATIP := range expectedNATIPs {
+		egressGateways = append(egressGateways, ciliumv2.EgressGateway{
+			EgressIP: expectedNATIP,
+			NodeSelector: &ciliumv2metav1.LabelSelector{
+				MatchLabels: map[string]string{
+					HostnameLabel: invalidHostName,
 				},
 			},
-		},
+		})
+	}
+
+	if len(egressGateways) == 1 {
+		cegp.ObjectMeta.Annotations["networking.gke.io/gateway-ip"] = gatewayIPs[0]
+		cegp.Spec.EgressGateway = &egressGateways[0]
+	} else {
+		type CloudNatGateway struct {
+			EgressIP  string `json:"egressIP"`
+			GatewayIP string `json:"gatewayIP"`
+		}
+		var annotationGateways []CloudNatGateway
+		for i, gatewayIP := range gatewayIPs {
+			annotationGateways = append(annotationGateways, CloudNatGateway{
+				EgressIP:  expectedNATIPs[i],
+				GatewayIP: gatewayIP,
+			})
+		}
+		annotationJsonBytes, err := json.Marshal(annotationGateways)
+		if err != nil {
+			return cleanup, fmt.Errorf("failed to marshal cloud nat gateways to JSON: %w", err)
+		}
+		cegp.ObjectMeta.Annotations["networking.gke.io/cloud-nat-gateways"] = string(annotationJsonBytes)
+
+		cegp.ObjectMeta.Labels = map[string]string{
+			"networking.gdc.goog/cloud-nat-gateway-name":      gatewayName,
+			"networking.gdc.goog/cloud-nat-gateway-namespace": gatewayNamespace,
+		}
+		cegp.Spec.EgressGateways = egressGateways
+		// EgressGateway is ignored when egressGateways is present.
+		// For multi-gateway configurations it is set here only to satisfy CEL validation rules.
+		cegp.Spec.EgressGateway = &ciliumv2.EgressGateway{
+			EgressIP: invalidEgressIP,
+			NodeSelector: &ciliumv2metav1.LabelSelector{
+				MatchLabels: map[string]string{
+					HostnameLabel: invalidHostName,
+				},
+			},
+		}
 	}
 	if err := cl.Create(ctx, cegp); err != nil {
 		return cleanup, fmt.Errorf("failed to create CiliumEgressGatewayPolicy: %v", err)

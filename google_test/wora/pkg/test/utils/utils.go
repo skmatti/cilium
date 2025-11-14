@@ -395,11 +395,12 @@ type CurlOptions struct {
 	// WantFailure, if true, indicates that the curl command is expected to fail.
 	// The default expected failure is a timeout (exit status 28).
 	WantFailure bool
-	// WantOutput, if not empty, specifies a substring to look for in the curl
-	// response or error. If WantFailure is false, it overrides the default
+	// WantOutput, if not empty, specifies a list of substring to look for in the curl response or error.
+	// The function passes if the actual output contains at least one substring from this list.
+	// If WantFailure is false, it overrides the default
 	// success string ("200 OK"). If WantFailure is true, it overrides the
 	// default failure string ("exit status 28").
-	WantOutput string
+	WantOutput []string
 }
 
 // RunCurlFromPod executes a curl command from a pod with the specified options.
@@ -427,15 +428,17 @@ func RunCurlFromPod(opts CurlOptions) error {
 			return fmt.Errorf("expected curl to fail, but it succeeded, output: %s", output)
 		}
 
-		expectedFailureMsg := curlTimeoutMsg
-		if opts.WantOutput != "" {
-			expectedFailureMsg = opts.WantOutput
+		expectedFailureMsgs := []string{curlTimeoutMsg}
+		if len(opts.WantOutput) > 0 {
+			expectedFailureMsgs = opts.WantOutput
 		}
 
-		if !strings.Contains(err.Error(), expectedFailureMsg) {
-			return fmt.Errorf("expected curl to fail with substring %q, but got different error: %v, output: %s", expectedFailureMsg, err, output)
+		for _, expectedFailureMsg := range expectedFailureMsgs {
+			if strings.Contains(err.Error(), expectedFailureMsg) {
+				return nil // Expected failure occurred.
+			}
 		}
-		return nil // Expected failure occurred.
+		return fmt.Errorf("expected curl to fail with one of the expected substring %q, but got different error: %v, output: %s", expectedFailureMsgs, err, output)
 	}
 
 	// We expect success.
@@ -444,20 +447,24 @@ func RunCurlFromPod(opts CurlOptions) error {
 	}
 	klog.Infof("curl to %s succeed", fmt.Sprintf("http://%s:%d", opts.TargetIP, opts.TargetPort))
 
-	expectedOutput := curlSuccessMsg
-	if opts.WantOutput != "" {
-		expectedOutput = opts.WantOutput
+	expectedOutputs := []string{curlSuccessMsg}
+	if len(opts.WantOutput) > 0 {
+		expectedOutputs = opts.WantOutput
 	}
 
-	if !strings.Contains(output, expectedOutput) {
-		return fmt.Errorf("curl response did not contain expected substring %q, output: %s", expectedOutput, output)
+	// Check if the output contains ANY of the expected substrings.
+	for _, expected := range expectedOutputs {
+		if strings.Contains(output, expected) {
+			klog.Infof("Actual output contains one of the expected substrings: %q", expected)
+			return nil
+		}
 	}
-	return nil
+	return fmt.Errorf("curl response did not contain any of the expected substrings %v, output: %s", expectedOutputs, output)
 }
 
 // VerifyCurlFromPod retries a curl command with a 1-minute timeout and expects
 // a number of consecutive successful or failed connections.
-func VerifyCurlFromPod(ctx context.Context, namespace, sourcePodName, targetIP string, port int, wantSuccess bool, wantOutput string) error {
+func VerifyCurlFromPodWithMultipleOutputs(ctx context.Context, namespace, sourcePodName, targetIP string, port int, wantSuccess bool, wantOutput []string) error {
 	const minConsecutiveChecks = 2
 	cmdStr := fmt.Sprintf("from %s/%s to %s:%d", namespace, sourcePodName, targetIP, port)
 	waitMsg := fmt.Sprintf("Expected %d consecutive successful curls %s", minConsecutiveChecks, cmdStr)
@@ -482,6 +489,15 @@ func VerifyCurlFromPod(ctx context.Context, namespace, sourcePodName, targetIP s
 		}
 		return nil
 	})
+}
+
+func VerifyCurlFromPod(ctx context.Context, namespace, sourcePodName, targetIP string, port int, wantSuccess bool, wantOutput string) error {
+	// Recreate the logic to call RunCurlFromPod, translating the single string to a list.
+	var outputs []string
+	if wantOutput != "" {
+		outputs = []string{wantOutput}
+	}
+	return VerifyCurlFromPodWithMultipleOutputs(ctx, namespace, sourcePodName, targetIP, port, wantSuccess, outputs)
 }
 
 func NodeInterfaceIPFromPod(ctx context.Context, sourcePodName, nodeInterfaceName string, namespace string) (string, error) {
@@ -1069,6 +1085,41 @@ func WaitForNetworkReady(ctx context.Context, cl k8sclient.Client, networkName s
 			network.Name, condition.Status, condition.Reason, condition.Message)
 	}); err != nil {
 		return fmt.Errorf("failed to wait for network readiness: %v", err)
+	}
+	return nil
+}
+
+func RemovePodLabel(ctx context.Context, cl k8sclient.Client, object k8sclient.ObjectKey, labelKey string) error {
+	pod := &corev1.Pod{}
+	err := cl.Get(ctx, object, pod)
+	if err != nil {
+		return fmt.Errorf("failed to get pod %s: %v", object.Name, err)
+	}
+	patchBase := pod.DeepCopy()
+	delete(pod.Labels, labelKey)
+	patch := k8sclient.MergeFrom(patchBase)
+	if err := cl.Patch(ctx, pod, patch); err != nil {
+		return fmt.Errorf("failed to remove label for pod %s: %v", object.Name, err)
+	}
+	return nil
+}
+
+func AddPodLabel(ctx context.Context, cl k8sclient.Client, object k8sclient.ObjectKey, labels map[string]string) error {
+	pod := &corev1.Pod{}
+	err := cl.Get(ctx, object, pod)
+	if err != nil {
+		return fmt.Errorf("failed to get pod %s: %v", object.Name, err)
+	}
+	patchBase := pod.DeepCopy()
+	if pod.Labels == nil {
+		pod.Labels = make(map[string]string)
+	}
+	for labelKey, labelValue := range labels {
+		pod.Labels[labelKey] = labelValue
+	}
+	patch := k8sclient.MergeFrom(patchBase)
+	if err := cl.Patch(ctx, pod, patch); err != nil {
+		return fmt.Errorf("failed to add label for pod %s", object.Name)
 	}
 	return nil
 }
