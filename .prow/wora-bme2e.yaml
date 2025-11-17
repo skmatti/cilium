@@ -20,7 +20,7 @@ presubmits:
   path_alias: gke-internal.googlesource.com/third_party/cilium
   spec:
     containers:
-    - image: gcr.io/tailorbird/kubetest2-tailorbird:latest
+    - image: gcr.io/tailorbird/kubetest2-tailorbird@sha256:dd6edb7b068410208ae185e780bfef1629ea5e07ce566c17132edb1070a71d0d
       resources:
         requests:
           ephemeral-storage: 150Gi
@@ -62,7 +62,7 @@ presubmits:
   path_alias: gke-internal.googlesource.com/third_party/cilium
   spec:
     containers:
-    - image: gcr.io/tailorbird/kubetest2-tailorbird:latest
+    - image: gcr.io/tailorbird/kubetest2-tailorbird@sha256:dd6edb7b068410208ae185e780bfef1629ea5e07ce566c17132edb1070a71d0d
       resources:
         requests:
           ephemeral-storage: 150Gi
@@ -104,7 +104,7 @@ presubmits:
   path_alias: gke-internal.googlesource.com/third_party/cilium
   spec:
     containers:
-    - image: gcr.io/tailorbird/kubetest2-tailorbird:latest
+    - image: gcr.io/tailorbird/kubetest2-tailorbird@sha256:dd6edb7b068410208ae185e780bfef1629ea5e07ce566c17132edb1070a71d0d
       resources:
         requests:
           ephemeral-storage: 150Gi
@@ -148,7 +148,7 @@ presubmits:
     imagePullSecrets:
     - name: gcr-secret
     containers:
-    - image: gcr.io/tailorbird/kubetest2-tailorbird:latest
+    - image: gcr.io/tailorbird/kubetest2-tailorbird@sha256:dd6edb7b068410208ae185e780bfef1629ea5e07ce566c17132edb1070a71d0d
       resources:
         requests:
           ephemeral-storage: 150Gi
