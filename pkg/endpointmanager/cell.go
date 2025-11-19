@@ -15,7 +15,10 @@ import (
 	"github.com/cilium/cilium/pkg/gke/multinic/multinicconfig"
 	"github.com/cilium/cilium/pkg/identity/cache"
 	"github.com/cilium/cilium/pkg/ipcache"
+	cilium_v2a1 "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2alpha1"
 	"github.com/cilium/cilium/pkg/k8s/client"
+	"github.com/cilium/cilium/pkg/k8s/resource"
+	"github.com/cilium/cilium/pkg/k8s/types"
 	"github.com/cilium/cilium/pkg/mcastmanager"
 	"github.com/cilium/cilium/pkg/metrics"
 	"github.com/cilium/cilium/pkg/node"
@@ -248,9 +251,15 @@ func newDefaultEndpointManager(p endpointManagerParams) endpointManagerOut {
 type endpointSynchronizerParams struct {
 	cell.In
 
-	Clientset client.Clientset
+	Clientset           client.Clientset
+	CiliumEndpoint      resource.Resource[*types.CiliumEndpoint]
+	CiliumEndpointSlice resource.Resource[*cilium_v2a1.CiliumEndpointSlice]
 }
 
 func newEndpointSynchronizer(p endpointSynchronizerParams) EndpointResourceSynchronizer {
-	return &EndpointSynchronizer{Clientset: p.Clientset}
+	return &EndpointSynchronizer{
+		Clientset:           p.Clientset,
+		CiliumEndpoint:      p.CiliumEndpoint,
+		CiliumEndpointSlice: p.CiliumEndpointSlice,
+	}
 }
