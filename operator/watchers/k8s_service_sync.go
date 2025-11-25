@@ -5,6 +5,7 @@ package watchers
 
 import (
 	"context"
+	"path"
 	"sync"
 
 	"github.com/sirupsen/logrus"
@@ -66,8 +67,24 @@ func k8sServiceHandler(ctx context.Context, cinfo cmtypes.ClusterInfo, shared bo
 			return
 		}
 
+		keyPath := path.Join(serviceStore.ServiceStorePrefix, svc.Cluster, event.ID.Namespace, event.ID.Name)
+		backendCount := 0
+		if event.Endpoints != nil {
+			backendCount = len(event.Endpoints.Backends)
+		}
+		svcLog := log.WithFields(logrus.Fields{
+			logfields.K8sNamespace: event.ID.Namespace,
+			logfields.K8sSvcName:   event.ID.Name,
+			logfields.ClusterName:  svc.Cluster,
+			logfields.K8sSvcType:   event.Service.Type,
+			logfields.Backends:     backendCount,
+			"frontends":            event.Service.FrontendIPs,
+			"key":                  keyPath,
+		})
+
 		switch event.Action {
 		case k8s.UpdateService:
+			svcLog.Info("Updating service in etcd")
 			if err := kvs.UpsertKey(ctx, &svc); err != nil {
 				// An error is triggered only in case it concerns service marshaling,
 				// as kvstore operations are automatically re-tried in case of error.
@@ -75,6 +92,7 @@ func k8sServiceHandler(ctx context.Context, cinfo cmtypes.ClusterInfo, shared bo
 			}
 
 		case k8s.DeleteService:
+			svcLog.Info("Deleting service from etcd")
 			kvs.DeleteKey(ctx, &svc)
 		}
 	}

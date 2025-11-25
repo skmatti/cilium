@@ -379,10 +379,10 @@ func injectIlbInfo(svc *slimv1.Service, internalService *Service, useFEIP bool) 
 	log.WithFields(logrus.Fields{
 		logfields.K8sSvcName:   svc.Name,
 		logfields.K8sNamespace: svc.Namespace,
-		"frontEndIPs":          fmt.Sprintf("%v", internalService.FrontendIPs),
+		"frontends":            internalService.FrontendIPs,
 		"useFEIP":              useFEIP,
 		"ingress":              svc.Status.LoadBalancer.Ingress,
-	}).Info("Injecting ILB info into service labels")
+	}).Debug("Injecting ILB info into service labels")
 	if internalService.Labels == nil {
 		internalService.Labels = map[string]string{}
 	}
