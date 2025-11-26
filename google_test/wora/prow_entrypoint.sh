@@ -335,6 +335,22 @@ function insert_clustermesh_image {
   yq -i '.spec.applications.[0].spec.directives.[0].spec.env.CILIUM_CLUSTERMESH_IMAGE_WITH_TAG = env(clustermesh_image)' "${config}"
 }
 
+
+function insert_cilium_version_check() {
+  local config="${1:?}"
+  local image_with_tag="${2:?}"
+  env \
+    image_with_tag="${image_with_tag}" \
+    yq -i '
+    .spec.applications[] |= (
+      select(.spec.resourceTypeReference.name == "k8s-net-post-provisioner") |
+      .spec.directives[] |= (
+        (.spec.env.POSTPROVISIONER_FEATURES |= ([., "checkversions"] | join(","))) |
+        (.spec.env.CILIUM_IMAGE_WITH_TAG = strenv(image_with_tag))
+      )
+    )' "${config}"
+}
+
 # Insert plugin version into WORA_CONFIG.
 insert_plugin_version \
   "${WORA_CONFIG}" \
@@ -358,8 +374,10 @@ if [[ -v WORA_GINKGO_CLUSTER_TYPE ]]; then
   update_cluster_type "${WORA_CONFIG}" "${WORA_GINKGO_CLUSTER_TYPE:-}"
 fi
 
-if [[ -n "${CILIUM_DOCKER_IMAGE_TAG}" ]]; then
-  CILIUM_IMAGE_WITH_TAG=${IMAGE_REGISTRY}/cilium/cilium:${CILIUM_DOCKER_IMAGE_TAG}
+if [[ -n "${CILIUM_DOCKER_IMAGE_TAG}" ]] && [[ "${DISABLE_UPGRADE_VERIFICATION:-"false"}" != "true" ]]; then
+  insert_cilium_version_check \
+    "${TBCONFIG}" \
+    "${IMAGE_REGISTRY}/cilium/cilium:${CILIUM_DOCKER_IMAGE_TAG}"
 fi
 
 if [[ "${NUM_CLUSTERS}" -gt 1 ]]; then
@@ -432,15 +450,13 @@ trap '
   --tbenv="${TBENV}"
   ' EXIT
 
-CILIUM_IMAGE_WITH_TAG=${CILIUM_IMAGE_WITH_TAG:-} \
-  DISABLE_UPGRADE_VERIFICATION=${DISABLE_UPGRADE_VERIFICATION:-} \
-  kubetest2-tailorbird \
-  --verbose \
-  --run-id="${RUN_ID}" \
-  --up \
-  --tbconfig="${TBCONFIG}" \
-  --tbenv="${TBENV}" \
-  --client-timeout="${TB_CLIENT_TIMEOUT:-3h}" \
-  --test=exec \
-  -- \
-  "${ROOT}/run.sh"
+kubetest2-tailorbird \
+--verbose \
+--run-id="${RUN_ID}" \
+--up \
+--tbconfig="${TBCONFIG}" \
+--tbenv="${TBENV}" \
+--client-timeout="${TB_CLIENT_TIMEOUT:-3h}" \
+--test=exec \
+-- \
+"${ROOT}/run.sh"
