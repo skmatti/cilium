@@ -134,8 +134,8 @@ func (c *Controller) deleteFQDNPolicy(obj interface{}) {
 	scopedLog = scopedLog.WithField(fqdnNetPolName, fqdn.Name)
 	scopedLog.Info("Received a delete request for FQDN Network Policy")
 
-	_, err = c.pm.PolicyDelete(policyLabels(fqdn), nil)
-	if err != nil {
+	opts := policy.DeleteOptions{Source: metrics.LabelEventSourceK8s}
+	if _, err := c.pm.PolicyDelete(policyLabels(fqdn), &opts); err != nil {
 		scopedLog.Errorf("Error deleting FQDN Network Policy from policy manager: %v", err)
 	} else {
 		scopedLog.Info("Deleted rule from policy manager")

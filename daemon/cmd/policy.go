@@ -5,6 +5,7 @@ package cmd
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/netip"
 	"sync"
@@ -365,6 +366,9 @@ type PolicyDeleteResult struct {
 // Returns the revision number and an error in case it was not possible to
 // delete the policy.
 func (d *Daemon) PolicyDelete(labels labels.LabelArray, opts *policy.DeleteOptions) (newRev uint64, err error) {
+	if opts == nil {
+		return 0, errors.New("policy delete options cannot be nil")
+	}
 	p := &PolicyDeleteEvent{
 		labels: labels,
 		opts:   opts,
