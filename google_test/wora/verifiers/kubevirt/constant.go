@@ -134,9 +134,6 @@ spec:
     spec:
       dnsPolicy: ClusterFirstWithHostNet
       serviceAccountName: csi-nfs-controller-sa
-      nodeSelector:
-        kubernetes.io/os: linux
-        node-role.kubernetes.io/control-plane: ""
       priorityClassName: system-cluster-critical
       tolerations:
         - operator: "Exists"

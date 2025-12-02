@@ -250,17 +250,6 @@ var _ = Describe("Verifiers/Kubevirt", Label("kubevirt"), Ordered, func() {
 		vc, err = kubecli.GetKubevirtClientFromFlags("", kubeconfig)
 		Expect(err).ShouldNot(HaveOccurred())
 
-		err = installNFS(ctx, c)
-		if err != nil {
-			klog.Infof("NFS installation failed: %s", err)
-		}
-		Expect(err).ToNot(HaveOccurred(), fmt.Sprintf("NFS installation failed: %v", err))
-		klog.Infof("Verifying NFS installation")
-		err = waitForNFSReady(c)
-		if err != nil {
-			klog.Infof("NFS verification failed: %s", err)
-		}
-		Expect(err).ToNot(HaveOccurred(), fmt.Sprintf("NFS verification failed: %v", err))
 	})
 
 	It("create all VMs successfully", func() {
@@ -383,6 +372,22 @@ var _ = Describe("Verifiers/Kubevirt", Label("kubevirt"), Ordered, func() {
 
 	Describe("DHCP Server and Live Migration tests", func() {
 		BeforeAll(func() {
+			waitForVMControllerManagerReady(ctx, c, "Waiting for vm-controller-manager webhook to be ready before NFS installation...")
+
+			err := installNFS(ctx, c)
+			if err != nil {
+				klog.Infof("NFS installation failed: %s", err)
+			}
+			Expect(err).ToNot(HaveOccurred(), fmt.Sprintf("NFS installation failed: %v", err))
+			klog.Infof("Verifying NFS installation")
+			err = waitForNFSReady(c)
+			if err != nil {
+				klog.Infof("NFS verification failed: %s", err)
+			}
+			Expect(err).ToNot(HaveOccurred(), fmt.Sprintf("NFS verification failed: %v", err))
+
+			waitForVMControllerManagerReady(ctx, c, "Waiting for vm-controller-manager webhook to be ready after NFS installation...")
+
 			klog.Infoln("Setting up DHCP and Live Migration test VMs")
 			enableRoutingOnBootstrap()
 			workerNodes, err := workerNodes(ctx, c)

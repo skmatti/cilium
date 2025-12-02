@@ -10,6 +10,7 @@ import (
 	"time" // Do not use pkg/time in test code.
 
 	expect "github.com/google/goexpect"
+	. "github.com/onsi/gomega"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -1033,4 +1034,31 @@ func MakePingCommand(DestinationVMIPstr string) string {
 	ipRCmd := "ip r"
 	pingCmd := fmt.Sprintf("ping -c 5 %s\n", DestinationVMIPstr)
 	return fmt.Sprintf("%s && %s && %s", ipACmd, ipRCmd, pingCmd)
+}
+
+func waitForVMControllerManagerReady(ctx context.Context, c client.Interface, message string) {
+	klog.Infoln(message)
+	Eventually(func() (corev1.ConditionStatus, error) {
+		podList, err := c.CoreV1().Pods("vm-system").List(ctx, metav1.ListOptions{LabelSelector: "control-plane=controller-manager"})
+		if err != nil {
+			return "", err
+		}
+		if len(podList.Items) == 0 {
+			klog.Infoln("vm-controller-manager pod not found yet...")
+			return corev1.ConditionFalse, nil
+		}
+		pod := podList.Items[0]
+		if pod.Status.Phase != corev1.PodRunning {
+			klog.Infof("vm-controller-manager pod %s is not running yet, current phase: %s", pod.Name, pod.Status.Phase)
+			return corev1.ConditionFalse, nil
+		}
+		for _, cond := range pod.Status.Conditions {
+			if cond.Type == corev1.PodReady {
+				klog.Infof("vm-controller-manager pod %s Ready condition is %s", pod.Name, cond.Status)
+				return cond.Status, nil
+			}
+		}
+		klog.Infof("vm-controller-manager pod %s is running but Ready condition not found yet...", pod.Name)
+		return corev1.ConditionFalse, nil
+	}, "2m", "10s").Should(Equal(corev1.ConditionTrue), "vm-controller-manager webhook did not become ready in time")
 }
