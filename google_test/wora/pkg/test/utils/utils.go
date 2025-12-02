@@ -1,18 +1,24 @@
 package utils
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
+	"math/rand"
 	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
+	"sync"
+	"sync/atomic"
+	"time"
 
 	gcpnetworkv1 "github.com/GoogleCloudPlatform/gke-networking-api/apis/network/v1"
 	networkclientset "github.com/GoogleCloudPlatform/gke-networking-api/client/network/clientset/versioned"
@@ -29,9 +35,11 @@ import (
 	"k8s.io/utils/ptr"
 	k8sclient "sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/spf13/afero"
 	networkutils "gke-internal.googlesource.com/anthos-networking/test-infra/pkg/network"
 	klog "gke-internal.googlesource.com/syllogi/sanitized-klog/third_party/klogv2"
 	"gke-internal.googlesource.com/third_party/cilium/google_test/wora/e2e/pkg/test/wait"
+	appsv1 "k8s.io/api/apps/v1"
 )
 
 const (
@@ -353,16 +361,14 @@ func CreateTestNamespace(ctx context.Context, cl k8sclient.Client, namespace str
 // cleanupResources deletes the pod and all associated network interfaces
 func cleanupResources(ctx context.Context, cl k8sclient.Client, podName, namespace string, networkInfos []NetworkInfo) {
 	// Delete the pod
-	err := cl.Delete(ctx, &corev1.Pod{
+	pod := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      podName,
 			Namespace: namespace,
 		},
-	})
-	if err != nil {
+	}
+	if err := DeleteIfExists(ctx, cl, pod); err != nil {
 		klog.Warningf("Failed to delete Pod %s: %v", podName, err)
-	} else {
-		klog.Infof("Deleting Pod %s", podName)
 	}
 
 	// Delete associated network interfaces
@@ -371,16 +377,14 @@ func cleanupResources(ctx context.Context, cl k8sclient.Client, podName, namespa
 			continue
 		}
 		niName := fmt.Sprintf("%s-%s", podName, info.InterfaceName)
-		err := cl.Delete(ctx, &networkv1.NetworkInterface{
+		ni := &networkv1.NetworkInterface{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      niName,
 				Namespace: namespace,
 			},
-		})
-		if err != nil {
+		}
+		if err := DeleteIfExists(ctx, cl, ni); err != nil {
 			klog.Warningf("Failed to delete NetworkInterface %s: %v", niName, err)
-		} else {
-			klog.Infof("Deleting NetworkInterface %s", niName)
 		}
 	}
 }
@@ -404,7 +408,7 @@ type CurlOptions struct {
 }
 
 // RunCurlFromPod executes a curl command from a pod with the specified options.
-func RunCurlFromPod(opts CurlOptions) error {
+func RunCurlFromPod(opts CurlOptions) (string, error) {
 	const (
 		curlSuccessMsg = "200 OK"
 		curlTimeoutMsg = "exit status 28"
@@ -425,7 +429,7 @@ func RunCurlFromPod(opts CurlOptions) error {
 
 	if opts.WantFailure {
 		if err == nil {
-			return fmt.Errorf("expected curl to fail, but it succeeded, output: %s", output)
+			return output, fmt.Errorf("expected curl to fail, but it succeeded, output: %s", output)
 		}
 
 		expectedFailureMsgs := []string{curlTimeoutMsg}
@@ -433,33 +437,39 @@ func RunCurlFromPod(opts CurlOptions) error {
 			expectedFailureMsgs = opts.WantOutput
 		}
 
-		for _, expectedFailureMsg := range expectedFailureMsgs {
-			if strings.Contains(err.Error(), expectedFailureMsg) {
-				return nil // Expected failure occurred.
+		found := false
+		for _, msg := range expectedFailureMsgs {
+			if strings.Contains(err.Error(), msg) {
+				found = true
+				break
 			}
 		}
-		return fmt.Errorf("expected curl to fail with one of the expected substring %q, but got different error: %v, output: %s", expectedFailureMsgs, err, output)
+
+		if !found {
+			return output, fmt.Errorf("expected curl to fail with one of the expected substrings %q, but got different error: %v, output: %s", expectedFailureMsgs, err, output)
+		}
+		return output, nil // Expected failure occurred.
 	}
 
 	// We expect success.
 	if err != nil {
-		return fmt.Errorf("expected curl to succeed, but got error: %v, output: %s", err, output)
+		return output, fmt.Errorf("expected curl to succeed, but got error: %v, output: %s", err, output)
 	}
 	klog.Infof("curl to %s succeed", fmt.Sprintf("http://%s:%d", opts.TargetIP, opts.TargetPort))
 
-	expectedOutputs := []string{curlSuccessMsg}
 	if len(opts.WantOutput) > 0 {
-		expectedOutputs = opts.WantOutput
-	}
-
-	// Check if the output contains ANY of the expected substrings.
-	for _, expected := range expectedOutputs {
-		if strings.Contains(output, expected) {
-			klog.Infof("Actual output contains one of the expected substrings: %q", expected)
-			return nil
+		found := false
+		for _, msg := range opts.WantOutput {
+			if strings.Contains(output, msg) {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return output, fmt.Errorf("curl response did not contain any of the expected substrings %q, output: %s", opts.WantOutput, output)
 		}
 	}
-	return fmt.Errorf("curl response did not contain any of the expected substrings %v, output: %s", expectedOutputs, output)
+	return output, nil
 }
 
 // VerifyCurlFromPod retries a curl command with a 1-minute timeout and expects
@@ -483,7 +493,7 @@ func VerifyCurlFromPodWithMultipleOutputs(ctx context.Context, namespace, source
 
 	return wait.WaitForSuccessContext(ctx, waitMsg, wait.WaitingMedium, func(ctx context.Context) error {
 		for i := 0; i < minConsecutiveChecks; i++ {
-			if err := RunCurlFromPod(opts); err != nil {
+			if _, err := RunCurlFromPod(opts); err != nil {
 				return fmt.Errorf("curl check failed on attempt %d: %w", i+1, err)
 			}
 		}
@@ -524,16 +534,17 @@ func RunPingFromPodWithTimeoutLimit(ctx context.Context, sourcePodName, namespac
 func runPingCommand(cmd *exec.Cmd, sourcePodName, targetIP string) error {
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		return fmt.Errorf("failed to execute curl command: %v, output: %s", err, string(output))
+		return fmt.Errorf("failed to execute ping command: %v, output: %s", err, string(output))
 	}
 	expectedPayload := fmt.Sprintf("bytes from %v", targetIP)
 	if !strings.Contains(string(output), expectedPayload) {
 		return fmt.Errorf("unexpected ping response: %s", string(output))
 	}
 
-	klog.Infof("Ping command successful from pod %s to %s:%d", sourcePodName, targetIP)
+	klog.Infof("Ping command successful from pod %s to %s", sourcePodName, targetIP)
 	return nil
 }
+
 func waitForPodReady(ctx context.Context, c k8sclient.Client, podName, podNamespace string) error {
 	pod := corev1.Pod{}
 	podReady := func(ctx context.Context) error {
@@ -542,6 +553,9 @@ func waitForPodReady(ctx context.Context, c k8sclient.Client, podName, podNamesp
 		}
 		if !IsPodReady(&pod.Status) {
 			return fmt.Errorf("pod %s is not ready yet", podName)
+		}
+		if pod.Status.PodIP == "" {
+			return fmt.Errorf("pod %s has no IP yet", podName)
 		}
 		return nil
 	}
@@ -1087,6 +1101,902 @@ func WaitForNetworkReady(ctx context.Context, cl k8sclient.Client, networkName s
 		return fmt.Errorf("failed to wait for network readiness: %v", err)
 	}
 	return nil
+}
+
+// --- Upgrade Test Utils ---
+
+const (
+	SuccessRateThreshold = 0.75
+	ChecksPerPair        = 10
+)
+
+// DebugSuite holds all the resources and IPs for the comprehensive test matrix.
+type DebugSuite struct {
+	CpNode      *corev1.Node
+	WorkerNode0 *corev1.Node
+	WorkerNode1 *corev1.Node
+	CpPod       *corev1.Pod
+	WorkerPod0  *corev1.Pod
+	WorkerPod1  *corev1.Pod
+	HostPod     *corev1.Pod
+
+	// Services per backend
+	ClusterIPSvcCP      *corev1.Service
+	ClusterIPSvcWorker0 *corev1.Service
+	ClusterIPSvcWorker1 *corev1.Service
+
+	NodePortSvcCP      *corev1.Service
+	NodePortSvcWorker0 *corev1.Service
+	NodePortSvcWorker1 *corev1.Service
+
+	LbSvcCP      *corev1.Service
+	LbSvcWorker0 *corev1.Service
+	LbSvcWorker1 *corev1.Service
+
+	IperfSvc        *corev1.Service
+	IperfDeployment *appsv1.Deployment
+
+	ServerPort int
+}
+
+// ConnectivityTestCase defines a single check from a source to a destination.
+type ConnectivityTestCase struct {
+	SourcePod   string
+	TargetAddr  string // Can be an IP or IP:Port
+	Protocol    string // "http" or "icmp"
+	Description string
+	ExpectFail  bool // If true, a failure is considered a success for this test case.
+}
+
+// SetupDebugWorkloads sets up the debug workloads and services for the test.
+func SetupDebugWorkloads(ctx context.Context, clientset *kubernetes.Clientset, k8sClient k8sclient.Client, namespace string) (*DebugSuite, error) {
+	suite := &DebugSuite{}
+
+	// 1. Get Nodes
+	klog.Info("Fetching cluster nodes...")
+	nodes, err := clientset.CoreV1().Nodes().List(ctx, metav1.ListOptions{})
+	if err != nil {
+		return nil, err
+	}
+	// We need at least 1 CP and 2 Workers for full coverage, but we'll adapt if fewer.
+	// For the purpose of this test, we assume a standard 3-node cluster (1CP, 2Workers) or similar.
+	// We'll try to identify them by labels or just take the first ones.
+	for _, node := range nodes.Items {
+		if _, isCp := node.Labels["node-role.kubernetes.io/control-plane"]; isCp {
+			if suite.CpNode == nil {
+				n := node
+				suite.CpNode = &n
+			}
+		} else {
+			if suite.WorkerNode0 == nil {
+				n := node
+				suite.WorkerNode0 = &n
+			} else if suite.WorkerNode1 == nil {
+				n := node
+				suite.WorkerNode1 = &n
+			}
+		}
+	}
+
+	// Fallback if we didn't find specific roles (e.g. single node cluster or different labels)
+	if suite.CpNode == nil && len(nodes.Items) > 0 {
+		n := nodes.Items[0]
+		suite.CpNode = &n
+	}
+	if suite.WorkerNode0 == nil && len(nodes.Items) > 1 {
+		n := nodes.Items[1]
+		suite.WorkerNode0 = &n
+	}
+	if suite.WorkerNode1 == nil && len(nodes.Items) > 2 {
+		n := nodes.Items[2]
+		suite.WorkerNode1 = &n
+	}
+	// If we still don't have enough workers, reuse what we have to avoid nil pointers,
+	// though some tests might be redundant.
+	if suite.WorkerNode0 == nil {
+		suite.WorkerNode0 = suite.CpNode
+	}
+	if suite.WorkerNode1 == nil {
+		suite.WorkerNode1 = suite.WorkerNode0
+	}
+
+	// Generate random server port
+	suite.ServerPort = 10000 + int(time.Now().UnixNano()%20000)
+	klog.Infof("Using random server port: %d", suite.ServerPort)
+
+	// 2. Create Debug Pods (agnhost/toolbox) on specific nodes
+	klog.Info("Ensuring debug pods exist...")
+	// We want:
+	// - 1 Pod on CP (Pod Network)
+	// - 1 Pod on Worker0 (Pod Network)
+	// - 1 Pod on Worker1 (Pod Network)
+	// - 1 Pod on CP (Host Network)
+
+	serverContainer := corev1.Container{
+		Name:  "echo",
+		Image: "gcr.io/anthos-networking-ci/toolbox:wora-test",
+		Command: []string{"/bin/bash", "-c",
+			fmt.Sprintf(`python3 -c 'import http.server, socketserver, socket;
+class ThreadingHTTPServer(socketserver.ThreadingMixIn, http.server.HTTPServer): pass
+class H(http.server.BaseHTTPRequestHandler):
+ def do_GET(s):
+  s.send_response(200);
+  s.end_headers();
+  s.wfile.write(socket.gethostname().encode())
+ThreadingHTTPServer(("", %d), H).serve_forever()'`, suite.ServerPort),
+		},
+		Ports: []corev1.ContainerPort{{ContainerPort: int32(suite.ServerPort), Protocol: corev1.ProtocolTCP}},
+	}
+
+	// Define pod specs
+	type podSpec struct {
+		Name          string
+		Node          *corev1.Node
+		HostNetwork   bool
+		Labels        map[string]string
+		Command       []string
+		Image         string
+		Ports         []corev1.ContainerPort
+		ContainerName string
+	}
+
+	specs := []podSpec{
+		{
+			Name: CpPodName, Node: suite.CpNode,
+			Labels:  map[string]string{"app": CpPodName},
+			Command: serverContainer.Command, Image: serverContainer.Image, Ports: serverContainer.Ports,
+			ContainerName: "echo",
+		},
+		{
+			Name: WorkerPod0Name, Node: suite.WorkerNode0,
+			Labels: map[string]string{
+				"networking.private.gdc.goog/infra-access": "enabled",
+				"app": WorkerPod0Name,
+			},
+			Command: serverContainer.Command, Image: serverContainer.Image, Ports: serverContainer.Ports,
+			ContainerName: "echo",
+		},
+		{
+			Name: WorkerPod1Name, Node: suite.WorkerNode1,
+			Labels:  map[string]string{"app": WorkerPod1Name},
+			Command: serverContainer.Command, Image: serverContainer.Image, Ports: serverContainer.Ports,
+			ContainerName: "echo",
+		},
+		{
+			Name: HostPodName, Node: suite.CpNode, HostNetwork: true,
+			Labels:  map[string]string{"app": HostPodName},
+			Command: serverContainer.Command, Image: serverContainer.Image, Ports: serverContainer.Ports,
+			ContainerName: "echo",
+		},
+		{
+			Name: IperfPodName, Node: suite.WorkerNode0, Labels: map[string]string{"app": "iperf-server"},
+			Command: []string{"iperf3", "-s"}, Image: "gcr.io/anthos-networking-ci/toolbox:wora-test",
+			Ports:         []corev1.ContainerPort{{ContainerPort: IperfPort, Protocol: corev1.ProtocolTCP}},
+			ContainerName: "iperf-server",
+		},
+	}
+
+	// Helper to create pod using existing CreatePod function
+	var wg sync.WaitGroup
+	errChan := make(chan error, len(specs))
+
+	for _, spec := range specs {
+		wg.Add(1)
+		go func(s podSpec) {
+			defer wg.Done()
+
+			opts := []PodCustomization{
+				WithNodeName(s.Node.Name),
+			}
+			if s.HostNetwork {
+				opts = append(opts, WithHostNetworking())
+			}
+			for k, v := range s.Labels {
+				opts = append(opts, WithLabel(k, v))
+			}
+
+			container := corev1.Container{
+				Name:            s.ContainerName,
+				Image:           s.Image,
+				Command:         s.Command,
+				Ports:           s.Ports,
+				ImagePullPolicy: corev1.PullIfNotPresent,
+			}
+			opts = append(opts, WithContainers([]corev1.Container{container}))
+
+			// We ignore the cleanup function as we handle cleanup via namespace deletion
+			if _, err := CreatePod(ctx, k8sClient, s.Name, namespace, opts...); err != nil {
+				errChan <- fmt.Errorf("failed to create pod %s: %v", s.Name, err)
+			}
+		}(spec)
+	}
+
+	wg.Wait()
+	close(errChan)
+
+	if len(errChan) > 0 {
+		var errs []string
+		for err := range errChan {
+			errs = append(errs, err.Error())
+		}
+		return nil, fmt.Errorf("failed to create debug pods: %s", strings.Join(errs, "; "))
+	}
+
+	// 3. Create Services
+	klog.Info("Ensuring debug services exist...")
+
+	// Define service specs
+	type serviceSpec struct {
+		Name       string
+		Type       corev1.ServiceType
+		Port       int32
+		Selector   map[string]string
+		TargetPort intstr.IntOrString
+	}
+
+	svcSpecs := []serviceSpec{
+		// CP Services
+		{Name: "service-clusterip-cp", Type: corev1.ServiceTypeClusterIP, Port: ClusterIPSvcPort, Selector: map[string]string{"app": CpPodName}, TargetPort: intstr.FromInt(suite.ServerPort)},
+		{Name: "service-nodeport-cp", Type: corev1.ServiceTypeNodePort, Port: int32(suite.ServerPort), Selector: map[string]string{"app": CpPodName}, TargetPort: intstr.FromInt(suite.ServerPort)},
+		{Name: "service-lb-cp", Type: corev1.ServiceTypeLoadBalancer, Port: LbSvcPort, Selector: map[string]string{"app": CpPodName}, TargetPort: intstr.FromInt(suite.ServerPort)},
+
+		// Worker0 Services
+		{Name: "service-clusterip-worker0", Type: corev1.ServiceTypeClusterIP, Port: ClusterIPSvcPort, Selector: map[string]string{"app": WorkerPod0Name}, TargetPort: intstr.FromInt(suite.ServerPort)},
+		{Name: "service-nodeport-worker0", Type: corev1.ServiceTypeNodePort, Port: int32(suite.ServerPort), Selector: map[string]string{"app": WorkerPod0Name}, TargetPort: intstr.FromInt(suite.ServerPort)},
+		{Name: "service-lb-worker0", Type: corev1.ServiceTypeLoadBalancer, Port: LbSvcPort, Selector: map[string]string{"app": WorkerPod0Name}, TargetPort: intstr.FromInt(suite.ServerPort)},
+
+		// Worker1 Services
+		{Name: "service-clusterip-worker1", Type: corev1.ServiceTypeClusterIP, Port: ClusterIPSvcPort, Selector: map[string]string{"app": WorkerPod1Name}, TargetPort: intstr.FromInt(suite.ServerPort)},
+		{Name: "service-nodeport-worker1", Type: corev1.ServiceTypeNodePort, Port: int32(suite.ServerPort), Selector: map[string]string{"app": WorkerPod1Name}, TargetPort: intstr.FromInt(suite.ServerPort)},
+		{Name: "service-lb-worker1", Type: corev1.ServiceTypeLoadBalancer, Port: LbSvcPort, Selector: map[string]string{"app": WorkerPod1Name}, TargetPort: intstr.FromInt(suite.ServerPort)},
+
+		// Iperf Service
+		{Name: IperfSvcName, Type: corev1.ServiceTypeClusterIP, Port: IperfPort, Selector: map[string]string{"app": "iperf-server"}, TargetPort: intstr.FromInt(IperfPort)},
+	}
+
+	// Helper to create service
+	createService := func(spec serviceSpec) (*corev1.Service, error) {
+		svc := &corev1.Service{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      spec.Name,
+				Namespace: namespace,
+				Labels:    spec.Selector,
+			},
+			Spec: corev1.ServiceSpec{
+				Selector: spec.Selector,
+				Type:     spec.Type,
+				Ports: []corev1.ServicePort{
+					{
+						Port:       spec.Port,
+						TargetPort: spec.TargetPort,
+					},
+				},
+			},
+		}
+		if err := CreateService(ctx, k8sClient, svc); err != nil {
+			return nil, err
+		}
+		return svc, nil
+	}
+
+	for _, spec := range svcSpecs {
+		svc, err := createService(spec)
+		if err != nil {
+			return nil, err
+		}
+		switch spec.Name {
+		case "service-clusterip-cp":
+			suite.ClusterIPSvcCP = svc
+		case "service-nodeport-cp":
+			suite.NodePortSvcCP = svc
+		case "service-lb-cp":
+			suite.LbSvcCP = svc
+		case "service-clusterip-worker0":
+			suite.ClusterIPSvcWorker0 = svc
+		case "service-nodeport-worker0":
+			suite.NodePortSvcWorker0 = svc
+		case "service-lb-worker0":
+			suite.LbSvcWorker0 = svc
+		case "service-clusterip-worker1":
+			suite.ClusterIPSvcWorker1 = svc
+		case "service-nodeport-worker1":
+			suite.NodePortSvcWorker1 = svc
+		case "service-lb-worker1":
+			suite.LbSvcWorker1 = svc
+		case IperfSvcName:
+			suite.IperfSvc = svc
+		}
+	}
+
+	// 5. Wait for readiness and collect IPs
+	klog.Info("Waiting for resources to become ready, collecting IPs, and verifying scheduling...")
+
+	// Refresh pod info to get IPs
+	for _, spec := range specs {
+		pod, err := clientset.CoreV1().Pods(namespace).Get(ctx, spec.Name, metav1.GetOptions{})
+		if err != nil {
+			return nil, err
+		}
+		switch spec.Name {
+		case CpPodName:
+			suite.CpPod = pod
+			if suite.CpPod.Spec.NodeName != suite.CpNode.Name {
+				return nil, fmt.Errorf("cpPod scheduled on %s, expected %s", suite.CpPod.Spec.NodeName, suite.CpNode.Name)
+			}
+		case WorkerPod0Name:
+			suite.WorkerPod0 = pod
+			if suite.WorkerPod0.Spec.NodeName != suite.WorkerNode0.Name {
+				return nil, fmt.Errorf("workerPod0 scheduled on %s, expected %s", suite.WorkerPod0.Spec.NodeName, suite.WorkerNode0.Name)
+			}
+		case WorkerPod1Name:
+			suite.WorkerPod1 = pod
+			if suite.WorkerPod1.Spec.NodeName != suite.WorkerNode1.Name {
+				return nil, fmt.Errorf("workerPod1 scheduled on %s, expected %s", suite.WorkerPod1.Spec.NodeName, suite.WorkerNode1.Name)
+			}
+		case HostPodName:
+			suite.HostPod = pod
+			if suite.HostPod.Spec.NodeName != suite.CpNode.Name {
+				return nil, fmt.Errorf("hostPod scheduled on %s, expected %s", suite.HostPod.Spec.NodeName, suite.CpNode.Name)
+			}
+		}
+	}
+
+	// Wait for LB IPs
+	klog.Info("Waiting for LoadBalancer IPs...")
+	if err := WaitForServiceReadiness(ctx, k8sClient, "service-lb-cp", namespace, corev1.ServiceTypeLoadBalancer); err != nil {
+		return nil, err
+	}
+	if err := WaitForServiceReadiness(ctx, k8sClient, "service-lb-worker0", namespace, corev1.ServiceTypeLoadBalancer); err != nil {
+		return nil, err
+	}
+	if err := WaitForServiceReadiness(ctx, k8sClient, "service-lb-worker1", namespace, corev1.ServiceTypeLoadBalancer); err != nil {
+		return nil, err
+	}
+
+	// Refresh LB services to get Status
+	lbCP, _ := clientset.CoreV1().Services(namespace).Get(ctx, "service-lb-cp", metav1.GetOptions{})
+	suite.LbSvcCP = lbCP
+	lbW0, _ := clientset.CoreV1().Services(namespace).Get(ctx, "service-lb-worker0", metav1.GetOptions{})
+	suite.LbSvcWorker0 = lbW0
+	lbW1, _ := clientset.CoreV1().Services(namespace).Get(ctx, "service-lb-worker1", metav1.GetOptions{})
+	suite.LbSvcWorker1 = lbW1
+
+	// Get NodePorts
+	klog.Info("Waiting for NodePort services...")
+	if err, _ := NodePortReadiness(ctx, k8sClient, "service-nodeport-cp", namespace, corev1.ServiceTypeNodePort); err != nil {
+		return nil, err
+	}
+	if err, _ := NodePortReadiness(ctx, k8sClient, "service-nodeport-worker0", namespace, corev1.ServiceTypeNodePort); err != nil {
+		return nil, err
+	}
+	if err, _ := NodePortReadiness(ctx, k8sClient, "service-nodeport-worker1", namespace, corev1.ServiceTypeNodePort); err != nil {
+		return nil, err
+	}
+
+	// Refresh NodePort services
+	npCP, _ := clientset.CoreV1().Services(namespace).Get(ctx, "service-nodeport-cp", metav1.GetOptions{})
+	suite.NodePortSvcCP = npCP
+	npW0, _ := clientset.CoreV1().Services(namespace).Get(ctx, "service-nodeport-worker0", metav1.GetOptions{})
+	suite.NodePortSvcWorker0 = npW0
+	npW1, _ := clientset.CoreV1().Services(namespace).Get(ctx, "service-nodeport-worker1", metav1.GetOptions{})
+	suite.NodePortSvcWorker1 = npW1
+	klog.Infof("Services are ready")
+
+	return suite, nil
+}
+
+const (
+	// Resource Names
+	CpPodName        = "test-cpnode-0"
+	WorkerPod0Name   = "test-worker-node0"
+	WorkerPod1Name   = "test-worker-node1"
+	HostPodName      = "test-cpnode-host"
+	IperfPodName     = "test-iperf-server"
+	ClusterIPSvcName = "test-clusterip"
+	LbSvcName        = "test-loadbalancer"
+	NodePortSvcName  = "test-nodeport"
+	IperfSvcName     = "test-iperf-svc"
+
+	// Ports
+	LbSvcPort        = 48083
+	ClusterIPSvcPort = 58083
+	IperfPort        = 5201
+)
+
+func RandomString(n int) string {
+	var letters = []rune("abcdefghijklmnopqrstuvwxyz0123456789")
+	b := make([]rune, n)
+	for i := range b {
+		b[i] = letters[rand.Intn(len(letters))]
+	}
+	return string(b)
+}
+
+// ConnectivityResult represents a single test result.
+type ConnectivityResult struct {
+	Timestamp   time.Time `json:"timestamp"`
+	Index       uint64    `json:"index"`
+	Status      string    `json:"status"`
+	Source      string    `json:"source"`
+	Target      string    `json:"target"`
+	Type        string    `json:"type"`
+	Description string    `json:"description"`
+	Note        string    `json:"note"`
+	Details     string    `json:"details"`
+}
+
+// ResultWriter listens on a channel and writes JSON lines to a file.
+func ResultWriter(ctx context.Context, wg *sync.WaitGroup, w io.Writer, ch <-chan ConnectivityResult) {
+	defer wg.Done()
+	encoder := json.NewEncoder(w)
+	for result := range ch {
+		if err := encoder.Encode(result); err != nil {
+			klog.Errorf("Failed to encode result: %v", err)
+		}
+	}
+}
+
+func RunTestPhase(fs afero.Fs, ctx context.Context, namespace, description string, debugInfo *DebugSuite, checkStrictEgressPolicy bool, bootstrapperIP string) error {
+	klog.Infof("Starting tests for: %s", description)
+	var checkWg sync.WaitGroup
+	var httpIndex, icmpIndex uint64
+	concurrencyLimit := make(chan struct{}, 30)
+
+	// Generate random result filenames
+	httpFile, err := afero.TempFile(fs, "", "http_connectivity_results_*.log")
+	if err != nil {
+		return fmt.Errorf("failed to create http result file: %v", err)
+	}
+	defer fs.Remove(httpFile.Name())
+	defer httpFile.Close()
+	httpResultFile := httpFile.Name()
+
+	icmpFile, err := afero.TempFile(fs, "", "icmp_connectivity_results_*.log")
+	if err != nil {
+		return fmt.Errorf("failed to create icmp result file: %v", err)
+	}
+	defer fs.Remove(icmpFile.Name())
+	defer icmpFile.Close()
+	icmpResultFile := icmpFile.Name()
+
+	iperfFile, err := afero.TempFile(fs, "", "iperf_connectivity_results_*.log")
+	if err != nil {
+		return fmt.Errorf("failed to create iperf result file: %v", err)
+	}
+	defer fs.Remove(iperfFile.Name())
+	defer iperfFile.Close()
+	iperfResultFile := iperfFile.Name()
+
+	klog.Infof("Generated result files: %s, %s, %s", httpResultFile, icmpResultFile, iperfResultFile)
+
+	httpResultsCh := make(chan ConnectivityResult, 100)
+	icmpResultsCh := make(chan ConnectivityResult, 100)
+	var writerWg sync.WaitGroup
+
+	writerWg.Add(2)
+	go ResultWriter(ctx, &writerWg, httpFile, httpResultsCh)
+	go ResultWriter(ctx, &writerWg, icmpFile, icmpResultsCh)
+
+	// Launch continuous iperf check in the background.
+	checkWg.Add(1)
+	go RunIperfCheck(ctx, &checkWg, namespace, debugInfo.CpPod.Name, debugInfo.IperfSvc.Spec.ClusterIP, iperfFile)
+
+	nodeIP := func(node *corev1.Node) string {
+		for _, addr := range node.Status.Addresses {
+			if addr.Type == corev1.NodeInternalIP {
+				return addr.Address
+			}
+		}
+		return ""
+	}
+	var allTestCases []ConnectivityTestCase
+
+	universalTestCases := []ConnectivityTestCase{
+		{TargetAddr: fmt.Sprintf("%s:%d", nodeIP(debugInfo.CpNode), debugInfo.ServerPort), Protocol: "http", Description: "hostnetwork-pod"},
+		{TargetAddr: fmt.Sprintf("%s:%d", debugInfo.CpPod.Status.PodIP, debugInfo.ServerPort), Protocol: "http", Description: "pod-network-cp"},
+		{TargetAddr: fmt.Sprintf("%s:%d", debugInfo.WorkerPod0.Status.PodIP, debugInfo.ServerPort), Protocol: "http", Description: "pod-network-worker0"},
+		{TargetAddr: fmt.Sprintf("%s:%d", debugInfo.WorkerPod1.Status.PodIP, debugInfo.ServerPort), Protocol: "http", Description: "pod-network-worker1"},
+
+		// LB Services
+		{TargetAddr: fmt.Sprintf("%s:%d", debugInfo.LbSvcCP.Status.LoadBalancer.Ingress[0].IP, LbSvcPort), Protocol: "http", Description: "service-lb-cp"},
+		{TargetAddr: fmt.Sprintf("%s:%d", debugInfo.LbSvcWorker0.Status.LoadBalancer.Ingress[0].IP, LbSvcPort), Protocol: "http", Description: "service-lb-worker0"},
+		{TargetAddr: fmt.Sprintf("%s:%d", debugInfo.LbSvcWorker1.Status.LoadBalancer.Ingress[0].IP, LbSvcPort), Protocol: "http", Description: "service-lb-worker1"},
+
+		// ClusterIP Services
+		{TargetAddr: fmt.Sprintf("%s:%d", debugInfo.ClusterIPSvcCP.Spec.ClusterIP, ClusterIPSvcPort), Protocol: "http", Description: "service-clusterip-cp"},
+		{TargetAddr: fmt.Sprintf("%s:%d", debugInfo.ClusterIPSvcWorker0.Spec.ClusterIP, ClusterIPSvcPort), Protocol: "http", Description: "service-clusterip-worker0"},
+		{TargetAddr: fmt.Sprintf("%s:%d", debugInfo.ClusterIPSvcWorker1.Spec.ClusterIP, ClusterIPSvcPort), Protocol: "http", Description: "service-clusterip-worker1"},
+
+		// NodePort Services (via ClusterIP for now, or NodeIP:NodePort)
+		// We usually test NodePort via NodeIP:NodePort
+		{TargetAddr: fmt.Sprintf("%s:%d", debugInfo.NodePortSvcCP.Spec.ClusterIP, debugInfo.ServerPort), Protocol: "http", Description: "service-nodeport-clusterip-cp"},
+
+		// ICMP
+		{TargetAddr: nodeIP(debugInfo.CpNode), Protocol: "icmp", Description: "ping-cp-node"},
+		{TargetAddr: nodeIP(debugInfo.WorkerNode0), Protocol: "icmp", Description: "ping-worker0-node"},
+		{TargetAddr: nodeIP(debugInfo.WorkerNode1), Protocol: "icmp", Description: "ping-worker1-node"},
+		{TargetAddr: debugInfo.CpPod.Status.PodIP, Protocol: "icmp", Description: "ping-cp-pod"},
+		{TargetAddr: debugInfo.WorkerPod0.Status.PodIP, Protocol: "icmp", Description: "ping-worker0-pod"},
+		{TargetAddr: debugInfo.WorkerPod1.Status.PodIP, Protocol: "icmp", Description: "ping-worker1-pod"},
+	}
+	allTestCases = append(allTestCases, universalTestCases...)
+
+	unrestrictedSources := []string{CpPodName, WorkerPod0Name, HostPodName, WorkerPod1Name}
+	allNodes := []*corev1.Node{debugInfo.CpNode, debugInfo.WorkerNode0, debugInfo.WorkerNode1}
+
+	// NodePort tests: Test each NodePort service via each Node IP
+	nodePortServices := []struct {
+		Svc         *corev1.Service
+		Name        string
+		BackendNode *corev1.Node
+	}{
+		{debugInfo.NodePortSvcCP, "cp", debugInfo.CpNode},
+		{debugInfo.NodePortSvcWorker0, "worker0", debugInfo.WorkerNode0},
+		{debugInfo.NodePortSvcWorker1, "worker1", debugInfo.WorkerNode1},
+	}
+
+	sourceNodeMap := map[string]*corev1.Node{
+		CpPodName:      debugInfo.CpNode,
+		WorkerPod0Name: debugInfo.WorkerNode0,
+		HostPodName:    debugInfo.CpNode,
+		WorkerPod1Name: debugInfo.WorkerNode1,
+	}
+
+	for _, source := range unrestrictedSources {
+		for _, destNode := range allNodes {
+			for _, svc := range nodePortServices {
+				nodePort := svc.Svc.Spec.Ports[0].NodePort
+
+				srcNode := sourceNodeMap[source]
+				expectFail := false
+
+				// Condition: SourcePod Node == Backend Node AND NodePort Node != SourcePod Node
+				// There is a known DSR issue where if the source pod is on the same node as the backend,
+				// and the destination node is nodeport on a different node, the connection will fail
+				if srcNode.Name == svc.BackendNode.Name && destNode.Name != srcNode.Name {
+					expectFail = true
+				}
+
+				allTestCases = append(allTestCases, ConnectivityTestCase{
+					SourcePod: source, TargetAddr: fmt.Sprintf("%s:%d", nodeIP(destNode), nodePort), Protocol: "http",
+					Description: fmt.Sprintf("[NodePort] src:%s->node:%s->dest:%s", source, destNode.Name, svc.Name),
+					ExpectFail:  expectFail,
+				})
+			}
+		}
+	}
+
+	egressShouldBeBlocked := checkStrictEgressPolicy
+	sourcePodsForEgressTest := map[string]bool{
+		CpPodName:      egressShouldBeBlocked,
+		WorkerPod0Name: !egressShouldBeBlocked,
+		WorkerPod1Name: egressShouldBeBlocked,
+		HostPodName:    !egressShouldBeBlocked,
+	}
+	for pod, expectFail := range sourcePodsForEgressTest {
+		allTestCases = append(allTestCases, ConnectivityTestCase{
+			SourcePod: pod, TargetAddr: bootstrapperIP, Protocol: "icmp", Description: "ping-bootstrapper", ExpectFail: expectFail,
+		})
+	}
+
+	sourcePodMap := map[string]bool{
+		debugInfo.CpPod.Name: true, debugInfo.WorkerPod0.Name: true, debugInfo.WorkerPod1.Name: true, debugInfo.HostPod.Name: true,
+	}
+	for _, tc := range allTestCases {
+		sourcesToRun := sourcePodMap
+		if tc.SourcePod != "" {
+			sourcesToRun = map[string]bool{tc.SourcePod: true}
+		}
+
+		for source := range sourcesToRun {
+			klog.Infof("Running test case: %s -> %s (%s)", source, tc.TargetAddr, tc.Description)
+			checkWg.Add(1)
+			go RunConnectivityCheck(ctx, &checkWg, &httpIndex, &icmpIndex, namespace, source, tc, httpResultsCh, icmpResultsCh, concurrencyLimit, ChecksPerPair)
+		}
+	}
+
+	checkWg.Wait()
+	close(httpResultsCh)
+	close(icmpResultsCh)
+	writerWg.Wait()
+	klog.Infof("All connectivity checks for phase '%s' are complete.", description)
+
+	httpFailureMessages := AnalyzeHttpResults(httpFile)
+	icmpFailureMessages := AnalyzeResults(icmpFile, "ICMP")
+	iperfTestFailed := AnalyzeIperfResults(iperfFile)
+
+	var errMsgs []string
+	if len(httpFailureMessages) > 0 {
+		errMsgs = append(errMsgs, fmt.Sprintf("HTTP checks failed in phase '%s':\n- %s", description, strings.Join(httpFailureMessages, "\n- ")))
+	}
+	if len(icmpFailureMessages) > 0 {
+		errMsgs = append(errMsgs, fmt.Sprintf("ICMP checks failed in phase '%s':\n- %s", description, strings.Join(icmpFailureMessages, "\n- ")))
+	}
+	if iperfTestFailed {
+		errMsgs = append(errMsgs, fmt.Sprintf("iperf TCP stream was interrupted during phase '%s'", description))
+	}
+
+	if len(errMsgs) > 0 {
+		return fmt.Errorf("%s", strings.Join(errMsgs, "\n"))
+	}
+	return nil
+}
+
+func RunConnectivityCheck(ctx context.Context, wg *sync.WaitGroup, httpIndex, icmpIndex *uint64, namespace, sourcePod string, tc ConnectivityTestCase, httpResultsCh, icmpResultsCh chan<- ConnectivityResult, limiter chan struct{}, numChecks int) {
+	defer wg.Done()
+	for i := 0; i < numChecks; i++ {
+		select {
+		case <-ctx.Done():
+			return
+		default:
+			var currentIndex uint64
+			var resultsCh chan<- ConnectivityResult
+			var testCaseSuccess bool
+			var details string
+			var rawSuccess bool
+			var commandDescription string
+
+			limiter <- struct{}{}
+
+			switch tc.Protocol {
+			case "http":
+				host, portStr, err := net.SplitHostPort(tc.TargetAddr)
+				if err != nil {
+					klog.Errorf("Failed to split host port %s: %v", tc.TargetAddr, err)
+					<-limiter
+					continue
+				}
+				port, _ := strconv.Atoi(portStr)
+
+				opts := CurlOptions{
+					SourcePodName:   sourcePod,
+					SourceNamespace: namespace,
+					TargetIP:        host,
+					TargetPort:      port,
+					TimeoutSeconds:  10,
+					WantFailure:     tc.ExpectFail,
+				}
+
+				output, err := RunCurlFromPod(opts)
+				<-limiter
+
+				rawSuccess = (err == nil)
+				testCaseSuccess = rawSuccess
+				if testCaseSuccess {
+					details = strings.TrimSpace(output)
+				} else {
+					details = err.Error()
+				}
+
+				commandDescription = fmt.Sprintf("curl http://%s", tc.TargetAddr)
+				currentIndex = atomic.AddUint64(httpIndex, 1)
+				resultsCh = httpResultsCh
+
+			case "icmp":
+				err := RunPingFromPodWithTimeoutLimit(ctx, sourcePod, namespace, tc.TargetAddr, 5)
+				<-limiter
+
+				rawSuccess = err == nil
+				testCaseSuccess = (rawSuccess != tc.ExpectFail)
+
+				if !testCaseSuccess {
+					if err != nil {
+						details = err.Error()
+					}
+				} else {
+					details = "ping successful"
+				}
+
+				commandDescription = fmt.Sprintf("ping %s", tc.TargetAddr)
+				currentIndex = atomic.AddUint64(icmpIndex, 1)
+				resultsCh = icmpResultsCh
+			default:
+				<-limiter
+				return
+			}
+
+			note := "Expected to succeed"
+			if tc.ExpectFail {
+				note = "Expected to fail"
+			}
+
+			status := "SUCCESS"
+			if !testCaseSuccess {
+				status = "FAILED"
+			}
+
+			klog.V(1).Infof("command %s result %v", commandDescription, rawSuccess)
+
+			resultsCh <- ConnectivityResult{
+				Timestamp:   time.Now(),
+				Index:       currentIndex,
+				Status:      status,
+				Source:      sourcePod,
+				Target:      tc.TargetAddr,
+				Type:        tc.Protocol,
+				Description: tc.Description,
+				Note:        note,
+				Details:     strings.TrimSpace(details),
+			}
+			time.Sleep(1 * time.Second)
+		}
+	}
+}
+
+func RunIperfCheck(ctx context.Context, wg *sync.WaitGroup, namespace, sourcePod, targetIP string, w io.Writer) {
+	defer wg.Done()
+	// This runs for 35 seconds, slightly longer than the main check phase.
+	command := []string{"iperf3", "-c", targetIP, "-t", "35"}
+	stdout, stderr, err := ExecCommandInPod(sourcePod, namespace, "echo", command)
+
+	if err != nil {
+		if exitErr, ok := err.(*exec.ExitError); ok {
+			fmt.Fprintf(w, "EXIT_CODE: %d\n", exitErr.ExitCode())
+		} else {
+			fmt.Fprintln(w, "EXIT_CODE: -1")
+		}
+	} else {
+		fmt.Fprintln(w, "EXIT_CODE: 0")
+	}
+	fmt.Fprintf(w, "--- STDOUT ---\n%s\n", stdout)
+	fmt.Fprintf(w, "--- STDERR ---\n%s\n", stderr)
+}
+
+func ExecCommandInPod(podName, namespace, containerName string, command []string) (string, string, error) {
+	fullCmd := []string{"exec", podName, "-n", namespace, "-c", containerName, "--"}
+	fullCmd = append(fullCmd, command...)
+	cmd := exec.Command("kubectl", fullCmd...)
+	var stdout, stderr strings.Builder
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+	err := cmd.Run()
+	return stdout.String(), stderr.String(), err
+}
+
+func AnalyzeIperfResults(file afero.File) bool {
+	if _, err := file.Seek(0, 0); err != nil {
+		klog.Errorf("could not seek iperf results file: %v", err)
+		return true
+	}
+	content, err := io.ReadAll(file)
+	if err != nil {
+		klog.Errorf("could not read iperf results file: %v", err)
+		return true // Missing file is a failure
+	}
+
+	if !strings.Contains(string(content), "EXIT_CODE: 0") {
+		klog.Errorf("iperf test failed with a non-zero exit code, indicating interruption. Full output: %s", string(content))
+		return true
+	}
+	if strings.Contains(string(content), "error") || strings.Contains(string(content), "failed") {
+		klog.Errorf("iperf test failed with errors in output, indicating interruption. Full output: %s", string(content))
+		return true
+	}
+
+	klog.Info("iperf test completed successfully without interruptions.")
+	return false
+}
+
+func AnalyzeHttpResults(file afero.File) []string {
+	if _, err := file.Seek(0, 0); err != nil {
+		return []string{fmt.Sprintf("could not seek results file: %v", err)}
+	}
+
+	successCounts := make(map[string]int)
+	totalCounts := make(map[string]int)
+	firstFailureLog := make(map[string]string)
+	backendsHit := make(map[string]map[string]bool)
+
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		line := scanner.Text()
+		var result ConnectivityResult
+		if err := json.Unmarshal([]byte(line), &result); err != nil {
+			klog.Errorf("Failed to unmarshal result: %v", err)
+			continue
+		}
+
+		key := fmt.Sprintf("%s -> %s (%s)", result.Source, result.Target, result.Description)
+
+		totalCounts[key]++
+		if result.Status == "SUCCESS" {
+			successCounts[key]++
+			if backendsHit[key] == nil {
+				backendsHit[key] = make(map[string]bool)
+			}
+			backendsHit[key][result.Details] = true
+		} else {
+			if _, ok := firstFailureLog[key]; !ok {
+				firstFailureLog[key] = line
+			}
+		}
+	}
+
+	var failureMessages []string
+	for key, total := range totalCounts {
+		if total == 0 {
+			continue
+		}
+		success := successCounts[key]
+		successRate := float64(success) / float64(total)
+
+		if successRate < SuccessRateThreshold {
+			msg := fmt.Sprintf("Pair '%s' failed with success rate %.2f%% (%d/%d), below threshold of %.2f%%.", key, successRate*100, success, total, SuccessRateThreshold*100)
+			if firstLog, ok := firstFailureLog[key]; ok {
+				msg = fmt.Sprintf("%s First failure: %s", msg, firstLog)
+			}
+			failureMessages = append(failureMessages, msg)
+		} else {
+			klog.Infof("[HTTP] Pair '%s' had a success rate of %.2f%% (%d/%d) and reached %d unique backends.", key, successRate*100, success, total, len(backendsHit[key]))
+		}
+	}
+
+	if len(failureMessages) > 0 {
+		klog.Errorf("[HTTP] Analysis complete. %d pair(s) fell below the success rate threshold.", len(failureMessages))
+	} else {
+		klog.Infof("[HTTP] Analysis complete. All pairs met the success rate threshold.")
+	}
+
+	return failureMessages
+}
+
+func AnalyzeResults(file afero.File, protocol string) []string {
+	if _, err := file.Seek(0, 0); err != nil {
+		klog.Errorf("could not seek results file for %s: %v", protocol, err)
+		return []string{fmt.Sprintf("could not seek results file: %v", err)}
+	}
+
+	successCounts := make(map[string]int)
+	totalCounts := make(map[string]int)
+	firstFailureLog := make(map[string]string)
+
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		line := scanner.Text()
+		var result ConnectivityResult
+		if err := json.Unmarshal([]byte(line), &result); err != nil {
+			klog.Errorf("Failed to unmarshal result: %v", err)
+			continue
+		}
+
+		key := fmt.Sprintf("%s -> %s (%s)", result.Source, result.Target, result.Description)
+
+		totalCounts[key]++
+		if result.Status == "SUCCESS" {
+			successCounts[key]++
+		} else {
+			if _, ok := firstFailureLog[key]; !ok {
+				firstFailureLog[key] = line
+			}
+		}
+	}
+
+	var failureMessages []string
+	for key, total := range totalCounts {
+		if total == 0 {
+			continue
+		}
+		success := successCounts[key]
+		successRate := float64(success) / float64(total)
+
+		if successRate < SuccessRateThreshold {
+			msg := fmt.Sprintf("Pair '%s' failed with success rate %.2f%% (%d/%d), below threshold of %.2f%%.", key, successRate*100, success, total, SuccessRateThreshold*100)
+			if firstLog, ok := firstFailureLog[key]; ok {
+				msg = fmt.Sprintf("%s First failure: %s", msg, firstLog)
+			}
+			failureMessages = append(failureMessages, msg)
+		} else {
+			klog.Infof("[%s] Pair '%s' had a success rate of %.2f%% (%d/%d).", protocol, key, successRate*100, success, total)
+		}
+	}
+
+	if len(failureMessages) > 0 {
+		klog.Errorf("[%s] Analysis complete. %d pair(s) fell below the success rate threshold.", protocol, len(failureMessages))
+	} else {
+		klog.Infof("[%s] Analysis complete. All pairs met the success rate threshold.", protocol)
+	}
+
+	return failureMessages
 }
 
 func RemovePodLabel(ctx context.Context, cl k8sclient.Client, object k8sclient.ObjectKey, labelKey string) error {

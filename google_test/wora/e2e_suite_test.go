@@ -8,6 +8,7 @@ import (
 
 	_ "gke-internal.googlesource.com/third_party/cilium/google_test/wora/e2e/verifiers/1n-smoke"
 	_ "gke-internal.googlesource.com/third_party/cilium/google_test/wora/e2e/verifiers/bpfprog"
+	_ "gke-internal.googlesource.com/third_party/cilium/google_test/wora/e2e/verifiers/connectivity"
 	_ "gke-internal.googlesource.com/third_party/cilium/google_test/wora/e2e/verifiers/egressnat"
 	_ "gke-internal.googlesource.com/third_party/cilium/google_test/wora/e2e/verifiers/externallb"
 	_ "gke-internal.googlesource.com/third_party/cilium/google_test/wora/e2e/verifiers/geneve"
