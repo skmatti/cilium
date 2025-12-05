@@ -4,6 +4,11 @@ set -euxo pipefail
 shopt -s inherit_errexit
 
 ROOT="$(dirname -- "${BASH_SOURCE[0]}")"
+REPO_ROOT="$(realpath "${ROOT}/../..")"
+CHECK_YQ_VERSION="${REPO_ROOT}/google_test/check-yq-version.sh"
+
+# Check yq version.
+"${CHECK_YQ_VERSION}"
 
 # For manual runs:
 #  - set RUN_DOWN=false

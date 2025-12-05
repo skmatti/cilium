@@ -8,8 +8,13 @@
 
 # --- Configuration ---
 WORA_DIR="$(dirname -- "${BASH_SOURCE[0]}")"
-PROW_DIR="$(realpath --relative-to=. "${WORA_DIR}/../../.prow")"
 ENTRYPOINT_SCRIPT="${WORA_DIR}/prow_entrypoint.sh"
+REPO_ROOT="$(realpath "${WORA_DIR}/../..")"
+PROW_DIR="${REPO_ROOT}/.prow"
+CHECK_YQ_VERSION="${REPO_ROOT}/google_test/check-yq-version.sh"
+
+# Check yq version.
+"${CHECK_YQ_VERSION}" || exit 1
 
 # --- Variables ---
 JOB_NAME=""
