@@ -172,6 +172,8 @@ int google_gdc_perimeter_elb_host_forward_non_elb_perimeter_traffic_pktgen(struc
 		.direction = GENEVE_INGRESS_CLUSTER,
 
 		.perimeter_node = PERIMETER_NODE_IP,
+
+		.opt_type = GENEVE_OPT_TYPE_PERIMETER,
 	};
 
 	int ret = google_pktgen__push_genevehdr(&builder, geneve_params);

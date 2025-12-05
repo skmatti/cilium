@@ -143,6 +143,8 @@ int elb_infra_traffic_forward_direction_pktgen(struct __ctx_buff *ctx __maybe_un
 		.direction = GENEVE_INGRESS_CLUSTER,
 
 		.perimeter_node = SOURCE_PERIMETER_NODE,
+
+		.opt_type = GENEVE_OPT_TYPE_PERIMETER,
 	};
 
 	int ret = google_pktgen__push_genevehdr(&builder, geneve_params);

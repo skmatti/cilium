@@ -151,6 +151,8 @@ int goog_gdc_perimeter_elb_host_reverse_pktgen(struct __ctx_buff *ctx __maybe_un
 		.direction = GENEVE_EGRESS_CLUSTER, /* Response ELB packet heading out of the cluster */
 
 		.perimeter_node = DST_PERIMETER_NODE_IP,
+
+		.opt_type = GENEVE_OPT_TYPE_PERIMETER,
 	};
 
 	int ret = google_pktgen__push_genevehdr(&builder, geneve_params);

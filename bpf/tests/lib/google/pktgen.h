@@ -4,6 +4,9 @@
 #include <tests/pktgen.h>
 #include <node_config.h>
 #include <lib/google/geneve.h>
+#include <lib/google_perimeter_common.h>
+#include <lib/conntrack.h>
+#include <lib/conntrack_map.h>
 
 #define assert_num_equal(expected_num, result_num)                                \
 	({                                                                      \
@@ -32,9 +35,17 @@
 		}                                                                \
 	})
 
+#include <lib/tunnel.h>
+
 enum google_pktgen__geneve_direction {
 	GENEVE_INGRESS_CLUSTER,
 	GENEVE_EGRESS_CLUSTER,
+};
+
+enum google_pktgen__geneve_opt_type {
+	GENEVE_OPT_TYPE_NONE = 0,
+	GENEVE_OPT_TYPE_PERIMETER,
+	GENEVE_OPT_TYPE_DSR,
 };
 
 struct google_pktgen__genevehdr_params {
@@ -49,7 +60,17 @@ struct google_pktgen__genevehdr_params {
 
 	enum google_pktgen__geneve_direction direction;
 
+	// Option configuration
+	enum google_pktgen__geneve_opt_type opt_type; // Defaults to PERIMETER (0)
+
+	__u32 vni;
+
+	// Perimeter option fields
 	__be32 perimeter_node;
+
+	// DSR option fields
+	__be32 dsr_addr;
+	__be16 dsr_port;
 };
 
 static __always_inline
@@ -84,49 +105,58 @@ int google_pktgen__push_genevehdr(struct pktgen *builder __maybe_unused,
 	outer_l4->dest = bpf_htons(params.outer_dst_port);
 
 	/* Geneve Header */
-	struct genevehdr *geneve_hdr = pktgen__push_default_genevehdr_with_options(builder,
-		(__u8)sizeof(struct geneve_perimeter_opt4));
+	__u8 opt_len = 0;
+	if (params.opt_type != GENEVE_OPT_TYPE_NONE) {
+		if (params.opt_type == GENEVE_OPT_TYPE_DSR) {
+			opt_len = sizeof(struct geneve_dsr_opt4);
+		} else {
+			opt_len = sizeof(struct geneve_perimeter_opt4);
+		}
+	}
+
+	struct genevehdr *geneve_hdr = pktgen__push_default_genevehdr_with_options(builder, opt_len);
 
 	if (!geneve_hdr)
 		return TEST_ERROR;
 
 	/* Geneve Header Fields */
 	geneve_hdr->ver = GENEVE_VERSION;
-	geneve_hdr->opt_len = sizeof(struct geneve_perimeter_opt4) / 4;
+	geneve_hdr->opt_len = opt_len / 4;
 	geneve_hdr->protocol_type = bpf_htons(ETH_P_IP);
 
-	geneve_hdr->vni[0] = 0;
-	geneve_hdr->vni[1] = 0;
-	geneve_hdr->vni[2] = 0;
+	geneve_hdr->vni[0] = (__u8)(params.vni >> 16);
+	geneve_hdr->vni[1] = (__u8)(params.vni >> 8);
+	geneve_hdr->vni[2] = (__u8)(params.vni);
 
-	/* TODO: Later add option to skip geneve options if its just in-cluster traffic */
+	if (params.opt_type == GENEVE_OPT_TYPE_NONE)
+		return TEST_PASS;
 
 	/* Geneve Option Header Fields */
-	struct geneve_perimeter_opt4 *geneve_perimeter_opt_data =
-		(void *)geneve_hdr + sizeof(struct genevehdr);
+	void *opt_data = (void *)geneve_hdr + sizeof(struct genevehdr);
 
-	if (((void *)geneve_perimeter_opt_data +
-	     sizeof(struct geneve_perimeter_opt4)) >
-	    (void *)(long)builder->ctx->data_end) {
+	if ((opt_data + opt_len) > (void *)(long)builder->ctx->data_end) {
 		return TEST_ERROR;
 	}
 
-	geneve_perimeter_opt_data->hdr.opt_class =
-		bpf_htons(GOOGLE_GENEVE_OPT_CLASS);
-	geneve_perimeter_opt_data->hdr.length =
-		(sizeof(struct geneve_perimeter_opt4) -
-		 sizeof(geneve_perimeter_opt_data->hdr)) /
-		4;
-
-	if (params.direction == GENEVE_INGRESS_CLUSTER) {
-		geneve_perimeter_opt_data->hdr.type =
-			PERIMETER_GENEVE_INGRESS_OPT_TYPE;
+	if (params.opt_type == GENEVE_OPT_TYPE_DSR) {
+		struct geneve_dsr_opt4 *dsr = opt_data;
+		dsr->hdr.opt_class = bpf_htons(DSR_GENEVE_OPT_CLASS);
+		dsr->hdr.type = DSR_GENEVE_OPT_TYPE;
+		dsr->hdr.length = DSR_IPV4_GENEVE_OPT_LEN;
+		dsr->addr = params.dsr_addr;
+		dsr->port = params.dsr_port;
 	} else {
-		geneve_perimeter_opt_data->hdr.type =
-			PERIMETER_GENEVE_EGRESS_OPT_TYPE;
-	}
+		struct geneve_perimeter_opt4 *perim = opt_data;
+		perim->hdr.opt_class = bpf_htons(GOOGLE_GENEVE_OPT_CLASS);
+		perim->hdr.length = PERIMETER_IPV4_GENEVE_OPT_LEN;
 
-	geneve_perimeter_opt_data->addr = params.perimeter_node;
+		if (params.direction == GENEVE_INGRESS_CLUSTER) {
+			perim->hdr.type = PERIMETER_GENEVE_INGRESS_OPT_TYPE;
+		} else {
+			perim->hdr.type = PERIMETER_GENEVE_EGRESS_OPT_TYPE;
+		}
+		perim->addr = params.perimeter_node;
+	}
 
 	return TEST_PASS;
 }
