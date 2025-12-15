@@ -578,7 +578,7 @@ function snapshot_cluster_logs {
 
   local tool_image="us-docker.pkg.dev/anthos-networking-ci/apps/snapshot-cluster-logs:latest"
   echo "Running snapshot-cluster-logs container..." >&2
-  if docker run --pull=always -d \
+  if docker run --pull=always \
     -v "${artifacts_dir}":"${artifacts_dir}" \
     "${tool_image}" snapshot-cluster-logs \
       --artifacts-dir="${artifacts_dir}"; then
