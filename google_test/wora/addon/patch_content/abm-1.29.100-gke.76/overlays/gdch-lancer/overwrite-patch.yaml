@@ -1,0 +1,9 @@
+apiVersion: v1
+data:
+  google-multi-nic-host-mapping: "128=mgmt-network,129=blue-network,130=green-network"
+  # TODO(b/430000120): enable this flag once there is WORA test for the packet tracer feature
+  enable-ip-option-tracing: "false"
+kind: ConfigMap
+metadata:
+  name: cilium-config
+  namespace: kube-system

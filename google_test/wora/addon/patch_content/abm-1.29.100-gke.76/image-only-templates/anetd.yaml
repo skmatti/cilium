@@ -1,0 +1,62 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  labels:
+    k8s-app: cilium
+  name: anetd
+  namespace: kube-system
+spec:
+  template:
+      spec:
+        containers:
+        - name: cilium-agent
+          image: $(REGISTRY)/cilium/cilium:$(CILIUM_TAG)
+        initContainers:
+        - name: check-kube-proxy-rules
+          image: $(REGISTRY)/cilium/cilium:$(CILIUM_TAG)
+        - name: mount-cgroup
+          image: $(REGISTRY)/cilium/cilium:$(CILIUM_TAG)
+        - name: clean-cilium-state
+          image: $(REGISTRY)/cilium/cilium:$(CILIUM_TAG)
+        - name: apply-sysctl-overwrites
+          image: $(REGISTRY)/cilium/cilium:$(CILIUM_TAG)
+        - name: install-cni-binaries
+          image: $(REGISTRY)/cilium/cilium:$(CILIUM_TAG)
+        - name: cni-install
+          image: $(REGISTRY)/cilium/cilium:$(CILIUM_TAG)
+          # Downgrade the cilium version from 1.14 to 1.13 to avoid the
+          # issue of the CNI issue not being able to run. Need to add this
+          # override to avoid the issue.
+          # GDCH has similar issue as b/377535597.
+          args:
+          - --enable-debug=false
+          command:
+          - /cni-install.sh
+          env:
+          - name: CILIUM_CNI_CHAINING_MODE
+            valueFrom:
+              configMapKeyRef:
+                key: cni-chaining-mode
+                name: cilium-config
+                optional: true
+          - name: CILIUM_CUSTOM_CNI_CONF
+            valueFrom:
+              configMapKeyRef:
+                key: custom-cni-conf
+                name: cilium-config
+                optional: true
+          securityContext:
+            capabilities:
+              drop:
+              - ALL
+            privileged: true
+            seccompProfile:
+              type: RuntimeDefault
+          volumeMounts:
+          - mountPath: /host/opt/cni/bin
+            name: cni-path
+          - mountPath: /host/etc/cni/net.d
+            name: etc-cni-netd
+          - mountPath: /tmp/cilium/config-map
+            name: cilium-config-path
+            readOnly: true

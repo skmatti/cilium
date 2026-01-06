@@ -1,0 +1,7 @@
+resources:
+- gdch-cilium-config.yaml
+- gdch-coredns-template.yaml
+- ../../image-only-templates
+
+patchesStrategicMerge:
+- overwrite-patch.yaml # Apply our overwrite patch

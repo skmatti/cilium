@@ -1,0 +1,75 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: coredns-template
+  namespace: kube-system
+data:
+  # Force the coredns to return NXDOMAIN for all queries to google.internal and
+  # c.anthos-networking-ci.internal. This is to prevent the DNS queries to outside of
+  # the cluster causing IO timeout, which lancer cluster traffic will be blocked without SNAT.
+  coredns-template: |
+    google.internal:53 {
+        log
+        errors
+        template ANY ANY {
+          rcode NXDOMAIN
+        }
+    }
+    c.anthos-networking-ci.internal:53 {
+        log
+        errors
+        template ANY ANY {
+          rcode NXDOMAIN
+        }
+    }
+    .:53 {
+        errors
+        health {
+          lameduck 5s
+        }
+        ready
+        kubernetes cluster.local in-addr.arpa ip6.arpa {
+          pods insecure
+          fallthrough in-addr.arpa ip6.arpa
+        }
+    {{- if .PrivateGoogleAccess }}
+        import zones/private.Corefile
+    {{- end }}
+    {{- if .RestrictedGoogleAccess }}
+        import zones/restricted.Corefile
+    {{- end }}
+        prometheus :9153
+        forward . {{ .UpstreamNameservers }} {
+          {{- if ne .TLSPaths "" }}
+          {{ .TLSPaths }}
+          {{- end }}
+          {{- if ne .TLSServerName "" }}
+          {{ .TLSServerName }}
+          {{- end }}
+          max_concurrent 1000
+          {{- if ne .OrderPolicy "" }}
+          policy {{ .OrderPolicy }}
+          {{- end }}
+        }
+        cache 30
+    {{- if .DefaultDomainQueryLogging }}
+        log
+    {{- end }}
+        loop
+        reload
+        loadbalance
+    }{{ range $i, $stubdomain := .StubDomains }}
+    {{ $stubdomain.Domain }}:53 {
+      errors
+    {{- if $stubdomain.QueryLogging }}
+      log
+    {{- end }}
+      cache 30
+      forward . {{ $stubdomain.Nameservers }} {
+        max_concurrent 1000
+        {{- if ne $.OrderPolicy "" }}
+        policy {{ $.OrderPolicy }}
+        {{- end }}
+      }
+    }
+    {{- end }}

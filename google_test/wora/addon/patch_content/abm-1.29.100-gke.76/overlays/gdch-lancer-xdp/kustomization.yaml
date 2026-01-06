@@ -1,0 +1,5 @@
+resources:
+- ../gdch-lancer
+
+patchesStrategicMerge:
+- overwrite-patch.yaml # Apply our overwrite patch

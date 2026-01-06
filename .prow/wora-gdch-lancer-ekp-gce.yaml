@@ -501,10 +501,10 @@ presubmits:
       - runner.sh
       args:
       - ./google_test/wora/prow_entrypoint.sh
-- name: wora-gdch-abm-gce-lancer-version_skew
+- name: wora-gdch-abm-gce-lancer-version_skew_1_16
   cluster: anthos-networking-ci-us-west1-b
-  trigger: /test wora-gdch-abm-gce-lancer-version_skew$
-  rerun_command: /test wora-gdch-abm-gce-lancer-version_skew
+  trigger: /test wora-gdch-abm-gce-lancer-version_skew_1_16$
+  rerun_command: /test wora-gdch-abm-gce-lancer-version_skew_1_16
   always_run: false
   skip_fetch_head: true
   clone_depth: 500
@@ -525,7 +525,7 @@ presubmits:
   path_alias: gke-internal.googlesource.com/third_party/cilium
   spec:
     containers:
-    - image: gcr.io/tailorbird/kubetest2-tailorbird:latest
+    - image: gcr.io/tailorbird/kubetest2-tailorbird@sha256:dd6edb7b068410208ae185e780bfef1629ea5e07ce566c17132edb1070a71d0d
       resources:
         requests:
           ephemeral-storage: 150Gi
@@ -540,9 +540,10 @@ presubmits:
       - name: CILIUM_GITREF
         value: HEAD
       - name: CILIUM_IMAGES_WITH_TAG
-        value: "_,gcr.io/anthos-baremetal-staging/cilium/cilium:v1.16.10-gdch1.33-gke.54"
+        # use the latest Cilium 1.16 image from here: https://source.corp.google.com/h/gke-internal/private-cloud/+/release-1.15:oc/unet/images/external_images.bzl
+        value: "_,gcr.io/anthos-baremetal-staging/cilium/cilium:v1.16.10-gdch1.33-gke.61"
       - name: CILIUM_OPERATOR_IMAGES_WITH_TAG
-        value: "_,gcr.io/anthos-baremetal-staging/cilium/operator:v1.16.10-gdch1.33-gke.54"
+        value: "_,gcr.io/anthos-baremetal-staging/cilium/operator:v1.16.10-gdch1.33-gke.61"
       - name: DISABLE_UPGRADE_VERIFICATION
         value: "true"
       - name: PATCH_CONTENT_DIR
@@ -552,15 +553,15 @@ presubmits:
       - name: WORA_CONFIG
         value: multicluster_integration_test.yaml
       - name: WORA_GINKGO_LABEL_FILTER
-        value: sample-multicluster
+        value: sample||sample-multicluster
       command:
       - runner.sh
       args:
       - ./google_test/wora/prow_entrypoint.sh
-- name: wora-multistage-abm-gce-lancer_cilium
+- name: wora-multistage-abm-gce-lancer_cilium_upgrade_1_16
   cluster: anthos-networking-ci-us-west1-b
-  trigger: /test wora-multistage-abm-gce-lancer_cilium$
-  rerun_command: /test wora-multistage-abm-gce-lancer_cilium
+  trigger: /test wora-multistage-abm-gce-lancer_cilium_upgrade_1_16$
+  rerun_command: /test wora-multistage-abm-gce-lancer_cilium_upgrade_1_16
   always_run: false
   skip_fetch_head: true
   decorate: true
@@ -580,7 +581,7 @@ presubmits:
   path_alias: gke-internal.googlesource.com/third_party/cilium
   spec:
     containers:
-    - image: gcr.io/tailorbird/kubetest2-tailorbird:latest
+    - image: gcr.io/tailorbird/kubetest2-tailorbird@sha256:dd6edb7b068410208ae185e780bfef1629ea5e07ce566c17132edb1070a71d0d
       resources:
         requests:
           ephemeral-storage: 150Gi
@@ -592,10 +593,11 @@ presubmits:
       env:
       - name: CILIUM_GITREF
         value: HEAD
+      # use the latest Cilium 1.16 image from here: https://source.corp.google.com/h/gke-internal/private-cloud/+/release-1.15:oc/unet/images/external_images.bzl
       - name: CILIUM_IMAGES_WITH_TAG
-        value: gcr.io/anthos-baremetal-staging/cilium/cilium:v1.16.10-gdch1.33-gke.43
+        value: gcr.io/anthos-baremetal-staging/cilium/cilium:v1.16.10-gdch1.33-gke.61
       - name: CILIUM_OPERATOR_IMAGES_WITH_TAG
-        value: gcr.io/anthos-baremetal-staging/cilium/operator:v1.16.10-gdch1.33-gke.43
+        value: gcr.io/anthos-baremetal-staging/cilium/operator:v1.16.10-gdch1.33-gke.61
       - name: DISABLE_UPGRADE_VERIFICATION
         value: "true"
       - name: DOCKER_BUILD_EXTRA_ARGS
@@ -615,7 +617,371 @@ presubmits:
       - name: WORA_DOCKERFILE_DIR
         value: multistage
       - name: WORA_GINKGO_LABEL_FILTER
-        value: sample
+        value: bpfprog||connectivity||egressnat||externallb||geneve||hostfirewall||internallb||l3vm||loadbalancer||multigateway_egressnat||sample||strict||tailcall
+      command:
+      - runner.sh
+      args:
+      - ./google_test/wora/prow_entrypoint.sh
+- name: wora-gdch-abm-gce-lancer-version_skew_1_13
+  cluster: anthos-networking-ci-us-west1-b
+  trigger: /test wora-gdch-abm-gce-lancer-version_skew_1_13$
+  rerun_command: /test wora-gdch-abm-gce-lancer-version_skew_1_13
+  always_run: true
+  skip_fetch_head: true
+  clone_depth: 500
+  decorate: true
+  decoration_config:
+    gcs_configuration:
+      bucket: "anthos-networking-ci"
+      path_strategy: "explicit"
+    timeout: 480m
+  labels:
+    preset-cookie-file: "true"
+    preset-cookie-file-env: "true"
+    preset-dind-enabled: "true"
+    prow.k8s.io/gerrit-report-label: "Verified"
+    prow.k8s.io/pubsub.project: "anthos-baremetal-ci"
+    prow.k8s.io/pubsub.runID: "prow-etl-presubmit-tests"
+    prow.k8s.io/pubsub.topic: "prow-etl-trigger"
+  path_alias: gke-internal.googlesource.com/third_party/cilium
+  spec:
+    containers:
+    - image: gcr.io/tailorbird/kubetest2-tailorbird@sha256:dd6edb7b068410208ae185e780bfef1629ea5e07ce566c17132edb1070a71d0d
+      resources:
+        requests:
+          ephemeral-storage: 150Gi
+        limits:
+          ephemeral-storage: 300Gi
+      securityContext:
+        # needed for docker-in-docker
+        privileged: true
+      env:
+      - name: ADD_VXLANS_CLUSTER_TYPE
+        value: gdc-ag
+      - name: CILIUM_GITREF
+        value: HEAD
+      # use the latest Cilium 1.13 image from here: https://source.corp.google.com/h/gke-internal/private-cloud/+/release-1.15:oc/unet/images/external_images.bzl
+      - name: CILIUM_IMAGES_WITH_TAG
+        value: "_,gcr.io/anthos-baremetal-staging/cilium/cilium:v1.13.12-gdch1.31-gke.92"
+      - name: CILIUM_OPERATOR_IMAGES_WITH_TAG
+        value: "_,gcr.io/anthos-baremetal-staging/cilium/operator:v1.13.12-gdch1.31-gke.92"
+      - name: DISABLE_UPGRADE_VERIFICATION
+        value: "true"
+      - name: PATCH_CONTENT_DIR
+        value: addon/patch_content/abm-1.31.x-gke/overlays/gdch-lancer,addon/patch_content/abm-1.29.100-gke.76/overlays/gdch-lancer
+      - name: TBCONFIG
+        value: sut-gdch-lancer-abm-gce-multicluster.yaml
+      - name: WORA_CONFIG
+        value: multicluster_integration_test.yaml
+      - name: WORA_GINKGO_LABEL_FILTER
+        value: sample||sample-multicluster
+      command:
+      - runner.sh
+      args:
+      - ./google_test/wora/prow_entrypoint.sh
+- name: wora-multistage-abm-gce-lancer_cilium_upgrade_1_13
+  cluster: anthos-networking-ci-us-west1-b
+  trigger: /test wora-multistage-abm-gce-lancer_cilium_upgrade_1_13$
+  rerun_command: /test wora-multistage-abm-gce-lancer_cilium_upgrade_1_13
+  always_run: true
+  skip_fetch_head: true
+  decorate: true
+  decoration_config:
+    gcs_configuration:
+      bucket: "anthos-networking-ci"
+      path_strategy: "explicit"
+    timeout: 240m
+  labels:
+    preset-cookie-file: "true"
+    preset-cookie-file-env: "true"
+    preset-dind-enabled: "true"
+    prow.k8s.io/gerrit-report-label: "Verified"
+    prow.k8s.io/pubsub.project: "anthos-baremetal-ci"
+    prow.k8s.io/pubsub.topic: "prow-etl-trigger"
+    prow.k8s.io/pubsub.runID: "prow-etl-presubmit-tests"
+  path_alias: gke-internal.googlesource.com/third_party/cilium
+  spec:
+    containers:
+    - image: gcr.io/tailorbird/kubetest2-tailorbird@sha256:dd6edb7b068410208ae185e780bfef1629ea5e07ce566c17132edb1070a71d0d
+      resources:
+        requests:
+          ephemeral-storage: 150Gi
+        limits:
+          ephemeral-storage: 300Gi
+      securityContext:
+        # needed for docker-in-docker
+        privileged: true
+      env:
+      - name: CILIUM_GITREF
+        value: HEAD
+      - name: CILIUM_IMAGES_WITH_TAG
+        # use the latest Cilium 1.13 image from here: https://source.corp.google.com/h/gke-internal/private-cloud/+/release-1.15:oc/unet/images/external_images.bzl
+        value: gcr.io/anthos-baremetal-staging/cilium/cilium:v1.13.12-gdch1.31-gke.92
+      - name: CILIUM_OPERATOR_IMAGES_WITH_TAG
+        value: gcr.io/anthos-baremetal-staging/cilium/operator:v1.13.12-gdch1.31-gke.92
+      - name: DISABLE_UPGRADE_VERIFICATION
+        value: "true"
+      - name: DOCKER_BUILD_EXTRA_ARGS
+        value: --build-arg=K8S_VERSION=v1.31.6
+      - name: PATCH_CONTENT_DIR
+        value: addon/patch_content/abm-1.29.100-gke.76/overlays/gdch-lancer
+      - name: TARGET_CILIUM_IMAGES_WITH_TAG
+        value: "_"
+      - name: "TARGET_CILIUM_OPERATOR_IMAGES_WITH_TAG"
+        value: "_"
+      - name: "TARGET_PATCH_CONTENT_DIR"
+        value: addon/patch_content/abm-1.31.x-gke/overlays/gdch-lancer
+      - name: TBCONFIG
+        value: sut-gdch-lancer-abm-gce.yaml
+      - name: WORA_CONFIG
+        value: multistage_test.yaml
+      - name: WORA_DOCKERFILE_DIR
+        value: multistage
+      - name: WORA_GINKGO_LABEL_FILTER
+        value: bpfprog||connectivity||egressnat||externallb||geneve||hostfirewall||internallb||l3vm||loadbalancer||multigateway_egressnat||sample||strict||tailcall
+      command:
+      - runner.sh
+      args:
+      - ./google_test/wora/prow_entrypoint.sh
+- name: wora-gdch-abm-gce-lancer-version_skew_1_13-ipsec
+  cluster: anthos-networking-ci-us-west1-b
+  trigger: /test wora-gdch-abm-gce-lancer-version_skew_1_13-ipsec$
+  rerun_command: /test wora-gdch-abm-gce-lancer-version_skew_1_13-ipsec
+  always_run: true
+  skip_fetch_head: true
+  clone_depth: 500
+  decorate: true
+  decoration_config:
+    gcs_configuration:
+      bucket: "anthos-networking-ci"
+      path_strategy: "explicit"
+    timeout: 480m
+  labels:
+    preset-cookie-file: "true"
+    preset-cookie-file-env: "true"
+    preset-dind-enabled: "true"
+    prow.k8s.io/gerrit-report-label: "Verified"
+    prow.k8s.io/pubsub.project: "anthos-baremetal-ci"
+    prow.k8s.io/pubsub.runID: "prow-etl-presubmit-tests"
+    prow.k8s.io/pubsub.topic: "prow-etl-trigger"
+  path_alias: gke-internal.googlesource.com/third_party/cilium
+  spec:
+    containers:
+    - image: gcr.io/tailorbird/kubetest2-tailorbird@sha256:dd6edb7b068410208ae185e780bfef1629ea5e07ce566c17132edb1070a71d0d
+      resources:
+        requests:
+          ephemeral-storage: 150Gi
+        limits:
+          ephemeral-storage: 300Gi
+      securityContext:
+        # needed for docker-in-docker
+        privileged: true
+      env:
+      - name: ADD_VXLANS_CLUSTER_TYPE
+        value: gdc-ag
+      - name: CILIUM_GITREF
+        value: HEAD
+      - name: CILIUM_IMAGES_WITH_TAG
+        # use the latest Cilium 1.13 image from here: https://source.corp.google.com/h/gke-internal/private-cloud/+/release-1.15:oc/unet/images/external_images.bzl
+        value: "_,gcr.io/anthos-baremetal-staging/cilium/cilium:v1.13.12-gdch1.31-gke.92"
+      - name: CILIUM_OPERATOR_IMAGES_WITH_TAG
+        value: "_,gcr.io/anthos-baremetal-staging/cilium/operator:v1.13.12-gdch1.31-gke.92"
+      - name: DISABLE_UPGRADE_VERIFICATION
+        value: "true"
+      - name: PATCH_CONTENT_DIR
+        # each patch dir maps to one cluster.
+        value: addon/patch_content/abm-1.31.x-gke/overlays/gdch-lancer-ipsec,addon/patch_content/abm-1.29.100-gke.76/overlays/gdch-lancer-ipsec
+      - name: TBCONFIG
+        value: sut-gdch-lancer-abm-gce-multicluster.yaml
+      - name: WORA_CONFIG
+        value: multicluster_integration_test.yaml
+      - name: WORA_GINKGO_LABEL_FILTER
+        value: sample||sample-multicluster
+      command:
+      - runner.sh
+      args:
+      - ./google_test/wora/prow_entrypoint.sh
+- name: wora-multistage-abm-gce-lancer_cilium_upgrade_1_13-ipsec
+  cluster: anthos-networking-ci-us-west1-b
+  trigger: /test wora-multistage-abm-gce-lancer_cilium_upgrade_1_13-ipsec$
+  rerun_command: /test wora-multistage-abm-gce-lancer_cilium_upgrade_1_13-ipsec
+  always_run: true
+  skip_fetch_head: true
+  decorate: true
+  decoration_config:
+    gcs_configuration:
+      bucket: "anthos-networking-ci"
+      path_strategy: "explicit"
+    timeout: 240m
+  labels:
+    preset-cookie-file: "true"
+    preset-cookie-file-env: "true"
+    preset-dind-enabled: "true"
+    prow.k8s.io/gerrit-report-label: "Verified"
+    prow.k8s.io/pubsub.project: "anthos-baremetal-ci"
+    prow.k8s.io/pubsub.topic: "prow-etl-trigger"
+    prow.k8s.io/pubsub.runID: "prow-etl-presubmit-tests"
+  path_alias: gke-internal.googlesource.com/third_party/cilium
+  spec:
+    containers:
+    - image: gcr.io/tailorbird/kubetest2-tailorbird@sha256:dd6edb7b068410208ae185e780bfef1629ea5e07ce566c17132edb1070a71d0d
+      resources:
+        requests:
+          ephemeral-storage: 150Gi
+        limits:
+          ephemeral-storage: 300Gi
+      securityContext:
+        # needed for docker-in-docker
+        privileged: true
+      env:
+      - name: CILIUM_GITREF
+        value: HEAD
+      - name: CILIUM_IMAGES_WITH_TAG
+        # use the latest Cilium 1.13 image from here: https://source.corp.google.com/h/gke-internal/private-cloud/+/release-1.15:oc/unet/images/external_images.bzl
+        value: gcr.io/anthos-baremetal-staging/cilium/cilium:v1.13.12-gdch1.31-gke.92
+      - name: CILIUM_OPERATOR_IMAGES_WITH_TAG
+        value: gcr.io/anthos-baremetal-staging/cilium/operator:v1.13.12-gdch1.31-gke.92
+      - name: DISABLE_UPGRADE_VERIFICATION
+        value: "true"
+      - name: DOCKER_BUILD_EXTRA_ARGS
+        value: --build-arg=K8S_VERSION=v1.31.6
+      - name: PATCH_CONTENT_DIR
+        value: addon/patch_content/abm-1.29.100-gke.76/overlays/gdch-lancer-ipsec
+      - name: TARGET_CILIUM_IMAGES_WITH_TAG
+        value: "_"
+      - name: "TARGET_CILIUM_OPERATOR_IMAGES_WITH_TAG"
+        value: "_"
+      - name: "TARGET_PATCH_CONTENT_DIR"
+        value: addon/patch_content/abm-1.31.x-gke/overlays/gdch-lancer-ipsec
+      - name: TBCONFIG
+        value: sut-gdch-lancer-abm-gce.yaml
+      - name: WORA_CONFIG
+        value: multistage_test.yaml
+      - name: WORA_DOCKERFILE_DIR
+        value: multistage
+      - name: WORA_GINKGO_LABEL_FILTER
+        value: bpfprog||connectivity||egressnat||externallb||geneve||hostfirewall||internallb||l3vm||loadbalancer||multigateway_egressnat||sample||strict||tailcall
+      command:
+      - runner.sh
+      args:
+      - ./google_test/wora/prow_entrypoint.sh
+- name: wora-gdch-abm-gce-lancer-version_skew_1_13-xdp
+  cluster: anthos-networking-ci-us-west1-b
+  trigger: /test wora-gdch-abm-gce-lancer-version_skew_1_13-xdp$
+  rerun_command: /test wora-gdch-abm-gce-lancer-version_skew_1_13-xdp
+  always_run: true
+  skip_fetch_head: true
+  clone_depth: 500
+  decorate: true
+  decoration_config:
+    gcs_configuration:
+      bucket: "anthos-networking-ci"
+      path_strategy: "explicit"
+    timeout: 480m
+  labels:
+    preset-cookie-file: "true"
+    preset-cookie-file-env: "true"
+    preset-dind-enabled: "true"
+    prow.k8s.io/gerrit-report-label: "Verified"
+    prow.k8s.io/pubsub.project: "anthos-baremetal-ci"
+    prow.k8s.io/pubsub.runID: "prow-etl-presubmit-tests"
+    prow.k8s.io/pubsub.topic: "prow-etl-trigger"
+  path_alias: gke-internal.googlesource.com/third_party/cilium
+  spec:
+    containers:
+    - image: gcr.io/tailorbird/kubetest2-tailorbird@sha256:dd6edb7b068410208ae185e780bfef1629ea5e07ce566c17132edb1070a71d0d
+      resources:
+        requests:
+          ephemeral-storage: 150Gi
+        limits:
+          ephemeral-storage: 300Gi
+      securityContext:
+        # needed for docker-in-docker
+        privileged: true
+      env:
+      - name: ADD_VXLANS_CLUSTER_TYPE
+        value: gdc-ag
+      - name: CILIUM_GITREF
+        value: HEAD
+      - name: CILIUM_IMAGES_WITH_TAG
+        # use the latest Cilium 1.13 image from here: https://source.corp.google.com/h/gke-internal/private-cloud/+/release-1.15:oc/unet/images/external_images.bzl
+        value: "_,gcr.io/anthos-baremetal-staging/cilium/cilium:v1.13.12-gdch1.31-gke.92"
+      - name: CILIUM_OPERATOR_IMAGES_WITH_TAG
+        value: "_,gcr.io/anthos-baremetal-staging/cilium/operator:v1.13.12-gdch1.31-gke.92"
+      - name: DISABLE_UPGRADE_VERIFICATION
+        value: "true"
+      - name: PATCH_CONTENT_DIR
+        value: addon/patch_content/abm-1.31.x-gke/overlays/gdch-lancer-xdp,addon/patch_content/abm-1.29.100-gke.76/overlays/gdch-lancer-xdp
+      - name: TBCONFIG
+        value: sut-gdch-lancer-abm-gce-multicluster.yaml
+      - name: WORA_CONFIG
+        value: multicluster_integration_test.yaml
+      - name: WORA_GINKGO_LABEL_FILTER
+        value: sample||sample-multicluster
+      command:
+      - runner.sh
+      args:
+      - ./google_test/wora/prow_entrypoint.sh
+- name: wora-multistage-abm-gce-lancer_cilium_upgrade_1_13-xdp
+  cluster: anthos-networking-ci-us-west1-b
+  trigger: /test wora-multistage-abm-gce-lancer_cilium_upgrade_1_13-xdp$
+  rerun_command: /test wora-multistage-abm-gce-lancer_cilium_upgrade_1_13-xdp
+  always_run: false
+  skip_fetch_head: true
+  decorate: true
+  decoration_config:
+    gcs_configuration:
+      bucket: "anthos-networking-ci"
+      path_strategy: "explicit"
+    timeout: 240m
+  labels:
+    preset-cookie-file: "true"
+    preset-cookie-file-env: "true"
+    preset-dind-enabled: "true"
+    prow.k8s.io/gerrit-report-label: "Verified"
+    prow.k8s.io/pubsub.project: "anthos-baremetal-ci"
+    prow.k8s.io/pubsub.topic: "prow-etl-trigger"
+    prow.k8s.io/pubsub.runID: "prow-etl-presubmit-tests"
+  path_alias: gke-internal.googlesource.com/third_party/cilium
+  spec:
+    containers:
+    - image: gcr.io/tailorbird/kubetest2-tailorbird@sha256:dd6edb7b068410208ae185e780bfef1629ea5e07ce566c17132edb1070a71d0d
+      resources:
+        requests:
+          ephemeral-storage: 150Gi
+        limits:
+          ephemeral-storage: 300Gi
+      securityContext:
+        # needed for docker-in-docker
+        privileged: true
+      env:
+      - name: CILIUM_GITREF
+        value: HEAD
+      - name: CILIUM_IMAGES_WITH_TAG
+        # use the latest Cilium 1.13 image from here: https://source.corp.google.com/h/gke-internal/private-cloud/+/release-1.15:oc/unet/images/external_images.bzl
+        value: gcr.io/anthos-baremetal-staging/cilium/cilium:v1.13.12-gdch1.31-gke.92
+      - name: CILIUM_OPERATOR_IMAGES_WITH_TAG
+        value: gcr.io/anthos-baremetal-staging/cilium/operator:v1.13.12-gdch1.31-gke.92
+      - name: DISABLE_UPGRADE_VERIFICATION
+        value: "true"
+      - name: DOCKER_BUILD_EXTRA_ARGS
+        value: --build-arg=K8S_VERSION=v1.31.6
+      - name: PATCH_CONTENT_DIR
+        value: addon/patch_content/abm-1.29.100-gke.76/overlays/gdch-lancer-xdp
+      - name: TARGET_CILIUM_IMAGES_WITH_TAG
+        value: "_"
+      - name: "TARGET_CILIUM_OPERATOR_IMAGES_WITH_TAG"
+        value: "_"
+      - name: "TARGET_PATCH_CONTENT_DIR"
+        value: addon/patch_content/abm-1.31.x-gke/overlays/gdch-lancer-xdp
+      - name: TBCONFIG
+        value: sut-gdch-lancer-abm-gce.yaml
+      - name: WORA_CONFIG
+        value: multistage_test.yaml
+      - name: WORA_DOCKERFILE_DIR
+        value: multistage
+      - name: WORA_GINKGO_LABEL_FILTER
+        value: bpfprog||connectivity||egressnat||externallb||geneve||hostfirewall||internallb||l3vm||loadbalancer||multigateway_egressnat||sample||strict||tailcall
       command:
       - runner.sh
       args:

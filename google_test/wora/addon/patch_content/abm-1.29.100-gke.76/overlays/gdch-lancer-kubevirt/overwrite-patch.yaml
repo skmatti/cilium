@@ -1,0 +1,13 @@
+apiVersion: v1
+data:
+  # Disable k8s-interface-only to support GKE connect connection.
+  # GKE connect is required for tailorbird to bring up the cluster,
+  # when ABM cluster not in private mode.
+  k8s-interface-only: "false"
+  # Disabling the strict egress policy validation feature to allow
+  # GKE agent connection which is required to bring up the cluster.
+  enable-strict-egress-policy-validation: "false"
+kind: ConfigMap
+metadata:
+  name: cilium-config
+  namespace: kube-system

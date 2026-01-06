@@ -1,0 +1,6 @@
+resources:
+- gdch-cilium-config.yaml
+- ../../image-only-templates
+
+patchesStrategicMerge:
+- overwrite-patch.yaml # Apply our overwrite patch

@@ -1,0 +1,8 @@
+apiVersion: v1
+data:
+  xdp-mode: disabled
+  google-ipsec-mode: software
+kind: ConfigMap
+metadata:
+  name: cilium-config
+  namespace: kube-system

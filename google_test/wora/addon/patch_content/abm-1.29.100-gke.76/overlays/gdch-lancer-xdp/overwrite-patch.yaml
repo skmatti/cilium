@@ -1,0 +1,7 @@
+apiVersion: v1
+data:
+  xdp-mode: xdpgeneric
+kind: ConfigMap
+metadata:
+  name: cilium-config
+  namespace: kube-system
