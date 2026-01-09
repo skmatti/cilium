@@ -93,6 +93,11 @@ CLUSTER_REFS=$(calculate_cluster_refs "${CLUSTER_ARTIFACTS}")
 # Folder for nested WORA runs, to make file layout more clear.
 WORA_ARTIFACTS="${ARTIFACTS}/wora"
 ARTIFACTS_BASE="${ARTIFACTS}"
+CLASS_NAME_PREFIX=""
+if [[ "${IS_MULTISTAGE:-false}" == "true" ]]; then
+  WORA_ARTIFACTS="${ARTIFACTS}/wora/phase1"
+  CLASS_NAME_PREFIX="Phase 1: "
+fi
 
 function unsetResourceVars() {
   unset HTTP_PROXY
@@ -125,21 +130,30 @@ function check_junit_files_for_errors() {
   local junit_file
   local test_suites
   local test_suite
-  local errors
-  local failures
+  local total_errors=0
+  local total_failures=0
   mapfile -t junit_files < <(find "${WORA_ARTIFACTS}" -name junit_\*.xml)
   for junit_file in "${junit_files[@]}"; do
+    # Add prefix to the classname to distinguish between tests run in multiple phases in prow page.
+    if [[ -n "${CLASS_NAME_PREFIX}" ]]; then
+      sed -E -i 's/(classname=")([^"]*)(")/\1'"${CLASS_NAME_PREFIX}"'\2\3/' "${junit_file}"
+    fi
     echo "Checking ${junit_file} for failures"
     readarray -t test_suites < <(grep -E '(<testsuite).*>' "${junit_file}" || true)
     for test_suite in "${test_suites[@]}"; do
       errors="$(echo "${test_suite}" | sed -n 's/.*errors="\([0-9]*\)".*/\1/p')"
       failures="$(echo "${test_suite}" | sed -n 's/.*failures="\([0-9]*\)".*/\1/p')"
       if ((${errors:-0} != 0)) || ((${failures:-0} != 0)); then
-        echo "Failures found in produced ${junit_file} output. Failing workflow" >&2
-        return 1
+        total_errors=$((total_errors+errors))
+        total_failures=$((total_failures+failures))
+        echo "Failures found in produced ${junit_file} output." >&2
       fi
     done
   done
+  if ((${total_errors:-0} != 0)) || ((${total_failures:-0} != 0)); then
+    echo "Errors(${total_errors}) or failures(${total_failures}) found in produced output. Failing workflow" >&2
+    return 1
+  fi
 }
 
 check_junit_files_for_errors
@@ -155,10 +169,11 @@ unsetResourceVars
 ARTIFACTS_BASE="${ARTIFACTS_BASE}" \
 TARGET_ADDON_CONFIG="${MULTISTAGE_ADDON_CONFIG_GSPATH:-}" \
 "$(dirname -- "${BASH_SOURCE[0]}")"/multistage/infra.sh
+WORA_ARTIFACTS="${ARTIFACTS}/wora/phase2"
 
 echo "INFO: Cilium updated, running tests again."
 ARTIFACTS_BASE="${ARTIFACTS_BASE}" \
-ARTIFACTS="${WORA_ARTIFACTS}/phase2" \
+ARTIFACTS="${WORA_ARTIFACTS}" \
   kubetest2-tailorbird \
   --verbose \
   --run-id="${TEST_RUN_ID}" \
@@ -169,4 +184,5 @@ ARTIFACTS="${WORA_ARTIFACTS}/phase2" \
   --up \
   --down
 
+CLASS_NAME_PREFIX="Phase 2: "
 check_junit_files_for_errors
