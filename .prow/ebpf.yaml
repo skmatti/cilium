@@ -68,8 +68,8 @@ presubmits:
         value: ebpf
       - name: IMAGE_PROJECT
         value: anthos-baremetal-ci
-      - name: IMAGE_FAMILY
-        value: ubuntu-2204-docker
+      - name: IMAGE_REF
+        value: ubuntu-2204-docker-v20260105001543
       command:
       - runner.sh
       - ./google_test/upstream_test/prow_entrypoint.sh
