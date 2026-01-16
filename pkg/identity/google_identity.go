@@ -60,12 +60,12 @@ func IsMultiNICHostID(ni NumericIdentity) bool {
 		return false
 	}
 
-	id, ok := reservedIdentityCache[ni]
-	if !ok {
+	id := LookupReservedIdentity(ni)
+	if id == nil {
 		return false
 	}
 
-	_, ok = id.Labels[labels.IDNameMultiNICHost]
+	_, ok := id.Labels[labels.IDNameMultiNICHost]
 	return ok
 }
 
