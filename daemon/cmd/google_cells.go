@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/cilium/cilium/pkg/endpointmanager"
+	"github.com/cilium/cilium/pkg/flowgen"
 	"github.com/cilium/cilium/pkg/flowtagger"
 	tcpCilium "github.com/cilium/cilium/pkg/gdc/api/cilium"
 	"github.com/cilium/cilium/pkg/gke/endpointqueue"
@@ -88,6 +89,8 @@ var googleCell = cell.Module(
 
 	// Cilium API served over TCP.
 	tcpCilium.Cell,
+
+	flowgen.Cell,
 )
 
 // Converts Daemon promise into a PolicyManager promise

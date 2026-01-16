@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"github.com/cilium/cilium/operator/pkg/flowtrace"
 	"github.com/cilium/cilium/operator/pkg/gke/synchronizenode"
 	"github.com/cilium/cilium/pkg/gke/features"
 	"github.com/cilium/hive/cell"
@@ -12,4 +13,7 @@ var googleCell = cell.Module(
 
 	synchronizenode.Cell,
 	features.Cell,
+
+	// FlowTrace Cell provides the flow trace functionality, it is disabled by default.
+	flowtrace.Cell,
 )
