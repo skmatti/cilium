@@ -393,6 +393,7 @@ func (e *Endpoint) toSerializedEndpoint() *serializableEndpoint {
 		IfName:                   e.ifName,
 		IfIndex:                  e.ifIndex,
 		ContainerIfName:          e.containerIfName,
+		IfNameInPod:              e.containerIfName, // We populate this field for backward compatibility.
 		DisableLegacyIdentifiers: e.disableLegacyIdentifiers,
 		OpLabels:                 e.OpLabels,
 		LXCMAC:                   e.mac,
