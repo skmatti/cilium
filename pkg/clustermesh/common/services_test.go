@@ -8,6 +8,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/cilium/cilium/pkg/gke/features"
 	"github.com/cilium/cilium/pkg/metrics"
 	serviceStore "github.com/cilium/cilium/pkg/service/store"
 )
@@ -74,4 +75,34 @@ func TestRemoteServiceObserver(t *testing.T) {
 	require.Equal(t, 1, upstream.updated[svc1.String()])
 	require.Equal(t, 1, upstream.deleted[svc1.String()])
 	require.Equal(t, 0, cache.Size())
+}
+
+func TestRemoteServiceObserverWithGDCILB(t *testing.T) {
+	enabledBefore := features.GlobalConfig.EnableGDCILB
+	features.GlobalConfig.EnableGDCILB = true
+	defer func() { features.GlobalConfig.EnableGDCILB = enabledBefore }()
+
+	wrap := func(svc serviceStore.ClusterService) *serviceStore.ValidatingClusterService {
+		return &serviceStore.ValidatingClusterService{ClusterService: svc}
+	}
+	// svc2 is not shared
+	svc2 := serviceStore.ClusterService{Cluster: "remote", Namespace: "namespace", Name: "name", Shared: false}
+	cache := NewGlobalServiceCache(metrics.NoOpGauge)
+
+	var upstream fakeUpstream
+	observer := NewSharedServicesObserver(log, cache, upstream.OnUpdate, upstream.OnDelete)
+
+	// Observe a new service update (for a non-shared service), and assert it IS added to the cache because GDCILB is enabled
+	upstream.init()
+	observer.OnUpdate(wrap(svc2))
+
+	require.Equal(t, 1, upstream.updated[svc2.String()])
+	require.Equal(t, 1, cache.Size())
+
+	// Verify it's in the cache
+	gs := cache.GetGlobalService(svc2.NamespaceServiceName())
+	require.NotNil(t, gs)
+	found, ok := gs.ClusterServices[svc2.Cluster]
+	require.True(t, ok)
+	require.Equal(t, &svc2, found)
 }

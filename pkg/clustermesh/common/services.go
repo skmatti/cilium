@@ -9,6 +9,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"k8s.io/apimachinery/pkg/types"
 
+	"github.com/cilium/cilium/pkg/gke/features"
 	"github.com/cilium/cilium/pkg/kvstore/store"
 	"github.com/cilium/cilium/pkg/lock"
 	"github.com/cilium/cilium/pkg/logging/logfields"
@@ -188,13 +189,15 @@ func (r *remoteServiceObserver) OnUpdate(key store.Key) {
 	scopedLog := r.log.WithFields(logrus.Fields{logfields.ServiceName: svc.String()})
 	scopedLog.Debug("Received remote service update event")
 
-	// Short-circuit the handling of non-shared services
-	if !svc.Shared {
+	// Short-circuit the handling of non-shared services in the case that gdc-ilb is disabled. If it
+	// is enabled, we need to handle services that are shared or not, since local ILB services will
+	// not be shared but should still be learned by the agent.
+	if !svc.Shared && !features.GlobalConfig.EnableGDCILB {
 		if r.cache.Has(svc) {
 			scopedLog.Debug("Previously shared service is no longer shared: triggering deletion event")
 			r.OnDelete(key)
 		} else {
-			scopedLog.Debug("Ignoring remote service update: service is not shared")
+			scopedLog.Debug("Ignoring remote service update: service is not shared and gdc-ilb is disabled")
 		}
 		return
 	}
