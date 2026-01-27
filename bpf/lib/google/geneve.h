@@ -369,7 +369,6 @@ static __always_inline __u32 geneve_decode_opt4(
 	struct geneve_opt_hdr opt;
 	// Length of the geneve option we are parsing now.
 	__u32 opt_len = 0;
-	void *data, *data_end;
 
 	if (ctx_load_bytes(ctx, ctx_offset, &opt, sizeof(opt)) < 0)
 		return 0;
@@ -382,11 +381,6 @@ static __always_inline __u32 geneve_decode_opt4(
 		return 0;
 	if (opt_data_offset + opt_len >
 	    (GENEVE_OPT_MAX_LENGTH * GENEVE_OPT_MAX_COUNT))
-		return 0;
-	// To bypass verifier error.
-	data = ctx_data(ctx);
-	data_end = ctx_data_end(ctx);
-	if (data + ctx_offset + opt_len > data_end)
 		return 0;
 	if (ctx_load_bytes(ctx, ctx_offset, opt_data + opt_data_offset, opt_len) <
 	    0)
@@ -531,7 +525,8 @@ geneve_is_encapped(struct __ctx_buff *ctx, const struct iphdr *ip4)
 		return false;
 #  if __ctx_is == __ctx_xdp
 	if (geneve.opt_len) {
-		// Punt packets with special GENEVE options to TC.
+		// Punt packets with GENEVE options to TC, as currently there is no
+		// mechanism to pass the GENEVE option data from XDP to TC.
 		struct geneve_opt_hdr opt;
 
 		if (ctx_load_bytes(
@@ -591,7 +586,7 @@ static __always_inline int
 geneve_encap4(struct __ctx_buff *ctx, struct geneve_metadata *metadata,
 	      struct geneve_encaphdr4 *hdr)
 {
-	__u64 flags;
+	__u64 flags __maybe_unused;
 	__u16 sport;
 	struct iphdr *ip4;
 	struct ethhdr *eth;
@@ -671,12 +666,38 @@ geneve_encap4(struct __ctx_buff *ctx, struct geneve_metadata *metadata,
 			    data_end)
 				return DROP_INVALID;
 
+#  if __ctx_is == __ctx_skb
 			if (ctx_store_bytes(
 				    ctx,
 				    ETH_HLEN + sizeof(struct geneve_encaphdr4) +
 					    encoded_opt_len,
 				    opt, opt_len, BPF_F_INVALIDATE_HASH) < 0)
 				return DROP_INVALID;
+#  elif __ctx_is == __ctx_xdp
+			{
+				// In XDP, ctx_store_bytes uses memcpy which requires constant length.
+				// Copy manually byte-by-byte (or 4-byte chunks).
+				// opt_len is max (32 * 1) * 4 = 128 bytes.
+				void *pkt_data =
+					data + ETH_HLEN +
+					sizeof(struct geneve_encaphdr4) +
+					encoded_opt_len;
+				__u32 k;
+
+				if (pkt_data + opt_len > data_end)
+					return DROP_INVALID;
+
+#   pragma unroll
+				for (k = 0; k < GENEVE_OPT_MAX_LENGTH; k++) {
+					if (k < opt_len) {
+						if (pkt_data + k + 1 > data_end)
+							break;
+						((__u8 *)pkt_data)[k] =
+							((__u8 *)opt)[k];
+					}
+				}
+			}
+#  endif
 
 			encoded_opt_len += opt_len;
 		}
@@ -737,8 +758,8 @@ geneve_decap4(struct __ctx_buff *ctx, struct geneve_metadata *metadata)
 	// Remove geneve header from the packet and adjust the packet head room.
 #  if __ctx_is == __ctx_skb
 	{
-		int flags = geneve_ctx_adjust_hroom_flags() |
-			    BPF_F_ADJ_ROOM_FIXED_GSO;
+		__u64 flags =
+			geneve_ctx_adjust_hroom_flags() | BPF_F_ADJ_ROOM_FIXED_GSO;
 
 		if (ctx_adjust_hroom(ctx, -(__s32)hdr_len, BPF_ADJ_ROOM_MAC, flags))
 			return DROP_INVALID;
@@ -870,6 +891,10 @@ int tail_geneve_decap4(struct __ctx_buff *ctx)
 		ctx_store_meta(ctx, CB_SRC_LABEL, src_sec_identity);
 	}
 
+	/* Prevent invalid size of register spill on data_end (verifier error). */
+	data = NULL;
+	data_end = NULL;
+
 	{
 		enum trace_point obs_point = TRACE_FROM_OVERLAY;
 
@@ -890,8 +915,16 @@ out:
 		return send_drop_notify_error_ext(
 			ctx, src_sec_identity, ret, ext_err, CTX_ACT_DROP,
 			METRIC_INGRESS);
+
+#  if __ctx_is == __ctx_xdp
+	// For XDP, we just exit here, and the packet will be processed in TC later.
+	// Note since we have tail-called to here, we cannot simply return HOOK_ACT_CONTINUE.
+	ctx_move_xfer(ctx);
+	return CTX_ACT_OK;
+#  else
 	// The packet has been successfully decapped, recirculate the packet.
 	return tail_call_internal(ctx, CILIUM_CALL_IPV4_FROM_NETDEV, NULL);
+#  endif
 }
 
 # endif /* ENABLE_IPV4 */
@@ -1073,7 +1106,7 @@ int tail_geneve_encap_and_redirect_to_overlay(
 	bool snat_done __maybe_unused = ctx_snat_done(ctx);
 	struct trace_ctx __maybe_unused trace;
 	__u32 src_sec_identity = UNKNOWN_ID;
-	int ret = TC_ACT_OK;
+	int ret = CTX_ACT_OK;
 	__be16 __maybe_unused proto = 0;
 	__s8 ext_err = 0;
 	struct geneve_encaphdr4 hdr __maybe_unused = { 0 };
@@ -1311,7 +1344,6 @@ static __always_inline int google_geneve_ctx_redirect(
 # endif
 	return redirect(ifindex, flags);
 }
-
 
 static __always_inline int geneve_reset_state(void)
 {

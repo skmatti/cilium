@@ -197,15 +197,26 @@ int google_pktgen__create_existing_conn_tcp(struct __ctx_buff *ctx,
 static __always_inline void
 google_pktgen__finish_geneve_pkt(const struct pktgen *builder)
 {
-	/* OUTER PACKET */
-	pktgen__finish_eth(builder, 0);
-	pktgen__finish_ipv4(builder, 1);
-	pktgen__finish_udp(builder, 2);
+	if (builder->layers[0] == PKT_LAYER_ETH)
+		pktgen__finish_eth(builder, 0);
+	if (builder->layers[1] == PKT_LAYER_IPV4)
+		pktgen__finish_ipv4(builder, 1);
+	else if (builder->layers[1] == PKT_LAYER_IPV6)
+		pktgen__finish_ipv6(builder, 1);
 
-	/* Geneve Header */
-	pktgen__finish_geneve(builder, 3);
+	if (builder->layers[2] == PKT_LAYER_UDP)
+		pktgen__finish_udp(builder, 2);
 
-	/* Inner Packet */
-	pktgen__finish_ipv4(builder, 4);
-	pktgen__finish_tcp(builder, 5);
+	if (builder->layers[3] == PKT_LAYER_GENEVE)
+		pktgen__finish_geneve(builder, 3);
+
+	if (builder->layers[4] == PKT_LAYER_IPV4)
+		pktgen__finish_ipv4(builder, 4);
+	else if (builder->layers[4] == PKT_LAYER_IPV6)
+		pktgen__finish_ipv6(builder, 4);
+
+	if (builder->layers[5] == PKT_LAYER_TCP)
+		pktgen__finish_tcp(builder, 5);
+	else if (builder->layers[5] == PKT_LAYER_UDP)
+		pktgen__finish_udp(builder, 5);
 }

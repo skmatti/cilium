@@ -2,6 +2,7 @@
 /* Copyright Authors of Cilium */
 
 #include <bpf/ctx/xdp.h>
+#include "lib/google/xdp.h"
 #include <bpf/api.h>
 
 #include <node_config.h>
@@ -348,6 +349,8 @@ static __always_inline int check_filters(struct __ctx_buff *ctx)
 	case bpf_htons(ETH_P_IP):
 #ifdef ENABLE_GOOGLE_GENEVE
 		ret = geneve_try_decap4(ctx);
+		// Note that if the packet is decapped, the packet will exit immediately
+		// and it will not come back to this function.
 		if (ret != HOOK_ACT_CONTINUE)
 			return ret;
 #endif /* ENABLE_GOOGLE_GENEVE */

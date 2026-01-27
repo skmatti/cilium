@@ -22,3 +22,22 @@ google_ctx_redirect(struct __ctx_buff *ctx, int ifindex, __u32 flags)
 }
 
 #endif
+
+// In TC we don't modify these functions.
+#ifndef google_ctx_load_bytes
+#define google_ctx_load_bytes ctx_load_bytes
+#endif
+#ifndef google_ctx_adjust_hroom
+static __always_inline int google_ctx_adjust_hroom(
+	struct __ctx_buff *ctx, const __s32 len_diff, const __u32 mode,
+	const __u64 flags)
+{
+	if (len_diff < 0 && mode == BPF_ADJ_ROOM_MAC) {
+		/* Kernel doesn't support shrinking with BPF_ADJ_ROOM_MAC (-ENOTSUPP).
+		 * Shrinking with BPF_ADJ_ROOM_NET achieves the exact same effect:
+		 * it removes bytes at the start of the network header (after MAC). */
+		return ctx_adjust_hroom(ctx, len_diff, BPF_ADJ_ROOM_NET, flags);
+	}
+	return ctx_adjust_hroom(ctx, len_diff, mode, flags);
+}
+#endif
