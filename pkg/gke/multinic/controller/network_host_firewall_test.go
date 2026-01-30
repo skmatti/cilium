@@ -9,10 +9,10 @@ import (
 	"github.com/cilium/cilium/pkg/datapath/tables"
 	"github.com/cilium/cilium/pkg/endpoint"
 	"github.com/cilium/cilium/pkg/endpointmanager"
-	"github.com/cilium/cilium/pkg/gke/features"
 	"github.com/cilium/cilium/pkg/identity"
 	"github.com/cilium/cilium/pkg/logging"
 	"github.com/cilium/cilium/pkg/logging/logfields"
+	"github.com/cilium/cilium/pkg/option"
 	"github.com/cilium/statedb"
 )
 
@@ -38,7 +38,7 @@ func (fem *fakeEpMgrImpl) GetHostEndpoint() *endpoint.Endpoint {
 }
 
 func (fem *fakeEpMgrImpl) EnsureMultiNICHostEndpoint(_ []*endpoint.Endpoint, network, parentDevice string) (*endpoint.Endpoint, error) {
-	if !features.GlobalConfig.EnableGoogleMultiNICHostFirewall || network == identity.DefaultMultiNICNodeNetwork {
+	if !option.Config.EnableGoogleMultiNICHostFirewall || network == identity.DefaultMultiNICNodeNetwork {
 		return nil, nil
 	}
 	ep := newTestEndpoint(network, parentDevice, true)
@@ -81,16 +81,6 @@ func TestCreateHostEndpointIfNeeded(t *testing.T) {
 			network: "node-network1",
 			dev:     "dev1",
 			wantEP:  newTestEndpoint("", "dev1", true),
-		},
-		{
-			desc:                    "cilium managed device returns nil",
-			disableMultiNICFirewall: true,
-			endpoints: []*endpoint.Endpoint{
-				newTestEndpoint("" /*network*/, "dev1", true /*isHost*/),
-				newTestEndpoint("node-network2", "dev2", true),
-			},
-			network: "node-network2",
-			dev:     "dev2",
 		},
 		{
 			desc: "cilium managed device returns multi nic host",
@@ -138,9 +128,9 @@ func TestCreateHostEndpointIfNeeded(t *testing.T) {
 		tc := tc
 		t.Run(tc.desc, func(t *testing.T) {
 			if !tc.disableMultiNICFirewall {
-				features.GlobalConfig.EnableGoogleMultiNICHostFirewall = true
+				option.Config.EnableGoogleMultiNICHostFirewall = true
 				defer func() {
-					features.GlobalConfig.EnableGoogleMultiNICHostFirewall = false
+					option.Config.EnableGoogleMultiNICHostFirewall = false
 				}()
 			}
 			epManager := &fakeEpMgrImpl{endpoints: tc.endpoints}
@@ -198,9 +188,9 @@ func TestCreateHostEndpointIfNeeded_Errors(t *testing.T) {
 		tc := tc
 		t.Run(tc.desc, func(t *testing.T) {
 			if !tc.disableMultiNICFirewall {
-				features.GlobalConfig.EnableGoogleMultiNICHostFirewall = true
+				option.Config.EnableGoogleMultiNICHostFirewall = true
 				defer func() {
-					features.GlobalConfig.EnableGoogleMultiNICHostFirewall = false
+					option.Config.EnableGoogleMultiNICHostFirewall = false
 				}()
 			}
 			epManager := &fakeEpMgrImpl{endpoints: tc.endpoints}
@@ -219,9 +209,9 @@ func TestCreateHostEndpointIfNeeded_Errors(t *testing.T) {
 }
 
 func newTestEndpoint(network, dev string, isHost bool) *endpoint.Endpoint {
-	features.GlobalConfig.EnableGoogleMultiNICHostFirewall = true
+	option.Config.EnableGoogleMultiNICHostFirewall = true
 	defer func() {
-		features.GlobalConfig.EnableGoogleMultiNICHostFirewall = false
+		option.Config.EnableGoogleMultiNICHostFirewall = false
 	}()
 	ep := &endpoint.Endpoint{}
 	ep.SetNodeNetworkName(network)

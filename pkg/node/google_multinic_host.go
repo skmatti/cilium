@@ -1,6 +1,9 @@
 package node
 
+import "github.com/cilium/cilium/pkg/lock"
+
 var (
+	devicesMu lock.Mutex
 	// multiNICHostDevices a local cache of all multi nic host devices.
 	// This is used for loading bpf on correct host interfaces when multi
 	// interface host firewall is enabled.
@@ -12,6 +15,8 @@ var (
 
 // IsMultiNICHostDevice returns true if given device in the map.
 func IsMultiNICHostDevice(dev string) bool {
+	devicesMu.Mutex.Lock()
+	defer devicesMu.Mutex.Unlock()
 	if multiNICHostDevices == nil {
 		return false
 	}
@@ -21,6 +26,8 @@ func IsMultiNICHostDevice(dev string) bool {
 
 // AddMultiNICHostDevice adds the multi nic host device.
 func AddMultiNICHostDevice(dev string) {
+	devicesMu.Mutex.Lock()
+	defer devicesMu.Mutex.Unlock()
 	if multiNICHostDevices == nil {
 		multiNICHostDevices = make(map[string]bool)
 	}
@@ -29,6 +36,8 @@ func AddMultiNICHostDevice(dev string) {
 
 // DeleteMultiNICHostDevice deletes the given device from the map.
 func DeleteMultiNICHostDevice(dev string) {
+	devicesMu.Mutex.Lock()
+	defer devicesMu.Mutex.Unlock()
 	delete(multiNICHostDevices, dev)
 }
 

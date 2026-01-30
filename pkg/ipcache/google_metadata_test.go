@@ -10,16 +10,16 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/cilium/cilium/pkg/gke/features"
 	"github.com/cilium/cilium/pkg/identity"
 	"github.com/cilium/cilium/pkg/labels"
+	"github.com/cilium/cilium/pkg/option"
 	"github.com/cilium/cilium/pkg/source"
 )
 
 func TestMultiNICHostInjectLabels(t *testing.T) {
-	features.GlobalConfig.EnableGoogleMultiNICHostFirewall = true
+	option.Config.EnableGoogleMultiNICHostFirewall = true
 	defer func() {
-		features.GlobalConfig.EnableGoogleMultiNICHostFirewall = false
+		option.Config.EnableGoogleMultiNICHostFirewall = false
 	}()
 	// Adds kube API server label.
 	cancel := setupTest(t)
@@ -69,9 +69,9 @@ func TestMultiNICHostInjectLabels(t *testing.T) {
 // labels, we correctly aggregate all labels *and* update the selector cache.
 // This reproduces GH-28259.
 func TestUpdateLocalNodeForMultiNICHost(t *testing.T) {
-	features.GlobalConfig.EnableGoogleMultiNICHostFirewall = true
+	option.Config.EnableGoogleMultiNICHostFirewall = true
 	defer func() {
-		features.GlobalConfig.EnableGoogleMultiNICHostFirewall = false
+		option.Config.EnableGoogleMultiNICHostFirewall = false
 	}()
 	cancel := setupTest(t)
 	defer cancel()

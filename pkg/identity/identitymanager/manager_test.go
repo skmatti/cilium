@@ -8,9 +8,9 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/cilium/cilium/pkg/gke/features"
 	"github.com/cilium/cilium/pkg/identity"
 	"github.com/cilium/cilium/pkg/labels"
+	"github.com/cilium/cilium/pkg/option"
 )
 
 var (
@@ -85,9 +85,9 @@ func TestHostIdentityLifecycle(t *testing.T) {
 }
 
 func TestMultiNICHostIdentityLifecycle(t *testing.T) {
-	features.GlobalConfig.EnableGoogleMultiNICHostFirewall = true
+	option.Config.EnableGoogleMultiNICHostFirewall = true
 	defer func() {
-		features.GlobalConfig.EnableGoogleMultiNICHostFirewall = false
+		option.Config.EnableGoogleMultiNICHostFirewall = false
 	}()
 	idm := NewIdentityManager()
 	require.NotNil(t, idm.identities)

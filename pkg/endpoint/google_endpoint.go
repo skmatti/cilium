@@ -202,7 +202,7 @@ func (ep *Endpoint) GetParentDevName() string {
 // SetNodeNetworkName sets the node network name.
 // If the endpoint is not multi nic host, this does nothing.
 func (ep *Endpoint) SetNodeNetworkName(network string) {
-	if !features.GlobalConfig.EnableGoogleMultiNICHostFirewall {
+	if !option.Config.EnableGoogleMultiNICHostFirewall {
 		return
 	}
 	ep.nodeNetworkName = network
@@ -216,7 +216,7 @@ func (ep *Endpoint) GetNodeNetworkName() string {
 // populateNodeNetwork restores the node network from the reserved label
 // during the endpoint restoration from a directory on the node.
 func (ep *Endpoint) populateNodeNetwork() {
-	if !features.GlobalConfig.EnableGoogleMultiNICHostFirewall {
+	if !option.Config.EnableGoogleMultiNICHostFirewall {
 		return
 	}
 	ep.unconditionalLock()

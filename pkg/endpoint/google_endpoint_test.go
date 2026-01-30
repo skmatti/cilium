@@ -4,7 +4,6 @@ import (
 	"testing"
 
 	"github.com/cilium/cilium/api/v1/models"
-	"github.com/cilium/cilium/pkg/gke/features"
 	multinicep "github.com/cilium/cilium/pkg/gke/multinic/endpoint"
 	"github.com/cilium/cilium/pkg/gke/multinic/multinicconfig"
 	"github.com/cilium/cilium/pkg/labels"
@@ -213,9 +212,9 @@ func TestPopulateNodeNetwork(t *testing.T) {
 	for _, tc := range testcases {
 		t.Run(tc.desc, func(t *testing.T) {
 			if !tc.disableMultiNIC {
-				features.GlobalConfig.EnableGoogleMultiNICHostFirewall = true
+				option.Config.EnableGoogleMultiNICHostFirewall = true
 				defer func() {
-					features.GlobalConfig.EnableGoogleMultiNICHostFirewall = false
+					option.Config.EnableGoogleMultiNICHostFirewall = false
 				}()
 			}
 			tc.endpoint.populateNodeNetwork()

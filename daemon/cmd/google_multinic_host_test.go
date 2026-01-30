@@ -7,9 +7,9 @@ import (
 	"time"
 
 	"github.com/cilium/cilium/pkg/endpoint"
-	"github.com/cilium/cilium/pkg/gke/features"
 	"github.com/cilium/cilium/pkg/identity"
 	"github.com/cilium/cilium/pkg/node"
+	"github.com/cilium/cilium/pkg/option"
 	"github.com/cilium/cilium/pkg/testutils"
 	"github.com/stretchr/testify/require"
 )
@@ -17,9 +17,9 @@ import (
 func (ds *DaemonSuite) TestEnsureMultiNICHostEndpoint(t *testing.T) {
 	testutils.PrivilegedTest(t)
 
-	features.GlobalConfig.EnableGoogleMultiNICHostFirewall = true
+	option.Config.EnableGoogleMultiNICHostFirewall = true
 	defer func() {
-		features.GlobalConfig.EnableGoogleMultiNICHostFirewall = false
+		option.Config.EnableGoogleMultiNICHostFirewall = false
 	}()
 	identity.InitDefaultHostIdentity()
 
@@ -58,9 +58,9 @@ func (ds *DaemonSuite) TestEnsureMultiNICHostEndpoint(t *testing.T) {
 }
 
 func (ds *DaemonSuite) TestEnsureMultiNICHostEndpoint_Errors(t *testing.T) {
-	features.GlobalConfig.EnableGoogleMultiNICHostFirewall = true
+	option.Config.EnableGoogleMultiNICHostFirewall = true
 	defer func() {
-		features.GlobalConfig.EnableGoogleMultiNICHostFirewall = false
+		option.Config.EnableGoogleMultiNICHostFirewall = false
 	}()
 	identity.InitDefaultHostIdentity()
 
@@ -91,10 +91,9 @@ func (ds *DaemonSuite) TestEnsureMultiNICHostEndpoint_Errors(t *testing.T) {
 
 func (ds *DaemonSuite) TestDeleteMultiNICHostEndpoint(t *testing.T) {
 	testutils.PrivilegedTest(t)
-
-	features.GlobalConfig.EnableGoogleMultiNICHostFirewall = true
+	option.Config.EnableGoogleMultiNICHostFirewall = true
 	defer func() {
-		features.GlobalConfig.EnableGoogleMultiNICHostFirewall = false
+		option.Config.EnableGoogleMultiNICHostFirewall = false
 	}()
 	identity.InitDefaultHostIdentity()
 	testNodeNetwork := "test-node-network1"

@@ -55,10 +55,6 @@ type Config struct {
 	// EnableCiliumNodeConfig enables the CiliumNodeConfig CRD
 	EnableCiliumNodeConfig bool `mapstructure:"enable-cnc"`
 
-	// EnableGoogleMultiNICHostFirewall enables multi-nic host firewall support
-	EnableGoogleMultiNICHostFirewall bool              `mapstructure:"enable-google-multi-nic-host-firewall"`
-	GoogleMultiNICHostMapping        map[string]string `mapstructure:"google-multi-nic-host-mapping"`
-
 	// EnableGoogleConfigOverride enables overriding Cilium configuration by
 	// reading from cilium-config-emergency-override ConfigMap.
 	EnableGoogleConfigOverride bool
@@ -135,9 +131,6 @@ var defaultConfig = Config{
 	EnableAutoDirectRoutingIPv4: false,
 	EnableAutoDirectRoutingIPv6: false,
 
-	EnableGoogleMultiNICHostFirewall: false,
-	GoogleMultiNICHostMapping:        make(map[string]string),
-
 	EnableGoogleConfigOverride:  false,
 	EnableGoogleMultiNICHairpin: false,
 	DevicePrefixesToExclude:     []string{},
@@ -187,12 +180,6 @@ func (cfg Config) Flags(flags *pflag.FlagSet) {
 
 	flags.Bool(EnableCiliumNodeConfig, defaultConfig.EnableCiliumNodeConfig, "Enable CiliumNodeConfig")
 	flags.MarkHidden(EnableCiliumNodeConfig)
-
-	flags.Bool(option.EnableGoogleMultiNICHostFirewall, defaultConfig.EnableGoogleMultiNICHostFirewall, "Enable google multi NIC local hairpin for local L2 broadcast")
-	flags.MarkHidden(option.EnableGoogleMultiNICHostFirewall)
-	flags.Var(option.NewNamedMapOptions(option.GoogleMultiNICHostMapping, &defaultConfig.GoogleMultiNICHostMapping, nil),
-		option.GoogleMultiNICHostMapping, "Key-value pairs of numeric identity (must be in range [128, 255]) and network object name, e.g. `128=node-network1` or `140=node-network2,142=node-network3`")
-	flags.MarkHidden(option.GoogleMultiNICHostMapping)
 
 	flags.Bool(option.EnableGoogleConfigOverrideName, defaultConfig.EnableGoogleConfigOverride, `Enable overriding Cilium configuration by reading from cilium-config-emergency-override ConfigMap`)
 	flags.MarkHidden(option.EnableGoogleConfigOverrideName)

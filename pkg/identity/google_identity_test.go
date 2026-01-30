@@ -3,16 +3,15 @@ package identity
 import (
 	"testing"
 
-	"github.com/stretchr/testify/require"
-
-	"github.com/cilium/cilium/pkg/gke/features"
 	"github.com/cilium/cilium/pkg/labels"
+	"github.com/cilium/cilium/pkg/option"
+	"github.com/stretchr/testify/require"
 )
 
 func TestMultiNICHostIdenities(t *testing.T) {
-	features.GlobalConfig.EnableGoogleMultiNICHostFirewall = true
+	option.Config.EnableGoogleMultiNICHostFirewall = true
 	defer func() {
-		features.GlobalConfig.EnableGoogleMultiNICHostFirewall = false
+		option.Config.EnableGoogleMultiNICHostFirewall = false
 	}()
 
 	nid := NumericIdentity(135)

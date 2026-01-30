@@ -37,7 +37,6 @@ import (
 	"github.com/cilium/cilium/pkg/eventqueue"
 	"github.com/cilium/cilium/pkg/fqdn"
 	"github.com/cilium/cilium/pkg/fqdn/restore"
-	"github.com/cilium/cilium/pkg/gke/features"
 	multinicep "github.com/cilium/cilium/pkg/gke/multinic/endpoint"
 	"github.com/cilium/cilium/pkg/identity"
 	"github.com/cilium/cilium/pkg/identity/cache"
@@ -2076,7 +2075,7 @@ func (e *Endpoint) InitWithNodeLabels(ctx context.Context, nodeLabels map[string
 	newIdtyLabels, _ := labelsfilter.Filter(newLabels)
 	epLabels.MergeLabels(newIdtyLabels)
 
-	if features.GlobalConfig.EnableGoogleMultiNICHostFirewall {
+	if option.Config.EnableGoogleMultiNICHostFirewall {
 		// Set node network name for default host endpoint.
 		if e.GetNodeNetworkName() == "" {
 			e.SetNodeNetworkName(identity.DefaultMultiNICNodeNetwork)

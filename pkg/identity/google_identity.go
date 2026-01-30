@@ -1,23 +1,31 @@
 package identity
 
 import (
-	"github.com/cilium/cilium/pkg/gke/features"
+	"github.com/sirupsen/logrus"
+
 	"github.com/cilium/cilium/pkg/labels"
+	"github.com/cilium/cilium/pkg/option"
 )
 
 // DefaultMultiNICNodeNetwork is the default multi nic host endpoint.
 const DefaultMultiNICNodeNetwork = "node-network"
 
+var log = logrus.New()
+
 // InitDefaultHostIdentity intitiates the reserved identity for the default
 // node network.
 func InitDefaultHostIdentity() {
-	reservedIdentities[labels.NewReservedMultiNICHostLabels(DefaultMultiNICNodeNetwork).String()] = ReservedIdentityHost
+	lbls := labels.NewReservedMultiNICHostLabels(DefaultMultiNICNodeNetwork)
+	lbl := lbls[labels.IDNameMultiNICHost]
+	reservedIdentities[lbl.String()] = ReservedIdentityHost
+	lbls.MergeLabels(labels.LabelHost)
+	AddReservedIdentityWithLabels(ReservedIdentityHost, lbls)
 }
 
 // InitMultiNICHostNumericIdentitySet adds multi nic host identities from
 // the given map of identities and multi nic node network name.
 func InitMultiNICHostNumericIdentitySet(idMap map[string]string) error {
-	if !features.GlobalConfig.EnableGoogleMultiNICHostFirewall {
+	if !option.Config.EnableGoogleMultiNICHostFirewall {
 		return nil
 	}
 	for id := range idMap {
@@ -40,6 +48,11 @@ func InitMultiNICHostNumericIdentitySet(idMap map[string]string) error {
 		// Multi nic host label takes precedence.
 		lbls.MergeLabels(labels.LabelHost)
 		AddReservedIdentityWithLabels(ni, lbls)
+		log.WithFields(logrus.Fields{
+			"numeric-identity": ni.Uint32(),
+			"node-network":     nodeNetwork,
+			"labels":           lbls,
+		}).Info("Added multi nic host identity")
 	}
 	return nil
 }
@@ -50,13 +63,15 @@ func DeleteReservedIdentity(ni NumericIdentity) error {
 	if err := DelReservedNumericIdentity(ni); err != nil {
 		return err
 	}
+	cacheMU.Lock()
 	delete(reservedIdentityCache, ni)
+	cacheMU.Unlock()
 	return nil
 }
 
 // IsMultiNICHostID returns true if the given ID is a multi nic host.
 func IsMultiNICHostID(ni NumericIdentity) bool {
-	if !features.GlobalConfig.EnableGoogleMultiNICHostFirewall {
+	if !option.Config.EnableGoogleMultiNICHostFirewall {
 		return false
 	}
 

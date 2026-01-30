@@ -29,18 +29,18 @@ import (
 	"github.com/cilium/cilium/pkg/endpoint"
 	endpointid "github.com/cilium/cilium/pkg/endpoint/id"
 	"github.com/cilium/cilium/pkg/endpoint/regeneration"
-	"github.com/cilium/cilium/pkg/gke/features"
 	multinicep "github.com/cilium/cilium/pkg/gke/multinic/endpoint"
 	"github.com/cilium/cilium/pkg/labels"
 	"github.com/cilium/cilium/pkg/logging/logfields"
 	"github.com/cilium/cilium/pkg/maps/multinicdev"
 	"github.com/cilium/cilium/pkg/option"
 	"github.com/sirupsen/logrus"
-	ipamv1alpha1 "gke-internal.googlesource.com/anthos-networking/ipam-controller/api/v1alpha1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/pointer"
 	utilpointer "k8s.io/utils/pointer"
 	"k8s.io/utils/ptr"
+
+	ipamv1alpha1 "gke-internal.googlesource.com/anthos-networking/ipam-controller/api/v1alpha1"
 
 	. "github.com/cilium/cilium/api/v1/server/restapi/endpoint"
 	"github.com/cilium/cilium/pkg/datapath/linux/safenetlink"
@@ -990,7 +990,7 @@ func (d *Daemon) defaultNetwork(ctx context.Context) (*networkv1.Network, error)
 
 // EnsureMultiNICHostEndpoint adds a multinic host endpoint for a given network.
 func (d *Daemon) EnsureMultiNICHostEndpoint(restored []*endpoint.Endpoint, network, parentDevice string) (*endpoint.Endpoint, error) {
-	if !features.GlobalConfig.EnableGoogleMultiNICHostFirewall {
+	if !option.Config.EnableGoogleMultiNICHostFirewall {
 		return nil, nil
 	}
 	// Default node network is managed by the main daemon process.

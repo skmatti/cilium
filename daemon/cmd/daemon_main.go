@@ -1194,6 +1194,15 @@ func InitGlobalFlags(cmd *cobra.Command, vp *viper.Viper) {
 	flags.MarkHidden(option.RemoteClusterNamespacesToSkip)
 	option.BindEnv(vp, option.RemoteClusterNamespacesToSkip)
 
+	flags.Bool(option.EnableGoogleMultiNICHostFirewall, false, "Enable google multi NIC host firewall feature")
+	flags.MarkHidden(option.EnableGoogleMultiNICHostFirewall)
+	option.BindEnv(vp, option.EnableGoogleMultiNICHostFirewall)
+
+	flags.Var(option.NewNamedMapOptions(option.GoogleMultiNICHostMapping, &option.Config.GoogleMultiNICHostMapping, nil),
+		option.GoogleMultiNICHostMapping, "Key-value pairs of numeric identity (must be in range [128, 255]) and network object name, e.g. `128=node-network1` or `140=node-network2,142=node-network3`")
+	flags.MarkHidden(option.GoogleMultiNICHostMapping)
+	option.BindEnv(vp, option.GoogleMultiNICHostMapping)
+
 	if err := vp.BindPFlags(flags); err != nil {
 		log.Fatalf("BindPFlags failed: %s", err)
 	}
@@ -1409,13 +1418,16 @@ func initEnv(vp *viper.Viper) {
 		log.Warningf("%s is enabled. Network policy will not be enforced.", option.PolicyAuditMode)
 	}
 
-	if features.GlobalConfig.EnableGoogleMultiNICHostFirewall && len(option.Config.FixedIdentityMapping) > 0 {
+	if option.Config.EnableGoogleMultiNICHostFirewall && len(option.Config.FixedIdentityMapping) > 0 {
 		log.Fatal("Fixed Identity Mapping must not be specified when multi nic host firewall feature is enabled")
 	}
 
-	if features.GlobalConfig.EnableGoogleMultiNICHostFirewall {
+	if option.Config.EnableGoogleMultiNICHostFirewall {
 		identity.InitDefaultHostIdentity()
-		if err := identity.InitMultiNICHostNumericIdentitySet(features.GlobalConfig.GoogleMultiNICHostMapping); err != nil {
+		log.WithFields(logrus.Fields{
+			"google-multi-nic-host-mapping": option.Config.GoogleMultiNICHostMapping,
+		}).Info("Initializing multi nic host identities")
+		if err := identity.InitMultiNICHostNumericIdentitySet(option.Config.GoogleMultiNICHostMapping); err != nil {
 			log.WithError(err).Fatal("Invalid multi nic host identities provided")
 		}
 	}

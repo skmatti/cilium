@@ -13,12 +13,12 @@ import (
 	"github.com/cilium/cilium/pkg/datapath/loader"
 	"github.com/cilium/cilium/pkg/datapath/tables"
 	"github.com/cilium/cilium/pkg/endpoint"
-	"github.com/cilium/cilium/pkg/gke/features"
 	"github.com/cilium/cilium/pkg/gke/multinic/multinicconfig"
 	"github.com/cilium/cilium/pkg/k8s/resource"
 	slim_corev1 "github.com/cilium/cilium/pkg/k8s/slim/k8s/api/core/v1"
 	"github.com/cilium/cilium/pkg/logging"
 	"github.com/cilium/cilium/pkg/logging/logfields"
+	"github.com/cilium/cilium/pkg/node"
 	"github.com/cilium/cilium/pkg/time"
 	"github.com/sirupsen/logrus"
 	"github.com/vishvananda/netlink"
@@ -105,9 +105,6 @@ func (r *NetworkReconciler) loadEBPFOnParent(ctx context.Context, network *netwo
 	if err != nil {
 		return err
 	}
-	if hostEP == nil {
-		return nil
-	}
 
 	scopedLog := r.Log.WithFields(logrus.Fields{
 		"network":           network.Name,
@@ -142,20 +139,10 @@ func (r *NetworkReconciler) loadEBPFOnParent(ctx context.Context, network *netwo
 // the network. If host endpoint does not exist for a network, then it is
 // created.
 func (r *NetworkReconciler) createHostEndpointIfNeeded(networkName, devToLoad string) (*endpoint.Endpoint, error) {
-	scopedLog := r.Log.WithFields(logrus.Fields{
-		"network":           networkName,
-		logfields.Interface: devToLoad,
-	})
-	if !features.GlobalConfig.EnableGoogleMultiNICHostFirewall && r.isCiliumManaged(devToLoad) {
-		scopedLog.Info("The parent interface is already a cilium-managed device. No need to reconcile")
-		return nil, nil
-	}
-
 	// Wait for default host endpoint to come up before ensuring multi
 	// nic host endpoint.
 	hostEP := r.EndpointManager.GetHostEndpoint()
 	if hostEP == nil {
-		// This should be retried higher in the call-chain.
 		return nil, fmt.Errorf("host endpoint not found")
 	}
 
@@ -368,6 +355,10 @@ func (r *NetworkReconciler) obtainSubnet(network *networkv1.Network, node *slim_
 }
 
 func (r *NetworkReconciler) isCiliumManaged(dev string) bool {
+	// Multi-NIC host devices are managed by this controller.
+	if node.IsMultiNICHostDevice(dev) {
+		return false
+	}
 	selectedDevices, _ := tables.SelectedDevices(r.Devices, r.DB.ReadTxn())
 	for _, d := range selectedDevices {
 		if d.Name == dev {

@@ -2523,6 +2523,12 @@ type DaemonConfig struct {
 
 	// RemoteClusterNamespacesToSkip specifies a list of namespaces from remote clusters to skip watching identities and IPs from.
 	RemoteClusterNamespacesToSkip []string
+
+	// EnableGoogleMultiNICHostFirewall enables multi-nic host firewall support
+	EnableGoogleMultiNICHostFirewall bool
+
+	// GoogleMultiNICHostMapping is the key-value pairs of numeric identity and network object name
+	GoogleMultiNICHostMapping map[string]string
 }
 
 var (
@@ -3693,6 +3699,13 @@ func (c *DaemonConfig) Populate(vp *viper.Viper) {
 	}
 
 	c.RemoteClusterNamespacesToSkip = vp.GetStringSlice(RemoteClusterNamespacesToSkip)
+
+	c.EnableGoogleMultiNICHostFirewall = vp.GetBool(EnableGoogleMultiNICHostFirewall)
+	if m, err := command.GetStringMapStringE(vp, GoogleMultiNICHostMapping); err != nil {
+		log.Fatalf("unable to parse %s: %s", GoogleMultiNICHostMapping, err)
+	} else if len(m) != 0 {
+		c.GoogleMultiNICHostMapping = m
+	}
 }
 
 func (c *DaemonConfig) populateLoadBalancerSettings(vp *viper.Viper) {

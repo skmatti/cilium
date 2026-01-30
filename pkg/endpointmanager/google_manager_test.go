@@ -8,8 +8,8 @@ import (
 	apiv1 "github.com/cilium/cilium/api/v1/models"
 	"github.com/cilium/cilium/pkg/endpoint"
 	endpointid "github.com/cilium/cilium/pkg/endpoint/id"
-	"github.com/cilium/cilium/pkg/gke/features"
 	"github.com/cilium/cilium/pkg/ipcache"
+	"github.com/cilium/cilium/pkg/option"
 	testidentity "github.com/cilium/cilium/pkg/testutils/identity"
 	testipcache "github.com/cilium/cilium/pkg/testutils/ipcache"
 	"github.com/stretchr/testify/require"
@@ -158,9 +158,9 @@ func (s *EndpointManagerSuite) TestLookupMultiNIC(t *testing.T) {
 }
 
 func (s *EndpointManagerSuite) TestGetMultiNICHostEndpoint(t *testing.T) {
-	features.GlobalConfig.EnableGoogleMultiNICHostFirewall = true
+	option.Config.EnableGoogleMultiNICHostFirewall = true
 	defer func() {
-		features.GlobalConfig.EnableGoogleMultiNICHostFirewall = false
+		option.Config.EnableGoogleMultiNICHostFirewall = false
 	}()
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -216,9 +216,9 @@ func (s *EndpointManagerSuite) TestGetMultiNICHostEndpoint(t *testing.T) {
 }
 
 func (s *EndpointManagerSuite) TestGetMultiNICHostEndpoints(t *testing.T) {
-	features.GlobalConfig.EnableGoogleMultiNICHostFirewall = true
+	option.Config.EnableGoogleMultiNICHostFirewall = true
 	defer func() {
-		features.GlobalConfig.EnableGoogleMultiNICHostFirewall = false
+		option.Config.EnableGoogleMultiNICHostFirewall = false
 	}()
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
