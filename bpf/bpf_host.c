@@ -27,12 +27,13 @@
 # define VLAN_FILTER(ifindex, vlan_id) return false;
 #endif
 
-/* This includes must come first because it overrides the
+#include "lib/common.h"
+
+/* This includes must come after ONLY lib/common.h because it overrides the
  * implementation of egress_gw_snat_needed_hook
  */
 #include "lib/google_egress_gateway_overrides.h"
 
-#include "lib/common.h"
 #include "lib/edt.h"
 #include "lib/arp.h"
 #include "lib/maps.h"

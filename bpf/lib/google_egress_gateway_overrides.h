@@ -2,15 +2,18 @@
 
 #if defined(GOOGLE_PERIMETER_FEATURES) && defined(ENABLE_EGRESS_GATEWAY_COMMON)
 
-# include "lib/egress_gateway.h"
-# include "lib/identity.h"
+# define egress_gw_snat_needed_hook __skipped_egress_gw_snat_needed_hook
 
-# define egress_gw_snat_needed_hook google_egress_gw_snat_needed_hook
+#include "lib/conntrack.h"
+#include "lib/egress_gateway.h"
+#include "lib/identity.h"
 
-# ifndef GOOGLE_CLUSTER_ID
+#undef egress_gw_snat_needed_hook
+
+#ifndef GOOGLE_CLUSTER_ID
 DEFINE_U32(GOOGLE_CLUSTER_ID, 0x10203040);
-#  define GOOGLE_CLUSTER_ID fetch_u32(GOOGLE_CLUSTER_ID)
-# endif
+#define GOOGLE_CLUSTER_ID fetch_u32(GOOGLE_CLUSTER_ID)
+#endif
 
 static __always_inline bool google_is_local_cluster_identity(__u32 seclabel)
 {
@@ -24,7 +27,7 @@ static __always_inline bool google_is_local_cluster_identity(__u32 seclabel)
 }
 
 static __always_inline bool
-google_egress_gw_snat_needed_hook(__be32 saddr, __be32 daddr, __be32 *snat_addr)
+egress_gw_snat_needed_hook(__be32 saddr, __be32 daddr, __be32 *snat_addr)
 {
 	struct remote_endpoint_info *remote_ep =
 		lookup_ip4_remote_endpoint(daddr, 0);
