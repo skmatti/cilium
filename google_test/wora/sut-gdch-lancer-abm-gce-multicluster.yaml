@@ -22,7 +22,7 @@ spec:
           provider: baremetal
           provisionerArgs:
             # Exact version of ABM is required to generate addon configurations.
-            bmctlVersion: 1.32.700-gke.64
+            bmctlVersion: 1.32.800-gke.126
             # Per yaqs/6581285177727647744 only machine type N2 is supported for
             # nested-virtualization. The nested virtualization is enabled
             # through USE_EMULATION ENV. All passthroughEnv supported can be
@@ -58,7 +58,7 @@ spec:
           provider: baremetal
           provisionerArgs:
             # Exact version of ABM is required to generate addon configurations.
-            bmctlVersion: 1.32.0-gke.945
+            bmctlVersion: 1.32.800-gke.126
             # Per yaqs/6581285177727647744 only machine type N2 is supported for
             # nested-virtualization. The nested virtualization is enabled
             # through USE_EMULATION ENV. All passthroughEnv supported can be

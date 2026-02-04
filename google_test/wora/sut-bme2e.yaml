@@ -23,7 +23,7 @@ spec:
           provider: baremetal
           provisionerArgs:
             # Exact version of ABM is required to generate addon configurations.
-            bmctlVersion: 1.32.700-gke.64
+            bmctlVersion: 1.32.800-gke.126
             # See
             # https://source.corp.google.com/h/gke-internal/codesearch/+/master:syllogi-baremetal/test-infra/README.md;drc=afe783bc4145ba18892210a10ea6dcb3e28ee389
             # for cluster size descriptions.

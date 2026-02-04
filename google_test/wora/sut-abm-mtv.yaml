@@ -22,7 +22,7 @@ spec:
           location: mtv
           provider: baremetal
           provisionerArgs:
-            bmctlVersion: 1.32.700-gke.64
+            bmctlVersion: 1.32.800-gke.126
             passthroughEnv: |
               {
                 "MANIFEST_PROFILE_ENV": "staging",
