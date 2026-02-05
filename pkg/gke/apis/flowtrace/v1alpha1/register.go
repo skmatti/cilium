@@ -26,6 +26,17 @@ import (
 // SchemeGroupVersion is group version used to register these objects.
 var SchemeGroupVersion = schema.GroupVersion{Group: flowtrace.GroupName, Version: "v1alpha1"}
 
+const (
+	// FTPluralName is the plural name of FlowTrace
+	FTPluralName = "flowtraces"
+
+	// FTKindDefinition is the kind name of FlowTrace
+	FTKindDefinition = "FlowTrace"
+
+	// FTName is the full name of FlowTrace
+	FTName = FTPluralName + "." + flowtrace.GroupName
+)
+
 // Kind takes an unqualified kind and returns back a Group qualified GroupKind.
 func Kind(kind string) schema.GroupKind {
 	return SchemeGroupVersion.WithKind(kind).GroupKind()
@@ -44,7 +55,10 @@ var (
 
 // Adds the list of known types to Scheme.
 func addKnownTypes(scheme *runtime.Scheme) error {
-	scheme.AddKnownTypes(SchemeGroupVersion)
+	scheme.AddKnownTypes(SchemeGroupVersion,
+		&FlowTrace{},
+		&FlowTraceList{},
+	)
 	metav1.AddToGroupVersion(scheme, SchemeGroupVersion)
 	return nil
 }
