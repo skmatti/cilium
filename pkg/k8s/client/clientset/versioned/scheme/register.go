@@ -6,6 +6,7 @@
 package scheme
 
 import (
+	gkenetworkingv1alpha1 "github.com/cilium/cilium/pkg/gke/apis/flowtrace/v1alpha1"
 	ciliumv2 "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2"
 	ciliumv2alpha1 "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2alpha1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -21,6 +22,7 @@ var ParameterCodec = runtime.NewParameterCodec(Scheme)
 var localSchemeBuilder = runtime.SchemeBuilder{
 	ciliumv2.AddToScheme,
 	ciliumv2alpha1.AddToScheme,
+	gkenetworkingv1alpha1.AddToScheme,
 }
 
 // AddToScheme adds all types of this clientset into the given scheme. This allows composition

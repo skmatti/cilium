@@ -7,6 +7,8 @@ import (
 	"context"
 	"fmt"
 
+	ftv1 "github.com/cilium/cilium/pkg/gke/apis/flowtrace/v1alpha1"
+
 	"github.com/cilium/hive/cell"
 	"github.com/cilium/hive/job"
 	"github.com/sirupsen/logrus"
@@ -41,6 +43,10 @@ func newScheme() (*runtime.Scheme, error) {
 		if err := f(scheme); err != nil {
 			return nil, fmt.Errorf("failed to add types from %s to scheme: %w", gv, err)
 		}
+	}
+
+	if err := ftv1.AddToScheme(scheme); err != nil {
+		return nil, fmt.Errorf("failed to add flowtrace v1alpha1 to scheme: %w", err)
 	}
 
 	return scheme, nil
