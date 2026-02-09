@@ -10,6 +10,10 @@
 package observer
 
 import (
+	reflect "reflect"
+	sync "sync"
+	unsafe "unsafe"
+
 	flow "github.com/cilium/cilium/api/v1/flow"
 	relay "github.com/cilium/cilium/api/v1/relay"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
@@ -18,9 +22,6 @@ import (
 	fieldmaskpb "google.golang.org/protobuf/types/known/fieldmaskpb"
 	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
 	wrapperspb "google.golang.org/protobuf/types/known/wrapperspb"
-	reflect "reflect"
-	sync "sync"
-	unsafe "unsafe"
 )
 
 const (
@@ -376,6 +377,7 @@ type HTTPHeader = flow.HTTPHeader
 type HTTP = flow.HTTP
 type Kafka = flow.Kafka
 type Service = flow.Service
+type IPTraceID = flow.IPTraceID
 type LostEvent = flow.LostEvent
 type AgentEvent = flow.AgentEvent
 type AgentEvent_Unknown = flow.AgentEvent_Unknown

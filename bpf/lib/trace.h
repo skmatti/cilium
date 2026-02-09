@@ -159,6 +159,7 @@ struct trace_notify {
 		};
 		union v6addr	orig_ip6;
 	};
+	__u64		ip_trace_id;
 };
 
 static __always_inline bool
@@ -199,7 +200,7 @@ _send_trace_notify(struct __ctx_buff *ctx, enum trace_point obs_point,
 		   __u32 src, __u32 dst, __u16 dst_id, __u32 ifindex,
 		   enum trace_reason reason, __u32 monitor, __u16 line, __u8 file)
 {
-	__s16 trace_id = TRACE_ID_UNSET;
+	__s16 trace_id = 0;
 	__u64 ctx_len = ctx_full_len(ctx);
 	__u64 cap_len = min_t(__u64, monitor ? : TRACE_PAYLOAD_LEN,
 			      ctx_len);
@@ -235,21 +236,10 @@ _send_trace_notify(struct __ctx_buff *ctx, enum trace_point obs_point,
 		.dst_id		= dst_id,
 		.reason		= reason,
 		.ifindex	= ifindex,
+		.ipv6		= 0,
+		.ip_trace_id	= trace_id,
 	};
 	memset(&msg.orig_ip6, 0, sizeof(union v6addr));
-
-	if (trace_id > 0) {
-		// Re-use the endpoint security identity fields so that hubble can
-		// filter for these flows. This is unfortunate because it overwrites
-		// critical information about the state of the datapath. We can enhance
-		// later to provide a dedicated field.
-		//
-		// TODO(b/329732627): Enhance packet tracing feature to use a dedicated
-		// trace ID field in event output.
-		msg.src_label = trace_id;
-		msg.dst_label = trace_id;
-		msg.dst_id = trace_id;
-	}
 
 	ctx_event_output(ctx, &EVENTS_MAP,
 			 (cap_len << 32) | BPF_F_CURRENT_CPU,
@@ -261,7 +251,7 @@ send_trace_notify4(struct __ctx_buff *ctx, enum trace_point obs_point,
 		   __u32 src, __u32 dst, __be32 orig_addr, __u16 dst_id,
 		   __u32 ifindex, enum trace_reason reason, __u32 monitor)
 {
-	__s16 trace_id = TRACE_ID_UNSET;
+	__s16 trace_id = 0;
 	__u64 ctx_len = ctx_full_len(ctx);
 	__u64 cap_len = min_t(__u64, monitor ? : TRACE_PAYLOAD_LEN,
 			      ctx_len);
@@ -299,20 +289,8 @@ send_trace_notify4(struct __ctx_buff *ctx, enum trace_point obs_point,
 		.ifindex	= ifindex,
 		.ipv6		= 0,
 		.orig_ip4	= orig_addr,
+		.ip_trace_id	= trace_id,
 	};
-
-	if (trace_id > 0) {
-		// Re-use the endpoint security identity fields so that hubble can
-		// filter for these flows. This is unfortunate because it overwrites
-		// critical information about the state of the datapath. We can enhance
-		// later to provide a dedicated field.
-		//
-		// TODO(b/329732627): Enhance packet tracing feature to use a dedicated
-		// trace ID field in event output.
-		msg.src_label = trace_id;
-		msg.dst_label = trace_id;
-		msg.dst_id = trace_id;
-	}
 
 	ctx_event_output(ctx, &EVENTS_MAP,
 			 (cap_len << 32) | BPF_F_CURRENT_CPU,

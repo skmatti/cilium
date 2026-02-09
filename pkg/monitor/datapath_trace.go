@@ -24,7 +24,7 @@ const (
 	// traceNotifyV0Len is the amount of packet data provided in a trace notification v0.
 	traceNotifyV0Len = 32
 	// traceNotifyV1Len is the amount of packet data provided in a trace notification v1.
-	traceNotifyV1Len = 48
+	traceNotifyV1Len = 56
 )
 
 const (
@@ -132,7 +132,8 @@ func (n *TraceNotifyV0) TraceReasonIsDecap() bool {
 // in sync with the decodeTraceNotifyVersion1 func.
 type TraceNotifyV1 struct {
 	TraceNotifyV0
-	OrigIP types.IPv6
+	OrigIP    types.IPv6
+	IPTraceID uint64
 	// data
 }
 
@@ -149,6 +150,7 @@ func (tn *TraceNotifyV1) decodeTraceNotifyVersion1(data []byte) error {
 	}
 
 	copy(tn.OrigIP[:], data[32:48])
+	tn.IPTraceID = byteorder.Native.Uint64(data[48:56])
 	return nil
 }
 
@@ -299,6 +301,9 @@ func (n *TraceNotify) DumpInfo(data []byte, numeric DisplayFormat, linkMonitor g
 	}
 	n.dumpIdentity(buf, numeric)
 	ifname := linkMonitor.Name(n.Ifindex)
+	if id := n.IPTraceID; id > 0 {
+		fmt.Fprintf(buf, " [ ip-trace-id = %d ]", id)
+	}
 	fmt.Fprintf(buf, " state %s ifindex %s orig-ip %s: %s\n", n.traceReasonString(),
 		ifname, n.OriginalIP().String(), GetConnectionSummary(data[hdrLen:]))
 	buf.Flush()
@@ -307,8 +312,12 @@ func (n *TraceNotify) DumpInfo(data []byte, numeric DisplayFormat, linkMonitor g
 // DumpVerbose prints the trace notification in human readable form
 func (n *TraceNotify) DumpVerbose(dissect bool, data []byte, prefix string, numeric DisplayFormat, linkMonitor getters.LinkGetter) {
 	buf := bufio.NewWriter(os.Stdout)
-	fmt.Fprintf(buf, "%s MARK %#x FROM %d %s: %d bytes (%d captured), state %s",
-		prefix, n.Hash, n.Source, api.TraceObservationPoint(n.ObsPoint), n.OrigLen, n.CapLen, n.traceReasonString())
+	fmt.Fprintf(buf, "%s MARK %#x", prefix, n.Hash)
+	if id := n.IPTraceID; id > 0 {
+		fmt.Fprintf(buf, " [ IP-TRACE-ID = %d ]", id)
+	}
+	fmt.Fprintf(buf, " FROM %d %s: %d bytes (%d captured), state %s",
+		n.Source, api.TraceObservationPoint(n.ObsPoint), n.OrigLen, n.CapLen, n.traceReasonString())
 
 	if n.Ifindex != 0 {
 		ifname := linkMonitor.Name(n.Ifindex)
@@ -369,11 +378,12 @@ type TraceNotifyVerbose struct {
 	ObservationPoint string `json:"observationPoint"`
 	TraceSummary     string `json:"traceSummary"`
 
-	Source   uint16                   `json:"source"`
-	Bytes    uint32                   `json:"bytes"`
-	SrcLabel identity.NumericIdentity `json:"srcLabel"`
-	DstLabel identity.NumericIdentity `json:"dstLabel"`
-	DstID    uint16                   `json:"dstID"`
+	Source    uint16                   `json:"source"`
+	Bytes     uint32                   `json:"bytes"`
+	SrcLabel  identity.NumericIdentity `json:"srcLabel"`
+	DstLabel  identity.NumericIdentity `json:"dstLabel"`
+	DstID     uint16                   `json:"dstID"`
+	IPTraceID uint64                   `json:"IpTraceID"`
 
 	Summary *DissectSummary `json:"summary,omitempty"`
 }
@@ -393,5 +403,6 @@ func TraceNotifyToVerbose(n *TraceNotify, linkMonitor getters.LinkGetter) TraceN
 		SrcLabel:         n.SrcLabel,
 		DstLabel:         n.DstLabel,
 		DstID:            n.DstID,
+		IPTraceID:        n.IPTraceID,
 	}
 }

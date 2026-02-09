@@ -32,6 +32,8 @@ struct drop_notify {
 	__u8		file;
 	__s8		ext_error;
 	__u32		ifindex;
+	__u32		pad1;
+	__u64		ip_trace_id;
 };
 
 /*
@@ -59,7 +61,7 @@ int __send_drop_notify(struct __ctx_buff *ctx)
 	__u64 ctx_len = ctx_full_len(ctx);
 	__u64 cap_len = min_t(__u64, TRACE_PAYLOAD_LEN, ctx_len);
 	__u32 meta4 = ctx_load_meta(ctx, 4);
-	__s16 trace_id = TRACE_ID_UNSET;
+	__s16 trace_id = 0;
 	__u16 line = (__u16)(meta4 >> 16);
 	__u8 file = (__u8)(meta4 >> 8);
 	__u8 exitcode = (__u8)meta4;
@@ -71,9 +73,14 @@ int __send_drop_notify(struct __ctx_buff *ctx)
 	};
 	struct drop_notify msg;
 
-	// The trace_id is used to skip aggregation, rate limiting, and set identity
-	// fields so that this traffic can be found in Hubble.
+	/* The trace_id is used to skip aggregation, rate limiting, and set identity
+	 * fields so that this traffic can be found in Hubble.
+	 * A negetive or zero trace_id has no purpose in the drop message of the event map
+	 * and therefore should be avoided.
+	 */
 	trace_id = trace_id_from_ctx(ctx);
+	if (trace_id < 0)
+		trace_id = 0;
 
 	if (EVENTS_MAP_RATE_LIMIT > 0) {
 		settings.bucket_size = EVENTS_MAP_BURST_LIMIT;
@@ -92,20 +99,9 @@ int __send_drop_notify(struct __ctx_buff *ctx)
 		.file           = file,
 		.ext_error      = (__s8)(__u8)(error >> 8),
 		.ifindex        = ctx_get_ifindex(ctx),
+		.pad1           = 0,
+		.ip_trace_id    = trace_id,
 	};
-
-	if (trace_id > 0) {
-		// Re-use the endpoint security identity fields so that hubble can
-		// filter for these flows. This is unfortunate because it overwrites
-		// critical information about the state of the datapath. We can enhance
-		// later to provide a dedicated field.
-		//
-		// TODO(b/329732627): Enhance packet tracing feature to use a dedicated
-		// trace ID field in event output.
-		msg.src_label = trace_id;
-		msg.dst_label = trace_id;
-		msg.dst_id = trace_id;
-	}
 
 	ctx_event_output(ctx, &EVENTS_MAP,
 			 (cap_len << 32) | BPF_F_CURRENT_CPU,

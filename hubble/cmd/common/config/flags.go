@@ -53,14 +53,14 @@ func initServerFlags() {
 	ServerFlags.Bool(
 		KeyTLS,
 		false,
-		"Specify that TLS must be used when establishing a connection to a Hubble server.\r\n"+
+		"Specify that TLS must be used when establishing a connection to a Hubble server.\n"+
 			"By default, TLS is only enabled if the server address starts with 'tls://'.",
 	)
 	ServerFlags.Bool(
 		KeyTLSAllowInsecure,
 		false,
-		"Allows the client to skip verifying the server's certificate chain and host name.\r\n"+
-			"This option is NOT recommended as, in this mode, TLS is susceptible to machine-in-the-middle attacks.\r\n"+
+		"Allows the client to skip verifying the server's certificate chain and host name.\n"+
+			"This option is NOT recommended as, in this mode, TLS is susceptible to machine-in-the-middle attacks.\n"+
 			"See also the 'tls-server-name' option which allows setting the server name.",
 	)
 	ServerFlags.StringSlice(
@@ -72,13 +72,13 @@ func initServerFlags() {
 	ServerFlags.String(
 		KeyTLSClientCertFile,
 		"",
-		"Path to the public key file for the client certificate to connect to a Hubble server (implies TLS).\r\n"+
+		"Path to the public key file for the client certificate to connect to a Hubble server (implies TLS).\n"+
 			"The file must contain PEM encoded data.",
 	)
 	ServerFlags.String(
 		KeyTLSClientKeyFile,
 		"",
-		"Path to the private key file for the client certificate to connect a Hubble server (implies TLS).\r\n"+
+		"Path to the private key file for the client certificate to connect a Hubble server (implies TLS).\n"+
 			"The file must contain PEM encoded data.",
 	)
 	ServerFlags.String(

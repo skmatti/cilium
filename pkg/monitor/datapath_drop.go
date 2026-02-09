@@ -16,24 +16,26 @@ import (
 
 const (
 	// DropNotifyLen is the amount of packet data provided in a drop notification
-	DropNotifyLen = 36
+	DropNotifyLen = 48
 )
 
 // DropNotify is the message format of a drop notification in the BPF ring buffer
 type DropNotify struct {
-	Type     uint8
-	SubType  uint8
-	Source   uint16
-	Hash     uint32
-	OrigLen  uint32
-	CapLen   uint32
-	SrcLabel identity.NumericIdentity
-	DstLabel identity.NumericIdentity
-	DstID    uint32
-	Line     uint16
-	File     uint8
-	ExtError int8
-	Ifindex  uint32
+	Type      uint8
+	SubType   uint8
+	Source    uint16
+	Hash      uint32
+	OrigLen   uint32
+	CapLen    uint32
+	SrcLabel  identity.NumericIdentity
+	DstLabel  identity.NumericIdentity
+	DstID     uint32
+	Line      uint16
+	File      uint8
+	ExtError  int8
+	Ifindex   uint32
+	pad1      uint32
+	IPTraceID uint64
 	// data
 }
 
@@ -70,6 +72,7 @@ func (n *DropNotify) decodeDropNotify(data []byte) error {
 	n.File = data[30]
 	n.ExtError = int8(data[31])
 	n.Ifindex = byteorder.Native.Uint32(data[32:36])
+	n.IPTraceID = byteorder.Native.Uint64(data[40:48])
 
 	return nil
 }
@@ -79,6 +82,9 @@ func (n *DropNotify) DumpInfo(data []byte, numeric DisplayFormat) {
 	buf := bufio.NewWriter(os.Stdout)
 	fmt.Fprintf(buf, "xx drop (%s) flow %#x to endpoint %d, ifindex %d, file %s:%d, ",
 		api.DropReasonExt(n.SubType, n.ExtError), n.Hash, n.DstID, n.Ifindex, api.BPFFileName(n.File), int(n.Line))
+	if id := n.IPTraceID; id > 0 {
+		fmt.Fprintf(buf, " [ ip-trace-id = %d ]", id)
+	}
 	n.dumpIdentity(buf, numeric)
 	fmt.Fprintf(buf, ": %s\n", GetConnectionSummary(data[DropNotifyLen:]))
 	buf.Flush()
@@ -98,6 +104,10 @@ func (n *DropNotify) DumpVerbose(dissect bool, data []byte, prefix string, numer
 		fmt.Fprintf(buf, ", to endpoint %d\n", n.DstID)
 	} else {
 		fmt.Fprintf(buf, "\n")
+	}
+
+	if id := n.IPTraceID; id > 0 {
+		fmt.Fprintf(buf, " [ ip-trace-id = %d ]", id)
 	}
 
 	if n.CapLen > 0 && len(data) > DropNotifyLen {
@@ -133,15 +143,16 @@ type DropNotifyVerbose struct {
 	Mark      string `json:"mark,omitempty"`
 	Reason    string `json:"reason,omitempty"`
 
-	Source   uint16                   `json:"source"`
-	Bytes    uint32                   `json:"bytes"`
-	SrcLabel identity.NumericIdentity `json:"srcLabel"`
-	DstLabel identity.NumericIdentity `json:"dstLabel"`
-	DstID    uint32                   `json:"dstID"`
-	Line     uint16                   `json:"Line"`
-	File     uint8                    `json:"File"`
-	ExtError int8                     `json:"ExtError"`
-	Ifindex  uint32                   `json:"Ifindex"`
+	Source    uint16                   `json:"source"`
+	Bytes     uint32                   `json:"bytes"`
+	SrcLabel  identity.NumericIdentity `json:"srcLabel"`
+	DstLabel  identity.NumericIdentity `json:"dstLabel"`
+	DstID     uint32                   `json:"dstID"`
+	Line      uint16                   `json:"Line"`
+	File      uint8                    `json:"File"`
+	ExtError  int8                     `json:"ExtError"`
+	Ifindex   uint32                   `json:"Ifindex"`
+	IPTraceID uint64                   `json:"IPTraceID,omitempty"`
 
 	Summary *DissectSummary `json:"summary,omitempty"`
 }
@@ -149,17 +160,18 @@ type DropNotifyVerbose struct {
 // DropNotifyToVerbose creates verbose notification from DropNotify
 func DropNotifyToVerbose(n *DropNotify) DropNotifyVerbose {
 	return DropNotifyVerbose{
-		Type:     "drop",
-		Mark:     fmt.Sprintf("%#x", n.Hash),
-		Reason:   api.DropReasonExt(n.SubType, n.ExtError),
-		Source:   n.Source,
-		Bytes:    n.OrigLen,
-		SrcLabel: n.SrcLabel,
-		DstLabel: n.DstLabel,
-		DstID:    n.DstID,
-		Line:     n.Line,
-		File:     n.File,
-		ExtError: n.ExtError,
-		Ifindex:  n.Ifindex,
+		Type:      "drop",
+		Mark:      fmt.Sprintf("%#x", n.Hash),
+		Reason:    api.DropReasonExt(n.SubType, n.ExtError),
+		Source:    n.Source,
+		Bytes:     n.OrigLen,
+		SrcLabel:  n.SrcLabel,
+		DstLabel:  n.DstLabel,
+		DstID:     n.DstID,
+		Line:      n.Line,
+		File:      n.File,
+		ExtError:  n.ExtError,
+		Ifindex:   n.Ifindex,
+		IPTraceID: n.IPTraceID,
 	}
 }
