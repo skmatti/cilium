@@ -67,22 +67,24 @@
  *
  * See trace_id_from_ctx for more info.
  */
-static __always_inline __s16 trace_id_from_ip4(struct __ctx_buff *ctx, struct iphdr* ip4)
+static __always_inline __s16 trace_id_from_ip4(struct __ctx_buff *ctx, __u8 ihl)
 {
 	__u32 offset;
 	__u32 end;
 	int i;
 	__u8 opt_type;
 	__u8 opt_len;
-	__s16 trace_id;
+	__u16 trace_id;
 
 	// Return immediately when there are no options in the header.
-	if (ip4->ihl <= IHL_WITH_NO_OPTS) {
+	if (ihl <= IHL_WITH_NO_OPTS) {
 		return TRACE_ID_NOT_FOUND;
 	}
 
 	offset = ETH_HLEN + sizeof(struct iphdr);
-	end = offset + (ip4->ihl << 2);
+	// IHL includes the header length, so we need to multiply by 4 to get the
+	// actual end of the header.
+	end = ETH_HLEN + (ihl << 2);
 
 #pragma unroll(MAX_IPV4_OPTS)
 	for (i = 0; i < MAX_IPV4_OPTS && offset < end; i++) {
@@ -113,6 +115,9 @@ static __always_inline __s16 trace_id_from_ip4(struct __ctx_buff *ctx, struct ip
 		if (opt_type != TRACE_IPV4_OPT_TYPE) {
 			// The length field represents the entire option length (including
 			// the type and length fields).
+			if (opt_len < 2) {
+				return TRACE_ID_INVALID;
+			}
 			offset += opt_len;
 			continue;
 		}
@@ -127,11 +132,11 @@ static __always_inline __s16 trace_id_from_ip4(struct __ctx_buff *ctx, struct ip
 
 		// Non-positive numbers are used to indicate error, missing or invalid
 		// trace ID.
-		if (trace_id <= 0) {
+		if (trace_id <= 0 || trace_id > 32767) {
 			return TRACE_ID_INVALID;
 		}
 
-		return trace_id;
+		return (__s16)trace_id;
 	}
 
 	return TRACE_ID_NOT_FOUND;
@@ -151,11 +156,10 @@ static __always_inline __s16 trace_id_from_ip4(struct __ctx_buff *ctx, struct ip
  */
 static __always_inline __s16 trace_id_from_ctx(struct __ctx_buff *ctx)
 {
-	__u16 proto;
-	void *data, *data_end;
-	struct iphdr *ip4;
+	__be16 proto;
+	__u8 ihl;
 
-	if (!validate_ethertype(ctx, &proto)) {
+	if (ctx_load_bytes(ctx, 12 /* offset of ethertype */, &proto, 2) < 0) {
 		return TRACE_ID_ERROR;
 	}
 	if (proto == bpf_htons(ETH_P_IPV6)) {
@@ -164,11 +168,13 @@ static __always_inline __s16 trace_id_from_ctx(struct __ctx_buff *ctx)
 	if (proto != bpf_htons(ETH_P_IP)) {
 		return TRACE_ID_NO_FAMILY;
 	}
-	if (!revalidate_data(ctx, &data, &data_end, &ip4)) {
+
+	if (ctx_load_bytes(ctx, ETH_HLEN, &ihl, 1) < 0) {
 		return TRACE_ID_ERROR;
 	}
+	ihl &= 0x0F;
 
-	return trace_id_from_ip4(ctx, ip4);
+	return trace_id_from_ip4(ctx, ihl);
 }
 
 #else
@@ -178,7 +184,7 @@ static __always_inline __s16 trace_id_from_ctx(struct __ctx_buff *ctx)
  * TRACE_ID_DISABLED.
  */
 
-static __always_inline __s16 trace_id_from_ip4(struct __ctx_buff *ctx __maybe_unused, struct iphdr* ip4 __maybe_unused)
+static __always_inline __s16 trace_id_from_ip4(struct __ctx_buff *ctx __maybe_unused, __u8 ihl __maybe_unused)
 {
 	return TRACE_ID_DISABLED;
 }

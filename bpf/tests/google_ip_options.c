@@ -872,7 +872,7 @@ int test_extract_trace_id_wrong_len_invalid_check(struct __ctx_buff *ctx)
 	test_finish();
 }
 
-/* Test packet with no l3 header should return TRACE_ID_ERROR.
+/* Test packet with no l3 header should return TRACE_ID_NO_FAMILY.
  */
 PKTGEN("tc", "extract_trace_id_with_no_l3_header_error")
 int test_extract_trace_id_with_no_l3_header_error_pktgen(struct __ctx_buff *ctx)
@@ -899,7 +899,7 @@ int test_extract_trace_id_with_no_l3_header_error_check(struct __ctx_buff *ctx)
 {
 	test_init();
 
-	__s16 want = TRACE_ID_ERROR;
+	__s16 want = TRACE_ID_NO_FAMILY;
 	__s16 trace_id = trace_id_from_ctx(ctx);
 
 	if (trace_id != want) {

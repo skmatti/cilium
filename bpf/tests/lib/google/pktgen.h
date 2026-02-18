@@ -145,6 +145,7 @@ int google_pktgen__push_genevehdr(struct pktgen *builder __maybe_unused,
 		dsr->hdr.length = DSR_IPV4_GENEVE_OPT_LEN;
 		dsr->addr = params.dsr_addr;
 		dsr->port = params.dsr_port;
+		dsr->pad = 0;
 	} else {
 		struct geneve_perimeter_opt4 *perim = opt_data;
 		perim->hdr.opt_class = bpf_htons(GOOGLE_GENEVE_OPT_CLASS);

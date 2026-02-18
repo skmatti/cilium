@@ -510,7 +510,7 @@ static __always_inline int check_and_add_trace_ip_opt(struct __ctx_buff *ctx)
 			if (!revalidate_data(ctx, &data, &data_end, &ip4))
 				return DROP_INVALID;
 
-			if (!trace_id_from_ip4(ctx, ip4)) {
+			if (!trace_id_from_ip4(ctx, ip4->ihl)) {
 				__u16 trace_id = find_trace_id_from_map_v4(ctx, ip4);
 				if (trace_id != 0) {
 					int err = add_trace_ip_opt_v4(ctx, ip4, trace_id);
@@ -646,7 +646,7 @@ static __always_inline int check_and_add_trace_ip_opt_ns(struct __ctx_buff *ctx)
 				trace_id = find_trace_id_from_map_v4(ctx, ip4);
 				/* only tag the packet if there is an entry for it in google_traffic_tag_map */
 				/* and ip-options header is absent from the packet */
-				if (trace_id != 0 && !trace_id_from_ip4(ctx, ip4)) {
+				if (trace_id != 0 && !trace_id_from_ip4(ctx, ip4->ihl)) {
 					int err = add_trace_ip_opt_v4(ctx, ip4, trace_id);
 					if (IS_ERR(err))
 						return err;
