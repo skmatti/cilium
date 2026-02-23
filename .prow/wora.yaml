@@ -1,3 +1,13 @@
+prow_ignored:
+- &pod-resources
+  requests:
+    memory: "32Gi"
+    cpu: 2
+    ephemeral-storage: "150Gi"
+  limits:
+    memory: "32Gi"
+    cpu: 4
+    ephemeral-storage: "300Gi"
 presubmits:
 # Presubmit WORA jobs.
 - name: wora-abm-gce_cilium
@@ -6,6 +16,7 @@ presubmits:
   rerun_command: /test wora-abm-gce
   always_run: true
   skip_fetch_head: true
+  clone_depth: 500
   decorate: true
   decoration_config:
     gcs_configuration:
@@ -25,10 +36,7 @@ presubmits:
     containers:
     - image: gcr.io/tailorbird/kubetest2-tailorbird@sha256:dd6edb7b068410208ae185e780bfef1629ea5e07ce566c17132edb1070a71d0d
       resources:
-        requests:
-          ephemeral-storage: 150Gi
-        limits:
-          ephemeral-storage: 300Gi
+        <<: *pod-resources
       securityContext:
         # needed for docker-in-docker
         privileged: true
@@ -74,10 +82,7 @@ presubmits:
     containers:
     - image: gcr.io/tailorbird/kubetest2-tailorbird@sha256:dd6edb7b068410208ae185e780bfef1629ea5e07ce566c17132edb1070a71d0d
       resources:
-        requests:
-          ephemeral-storage: 150Gi
-        limits:
-          ephemeral-storage: 300Gi
+        <<: *pod-resources
       securityContext:
         # needed for docker-in-docker
         privileged: true
@@ -122,10 +127,7 @@ presubmits:
     containers:
     - image: gcr.io/tailorbird/kubetest2-tailorbird@sha256:dd6edb7b068410208ae185e780bfef1629ea5e07ce566c17132edb1070a71d0d
       resources:
-        requests:
-          ephemeral-storage: 150Gi
-        limits:
-          ephemeral-storage: 300Gi
+        <<: *pod-resources
       securityContext:
         # needed for docker-in-docker
         privileged: true
@@ -170,10 +172,7 @@ presubmits:
     containers:
     - image: gcr.io/tailorbird/kubetest2-tailorbird@sha256:dd6edb7b068410208ae185e780bfef1629ea5e07ce566c17132edb1070a71d0d
       resources:
-        requests:
-          ephemeral-storage: 150Gi
-        limits:
-          ephemeral-storage: 300Gi
+        <<: *pod-resources
       securityContext:
         # needed for docker-in-docker
         privileged: true
@@ -216,10 +215,7 @@ presubmits:
     containers:
     - image: gcr.io/tailorbird/kubetest2-tailorbird@sha256:dd6edb7b068410208ae185e780bfef1629ea5e07ce566c17132edb1070a71d0d
       resources:
-        requests:
-          ephemeral-storage: 150Gi
-        limits:
-          ephemeral-storage: 300Gi
+        <<: *pod-resources
       securityContext:
         # needed for docker-in-docker
         privileged: true
@@ -264,10 +260,7 @@ presubmits:
     containers:
     - image: gcr.io/tailorbird/kubetest2-tailorbird@sha256:dd6edb7b068410208ae185e780bfef1629ea5e07ce566c17132edb1070a71d0d
       resources:
-        requests:
-          ephemeral-storage: 150Gi
-        limits:
-          ephemeral-storage: 300Gi
+        <<: *pod-resources
       securityContext:
         # needed for docker-in-docker
         privileged: true
@@ -312,10 +305,7 @@ presubmits:
     containers:
     - image: gcr.io/tailorbird/kubetest2-tailorbird@sha256:dd6edb7b068410208ae185e780bfef1629ea5e07ce566c17132edb1070a71d0d
       resources:
-        requests:
-          ephemeral-storage: 150Gi
-        limits:
-          ephemeral-storage: 300Gi
+        <<: *pod-resources
       securityContext:
         # needed for docker-in-docker
         privileged: true
