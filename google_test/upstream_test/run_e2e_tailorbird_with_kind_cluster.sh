@@ -55,23 +55,38 @@ export CLUSTERMESH_APISERVER_IMAGE_REPOSITORY="${IMAGE_REGISTRY}/cilium/clusterm
 gcloud auth configure-docker --quiet
 gcloud auth configure-docker "${IMAGE_REGISTRY%%/*}" --quiet
 
+function build_and_push_if_absent {
+    local image="${1:?}"
+    local target="${2:?}"
+    local image_registry="${3:?}"
+    if gcloud container images describe "${image}" > /dev/null 2>&1; then
+        echo "Found: ${image}, skip building"
+    else
+        echo "${image} not available"
+        make -B LOCKDEBUG=1 DOCKER_REGISTRY="${image_registry}" "${target}"
+        docker push "${image}"
+    fi
+}
+
+declare -A images_to_check
+operator_image="${CILIUM_OPERATOR_IMAGE_REPOSITORY}:${DOCKER_IMAGE_TAG}"
+operator_generic_image="${CILIUM_OPERATOR_GENERIC_IMAGE_REPOSITORY}:${DOCKER_IMAGE_TAG}"
+cilium_image="${CILIUM_IMAGE_REPOSITORY}:${CILIUM_IMAGE_TAG}"
+clustermesh_image="${CLUSTERMESH_APISERVER_IMAGE_REPOSITORY}:${DOCKER_IMAGE_TAG}"
+hubble_image="${HUBBLE_RELAY_IMAGE_REPOSITORY}:${DOCKER_IMAGE_TAG}"
+
+images_to_check["${operator_image}"]="docker-operator-image"
+images_to_check["${operator_generic_image}"]="docker-operator-generic-image"
+images_to_check["${cilium_image}"]="docker-cilium-dpv2-image"
+images_to_check["${clustermesh_image}"]="docker-clustermesh-apiserver-image"
+images_to_check["${hubble_image}"]="docker-hubble-relay-image"
+
 # Build and push cilium to google cloud registry
 echo "Making Cilium images for current build and push to google cloud registry: ${IMAGE_REGISTRY}"
 
-make LOCKDEBUG=1 DOCKER_REGISTRY="${IMAGE_REGISTRY}" docker-cilium-dpv2-image
-docker push "${CILIUM_IMAGE_REPOSITORY}:${CILIUM_IMAGE_TAG}"
-
-make -B LOCKDEBUG=1 DOCKER_REGISTRY="${IMAGE_REGISTRY}" docker-operator-image
-docker push "${CILIUM_OPERATOR_IMAGE_REPOSITORY}:${DOCKER_IMAGE_TAG}"
-
-make -B LOCKDEBUG=1 DOCKER_REGISTRY="${IMAGE_REGISTRY}" docker-operator-generic-image
-docker push "${CILIUM_OPERATOR_GENERIC_IMAGE_REPOSITORY}:${DOCKER_IMAGE_TAG}"
-
-make -B LOCKDEBUG=1 DOCKER_REGISTRY="${IMAGE_REGISTRY}" docker-clustermesh-apiserver-image
-docker push "${CLUSTERMESH_APISERVER_IMAGE_REPOSITORY}:${DOCKER_IMAGE_TAG}"
-
-make LOCKDEBUG=1 DOCKER_REGISTRY="${IMAGE_REGISTRY}" docker-hubble-relay-image
-docker push "${HUBBLE_RELAY_IMAGE_REPOSITORY}:${DOCKER_IMAGE_TAG}"
+for image in "${!images_to_check[@]}"; do
+    build_and_push_if_absent "${image}" "${images_to_check[${image}]}" "${IMAGE_REGISTRY}"
+done
 
 # Get credentials to use tailorbird and create the kind cluster
 echo "Getting credentials for tailorbird-prod..."
