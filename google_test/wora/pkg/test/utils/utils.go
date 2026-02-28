@@ -862,7 +862,7 @@ func ExecuteNonBlockingCommandFromBootstapper(ctx context.Context, cl k8sclient.
 	// Execute the command.
 	err = session.Start(command)
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("failed to execute command: %v, stderr: %s", err)
+		return nil, nil, nil, fmt.Errorf("failed to execute command: %v", err)
 	}
 
 	closeConnectionFunc := func(client *ssh.Client, session *ssh.Session) error {

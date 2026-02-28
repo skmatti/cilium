@@ -273,7 +273,7 @@ func testInternalLB(ctx context.Context, cl k8sclient.Client, workerPodName, wor
 	for _, ingress := range service.Status.LoadBalancer.Ingress {
 		err = utils.VerifyCurlFromPod(ctx, testNamespace, workerPodName, ingress.IP, servicePort, true, backendpod)
 		if err != nil {
-			return testPods, cleanupFuncs, fmt.Errorf("failed to verify curl to service IP %s: %v", ingress, err)
+			return testPods, cleanupFuncs, fmt.Errorf("failed to verify curl to service IP %s: %v", ingress.IP, err)
 		}
 	}
 	return testPods, cleanupFuncs, nil
