@@ -2529,6 +2529,9 @@ type DaemonConfig struct {
 
 	// GoogleMultiNICHostMapping is the key-value pairs of numeric identity and network object name
 	GoogleMultiNICHostMapping map[string]string
+
+	// EndpointSystemLabels are labels to be added to all endpoints by default.
+	EndpointSystemLabels map[string]string
 }
 
 var (
@@ -3703,6 +3706,12 @@ func (c *DaemonConfig) Populate(vp *viper.Viper) {
 		log.Fatalf("unable to parse %s: %s", GoogleMultiNICHostMapping, err)
 	} else if len(m) != 0 {
 		c.GoogleMultiNICHostMapping = m
+	}
+
+	if m, err := command.GetStringMapStringE(vp, EndpointSystemLabels); err != nil {
+		log.Fatalf("unable to parse %s: %s", EndpointSystemLabels, err)
+	} else if len(m) != 0 {
+		c.EndpointSystemLabels = m
 	}
 }
 

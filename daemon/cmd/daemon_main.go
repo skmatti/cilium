@@ -1203,6 +1203,11 @@ func InitGlobalFlags(cmd *cobra.Command, vp *viper.Viper) {
 	flags.MarkHidden(option.GoogleMultiNICHostMapping)
 	option.BindEnv(vp, option.GoogleMultiNICHostMapping)
 
+	flags.Var(option.NewNamedMapOptions(option.EndpointSystemLabels, &option.Config.EndpointSystemLabels, nil),
+		option.EndpointSystemLabels, "System labels to be added to all endpoints by default")
+	flags.MarkHidden(option.EndpointSystemLabels)
+	option.BindEnv(vp, option.EndpointSystemLabels)
+
 	if err := vp.BindPFlags(flags); err != nil {
 		log.Fatalf("BindPFlags failed: %s", err)
 	}

@@ -235,6 +235,8 @@ func SanitizePodLabels(podLabels map[string]string, namespace nameLabelsGetter, 
 	// Sanitize cluster name
 	sanitizedLabels[k8sconst.PolicyLabelCluster] = clusterName
 
+	updateSystemLabels(sanitizedLabels)
+
 	return sanitizedLabels
 }
 
@@ -253,6 +255,7 @@ func StripPodSpecialLabels(labels map[string]string) map[string]string {
 		}
 		sanitizedLabels[k] = v
 	}
+	removeSystemLabels(sanitizedLabels)
 	return sanitizedLabels
 }
 

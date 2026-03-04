@@ -111,6 +111,9 @@ const (
 	// GoogleRestrictK8sNPScopeToLocalCluster is the name of the option to restrict K8s NetworkPolicy scope to the local cluster
 	GoogleRestrictK8sNPScopeToLocalCluster = "google-restrict-k8s-np-scope-to-local-cluster"
 
+	// EndpointSystemLabels is the name of the endpoint system labels option.
+	EndpointSystemLabels = "endpoint-system-labels"
+
 	// Enable mTLS for metrics server
 	AgentEnableMetricsServerTLS = "agent-enable-metrics-server-tls"
 
