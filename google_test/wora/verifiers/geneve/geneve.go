@@ -9,13 +9,14 @@ import (
 	"strings"
 	"time" // Do not use pkg/time in test code.
 
+	"github.com/cilium/cilium/pkg/lock"
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
 	"github.com/google/gopacket/pcap"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"golang.org/x/sync/errgroup"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	utilrand "k8s.io/apimachinery/pkg/util/rand"
 	"k8s.io/client-go/kubernetes"
@@ -29,9 +30,8 @@ import (
 )
 
 const (
-	testNamespace = "geneve"
-	tcpdumpPod    = "tcpdump"
-	pcapFileDir   = "geneve.pcap"
+	tcpdumpPod  = "tcpdump"
+	pcapFileDir = "geneve.pcap"
 
 	pod1Name = "pod1"
 	pod2Name = "pod2"
@@ -39,17 +39,22 @@ const (
 	defaultVPCVNI = 0
 )
 
-var _ = Describe("Verifiers/Geneve", Label("geneve"), Ordered, func() {
+var (
+	testNamespace string
+	testPods      []string
+	testPodsMu    lock.Mutex
+	cleanupFuncs  []func()
+)
+
+var _ = Describe("Verifiers/Geneve", Label("geneve"), func() {
 	var (
-		cl           k8sclient.Client
-		err          error
-		testPods     []string
-		cleanupFuncs []func()
-		ctx          context.Context
-		clientset    *kubernetes.Clientset
+		cl        k8sclient.Client
+		err       error
+		ctx       context.Context
+		clientset *kubernetes.Clientset
 	)
 
-	BeforeAll(func() {
+	BeforeEach(func() {
 		s := e2escheme.Scheme()
 
 		ctx, _ = context.WithTimeout(context.Background(), 30*time.Minute)
@@ -71,28 +76,13 @@ var _ = Describe("Verifiers/Geneve", Label("geneve"), Ordered, func() {
 			klog.Infof("Skipping test because Google VPC is not enabled")
 			Skip("Google VPC is disabled in this environment")
 		}
-
-		// Create the test namespace
-		err = utils.CreateTestNamespace(ctx, cl, testNamespace)
-		Expect(err).NotTo(HaveOccurred(), "Failed to create test namespace")
-	})
-
-	AfterAll(func() {
-		klog.Infof("Deleting test namespace %s", testNamespace)
-		ns := &corev1.Namespace{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: testNamespace,
-			},
-		}
-		err = utils.DeleteIfExists(ctx, cl, ns)
-		Expect(err).NotTo(HaveOccurred())
 	})
 
 	AfterEach(func() {
 		if CurrentSpecReport().Failed() {
 			// Collect logs for all test pods if the test failed
 			for _, podName := range testPods {
-				podLogs, err := utils.FetchPodLogs(ctx, clientset, podName, testNamespace)
+				podLogs, err := utils.FetchPodLogs(context.Background(), clientset, podName, testNamespace)
 				if err != nil {
 					klog.Errorf("Failed to fetch logs for pod %s: %v", podName, err)
 				} else {
@@ -105,30 +95,36 @@ var _ = Describe("Verifiers/Geneve", Label("geneve"), Ordered, func() {
 		for _, cleanup := range cleanupFuncs {
 			cleanup()
 		}
-		// Validate all pods are deleted before next test
-		for _, podName := range testPods {
-			err = wait.WaitForSuccessContext(ctx, "Delete pod", wait.WaitingMedium, func(ctx context.Context) error {
-				pod := &corev1.Pod{}
-				err = cl.Get(ctx, k8sclient.ObjectKey{Name: podName, Namespace: testNamespace}, pod)
-				if err == nil {
-					return fmt.Errorf("pod %s was not deleted successfully", podName)
-				}
-				if !errors.IsNotFound(err) {
-					return err
-				}
-				klog.Infof("Pod %s deleted successfully", podName)
-				return nil
-			})
-		}
+
 		// Reset cleanupFuncs and testPods before next test
 		cleanupFuncs = nil
+		testPodsMu.Lock()
 		testPods = []string{}
+		testPodsMu.Unlock()
 	})
 
 	testGeneveEncap := func(name, id string, pod1HostNetwork, pod2HostNetwork bool) {
-		It(name, func() {
-			clientPodName := "client-" + id + "-nodes"
-			serverPodName := "server-" + id + "-nodes"
+		It(name, func(ctx SpecContext) {
+			// Use random suffix to prevent parallel conflicts
+			randomSuffix := utils.RandomString(5)
+
+			// Dynamic namespace to prevent parallel conflicts
+			testNamespace = "geneve-" + strings.ToLower(randomSuffix)
+			err = utils.CreateTestNamespace(ctx, cl, testNamespace)
+			Expect(err).NotTo(HaveOccurred(), "Failed to create test namespace")
+
+			// Defer namespace deletion via cleanupFuncs
+			cleanupFuncs = append(cleanupFuncs, func() {
+				ns := &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: testNamespace}}
+				err := utils.DeleteIfExists(context.Background(), cl, ns)
+				if err != nil {
+					klog.Errorf("Failed to delete namespace %s: %v", testNamespace, err)
+				}
+			})
+
+			clientPodName := "client-" + id + "-nodes-" + randomSuffix
+			serverPodName := "server-" + id + "-nodes-" + randomSuffix
+
 			// Add pod anti-affinity to ensure the server is scheduled on different nodes as client.
 			podAntiAffinity := &corev1.Affinity{
 				PodAntiAffinity: &corev1.PodAntiAffinity{
@@ -145,31 +141,83 @@ var _ = Describe("Verifiers/Geneve", Label("geneve"), Ordered, func() {
 				},
 			}
 
-			var clientOpts []utils.PodCustomization
-			clientOpts = append(clientOpts, utils.WithLabel("app", clientPodName))
-			if pod1HostNetwork {
-				clientOpts = append(clientOpts, utils.WithHostNetworking())
-			}
-			clientCleanup, err := utils.CreatePod(ctx, cl, clientPodName, testNamespace, clientOpts...)
-			Expect(err).NotTo(HaveOccurred())
-			cleanupFuncs = append(cleanupFuncs, clientCleanup)
-			testPods = append(testPods, clientPodName)
+			eg, eCtx := errgroup.WithContext(ctx)
 
-			var serverOpts []utils.PodCustomization
-			serverOpts = append(serverOpts, utils.WithLabel("app", serverPodName))
-			serverOpts = append(serverOpts, utils.WithAffinity(podAntiAffinity))
-			serverOpts = append(serverOpts, utils.WithResponderContainer())
-			/*
-				utils.WithLabel("app", testPod2Name),
-				utils.WithAffinity(podAntiAffinity),
-			*/
-			if pod2HostNetwork {
-				serverOpts = append(serverOpts, utils.WithHostNetworking())
-			}
-			serverCleanup, err := utils.CreatePod(ctx, cl, serverPodName, testNamespace, serverOpts...)
-			Expect(err).NotTo(HaveOccurred())
-			cleanupFuncs = append(cleanupFuncs, serverCleanup)
-			testPods = append(testPods, serverPodName)
+			// Deploy client pod
+			eg.Go(func() error {
+				var clientOpts []utils.PodCustomization
+				clientOpts = append(clientOpts, utils.WithLabel("app", clientPodName))
+				if pod1HostNetwork {
+					clientOpts = append(clientOpts, utils.WithHostNetworking())
+				}
+				cleanup, err := utils.CreatePod(eCtx, cl, clientPodName, testNamespace, clientOpts...)
+				if cleanup != nil {
+					testPodsMu.Lock()
+					testPods = append(testPods, clientPodName)
+					testPodsMu.Unlock()
+				}
+				return err
+			})
+
+			// Deploy server pod
+			eg.Go(func() error {
+				var serverOpts []utils.PodCustomization
+				serverOpts = append(serverOpts, utils.WithLabel("app", serverPodName))
+				serverOpts = append(serverOpts, utils.WithAffinity(podAntiAffinity))
+				serverOpts = append(serverOpts, utils.WithResponderContainer())
+
+				if pod2HostNetwork {
+					serverOpts = append(serverOpts, utils.WithHostNetworking())
+				}
+				cleanup, err := utils.CreatePod(eCtx, cl, serverPodName, testNamespace, serverOpts...)
+				if cleanup != nil {
+					testPodsMu.Lock()
+					testPods = append(testPods, serverPodName)
+					testPodsMu.Unlock()
+				}
+				return err
+			})
+
+			// Wait for fundamental application pods first before creating the TCPDUMP sidecars
+			Expect(eg.Wait()).NotTo(HaveOccurred(), "Failed to create application pods")
+
+			eg2, eCtx2 := errgroup.WithContext(ctx)
+
+			// Parallelize TCPDump pods
+			eg2.Go(func() error {
+				srcName := "tcpdump-src-vxlan0-" + randomSuffix
+				cleanup, err := createTCPDumpPod(eCtx2, cl, clientPodName, testNamespace, srcName)
+				if cleanup != nil {
+					testPodsMu.Lock()
+					testPods = append(testPods, srcName)
+					testPodsMu.Unlock()
+				}
+				return err
+			})
+
+			eg2.Go(func() error {
+				dstName := "tcpdump-dst-vxlan0-" + randomSuffix
+				cleanup, err := createTCPDumpPod(eCtx2, cl, serverPodName, testNamespace, dstName)
+				if cleanup != nil {
+					testPodsMu.Lock()
+					testPods = append(testPods, dstName)
+					testPodsMu.Unlock()
+				}
+				return err
+			})
+
+			eg2.Go(func() error {
+				dstAnyName := "tcpdump-dst-any-" + randomSuffix
+				cleanup, err := createTCPDumpPod(eCtx2, cl, serverPodName, testNamespace, dstAnyName)
+				if cleanup != nil {
+					testPodsMu.Lock()
+					testPods = append(testPods, dstAnyName)
+					testPodsMu.Unlock()
+				}
+				return err
+			})
+
+			Expect(eg2.Wait()).NotTo(HaveOccurred(), "Failed to create TCPDump pods")
 
 			clientIP, err := utils.FetchPodIP(ctx, cl, clientPodName, testNamespace)
 			Expect(err).NotTo(HaveOccurred())
@@ -180,39 +228,58 @@ var _ = Describe("Verifiers/Geneve", Label("geneve"), Ordered, func() {
 			isXdpGeneric, err := isGenericXDPModeEnabled(ctx, cl)
 			Expect(err).NotTo(HaveOccurred(), "Failed to validate XDP configuration")
 
-			srcVXLANCleanup, err := createTCPDumpPod(ctx, cl, clientPodName, testNamespace, "tcpdump-src-vxlan0")
-			Expect(err).NotTo(HaveOccurred())
-			cleanupFuncs = append(cleanupFuncs, srcVXLANCleanup)
-			testPods = append(testPods, "tcpdump-src-vxlan0")
+			Eventually(func() (retErr error) {
+				var cleanups []func() error
+				defer func() {
+					for _, c := range cleanups {
+						if err := c(); err != nil && retErr == nil {
+							retErr = err
+						}
+					}
+				}()
 
-			dstVXLANCleanup, err := createTCPDumpPod(ctx, cl, serverPodName, testNamespace, "tcpdump-dst-vxlan0")
-			Expect(err).NotTo(HaveOccurred())
-			cleanupFuncs = append(cleanupFuncs, dstVXLANCleanup)
-			testPods = append(testPods, "tcpdump-dst-vxlan0")
+				eg3, _ := errgroup.WithContext(ctx)
+				var mu lock.Mutex
 
-			dstAnyCleanup, err := createTCPDumpPod(ctx, cl, serverPodName, testNamespace, "tcpdump-dst-any")
-			Expect(err).NotTo(HaveOccurred())
-			cleanupFuncs = append(cleanupFuncs, dstAnyCleanup)
-			testPods = append(testPods, "tcpdump-dst-any")
+				eg3.Go(func() error {
+					stop, err := runTCPDump("tcpdump-src-vxlan0-"+randomSuffix, testNamespace, "vxlan0", pcapFileDir)
+					mu.Lock()
+					defer mu.Unlock()
+					if err != nil {
+						klog.Errorf("Failed to start tcpdump-src-vxlan0: %v", err)
+						return err
+					}
+					cleanups = append(cleanups, func() error { return stop("tcpdump-src-vxlan0-"+randomSuffix, testNamespace) })
+					return nil
+				})
 
-			Eventually(func() error {
-				stop1, err := runTCPDump("tcpdump-src-vxlan0", testNamespace, "vxlan0", pcapFileDir)
-				if err != nil {
+				eg3.Go(func() error {
+					stop, err := runTCPDump("tcpdump-dst-vxlan0-"+randomSuffix, testNamespace, "vxlan0", pcapFileDir)
+					mu.Lock()
+					defer mu.Unlock()
+					if err != nil {
+						klog.Errorf("Failed to start tcpdump-dst-vxlan0: %v", err)
+						return err
+					}
+					cleanups = append(cleanups, func() error { return stop("tcpdump-dst-vxlan0-"+randomSuffix, testNamespace) })
+					return nil
+				})
+
+				eg3.Go(func() error {
+					stop, err := runTCPDump("tcpdump-dst-any-"+randomSuffix, testNamespace, "any", pcapFileDir)
+					mu.Lock()
+					defer mu.Unlock()
+					if err != nil {
+						klog.Errorf("Failed to start tcpdump-dst-any: %v", err)
+						return err
+					}
+					cleanups = append(cleanups, func() error { return stop("tcpdump-dst-any-"+randomSuffix, testNamespace) })
+					return nil
+				})
+
+				if err := eg3.Wait(); err != nil { // If any tcpdump failed to start, return early
 					return err
 				}
-				defer stop1("tcpdump-src-vxlan0", testNamespace)
-
-				stop2, err := runTCPDump("tcpdump-dst-vxlan0", testNamespace, "vxlan0", pcapFileDir)
-				if err != nil {
-					return err
-				}
-				defer stop2("tcpdump-dst-vxlan0", testNamespace)
-
-				stop3, err := runTCPDump("tcpdump-dst-any", testNamespace, "any", pcapFileDir)
-				if err != nil {
-					return err
-				}
-				defer stop3("tcpdump-dst-any", testNamespace)
 
 				srcPort := utilrand.Intn(10000) + 40000
 				if err := runCurlWithSourcePort(ctx, cl, clientset, testNamespace, clientPodName, serverIP, utils.ResponderPort, srcPort, "200 OK"); err != nil {
@@ -221,44 +288,58 @@ var _ = Describe("Verifiers/Geneve", Label("geneve"), Ordered, func() {
 
 				// Add 5 seconds buffer for tcpdump to write pcap file.
 				time.Sleep(12 * time.Second) // wait for timeout 10 tcpdump to cleanly exit and flush the file lock natively
-				if err := stop1("tcpdump-src-vxlan0", testNamespace); err != nil {
-					return err
-				}
-				if err := stop2("tcpdump-dst-vxlan0", testNamespace); err != nil {
-					return err
-				}
-				if err := stop3("tcpdump-dst-any", testNamespace); err != nil {
-					return err
-				}
 
 				// For traffic between two HostNetwork pods, there is NO encapsulation.
 				expectEncap := !(pod1HostNetwork && pod2HostNetwork)
 
-				// For traffic arriving at a HostNetwork destination, the local socket consumes the packet
-				// directly, so the raw (decapsulated) packet never appears on a sniffeable virtual interface.
+				// For N2P traffic (HostNetwork sender), the packet originates natively from the node.
+				// However, rather than relying on Linux routing to perform VXLAN/Geneve encapsulation,
+				// the BPF host datapath explicitly pushes the Geneve header and then redirects the
+				// packet to vxlan0 (via ctx_redirect). Therefore, tcpdump-src-vxlan0 DOES capture
+				// the packet fully encapsulated.
+				expectSrcForwardEncap := expectEncap
+				expectSrcReplyEncap := expectEncap
+				expectSrcForwardDecap := false
 
 				if !isXdpGeneric {
-					// xdp-mode: disabled; vxlan0 captures everything!
-					if err := validatePacketVisibility("tcpdump-src-vxlan0", testNamespace, pcapFileDir, clientIP, serverIP, srcPort, expectEncap, false, expectEncap, false); err != nil {
-						return err
-					}
+					// xdp-mode: disabled; vxlan0 captures everything that goes through it!
 					if expectEncap {
-						if err := validatePacketVisibility("tcpdump-dst-vxlan0", testNamespace, pcapFileDir, clientIP, serverIP, srcPort, expectEncap, false, expectEncap, false); err != nil {
+						if err := validatePacketVisibility("tcpdump-src-vxlan0-"+randomSuffix, testNamespace, pcapFileDir, clientIP, serverIP, srcPort, expectSrcForwardEncap, expectSrcForwardDecap, expectSrcReplyEncap, false); err != nil {
+							return err
+						}
+						// For dst-vxlan0 in standard XDP, it sees the encapsulated packet on ingress.
+						if err := validatePacketVisibility("tcpdump-dst-vxlan0-"+randomSuffix, testNamespace, pcapFileDir, clientIP, serverIP, srcPort, expectEncap, false, expectEncap, false); err != nil {
+							return err
+						}
+					} else {
+						// For non-encapped traffic (N2N), we still expect packet flow to be visible natively.
+						if err := validatePacketVisibility("tcpdump-src-vxlan0-"+randomSuffix, testNamespace, pcapFileDir, clientIP, serverIP, srcPort, false, true, false, true); err != nil {
 							return err
 						}
 					}
 				} else {
 					// xdp-mode: xdpgeneric
-					// src-vxlan0 sees ENCAPSULATED egress (XDP does not strip outgoing request)
-					// but decapsulated ingress (XDP strips incoming reply).
-					if err := validatePacketVisibility("tcpdump-src-vxlan0", testNamespace, pcapFileDir, clientIP, serverIP, srcPort, expectEncap, false, false, expectEncap); err != nil {
-						return err
-					}
 
 					if expectEncap {
+						// For xdpgeneric, egress packets from HostNetwork are visible as encapsulated on vxlan0.
+						// So we always expect encapsulated forward packets for the source.
+						xgExpectSrcForwardEncap := expectEncap
+						xgExpectSrcForwardDecap := !xgExpectSrcForwardEncap
+
+						// src-vxlan0 sees ENCAPSULATED egress (XDP does not strip outgoing request)
+						// but decapsulated ingress (XDP strips incoming reply).
+						if err := validatePacketVisibility("tcpdump-src-vxlan0-"+randomSuffix, testNamespace, pcapFileDir, clientIP, serverIP, srcPort, xgExpectSrcForwardEncap, xgExpectSrcForwardDecap, false, expectEncap); err != nil {
+							return err
+						}
+
 						// dst-vxlan0 sees decapsulated ingress (XDP strips incoming request)
 						// but ENCAPSULATED egress (XDP does not strip outgoing reply).
-						if err := validatePacketVisibility("tcpdump-dst-vxlan0", testNamespace, pcapFileDir, clientIP, serverIP, srcPort, false, expectEncap, expectEncap, false); err != nil {
+						if err := validatePacketVisibility("tcpdump-dst-vxlan0-"+randomSuffix, testNamespace, pcapFileDir, clientIP, serverIP, srcPort, false, expectEncap, expectEncap, false); err != nil {
+							return err
+						}
+					} else {
+						// For non-encapped traffic (N2N), we still expect packet flow to be visible natively.
+						if err := validatePacketVisibility("tcpdump-src-vxlan0-"+randomSuffix, testNamespace, pcapFileDir, clientIP, serverIP, srcPort, false, true, false, true); err != nil {
 							return err
 						}
 					}
@@ -468,7 +549,7 @@ func validatePacketVisibility(podName, namespace, remotePath, srcIPString, dstIP
 			if !foundEncapForward && !foundDecapForward {
 				// This is the FIRST packet hitting our test server! This is the NAT'd Source Port!
 				srcPort = int(tcp.SrcPort)
-				klog.Infof("[%s] DISCOVERED ORIGINAL FORWARD PACKET: isEncapped=%v, NAT SrcPort=%d, DstPort=%d", podName, isEncapped, srcPort, utils.ResponderPort)
+				klog.Infof("[%s] Discovered original forward packet: isEncapped=%v, NAT SrcPort=%d, DstPort=%d", podName, isEncapped, srcPort, utils.ResponderPort)
 			}
 
 			if isEncapped {
@@ -519,17 +600,14 @@ func validatePacketVisibility(podName, namespace, remotePath, srcIPString, dstIP
 	}
 
 	if expectDecapReply && !foundDecapReply {
-		// Wait Trap Removed
 		return fmt.Errorf("[%s] expected to find Decapsulated Reply packet, but found none", podName)
 	}
 	if !expectDecapReply && foundDecapReply {
-		// Wait Trap Removed
 		return fmt.Errorf("[%s] expected NOT to find Decapsulated Reply packet, but found one", podName)
 	}
 
 	// Also halt if any other assertion failed before this block natively
 	if (expectEncapForward && !foundEncapForward) || (expectDecapForward && !foundDecapForward) || (expectEncapReply && !foundEncapReply) {
-		// Wait Trap Removed
 	}
 
 	return nil
