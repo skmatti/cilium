@@ -63,28 +63,34 @@
 // Enable using "enable-ip-option-tracing: true".
 #ifdef ENABLE_GOOGLE_IP_OPTION_TRACING
 
-/* trace_id_from_ip4 parses the IP options and returns the trace ID.
+/* trace_id_from_ip4_at parses the IP options at the given offset and returns the trace ID.
  *
- * See trace_id_from_ctx for more info.
+ * It acts like trace_id_from_ip4 but allows specifying the offset of the IP header.
  */
-static __always_inline __s16 trace_id_from_ip4(struct __ctx_buff *ctx, __u8 ihl)
+static __always_inline __s16 trace_id_from_ip4_at(struct __ctx_buff *ctx, __u32 ip_offset)
 {
 	__u32 offset;
 	__u32 end;
 	int i;
 	__u8 opt_type;
 	__u8 opt_len;
-	__u16 trace_id;
+	__s16 trace_id;
+	__u8 ihl;
+	__u8 ver_ihl;
+
+	// Read the first byte of the IP header to get the IHL.
+	if (ctx_load_bytes(ctx, ip_offset, &ver_ihl, 1) < 0) {
+		return TRACE_ID_ERROR;
+	}
+	ihl = ver_ihl & 0x0F;
 
 	// Return immediately when there are no options in the header.
 	if (ihl <= IHL_WITH_NO_OPTS) {
 		return TRACE_ID_NOT_FOUND;
 	}
 
-	offset = ETH_HLEN + sizeof(struct iphdr);
-	// IHL includes the header length, so we need to multiply by 4 to get the
-	// actual end of the header.
-	end = ETH_HLEN + (ihl << 2);
+	offset = ip_offset + sizeof(struct iphdr);
+	end = ip_offset + (ihl << 2);
 
 #pragma unroll(MAX_IPV4_OPTS)
 	for (i = 0; i < MAX_IPV4_OPTS && offset < end; i++) {
@@ -142,6 +148,15 @@ static __always_inline __s16 trace_id_from_ip4(struct __ctx_buff *ctx, __u8 ihl)
 	return TRACE_ID_NOT_FOUND;
 }
 
+/* trace_id_from_ip4 parses the IP options and returns the trace ID.
+ *
+ * See trace_id_from_ctx for more info.
+ */
+static __always_inline __s16 trace_id_from_ip4(struct __ctx_buff *ctx)
+{
+	return trace_id_from_ip4_at(ctx, ETH_HLEN);
+}
+
 /* trace_id_from_ctx parses the packet in the ctx and returns the trace ID.
  *
  * This function parses the packet buffer from scratch and is relatively
@@ -157,7 +172,6 @@ static __always_inline __s16 trace_id_from_ip4(struct __ctx_buff *ctx, __u8 ihl)
 static __always_inline __s16 trace_id_from_ctx(struct __ctx_buff *ctx)
 {
 	__be16 proto;
-	__u8 ihl;
 
 	if (ctx_load_bytes(ctx, 12 /* offset of ethertype */, &proto, 2) < 0) {
 		return TRACE_ID_ERROR;
@@ -169,12 +183,7 @@ static __always_inline __s16 trace_id_from_ctx(struct __ctx_buff *ctx)
 		return TRACE_ID_NO_FAMILY;
 	}
 
-	if (ctx_load_bytes(ctx, ETH_HLEN, &ihl, 1) < 0) {
-		return TRACE_ID_ERROR;
-	}
-	ihl &= 0x0F;
-
-	return trace_id_from_ip4(ctx, ihl);
+	return trace_id_from_ip4(ctx);
 }
 
 #else
@@ -184,12 +193,16 @@ static __always_inline __s16 trace_id_from_ctx(struct __ctx_buff *ctx)
  * TRACE_ID_DISABLED.
  */
 
-static __always_inline __s16 trace_id_from_ip4(struct __ctx_buff *ctx __maybe_unused, __u8 ihl __maybe_unused)
+static __always_inline __s16 trace_id_from_ip4(struct __ctx_buff *ctx __maybe_unused)
 {
 	return TRACE_ID_DISABLED;
 }
 
 static __always_inline __s16 trace_id_from_ctx(struct __ctx_buff *ctx __maybe_unused)
+{
+	return TRACE_ID_DISABLED;
+}
+static __always_inline __s16 trace_id_from_ip4_at(struct __ctx_buff *ctx __maybe_unused, __u32 ip_offset __maybe_unused)
 {
 	return TRACE_ID_DISABLED;
 }

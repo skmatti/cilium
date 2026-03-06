@@ -320,6 +320,15 @@ int tail_geneve_decap4(struct __ctx_buff *ctx)
 	__s8 ext_err = 0;
 	int ret;
 
+	struct trace_ctx trace = {
+		.reason = TRACE_REASON_UNKNOWN,
+		.monitor = 0,
+	};
+
+	send_trace_notify(ctx, TRACE_FROM_NETWORK, UNKNOWN_ID, UNKNOWN_ID,
+			  TRACE_EP_ID_UNKNOWN,
+			  NATIVE_DEV_IFINDEX, trace.reason, trace.monitor);
+
 	ret = geneve_decap4(ctx, &metadata);
 	if (IS_ERR(ret))
 		goto out;

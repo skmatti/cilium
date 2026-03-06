@@ -29,6 +29,11 @@
 #include "ratelimit.h"
 
 #include "lib/google/ip_options.h"
+#include "tunnel.h"
+#include "linux/ip.h"
+#include "linux/udp.h"
+#include "l4.h"
+#include "lib/google/geneve_common.h"
 
 /* Available observation points. */
 enum trace_point {
@@ -162,6 +167,42 @@ struct trace_notify {
 	__u64		ip_trace_id;
 };
 
+/* trace_id_from_inner_ctx depends on these. */
+static __always_inline __s16 trace_id_from_inner_ctx(struct __ctx_buff *ctx __maybe_unused)
+{
+#ifdef ENABLE_GOOGLE_GENEVE
+	void *data, *data_end;
+	struct iphdr *ip4;
+	struct genevehdr geneve;
+	int l4_offset;
+
+	if (!revalidate_data(ctx, &data, &data_end, &ip4))
+		return TRACE_ID_NOT_FOUND;
+
+	if (!geneve_is_encapped(ctx, ip4)) {
+		return TRACE_ID_NOT_FOUND;
+	}
+
+	l4_offset = ETH_HLEN + (ip4->ihl << 2);
+	if (ctx_load_bytes(ctx, l4_offset + sizeof(struct udphdr), &geneve, sizeof(geneve)) < 0)
+		return TRACE_ID_NOT_FOUND;
+
+
+	/*
+	 *`trace_id_from_ip4_at` expects an offset.
+	 * We can calculate the offset of the inner IP header:
+	 * offset = ETH_HLEN + outer_IP_len + UDP_len + Geneve_len + Options_len
+	 * outer_IP_len = ip4->ihl << 2
+	 * UDP_len = sizeof(struct udphdr)
+	 * Geneve_len = sizeof(struct genevehdr)
+	 * Options_len = geneve.opt_len * 4
+	 * so inner offset is equals to l4_offset + sizeof(struct udphdr) + sizeof(struct genevehdr) + (geneve.opt_len * 4)
+	 */
+	return trace_id_from_ip4_at(ctx, l4_offset + sizeof(struct udphdr) + sizeof(struct genevehdr) + (geneve.opt_len * 4));
+#endif
+	return TRACE_ID_NOT_FOUND;
+}
+
 static __always_inline bool
 emit_trace_notify(enum trace_point obs_point, __u32 monitor)
 {
@@ -212,9 +253,14 @@ _send_trace_notify(struct __ctx_buff *ctx, enum trace_point obs_point,
 	};
 	struct trace_notify msg __align_stack_8;
 
-	// The trace_id is used to skip aggregation, rate limiting, and set identity
-	// fields so that this traffic can be found in Hubble.
+	/*
+	 * The trace_id is used to skip aggregation, rate limiting, and set identity
+	 * fields so that this traffic can be found in Hubble.
+	 * For GENEVE encapsulated packets presence of trace_id is verified  by `trace_id_from_inner_ctx`
+	*/
 	trace_id = trace_id_from_ctx(ctx);
+	if (trace_id <= 0)
+		trace_id = trace_id_from_inner_ctx(ctx);
 
 	_update_trace_metrics(ctx, obs_point, reason, line, file);
 
@@ -266,6 +312,8 @@ send_trace_notify4(struct __ctx_buff *ctx, enum trace_point obs_point,
 	// The trace_id is used to skip aggregation, rate limiting, and set identity
 	// fields so that this traffic can be found in Hubble.
 	trace_id = trace_id_from_ctx(ctx);
+	if (trace_id <= 0)
+		trace_id = trace_id_from_inner_ctx(ctx);
 
 	update_trace_metrics(ctx, obs_point, reason);
 
