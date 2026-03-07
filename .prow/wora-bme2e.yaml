@@ -1,3 +1,12 @@
+prow_ignored:
+- &node-taint
+  nodeSelector:
+    cloud.google.com/gke-nodepool: wora-node-pool
+  tolerations:
+  - effect: NoSchedule
+    key: dedicated
+    operator: Equal
+    value: wora
 presubmits:
 # Presubmit WORA jobs.
 - name: wora-bme2e_cilium
@@ -19,6 +28,7 @@ presubmits:
     prow.k8s.io/pubsub.topic: "prow-etl-trigger"
   path_alias: gke-internal.googlesource.com/third_party/cilium
   spec:
+    <<: *node-taint
     containers:
     - image: gcr.io/tailorbird/kubetest2-tailorbird@sha256:dd6edb7b068410208ae185e780bfef1629ea5e07ce566c17132edb1070a71d0d
       resources:
@@ -61,6 +71,7 @@ presubmits:
     prow.k8s.io/pubsub.topic: "prow-etl-trigger"
   path_alias: gke-internal.googlesource.com/third_party/cilium
   spec:
+    <<: *node-taint
     containers:
     - image: gcr.io/tailorbird/kubetest2-tailorbird@sha256:dd6edb7b068410208ae185e780bfef1629ea5e07ce566c17132edb1070a71d0d
       resources:
@@ -103,6 +114,7 @@ presubmits:
     prow.k8s.io/pubsub.topic: "prow-etl-trigger"
   path_alias: gke-internal.googlesource.com/third_party/cilium
   spec:
+    <<: *node-taint
     containers:
     - image: gcr.io/tailorbird/kubetest2-tailorbird@sha256:dd6edb7b068410208ae185e780bfef1629ea5e07ce566c17132edb1070a71d0d
       resources:

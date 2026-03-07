@@ -1,3 +1,12 @@
+prow_ignored:
+- &node-taint
+  nodeSelector:
+    cloud.google.com/gke-nodepool: wora-node-pool
+  tolerations:
+  - effect: NoSchedule
+    key: dedicated
+    operator: Equal
+    value: wora
 presubmits:
 - name: wora-gdch-abm-gce-lancer_cilium
   cluster: anthos-networking-ci-us-west1-b
@@ -21,6 +30,7 @@ presubmits:
     prow.k8s.io/pubsub.runID: "prow-etl-presubmit-tests"
   path_alias: gke-internal.googlesource.com/third_party/cilium
   spec:
+    <<: *node-taint
     containers:
     - image: gcr.io/tailorbird/kubetest2-tailorbird@sha256:dd6edb7b068410208ae185e780bfef1629ea5e07ce566c17132edb1070a71d0d
       resources:
@@ -70,6 +80,7 @@ presubmits:
     prow.k8s.io/pubsub.runID: "prow-etl-presubmit-tests"
   path_alias: gke-internal.googlesource.com/third_party/cilium
   spec:
+    <<: *node-taint
     containers:
     - image: gcr.io/tailorbird/kubetest2-tailorbird@sha256:dd6edb7b068410208ae185e780bfef1629ea5e07ce566c17132edb1070a71d0d
       resources:
@@ -98,25 +109,28 @@ presubmits:
       args:
       - ./google_test/wora/prow_entrypoint.sh
 - name: wora-gdch-abm-gce-lancer-ipsec_cilium
+  cluster: anthos-networking-ci-us-west1-b
   trigger: /test wora-gdch-abm-gce-lancer-ipsec$
   rerun_command: /test wora-gdch-abm-gce-lancer-ipsec
   always_run: true
   skip_fetch_head: true
   decorate: true
   decoration_config:
+    gcs_configuration:
+      bucket: "anthos-networking-ci"
+      path_strategy: "explicit"
     timeout: 240m
   labels:
     preset-cookie-file: "true"
     preset-cookie-file-env: "true"
-    preset-service-account: "true"
     preset-dind-enabled: "true"
-    preset-k8s-ssh: "true"
     prow.k8s.io/gerrit-report-label: "Verified"
     prow.k8s.io/pubsub.project: "anthos-baremetal-ci"
     prow.k8s.io/pubsub.topic: "prow-etl-trigger"
     prow.k8s.io/pubsub.runID: "row-etl-presubmit-tests"
   path_alias: gke-internal.googlesource.com/third_party/cilium
   spec:
+    <<: *node-taint
     containers:
     - image: gcr.io/tailorbird/kubetest2-tailorbird@sha256:dd6edb7b068410208ae185e780bfef1629ea5e07ce566c17132edb1070a71d0d
       resources:
@@ -166,6 +180,7 @@ presubmits:
     prow.k8s.io/pubsub.topic: "prow-etl-trigger"
   path_alias: gke-internal.googlesource.com/third_party/cilium
   spec:
+    <<: *node-taint
     containers:
     - image: gcr.io/tailorbird/kubetest2-tailorbird@sha256:dd6edb7b068410208ae185e780bfef1629ea5e07ce566c17132edb1070a71d0d
       resources:
@@ -215,6 +230,7 @@ presubmits:
     prow.k8s.io/pubsub.runID: "prow-etl-presubmit-tests"
   path_alias: gke-internal.googlesource.com/third_party/cilium
   spec:
+    <<: *node-taint
     containers:
     - image: gcr.io/tailorbird/kubetest2-tailorbird@sha256:dd6edb7b068410208ae185e780bfef1629ea5e07ce566c17132edb1070a71d0d
       resources:
@@ -266,6 +282,7 @@ presubmits:
     prow.k8s.io/pubsub.runID: "prow-etl-presubmit-tests"
   path_alias: gke-internal.googlesource.com/third_party/cilium
   spec:
+    <<: *node-taint
     containers:
     - image: gcr.io/tailorbird/kubetest2-tailorbird@sha256:dd6edb7b068410208ae185e780bfef1629ea5e07ce566c17132edb1070a71d0d
       resources:
@@ -317,6 +334,7 @@ presubmits:
     prow.k8s.io/pubsub.runID: "prow-etl-presubmit-tests"
   path_alias: gke-internal.googlesource.com/third_party/cilium
   spec:
+    <<: *node-taint
     containers:
     - image: gcr.io/tailorbird/kubetest2-tailorbird@sha256:dd6edb7b068410208ae185e780bfef1629ea5e07ce566c17132edb1070a71d0d
       resources:
@@ -370,6 +388,7 @@ presubmits:
     prow.k8s.io/pubsub.runID: "prow-etl-presubmit-tests"
   path_alias: gke-internal.googlesource.com/third_party/cilium
   spec:
+    <<: *node-taint
     containers:
     - image: gcr.io/tailorbird/kubetest2-tailorbird@sha256:dd6edb7b068410208ae185e780bfef1629ea5e07ce566c17132edb1070a71d0d
       resources:
@@ -423,6 +442,7 @@ presubmits:
     prow.k8s.io/pubsub.runID: "prow-etl-presubmit-tests"
   path_alias: gke-internal.googlesource.com/third_party/cilium
   spec:
+    <<: *node-taint
     containers:
     - image: gcr.io/tailorbird/kubetest2-tailorbird@sha256:dd6edb7b068410208ae185e780bfef1629ea5e07ce566c17132edb1070a71d0d
       resources:
@@ -474,6 +494,7 @@ presubmits:
     prow.k8s.io/pubsub.topic: "prow-etl-trigger"
   path_alias: gke-internal.googlesource.com/third_party/cilium
   spec:
+    <<: *node-taint
     containers:
     - image: gcr.io/tailorbird/kubetest2-tailorbird@sha256:dd6edb7b068410208ae185e780bfef1629ea5e07ce566c17132edb1070a71d0d
       resources:
@@ -524,6 +545,7 @@ presubmits:
     prow.k8s.io/pubsub.topic: "prow-etl-trigger"
   path_alias: gke-internal.googlesource.com/third_party/cilium
   spec:
+    <<: *node-taint
     containers:
     - image: gcr.io/tailorbird/kubetest2-tailorbird@sha256:dd6edb7b068410208ae185e780bfef1629ea5e07ce566c17132edb1070a71d0d
       resources:
@@ -580,6 +602,7 @@ presubmits:
     prow.k8s.io/pubsub.runID: "prow-etl-presubmit-tests"
   path_alias: gke-internal.googlesource.com/third_party/cilium
   spec:
+    <<: *node-taint
     containers:
     - image: gcr.io/tailorbird/kubetest2-tailorbird@sha256:dd6edb7b068410208ae185e780bfef1629ea5e07ce566c17132edb1070a71d0d
       resources:
@@ -645,6 +668,7 @@ presubmits:
     prow.k8s.io/pubsub.topic: "prow-etl-trigger"
   path_alias: gke-internal.googlesource.com/third_party/cilium
   spec:
+    <<: *node-taint
     containers:
     - image: gcr.io/tailorbird/kubetest2-tailorbird@sha256:dd6edb7b068410208ae185e780bfef1629ea5e07ce566c17132edb1070a71d0d
       resources:
@@ -701,6 +725,7 @@ presubmits:
     prow.k8s.io/pubsub.runID: "prow-etl-presubmit-tests"
   path_alias: gke-internal.googlesource.com/third_party/cilium
   spec:
+    <<: *node-taint
     containers:
     - image: gcr.io/tailorbird/kubetest2-tailorbird@sha256:dd6edb7b068410208ae185e780bfef1629ea5e07ce566c17132edb1070a71d0d
       resources:
@@ -766,6 +791,7 @@ presubmits:
     prow.k8s.io/pubsub.topic: "prow-etl-trigger"
   path_alias: gke-internal.googlesource.com/third_party/cilium
   spec:
+    <<: *node-taint
     containers:
     - image: gcr.io/tailorbird/kubetest2-tailorbird@sha256:dd6edb7b068410208ae185e780bfef1629ea5e07ce566c17132edb1070a71d0d
       resources:
@@ -823,6 +849,7 @@ presubmits:
     prow.k8s.io/pubsub.runID: "prow-etl-presubmit-tests"
   path_alias: gke-internal.googlesource.com/third_party/cilium
   spec:
+    <<: *node-taint
     containers:
     - image: gcr.io/tailorbird/kubetest2-tailorbird@sha256:dd6edb7b068410208ae185e780bfef1629ea5e07ce566c17132edb1070a71d0d
       resources:
@@ -888,6 +915,7 @@ presubmits:
     prow.k8s.io/pubsub.topic: "prow-etl-trigger"
   path_alias: gke-internal.googlesource.com/third_party/cilium
   spec:
+    <<: *node-taint
     containers:
     - image: gcr.io/tailorbird/kubetest2-tailorbird@sha256:dd6edb7b068410208ae185e780bfef1629ea5e07ce566c17132edb1070a71d0d
       resources:
@@ -944,6 +972,7 @@ presubmits:
     prow.k8s.io/pubsub.runID: "prow-etl-presubmit-tests"
   path_alias: gke-internal.googlesource.com/third_party/cilium
   spec:
+    <<: *node-taint
     containers:
     - image: gcr.io/tailorbird/kubetest2-tailorbird@sha256:dd6edb7b068410208ae185e780bfef1629ea5e07ce566c17132edb1070a71d0d
       resources:
