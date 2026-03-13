@@ -183,9 +183,15 @@ var _ = Describe("Verifiers/multinic_hostfirewall", Label("multinic-hostfirewall
 		}
 
 		for _, networkName := range []string{blueNetworkName, greenNetworkName} {
-			if err := networkutils.TeardownNetwork(ctx, nc, networkName); err != nil {
-				klog.Errorf("Failed to teardown network %s: %v", networkName, err)
+			Expect(networkutils.TeardownNetwork(ctx, nc, networkName)).NotTo(HaveOccurred())
+		}
+		for _, networkName := range []string{blueNetworkName, greenNetworkName} {
+			networkObj := &networkv1.Network{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: networkName,
+				},
 			}
+			Expect(utils.WaitForDeletion(ctx, cl, networkObj)).NotTo(HaveOccurred(), "Failed while waiting for network %s to be deleted", networkName)
 		}
 	})
 })
