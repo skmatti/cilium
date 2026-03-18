@@ -655,3 +655,98 @@ func TestIPCacheShadowing(t *testing.T) {
 	_, exists := ipc.LookupByPrefix(cidrOverlap)
 	require.Equal(t, false, exists)
 }
+
+type testEvent struct {
+	modType CacheModification
+	cidr    string
+}
+
+type testListener struct {
+	events []testEvent
+}
+
+func (tl *testListener) OnIPIdentityCacheChange(modType CacheModification,
+	cidrCluster cmtypes.PrefixCluster, oldHostIP, newHostIP net.IP, oldID *Identity,
+	newID Identity, encryptKey uint8, k8sMeta *K8sMetadata) {
+	tl.events = append(tl.events, testEvent{
+		modType: modType,
+		cidr:    cidrCluster.String(),
+	})
+}
+
+func (tl *testListener) OnIPIdentityCacheGC() {}
+
+func TestIPCacheReuseEndpointDeleteEvent(t *testing.T) {
+	setupIPCacheTestSuite(t)
+
+	endpointIP := "10.0.0.15"
+	identity1 := identityPkg.NumericIdentity(68)
+	identity2 := identityPkg.NumericIdentity(69)
+	identity3 := identityPkg.NumericIdentity(70)
+	ipc := IPIdentityCache
+
+	tl := &testListener{}
+	ipc.AddListener(tl)
+
+	k8sMeta1 := &K8sMetadata{
+		Namespace: "default",
+		PodName:   "pod1",
+	}
+
+	ipc.Upsert(endpointIP, nil, 0, k8sMeta1, Identity{
+		ID:     identity1,
+		Source: source.KVStore,
+	})
+
+	require.Equal(t, 1, len(tl.events))
+	require.Equal(t, Upsert, tl.events[0].modType)
+	tl.events = nil
+
+	// Now insert with different pod metadata, should get Delete then Upsert
+	k8sMeta2 := &K8sMetadata{
+		Namespace: "default",
+		PodName:   "pod2",
+	}
+	ipc.Upsert(endpointIP, nil, 0, k8sMeta2, Identity{
+		ID:     identity2,
+		Source: source.KVStore,
+	})
+
+	require.Equal(t, 2, len(tl.events))
+	require.Equal(t, Delete, tl.events[0].modType)
+	require.Equal(t, Upsert, tl.events[1].modType)
+	tl.events = nil
+
+	// Now insert with same pod metadata but different identity. Should get only Upsert.
+	ipc.Upsert(endpointIP, nil, 0, k8sMeta2, Identity{
+		ID:     identity3,
+		Source: source.KVStore,
+	})
+
+	require.Equal(t, 1, len(tl.events))
+	require.Equal(t, Upsert, tl.events[0].modType)
+	tl.events = nil
+
+	// Now insert with no k8s metadata. Should get Delete then Upsert
+	ipc.Upsert(endpointIP, nil, 0, nil, Identity{
+		ID:     identity1,
+		Source: source.KVStore,
+	})
+
+	require.Equal(t, 2, len(tl.events))
+	require.Equal(t, Delete, tl.events[0].modType)
+	require.Equal(t, Upsert, tl.events[1].modType)
+	tl.events = nil
+
+	// Now insert with no k8s metadata again but different identity. Should get only Upsert
+	ipc.Upsert(endpointIP, nil, 0, nil, Identity{
+		ID:     identity2,
+		Source: source.KVStore,
+	})
+
+	require.Equal(t, 1, len(tl.events))
+	require.Equal(t, Upsert, tl.events[0].modType)
+
+	// Clean up
+	ipc.Delete(endpointIP, source.KVStore)
+}

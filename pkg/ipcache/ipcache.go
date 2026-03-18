@@ -343,7 +343,7 @@ func (ipc *IPCache) upsertLocked(
 	callbackListeners := true
 
 	oldHostIP, oldHostKey := ipc.getHostIPCache(ip)
-	oldK8sMeta := ipc.ipToK8sMetadata[ip]
+	oldK8sMeta, hasOldK8sMeta := ipc.ipToK8sMetadata[ip]
 	metaEqual := oldK8sMeta.Equal(k8sMeta)
 
 	cachedIdentity, found := ipc.ipToIdentityCache[ip]
@@ -487,8 +487,26 @@ func (ipc *IPCache) upsertLocked(
 		namedPortsChanged = namedPortsChanged && ipc.needNamedPorts.Load()
 	}
 
+	// We can't use Equal() to check if the metadata belongs to different endpoints because it compare
+	// named ports.
+	var oldMetaPtr *K8sMetadata
+	if hasOldK8sMeta {
+		oldMetaPtr = &oldK8sMeta
+	}
+
+	isDifferentEndpoint := found && ((k8sMeta == nil && hasOldK8sMeta) ||
+		(k8sMeta != nil && !hasOldK8sMeta) ||
+		(k8sMeta != nil && hasOldK8sMeta && (oldK8sMeta.PodName != k8sMeta.PodName || oldK8sMeta.Namespace != k8sMeta.Namespace)))
+
 	if callbackListeners && !newIdentity.shadowed {
 		for _, listener := range ipc.listeners {
+			// If the endpoint had changed send a delete event.
+			// We don't call deleteLocked() because that may send an upsert event to the listeners for a
+			// shadowed CIDR and together with the upsert below creates a transient state that may create
+			// race conditions.
+			if isDifferentEndpoint {
+				listener.OnIPIdentityCacheChange(Delete, cidrCluster, oldHostIP, nil, nil, *oldIdentity, oldHostKey, oldMetaPtr)
+			}
 			listener.OnIPIdentityCacheChange(Upsert, cidrCluster, oldHostIP, hostIP, oldIdentity, newIdentity, hostKey, k8sMeta)
 		}
 	}
