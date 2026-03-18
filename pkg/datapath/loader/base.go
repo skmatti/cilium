@@ -320,7 +320,7 @@ func (l *loader) reinitializeXDPLocked(ctx context.Context, extraCArgs []string,
 	if len(xdpDevices) == 0 {
 		xdpDevices = devices
 	}
-	for _, dev := range devices {
+	for _, dev := range xdpDevices {
 		// When WG & encrypt-node are on, the devices include cilium_wg0 to attach bpf_host
 		// so that NodePort's rev-{S,D}NAT translations happens for a reply from the remote node.
 		// So We need to exclude cilium_wg0 not to attach the XDP program when XDP acceleration
