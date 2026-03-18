@@ -1,12 +1,22 @@
 prow_ignored:
 - &node-taint
   nodeSelector:
-    cloud.google.com/gke-nodepool: wora-node-pool
+    prow-dedicated: wora-pvc
   tolerations:
   - effect: NoSchedule
     key: dedicated
     operator: Equal
     value: wora
+- &pvc-template
+  volumes:
+    - name: prow-persistent-storage
+      ephemeral:
+        volumeClaimTemplate:
+          spec:
+            accessModes: [ "ReadWriteOnce" ]
+            resources:
+              requests:
+                storage: "150Gi"
 presubmits:
 # Presubmit WORA jobs.
 - name: wora-abm-gce_cilium
@@ -59,6 +69,10 @@ presubmits:
       - runner.sh
       args:
       - ./google_test/wora/prow_entrypoint.sh
+      volumeMounts:
+      - name: prow-persistent-storage
+        mountPath: /var/lib/docker
+    <<: *pvc-template
 - name: wora-abm-island-mode-gce_cilium
   cluster: anthos-networking-ci-us-west1-b
   trigger: /test wora-abm-island-mode-gce$
@@ -109,6 +123,10 @@ presubmits:
       - runner.sh
       args:
       - ./google_test/wora/prow_entrypoint.sh
+      volumeMounts:
+      - name: prow-persistent-storage
+        mountPath: /var/lib/docker
+    <<: *pvc-template
 - name: wora-conformance-abm-gce_cilium
   cluster: anthos-networking-ci-us-west1-b
   trigger: /test wora-conformance-abm-gce$
@@ -158,6 +176,10 @@ presubmits:
       - runner.sh
       args:
       - ./google_test/wora/prow_entrypoint.sh
+      volumeMounts:
+      - name: prow-persistent-storage
+        mountPath: /var/lib/docker
+    <<: *pvc-template
 - name: wora-networking-granular-abm-gce_cilium
   cluster: anthos-networking-ci-us-west1-b
   trigger: /test wora-networking-granular-abm-gce$
@@ -205,6 +227,10 @@ presubmits:
       - runner.sh
       args:
       - ./google_test/wora/prow_entrypoint.sh
+      volumeMounts:
+      - name: prow-persistent-storage
+        mountPath: /var/lib/docker
+    <<: *pvc-template
 - name: wora-abm-mtv_cilium
   cluster: build-onprem-mtv
   trigger: /test wora-abm-mtv$

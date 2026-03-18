@@ -1,12 +1,22 @@
 prow_ignored:
 - &node-taint
   nodeSelector:
-    cloud.google.com/gke-nodepool: wora-node-pool
+    prow-dedicated: wora-pvc
   tolerations:
   - effect: NoSchedule
     key: dedicated
     operator: Equal
     value: wora
+- &pvc-template
+  volumes:
+    - name: prow-persistent-storage
+      ephemeral:
+        volumeClaimTemplate:
+          spec:
+            accessModes: [ "ReadWriteOnce" ]
+            resources:
+              requests:
+                storage: "150Gi"
 presubmits:
 - name: wora-gdch_lancer_cilium
   cluster: anthos-networking-ci-us-west1-b
@@ -61,3 +71,7 @@ presubmits:
       - runner.sh
       args:
       - ./google_test/wora/prow_entrypoint.sh
+      volumeMounts:
+      - name: prow-persistent-storage
+        mountPath: /var/lib/docker
+    <<: *pvc-template

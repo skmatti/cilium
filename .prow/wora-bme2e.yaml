@@ -1,12 +1,22 @@
 prow_ignored:
 - &node-taint
   nodeSelector:
-    cloud.google.com/gke-nodepool: wora-node-pool
+    prow-dedicated: wora-pvc
   tolerations:
   - effect: NoSchedule
     key: dedicated
     operator: Equal
     value: wora
+- &pvc-template
+  volumes:
+    - name: prow-persistent-storage
+      ephemeral:
+        volumeClaimTemplate:
+          spec:
+            accessModes: [ "ReadWriteOnce" ]
+            resources:
+              requests:
+                storage: "150Gi"
 presubmits:
 # Presubmit WORA jobs.
 - name: wora-bme2e_cilium
@@ -52,6 +62,10 @@ presubmits:
       - runner.sh
       args:
       - ./google_test/wora/prow_entrypoint.sh
+      volumeMounts:
+      - name: prow-persistent-storage
+        mountPath: /var/lib/docker
+    <<: *pvc-template
 - name: wora-bme2e-flat-ip_cilium
   trigger: /test wora-bme2e-flat-ip$
   rerun_command: /test wora-bme2e-flat-ip
@@ -95,6 +109,10 @@ presubmits:
       - runner.sh
       args:
       - ./google_test/wora/prow_entrypoint.sh
+      volumeMounts:
+      - name: prow-persistent-storage
+        mountPath: /var/lib/docker
+    <<: *pvc-template
 - name: wora-bme2e-dual-stack_cilium
   trigger: /test wora-bme2e-dual-stack$
   rerun_command: /test wora-bme2e-dual-stack
@@ -138,6 +156,10 @@ presubmits:
       - runner.sh
       args:
       - ./google_test/wora/prow_entrypoint.sh
+      volumeMounts:
+      - name: prow-persistent-storage
+        mountPath: /var/lib/docker
+    <<: *pvc-template
 - name: wora-bme2e-mtv_cilium
   cluster: build-onprem-mtv
   trigger: /test wora-bme2e-mtv$
