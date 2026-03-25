@@ -23,9 +23,9 @@ import (
 	time "time"
 
 	flowtracev1alpha1 "github.com/cilium/cilium/pkg/gke/apis/flowtrace/v1alpha1"
-	versioned "github.com/cilium/cilium/pkg/gke/client/clientset/versioned"
-	internalinterfaces "github.com/cilium/cilium/pkg/gke/client/informers/externalversions/internalinterfaces"
-	v1alpha1 "github.com/cilium/cilium/pkg/gke/client/listers/flowtrace/v1alpha1"
+	versioned "github.com/cilium/cilium/pkg/gke/client/flowtrace/clientset/versioned"
+	internalinterfaces "github.com/cilium/cilium/pkg/gke/client/flowtrace/informers/externalversions/internalinterfaces"
+	v1alpha1 "github.com/cilium/cilium/pkg/gke/client/flowtrace/listers/flowtrace/v1alpha1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	watch "k8s.io/apimachinery/pkg/watch"

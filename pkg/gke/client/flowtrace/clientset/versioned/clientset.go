@@ -22,7 +22,7 @@ import (
 	"fmt"
 	"net/http"
 
-	networkingv1alpha1 "github.com/cilium/cilium/pkg/gke/client/clientset/versioned/typed/flowtrace/v1alpha1"
+	networkingv1alpha1 "github.com/cilium/cilium/pkg/gke/client/flowtrace/clientset/versioned/typed/flowtrace/v1alpha1"
 	discovery "k8s.io/client-go/discovery"
 	rest "k8s.io/client-go/rest"
 	flowcontrol "k8s.io/client-go/util/flowcontrol"

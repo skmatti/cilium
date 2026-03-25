@@ -43,13 +43,13 @@ for group in "${API_GROUPS[@]}"; do
       "./pkg/gke/apis" \
       --one-input-api "${API_NAME}/${API_VERSION}" \
       --with-watch \
-      --output-dir "${TMPDIR}/github.com/cilium/cilium/pkg/gke/client" \
-      --output-pkg "github.com/cilium/cilium/pkg/gke/client" \
+      --output-dir "${TMPDIR}/github.com/cilium/cilium/pkg/gke/client/${API_NAME}" \
+      --output-pkg "github.com/cilium/cilium/pkg/gke/client/${API_NAME}" \
       --boilerplate "${SCRIPT_ROOT}/pkg/gke/hack/boilerplate.go.txt"
-done
 
-mkdir -p ./pkg/gke/client/
-cp -r "${TMPDIR}/github.com/cilium/cilium/pkg/gke/client/." ./pkg/gke/client/
+  mkdir -p ./pkg/gke/client/${API_NAME}/
+  cp -r "${TMPDIR}/github.com/cilium/cilium/pkg/gke/client/${API_NAME}/." "./pkg/gke/client/${API_NAME}/"
+done
 
 echo "Generating helpers for pkg/gke/apis"
 kube::codegen::gen_helpers \

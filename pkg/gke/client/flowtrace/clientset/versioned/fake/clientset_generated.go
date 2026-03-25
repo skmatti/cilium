@@ -19,9 +19,9 @@ limitations under the License.
 package fake
 
 import (
-	clientset "github.com/cilium/cilium/pkg/gke/client/clientset/versioned"
-	networkingv1alpha1 "github.com/cilium/cilium/pkg/gke/client/clientset/versioned/typed/flowtrace/v1alpha1"
-	fakenetworkingv1alpha1 "github.com/cilium/cilium/pkg/gke/client/clientset/versioned/typed/flowtrace/v1alpha1/fake"
+	clientset "github.com/cilium/cilium/pkg/gke/client/flowtrace/clientset/versioned"
+	networkingv1alpha1 "github.com/cilium/cilium/pkg/gke/client/flowtrace/clientset/versioned/typed/flowtrace/v1alpha1"
+	fakenetworkingv1alpha1 "github.com/cilium/cilium/pkg/gke/client/flowtrace/clientset/versioned/typed/flowtrace/v1alpha1/fake"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/discovery"

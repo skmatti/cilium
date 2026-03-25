@@ -23,9 +23,9 @@ import (
 	sync "sync"
 	time "time"
 
-	versioned "github.com/cilium/cilium/pkg/gke/client/clientset/versioned"
-	flowtrace "github.com/cilium/cilium/pkg/gke/client/informers/externalversions/flowtrace"
-	internalinterfaces "github.com/cilium/cilium/pkg/gke/client/informers/externalversions/internalinterfaces"
+	versioned "github.com/cilium/cilium/pkg/gke/client/flowtrace/clientset/versioned"
+	flowtrace "github.com/cilium/cilium/pkg/gke/client/flowtrace/informers/externalversions/flowtrace"
+	internalinterfaces "github.com/cilium/cilium/pkg/gke/client/flowtrace/informers/externalversions/internalinterfaces"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	schema "k8s.io/apimachinery/pkg/runtime/schema"

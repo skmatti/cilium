@@ -22,7 +22,7 @@ import (
 	"net/http"
 
 	v1alpha1 "github.com/cilium/cilium/pkg/gke/apis/flowtrace/v1alpha1"
-	"github.com/cilium/cilium/pkg/gke/client/clientset/versioned/scheme"
+	"github.com/cilium/cilium/pkg/gke/client/flowtrace/clientset/versioned/scheme"
 	rest "k8s.io/client-go/rest"
 )
 
