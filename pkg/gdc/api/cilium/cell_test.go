@@ -8,7 +8,6 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/pem"
-	"fmt"
 	"log/slog"
 	"math/big"
 	"net"
@@ -16,6 +15,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -188,14 +188,13 @@ func TestRegisterServer(t *testing.T) {
 		lc := &mockLifecycle{}
 		logger, hook := test.NewNullLogger()
 
-		// Should return error because certs are missing
 		err := registerServer(lc, logger, nil, cfg)
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "missing certificate or key file")
+		assert.NoError(t, err)
 
 		assert.Empty(t, lc.hooks, "Should not register hooks when config is invalid")
 		assert.Len(t, hook.Entries, 1)
 		assert.Equal(t, logrus.ErrorLevel, hook.LastEntry().Level)
+		assert.Contains(t, hook.LastEntry().Message, "missing CA certificate file")
 	})
 
 	t.Run("Start Failure", func(t *testing.T) {
@@ -234,37 +233,59 @@ func TestRegisterServer(t *testing.T) {
 		err := lc.hooks[0].Start(cell.HookContext(context.Background()))
 		assert.NoError(t, err)
 
-		require.NotEmpty(t, hook.Entries)
-		assert.Contains(t, hook.LastEntry().Message, "Starting Cilium Secure TCP API server")
+		// Wait for start asynchronously
+		assert.Eventually(t, func() bool {
+			for _, e := range hook.AllEntries() {
+				if strings.HasPrefix(e.Message, "Starting Cilium Secure TCP API server") {
+					return true
+				}
+			}
+			return false
+		}, 3*time.Second, 100*time.Millisecond, "Failed to detect secure server start logs")
+
+		lc.hooks[0].Stop(cell.HookContext(context.Background()))
 	})
 
-	t.Run("Fatal: Missing Cert File", func(t *testing.T) {
+	t.Run("Deferred Start Missing Cert File", func(t *testing.T) {
+		dir := t.TempDir()
+		certFile := filepath.Join(dir, "tls.crt")
+		keyFile := filepath.Join(dir, "tls.key")
+		caFile := filepath.Join(dir, "ca.crt")
+
 		cfg := Config{
 			CiliumApiTcpEnabled:     true,
 			CiliumApiTcpPort:        9882,
-			CiliumAPIServerCertFile: "/non-existent/cert.pem",
-			CiliumAPIServerKeyFile:  "/non-existent/key.pem",
-			CiliumAPIServerCAFile:   "/non-existent/ca.pem",
+			CiliumAPIServerCertFile: certFile, // Files don't exist initially
+			CiliumAPIServerKeyFile:  keyFile,
+			CiliumAPIServerCAFile:   caFile,
 		}
 		lc := &mockLifecycle{}
-		logger, _ := test.NewNullLogger()
+		logger, hook := test.NewNullLogger()
 
-		// Capture exit
-		var exitCode int
-		logger.ExitFunc = func(code int) {
-			exitCode = code
-			panic("captured exit")
-		}
+		err := registerServer(lc, logger, nil, cfg)
+		assert.NoError(t, err)
+		require.Len(t, lc.hooks, 1)
 
-		defer func() {
-			if r := recover(); r != nil {
-				assert.Equal(t, "captured exit", r)
-				assert.Equal(t, 1, exitCode)
+		// Hook starts, shouldn't block, server waits in background
+		err = lc.hooks[0].Start(cell.HookContext(context.Background()))
+		assert.NoError(t, err)
+
+		// Write config files simulating a deferred secret mount
+		writeTestCerts(t, certFile, keyFile, caFile)
+
+		// Assert server eventually starts successfully
+		assert.Eventually(t, func() bool {
+			for _, e := range hook.AllEntries() {
+				// Use substring check since Address might vary trivially
+				if strings.HasPrefix(e.Message, "Starting Cilium Secure TCP API server") {
+					return true
+				}
 			}
-		}()
+			return false
+		}, 3*time.Second, 100*time.Millisecond, "Failed to detect deferred server start")
 
-		registerServer(lc, logger, nil, cfg)
-		t.Fatal("Should have panicked via logger.ExitFunc")
+		// Cleanup
+		lc.hooks[0].Stop(cell.HookContext(context.Background()))
 	})
 
 	t.Run("Hot Reload", func(t *testing.T) {
@@ -295,11 +316,13 @@ func TestRegisterServer(t *testing.T) {
 
 		// Wait for start
 		assert.Eventually(t, func() bool {
-			return hook.LastEntry() != nil
-		}, 1*time.Second, 10*time.Millisecond, "Failed to start. Logs: %v", hook.Entries)
-
-		require.NotNil(t, hook.LastEntry())
-		assert.Contains(t, hook.LastEntry().Message, "Starting Cilium Secure TCP API server")
+			for _, e := range hook.AllEntries() {
+				if strings.HasPrefix(e.Message, "Starting Cilium Secure TCP API server") {
+					return true
+				}
+			}
+			return false
+		}, 2*time.Second, 50*time.Millisecond, "Failed to start. Logs: %v", hook.Entries)
 
 		hook.Reset()
 
@@ -394,16 +417,16 @@ func TestRegisterServer(t *testing.T) {
 		err = lc.hooks[0].Start(cell.HookContext(ctx))
 		assert.NoError(t, err)
 
-		lc.hooks[0].Stop(cell.HookContext(context.Background()))
-
 		assert.Eventually(t, func() bool {
 			for _, e := range hook.AllEntries() {
-				if e.Level == logrus.WarnLevel && e.Message == "Failed to listen on :"+fmt.Sprint(port)+" (attempt 1/4), retrying..." {
+				if e.Level == logrus.WarnLevel && strings.HasPrefix(e.Message, "Failed to listen on :") && strings.Contains(e.Message, "retrying...") {
 					return true
 				}
 			}
 			return false
 		}, 2*time.Second, 50*time.Millisecond)
+
+		lc.hooks[0].Stop(cell.HookContext(context.Background()))
 	})
 }
 

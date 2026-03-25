@@ -10,6 +10,7 @@ import (
 
 	"github.com/cilium/cilium/api/v1/server"
 	"github.com/cilium/cilium/pkg/crypto/certloader"
+	"github.com/cilium/cilium/pkg/lock"
 	"github.com/cilium/hive/cell"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/pflag"
@@ -119,74 +120,91 @@ func registerServer(lc cell.Lifecycle, log logrus.FieldLogger, handler ciliumGet
 		return nil
 	}
 
-	if cfg.CiliumAPIServerCertFile == "" || cfg.CiliumAPIServerKeyFile == "" {
-		err := fmt.Errorf("Cilium API TCP server enabled but missing certificate or key file")
-		log.Error(err.Error())
-		return err
-	}
-	log.Debug("Cilium API TCP server certificate and key file provided")
-
 	if cfg.CiliumAPIServerCAFile == "" {
-		err := fmt.Errorf("Cilium API TCP server enabled but missing CA certificate file")
-		log.Error(err.Error())
-		return err
+		log.Error("Cilium API TCP server enabled but missing CA certificate file")
+		return nil
 	}
-	watcher, err := certloader.NewWatchedServerConfig(log, []string{cfg.CiliumAPIServerCAFile}, cfg.CiliumAPIServerCertFile, cfg.CiliumAPIServerKeyFile)
-	if err != nil {
-		log.WithError(err).Fatal("Failed to load Cilium API server certificates")
-	}
-	log.Debug("Cilium API TCP server certificate and key file loaded successfully")
 
-	tlsConfig := watcher.ServerConfig(&tls.Config{
-		MinVersion: tls.VersionTLS12,
-		ClientAuth: tls.RequireAndVerifyClientCert,
-	})
-	log.Debug("Cilium API TCP server TLS config loaded successfully")
+	tlsServerConfigChan, err := certloader.FutureWatchedServerConfig(
+		log.WithField("config", "cilium-api-tcp-server"),
+		[]string{cfg.CiliumAPIServerCAFile},
+		cfg.CiliumAPIServerCertFile,
+		cfg.CiliumAPIServerKeyFile,
+	)
+	if err != nil {
+		log.WithError(err).Error("failed to initialize Cilium API server TLS configuration")
+		return nil
+	}
+
+	var watcherLock lock.Mutex
+	var watcher *certloader.WatchedServerConfig
+	ctx, cancel := context.WithCancel(context.Background())
+
 	srv := &http.Server{
-		Addr:      fmt.Sprintf(":%d", cfg.CiliumApiTcpPort),
-		Handler:   handler,
-		TLSConfig: tlsConfig,
+		Addr:    fmt.Sprintf(":%d", cfg.CiliumApiTcpPort),
+		Handler: handler,
 	}
 	log.Debug("Cilium API TCP server created successfully")
+
 	lc.Append(cell.Hook{
-		OnStart: func(ctx cell.HookContext) error {
-			var ln net.Listener
-			var err error
-			maxRetries := 3
-			baseDelay := 100 * time.Millisecond
-
-			for i := 0; i <= maxRetries; i++ {
-				// We can't use srv.ListenAndServe because we want to retry just the Listen part
-				// ensuring the port is available before we proceed.
-				ln, err = net.Listen("tcp", srv.Addr)
-				if err == nil {
-					log.Debugf("Successfully bound to %s on attempt %d", srv.Addr, i+1)
-					break // Successfully bound
-				}
-
-				if i < maxRetries {
-					log.WithError(err).Warnf("Failed to listen on %s (attempt %d/%d), retrying...", srv.Addr, i+1, maxRetries+1)
+		OnStart: func(hookCtx cell.HookContext) error {
+			go func() {
+				waitingMsgTimeout := time.After(30 * time.Second)
+				var w *certloader.WatchedServerConfig
+				for w == nil {
 					select {
+					case w = <-tlsServerConfigChan:
+					case <-waitingMsgTimeout:
+						log.Info("Waiting for Cilium API TCP server TLS certificate and key files to be created")
 					case <-ctx.Done():
-						return ctx.Err()
-					case <-time.After(baseDelay * time.Duration(1<<i)):
-						// continue retry
+						log.Info("Context cancelled while waiting for Cilium API TCP server TLS certificate and key files")
+						return
 					}
 				}
-			}
 
-			if err != nil {
-				log.WithError(err).Error("Cilium TCP API server failed to listen after retries")
-				// Returning nil here means we log the error but don't crash the hive startup.
-				return nil
-			}
+				watcherLock.Lock()
+				watcher = w
+				watcherLock.Unlock()
 
-			// Wrap the listener with TLS since it's always secure
-			ln = tls.NewListener(ln, srv.TLSConfig)
-			log.Infof("Starting Cilium Secure TCP API server on %s", ln.Addr().String())
+				log.Debug("Cilium API TCP server certificate and key file loaded successfully")
 
-			go func() {
-				// Use Serve with the listener we just created (potentially wrapped in TLS)
+				tlsConfig := watcher.ServerConfig(&tls.Config{
+					MinVersion: tls.VersionTLS12,
+					ClientAuth: tls.RequireAndVerifyClientCert,
+				})
+				srv.TLSConfig = tlsConfig
+				log.Debug("Cilium API TCP server TLS config loaded successfully")
+
+				var ln net.Listener
+				var err error
+				maxRetries := 3
+				baseDelay := 100 * time.Millisecond
+
+				for i := 0; i <= maxRetries; i++ {
+					ln, err = net.Listen("tcp", srv.Addr)
+					if err == nil {
+						log.Debugf("Successfully bound to %s on attempt %d", srv.Addr, i+1)
+						break // Successfully bound
+					}
+
+					if i < maxRetries {
+						log.WithError(err).Warnf("Failed to listen on %s (attempt %d/%d), retrying...", srv.Addr, i+1, maxRetries+1)
+						select {
+						case <-ctx.Done():
+							return
+						case <-time.After(baseDelay * time.Duration(1<<i)):
+							// continue retry
+						}
+					}
+				}
+
+				if err != nil {
+					log.WithError(err).Error("Cilium TCP API server failed to listen after retries")
+					return
+				}
+
+				ln = tls.NewListener(ln, srv.TLSConfig)
+				log.Infof("Starting Cilium Secure TCP API server on %s", ln.Addr().String())
 				if err := srv.Serve(ln); err != nil && err != http.ErrServerClosed {
 					log.WithError(err).Error("Cilium TCP API server failed")
 				}
@@ -194,23 +212,27 @@ func registerServer(lc cell.Lifecycle, log logrus.FieldLogger, handler ciliumGet
 			}()
 			return nil
 		},
-		OnStop: func(ctx cell.HookContext) error {
+		OnStop: func(hookCtx cell.HookContext) error {
+			cancel() // Signal background goroutine to stop
+
+			watcherLock.Lock()
 			if watcher != nil {
 				watcher.Stop()
 				log.Debug("Cilium API TCP server watcher stopped")
 			}
+			watcherLock.Unlock()
+
 			log.Info("Stopping Cilium TCP API server")
 			// Give it a small timeout for graceful shutdown
-			shutdownCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
-			defer cancel()
+			shutdownCtx, shutdownCancel := context.WithTimeout(hookCtx, 5*time.Second)
+			defer shutdownCancel()
 
-			err := srv.Shutdown(shutdownCtx)
-			if err != nil {
-				log.WithError(err).Error("Error during Cilium TCP API server shutdown")
-			} else {
-				log.Debug("Cilium TCP API server shutdown completed successfully")
+			if err := srv.Shutdown(shutdownCtx); err != nil {
+				log.WithError(err).Error("Cilium TCP API server shutdown failed")
+				return nil
 			}
-			return err
+			log.Debug("Cilium TCP API server shutdown completed successfully")
+			return nil
 		},
 	})
 	return nil
