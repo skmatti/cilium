@@ -925,6 +925,8 @@ reList:
 					// watch on the next possible revision
 					if errors.Is(err, v3rpcErrors.ErrCompacted) {
 						scopedLog.WithError(Hint(err)).Debug("Tried watching on compacted revision")
+					} else {
+						scopedLog.WithError(Hint(err)).Errorf("Failed to watch prefix: %q", w.Prefix)
 					}
 
 					// mark all local keys in state for
