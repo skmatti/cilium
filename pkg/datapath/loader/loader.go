@@ -10,6 +10,7 @@ import (
 	"net"
 	"net/netip"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -29,6 +30,7 @@ import (
 	"github.com/cilium/cilium/pkg/datapath/tables"
 	datapath "github.com/cilium/cilium/pkg/datapath/types"
 	"github.com/cilium/cilium/pkg/defaults"
+	"github.com/cilium/cilium/pkg/gke/features"
 	multinicclients "github.com/cilium/cilium/pkg/gke/multinic/clients"
 	multinicep "github.com/cilium/cilium/pkg/gke/multinic/endpoint"
 	iputil "github.com/cilium/cilium/pkg/ip"
@@ -240,7 +242,7 @@ func (l *loader) patchHostNetdevDatapath(ep datapath.Endpoint, ifName string) (m
 	return opts, strings, nil
 }
 
-func isObsoleteDev(dev string, devices []string, networkDevices []string) bool {
+func isObsoleteDev(dev string, devices []string, networkDevices []string, xdpDevices []string) bool {
 	// exclude devices we never attach to/from_netdev to.
 	for _, prefix := range defaults.ExcludedDevicePrefixes {
 		if strings.HasPrefix(dev, prefix) {
@@ -262,6 +264,11 @@ func isObsoleteDev(dev string, devices []string, networkDevices []string) bool {
 		}
 	}
 
+	// Do not unload XDP devices if specified - b/498603081
+	if slices.Contains(xdpDevices, dev) {
+		return false
+	}
+
 	return true
 }
 
@@ -275,7 +282,7 @@ func isObsoleteDev(dev string, devices []string, networkDevices []string) bool {
 // before 1.13, most filters were named e.g. bpf_host.o:[to-host], to be changed to
 // cilium-<device> in 1.13, then to cil_to_host-<device> in 1.14. As a result, this
 // function only cleans up filters following the current naming scheme.
-func removeObsoleteNetdevPrograms(devices []string, networkDevices []string) error {
+func removeObsoleteNetdevPrograms(devices []string, networkDevices []string, xdpDevices []string) error {
 	links, err := safenetlink.LinkList()
 	if err != nil {
 		return fmt.Errorf("retrieving all netlink devices: %w", err)
@@ -285,7 +292,7 @@ func removeObsoleteNetdevPrograms(devices []string, networkDevices []string) err
 	ingressDevs := []netlink.Link{}
 	egressDevs := []netlink.Link{}
 	for _, l := range links {
-		if !isObsoleteDev(l.Attrs().Name, devices, networkDevices) {
+		if !isObsoleteDev(l.Attrs().Name, devices, networkDevices, xdpDevices) {
 			continue
 		}
 
@@ -472,7 +479,7 @@ func (l *loader) reloadHostDatapath(ep datapath.Endpoint, spec *ebpf.CollectionS
 
 	// call at the end of the function so that we can easily detect if this removes necessary
 	// programs that have just been attached.
-	if err := removeObsoleteNetdevPrograms(devices, networkDevices); err != nil {
+	if err := removeObsoleteNetdevPrograms(devices, networkDevices, features.GlobalConfig.XDPDevices); err != nil {
 		log.WithError(err).Error("Failed to remove obsolete netdev programs")
 	}
 
