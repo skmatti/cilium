@@ -299,6 +299,11 @@ func (s *ServiceCache) deleteGlobalILBServiceLocal(svcID ServiceID, swg *lock.St
 	delete(s.services, svcID)
 
 	if serviceOK {
+		if err := s.serviceAliasingDelete(&svcID); err != nil {
+			log.Error(err)
+			return
+		}
+
 		swg.Add()
 		s.sendEvents <- ServiceEvent{ // TODO: review here
 			Action:    DeleteService,
@@ -451,11 +456,12 @@ func (s *ServiceCache) serviceAliasingDelete(svcID *ServiceID) error {
 	defer s.serviceAliasMapMutex.Unlock()
 	if aliasID, ok := s.serviceAliasMap[*svcID]; ok {
 		// cleanup renamePortMap
-		delete(s.renamePortMap, aliasID)
+		delete(s.renamePortMap, *svcID)
+		delete(s.serviceAliasMap, *svcID)
 
+		// Update the svcID to the alias ID so that the delete event is sent for the alias
 		svcID.Name = aliasID.Name
 		svcID.Namespace = aliasID.Namespace
-		delete(s.serviceAliasMap, aliasID)
 		return nil
 	}
 	return fmt.Errorf("alias not found for service: %v", svcID)
@@ -465,32 +471,21 @@ func (s *ServiceCache) parseServiceAlias(svc *slimv1.Service, swg *lock.Stoppabl
 	if !s.GoogleConfig.EnableServiceAliasing {
 		return
 	}
-
-	scopedLog := log.WithFields(logrus.Fields{
-		"service": svc,
-	})
 	svcID := ServiceID{Name: svc.Name, Namespace: svc.Namespace}
-	oldAlias, hasOldAlias := s.serviceAliasMap[svcID]
 
-	newAliasName, hasNewAliasName := svc.Annotations[s.GoogleConfig.ServiceAliasNameAnnotation]
-	hasNewAlias := hasNewAliasName && newAliasName != "" && s.GoogleConfig.ServiceAliasNamespace != ""
+	annotationAliasName := svc.Annotations[s.GoogleConfig.ServiceAliasNameAnnotation]
+	hasAnnotationAlias := annotationAliasName != "" && s.GoogleConfig.ServiceAliasNamespace != ""
 
 	var newAlias ServiceID
-	if hasNewAlias {
-		newAlias = ServiceID{Name: newAliasName, Namespace: s.GoogleConfig.ServiceAliasNamespace}
-
-		// Only do port renaming for service aliased services.
-		s.parsePortMap(svc)
-		// Only mark service as global for service aliased services.
-		markLBServiceGlobal(svc)
+	if hasAnnotationAlias {
+		newAlias = ServiceID{Name: annotationAliasName, Namespace: s.GoogleConfig.ServiceAliasNamespace}
 	}
-	scopedLog = scopedLog.WithFields(logrus.Fields{
-		"original_service": svcID,
-		"old_alias":        oldAlias,
-		"new_alias":        newAlias,
-	})
 
-	if (!hasNewAlias && !hasOldAlias) || (oldAlias == newAlias) {
+	s.serviceAliasMapMutex.Lock()
+	aliasID, aliasIDExists := s.serviceAliasMap[svcID]
+	s.serviceAliasMapMutex.Unlock()
+
+	if (!hasAnnotationAlias && !aliasIDExists) || (aliasID == newAlias) {
 		return
 	}
 	// If there is a change in alias, we need to send a delete event for the older service.
@@ -500,16 +495,14 @@ func (s *ServiceCache) parseServiceAlias(svc *slimv1.Service, swg *lock.Stoppabl
 	s.serviceAliasMapMutex.Lock()
 	defer s.serviceAliasMapMutex.Unlock()
 
-	if hasOldAlias {
-		delete(s.serviceAliasMap, svcID)
-		if !hasNewAlias {
-			// cleanup renamePortMap
-			delete(s.renamePortMap, svcID)
-		}
-	}
-
-	if hasNewAlias {
+	if hasAnnotationAlias {
 		s.serviceAliasMap[svcID] = newAlias
+		s.parsePortMap(svc)
+		markLBServiceGlobal(svc)
+	} else {
+		// if the annotation value was removed, we remove the alias and port map
+		delete(s.serviceAliasMap, svcID)
+		delete(s.renamePortMap, svcID)
 	}
 }
 

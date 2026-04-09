@@ -518,6 +518,57 @@ func TestServiceAliasing(t *testing.T) {
 				}
 			},
 		},
+		{
+			name: "Aliased ILB service deletion",
+			run: func(t *testing.T) {
+				cache := NewServiceCache(nil, nil, NewSVCMetricsNoop())
+				cache.GoogleConfig = googleConfig
+				swg := lock.NewStoppableWaitGroup()
+				ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+				defer cancel()
+
+				originalID := ServiceID{Name: "foo", Namespace: "ns1"}
+				aliasID := ServiceID{Name: "bar", Namespace: gdcProject}
+
+				// Create service with alias annotation AND ILB annotation
+				annotations := map[string]string{
+					aliasNameLabel:       aliasID.Name,
+					serviceAnnotationKey: serviceAnnotationValue,
+				}
+				svc := newTestService(originalID.Namespace, originalID.Name, annotations, defaultPorts)
+
+				// Add endpoints to satisfy correlateEndpoints
+				endpoints := newTestEndpoints(originalID.Namespace, originalID.Name, defaultSubsets)
+				cache.UpdateEndpoints(ParseEndpoints(endpoints), swg)
+
+				// 1. Update service - should be aliased
+				cache.UpdateService(svc, swg)
+
+				// Verify it's aliased in the UpdateService event
+				select {
+				case event := <-cache.Events:
+					if event.Action != UpdateService || event.ID != aliasID {
+						t.Errorf("Expected UpdateService for %v, got %v for %v", aliasID, event.Action, event.ID)
+					}
+					event.SWG.Done()
+				case <-ctx.Done():
+					t.Fatal("Timeout waiting for UpdateService event")
+				}
+
+				// 2. Delete service - should also be aliased
+				cache.DeleteService(svc, swg)
+
+				select {
+				case event := <-cache.Events:
+					if event.Action != DeleteService || event.ID != aliasID {
+						t.Errorf("Expected DeleteService for %v, got %v for %v", aliasID, event.Action, event.ID)
+					}
+					event.SWG.Done()
+				case <-ctx.Done():
+					t.Fatal("Timeout waiting for DeleteService event")
+				}
+			},
+		},
 	}
 
 	for _, tc := range tests {
