@@ -32,7 +32,7 @@ func TestDecodeDropNotify(t *testing.T) {
 		File:      0x20,
 		ExtError:  0x21,
 		Ifindex:   0x22_23_24_25,
-		pad1:      0x26_27_28_29,
+		Pad1:      0x26_27_28_29,
 		IPTraceID: 0x2a_2b_2c_2d_2e_2f_30_31,
 	}
 	buf := bytes.NewBuffer(nil)

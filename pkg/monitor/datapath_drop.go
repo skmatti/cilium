@@ -34,7 +34,7 @@ type DropNotify struct {
 	File      uint8
 	ExtError  int8
 	Ifindex   uint32
-	pad1      uint32
+	Pad1      uint32
 	IPTraceID uint64
 	// data
 }
