@@ -372,7 +372,12 @@ func (s *ServiceCache) UpdateService(k8sSvc *slim_corev1.Service, swg *lock.Stop
 	}
 
 	svcID, newService := ParseService(k8sSvc, addrs)
+	svcLog := log.WithFields(logrus.Fields{
+		logfields.K8sNamespace: svcID.Namespace,
+		logfields.K8sSvcName:   svcID.Name,
+	})
 	if newService == nil {
+		svcLog.Debug("ParseService returned nil, not adding to sync store channel")
 		return svcID
 	}
 
@@ -395,6 +400,7 @@ func (s *ServiceCache) UpdateService(k8sSvc *slim_corev1.Service, swg *lock.Stop
 	oldService, ok := s.services[svcID]
 	if ok {
 		if oldService.DeepEqual(newService) {
+			svcLog.Debug("Service already in sync store channel")
 			return svcID
 		}
 		s.metrics.DelService(oldService)
@@ -413,7 +419,7 @@ func (s *ServiceCache) UpdateService(k8sSvc *slim_corev1.Service, swg *lock.Stop
 			log.Error(err)
 			return svcID
 		}
-
+		svcLog.Debug("Adding service to sync store channel")
 		swg.Add()
 		s.emitEvent(ServiceEvent{
 			Action:       UpdateService,
@@ -424,6 +430,8 @@ func (s *ServiceCache) UpdateService(k8sSvc *slim_corev1.Service, swg *lock.Stop
 			OldEndpoints: endpoints,
 			SWG:          swg,
 		})
+	} else {
+		svcLog.Debug("Service not ready yet, not adding to sync store channel")
 	}
 
 	return svcID

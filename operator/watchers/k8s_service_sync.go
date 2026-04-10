@@ -57,11 +57,12 @@ func k8sServiceHandler(ctx context.Context, cinfo cmtypes.ClusterInfo, shared bo
 		scopedLog.Debug("Kubernetes service definition changed")
 
 		if !shouldSync(event.ID.Namespace) {
-			log.Debugf("Not syncing service from namespace %q", event.ID.Namespace)
+			scopedLog.Debugf("Not syncing service from namespace %q", event.ID.Namespace)
 			return
 		}
 
 		if shared && !event.Service.Shared {
+			scopedLog.Debug("Deleting non-shared service before upsert")
 			// The annotation may have been added, delete an eventual existing service
 			kvs.DeleteKey(ctx, &svc)
 			return
@@ -100,6 +101,7 @@ func k8sServiceHandler(ctx context.Context, cinfo cmtypes.ClusterInfo, shared bo
 		select {
 		case event, ok := <-K8sSvcCache.Events:
 			if !ok {
+				log.Debug("K8sSvcCache.Events channel closed")
 				return
 			}
 
@@ -201,7 +203,11 @@ func StartSynchronizingServices(ctx context.Context, wg *sync.WaitGroup, cfg Ser
 					ev.Done(nil)
 					continue
 				}
-
+				log.WithFields(logrus.Fields{
+					"kind":      ev.Kind,
+					"name":      ev.Key.Name,
+					"namespace": ev.Key.Namespace,
+				}).Debug("Kubernetes service event")
 				switch ev.Kind {
 				case resource.Sync:
 					servicesSynced = true
