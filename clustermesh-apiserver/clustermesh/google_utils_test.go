@@ -1,7 +1,9 @@
 package clustermesh
 
 import (
+	"context"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -9,6 +11,7 @@ import (
 
 	cmconfig "github.com/cilium/cilium/pkg/clustermesh/config"
 	ciliumv2 "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2"
+	k8sClient "github.com/cilium/cilium/pkg/k8s/client"
 	slim_corev1 "github.com/cilium/cilium/pkg/k8s/slim/k8s/api/core/v1"
 	slim_labels "github.com/cilium/cilium/pkg/k8s/slim/k8s/apis/labels"
 	slim_metav1 "github.com/cilium/cilium/pkg/k8s/slim/k8s/apis/meta/v1"
@@ -145,7 +148,7 @@ func TestShouldSyncCEP(t *testing.T) {
 			gconf := cmconfig.GoogleConfig{
 				EndpointLabelSelectors: tc.epSelectors,
 			}
-			syncer, err := newGoogleSyncer(gconf, nil)
+			syncer, err := newGoogleSyncer(context.Background(), gconf, nil, nil)
 			require.NoError(t, err)
 			got := syncer.ShouldSyncCEP(tc.ep)
 			require.Equal(t, tc.want, got)
@@ -248,7 +251,7 @@ func TestShouldSyncIdentity(t *testing.T) {
 			gconf := cmconfig.GoogleConfig{
 				EndpointLabelSelectors: tc.epSelectors,
 			}
-			syncer, err := newGoogleSyncer(gconf, nil)
+			syncer, err := newGoogleSyncer(context.Background(), gconf, nil, nil)
 			require.NoError(t, err)
 			got := syncer.ShouldSyncIdentity(tc.identity)
 			require.Equal(t, tc.want, got)
@@ -340,6 +343,54 @@ func TestShouldSyncNamespace(t *testing.T) {
 	require.True(t, syncer.ShouldSyncNamespace("any-ns"))
 }
 
+func TestNewNamespaceCache(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	fakeClientset, _ := k8sClient.NewFakeClientset()
+	labels := []string{"resourcemanager.gdc.goog/project-namespace=test-namespace"}
+
+	updateChan := make(chan string, 1)
+	onUpdate := func(ns string) {
+		updateChan <- ns
+	}
+
+	nsCache, err := newNamespaceCache(ctx, fakeClientset, labels, onUpdate)
+	require.NoError(t, err)
+	require.NotNil(t, nsCache)
+
+	ns := &slim_corev1.Namespace{
+		ObjectMeta: slim_metav1.ObjectMeta{
+			Name: "test-ns",
+			Labels: map[string]string{
+				"resourcemanager.gdc.goog/project-namespace": "test-namespace",
+			},
+		},
+	}
+
+	_, err = fakeClientset.Slim().CoreV1().Namespaces().Create(context.Background(), ns, metav1.CreateOptions{})
+	require.NoError(t, err)
+
+	select {
+	case name := <-updateChan:
+		require.Equal(t, "test-ns", name)
+	case <-time.After(5 * time.Second):
+		t.Fatal("timeout waiting for namespace update")
+	}
+
+	// Update namespace labels to no longer match
+	ns.Labels = map[string]string{}
+	_, err = fakeClientset.Slim().CoreV1().Namespaces().Update(context.Background(), ns, metav1.UpdateOptions{})
+	require.NoError(t, err)
+
+	select {
+	case name := <-updateChan:
+		require.Equal(t, "test-ns", name)
+	case <-time.After(5 * time.Second):
+		t.Fatal("timeout waiting for namespace update")
+	}
+}
+
 func TestOverrideIdentityLabels(t *testing.T) {
 	testCases := []struct {
 		name                   string
@@ -399,7 +450,7 @@ func TestOverrideIdentityLabels(t *testing.T) {
 			gconf := cmconfig.GoogleConfig{
 				OverrideIdentityLabels: tc.overrideIdentityLabels,
 			}
-			syncer, err := newGoogleSyncer(gconf, nil)
+			syncer, err := newGoogleSyncer(context.Background(), gconf, nil, nil)
 			require.NoError(t, err)
 
 			got := syncer.OverrideIdentityLabels(tc.securityLabels)

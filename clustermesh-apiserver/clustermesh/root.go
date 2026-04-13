@@ -34,6 +34,7 @@ import (
 	"github.com/cilium/cilium/pkg/kvstore"
 	"github.com/cilium/cilium/pkg/kvstore/store"
 	"github.com/cilium/cilium/pkg/labels"
+	"github.com/cilium/cilium/pkg/lock"
 	"github.com/cilium/cilium/pkg/logging"
 	"github.com/cilium/cilium/pkg/logging/logfields"
 	"github.com/cilium/cilium/pkg/metrics"
@@ -391,7 +392,10 @@ func startServer(
 
 	ctx := context.Background()
 
-	googleSyncer, err := newGoogleSyncer(ginfo, clientset)
+	swg := lock.NewStoppableWaitGroup()
+	googleSyncer, err := newGoogleSyncer(ctx, ginfo, clientset, func(ns string) {
+		watchers.K8sSvcCache.ReplayEvents(ns, swg)
+	})
 	if err != nil {
 		log.WithError(err).Fatal("Unable to create Google syncer")
 	}

@@ -58,6 +58,7 @@ func k8sServiceHandler(ctx context.Context, cinfo cmtypes.ClusterInfo, shared bo
 
 		if !shouldSync(event.ID.Namespace) {
 			scopedLog.Debugf("Not syncing service from namespace %q", event.ID.Namespace)
+			kvs.DeleteKey(ctx, &svc)
 			return
 		}
 

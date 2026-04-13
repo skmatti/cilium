@@ -437,6 +437,31 @@ func (s *ServiceCache) UpdateService(k8sSvc *slim_corev1.Service, swg *lock.Stop
 	return svcID
 }
 
+// ReplayEvents re-emits events for all services in the given namespace.
+func (s *ServiceCache) ReplayEvents(ns string, swg *lock.StoppableWaitGroup) {
+	s.mutex.RLock()
+	defer s.mutex.RUnlock()
+
+	for id, svc := range s.services {
+		if id.Namespace != ns {
+			continue
+		}
+
+		if endpoints, ready := s.correlateEndpoints(id); ready {
+			swg.Add()
+			s.emitEvent(ServiceEvent{
+				Action:       UpdateService,
+				ID:           id,
+				Service:      svc,
+				OldService:   svc,
+				Endpoints:    endpoints,
+				OldEndpoints: endpoints,
+				SWG:          swg,
+			})
+		}
+	}
+}
+
 func (s *ServiceCache) EnsureService(svcID ServiceID, swg *lock.StoppableWaitGroup) bool {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()

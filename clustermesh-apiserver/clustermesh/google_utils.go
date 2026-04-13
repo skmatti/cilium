@@ -1,13 +1,13 @@
 package clustermesh
 
 import (
+	"context"
 	"fmt"
 	"maps"
 	"regexp"
 	"strings"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/tools/cache"
 
 	cmconfig "github.com/cilium/cilium/pkg/clustermesh/config"
@@ -32,7 +32,7 @@ type googleSyncer struct {
 }
 
 // newGoogleSyncer creates a new GoogleSyncer.
-func newGoogleSyncer(ginfo cmconfig.GoogleConfig, clientset k8sClient.Clientset) (*googleSyncer, error) {
+func newGoogleSyncer(ctx context.Context, ginfo cmconfig.GoogleConfig, clientset k8sClient.Clientset, onNamespaceUpdate func(ns string)) (*googleSyncer, error) {
 	s := &googleSyncer{
 		overrideIdentityLabels: ginfo.OverrideIdentityLabels,
 	}
@@ -47,7 +47,7 @@ func newGoogleSyncer(ginfo cmconfig.GoogleConfig, clientset k8sClient.Clientset)
 	// We only need to watch namespaces if some label restrictions are configured.
 	// Otherwise we sync everything.
 	if len(ginfo.ServiceNamespaceLabels) > 0 {
-		namespaceCache, err := newNamespaceCache(clientset, ginfo.ServiceNamespaceLabels)
+		namespaceCache, err := newNamespaceCache(ctx, clientset, ginfo.ServiceNamespaceLabels, onNamespaceUpdate)
 		if err != nil {
 			return nil, fmt.Errorf("watch namespaces: %w", err)
 		}
@@ -123,7 +123,7 @@ func (s *googleSyncer) shouldSyncLabels(labels map[string]string) bool {
 	return false
 }
 
-func newNamespaceCache(clientset k8sClient.Clientset, labels []string) (cache.Store, error) {
+func newNamespaceCache(ctx context.Context, clientset k8sClient.Clientset, labels []string, onNamespaceUpdate func(ns string)) (cache.Store, error) {
 	labelSelectorStr := strings.Join(labels, ",")
 	labelSelector, err := slim_labels.Parse(labelSelectorStr)
 	if err != nil {
@@ -136,17 +136,46 @@ func newNamespaceCache(clientset k8sClient.Clientset, labels []string) (cache.St
 	}
 	var namespaceInformer cache.Controller
 	var nsCache cache.Store
+
+	nsHandler := cache.ResourceEventHandlerFuncs{}
+	if onNamespaceUpdate != nil {
+		nsHandler.AddFunc = func(obj interface{}) {
+			if ns, ok := obj.(*slim_corev1.Namespace); ok {
+				onNamespaceUpdate(ns.Name)
+			}
+		}
+		nsHandler.UpdateFunc = func(oldObj, newObj interface{}) {
+			if ns, ok := newObj.(*slim_corev1.Namespace); ok {
+				onNamespaceUpdate(ns.Name)
+			}
+		}
+		nsHandler.DeleteFunc = func(obj interface{}) {
+			ns, ok := obj.(*slim_corev1.Namespace)
+			if !ok {
+				tombstone, ok := obj.(cache.DeletedFinalStateUnknown)
+				if !ok {
+					return
+				}
+				ns, ok = tombstone.Obj.(*slim_corev1.Namespace)
+				if !ok {
+					return
+				}
+			}
+			onNamespaceUpdate(ns.Name)
+		}
+	}
+
 	nsCache, namespaceInformer = informer.NewInformer(
 		utils.ListerWatcherWithModifier(
 			utils.ListerWatcherFromTyped[*slim_corev1.NamespaceList](clientset.Slim().CoreV1().Namespaces()), listOpts),
 		&slim_corev1.Namespace{},
 		0,
-		cache.ResourceEventHandlerFuncs{},
+		nsHandler,
 		nil,
 	)
 
-	go namespaceInformer.Run(wait.NeverStop)
-	if ok := cache.WaitForNamedCacheSync("clustermesh-apiserver", wait.NeverStop, namespaceInformer.HasSynced); !ok {
+	go namespaceInformer.Run(ctx.Done())
+	if ok := cache.WaitForNamedCacheSync("clustermesh-apiserver", ctx.Done(), namespaceInformer.HasSynced); !ok {
 		return nil, fmt.Errorf("wait for namespace cache to sync")
 	}
 	return nsCache, nil

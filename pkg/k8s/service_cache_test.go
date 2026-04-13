@@ -47,6 +47,134 @@ func newDB(t *testing.T) (*statedb.DB, statedb.RWTable[datapathTables.NodeAddres
 	return db, nodeAddrs
 }
 
+func TestReplayEvents(t *testing.T) {
+	oldIPv4 := option.Config.EnableIPv4
+	option.Config.EnableIPv4 = true
+	defer func() { option.Config.EnableIPv4 = oldIPv4 }()
+
+	db, nodeAddrs := newDB(t)
+	cache := NewServiceCache(db, nodeAddrs, NewSVCMetricsNoop())
+
+	svcID1 := ServiceID{Name: "svc1", Namespace: "ns1"}
+	svcID2 := ServiceID{Name: "svc2", Namespace: "ns2"}
+
+	k8sSvc1 := &slim_corev1.Service{
+		ObjectMeta: slim_metav1.ObjectMeta{
+			Name:      svcID1.Name,
+			Namespace: svcID1.Namespace,
+		},
+		Spec: slim_corev1.ServiceSpec{
+			Type:      slim_corev1.ServiceTypeClusterIP,
+			ClusterIP: "10.0.0.1",
+			Ports: []slim_corev1.ServicePort{
+				{
+					Name:     "port",
+					Protocol: slim_corev1.ProtocolTCP,
+					Port:     80,
+				},
+			},
+		},
+	}
+	k8sSvc2 := &slim_corev1.Service{
+		ObjectMeta: slim_metav1.ObjectMeta{
+			Name:      svcID2.Name,
+			Namespace: svcID2.Namespace,
+		},
+		Spec: slim_corev1.ServiceSpec{
+			Type:      slim_corev1.ServiceTypeClusterIP,
+			ClusterIP: "10.0.0.2",
+			Ports: []slim_corev1.ServicePort{
+				{
+					Name:     "port",
+					Protocol: slim_corev1.ProtocolTCP,
+					Port:     80,
+				},
+			},
+		},
+	}
+
+	swg := lock.NewStoppableWaitGroup()
+	cache.UpdateService(k8sSvc1, swg)
+	cache.UpdateService(k8sSvc2, swg)
+
+	// Add endpoints to make them ready
+	endpoints := ParseEndpointSliceV1(&slim_discovery_v1.EndpointSlice{
+		AddressType: slim_discovery_v1.AddressTypeIPv4,
+		ObjectMeta: slim_metav1.ObjectMeta{
+			Name:      "svc1-slice",
+			Namespace: "ns1",
+			Labels: map[string]string{
+				slim_discovery_v1.LabelServiceName: "svc1",
+			},
+		},
+		Endpoints: []slim_discovery_v1.Endpoint{
+			{
+				Addresses: []string{"1.1.1.1"},
+			},
+		},
+		Ports: []slim_discovery_v1.EndpointPort{
+			{
+				Name:     func() *string { a := "port"; return &a }(),
+				Protocol: func() *slim_corev1.Protocol { a := slim_corev1.ProtocolTCP; return &a }(),
+				Port:     func() *int32 { a := int32(80); return &a }(),
+			},
+		},
+	})
+	cache.UpdateEndpoints(endpoints, swg)
+
+	endpoints2 := ParseEndpointSliceV1(&slim_discovery_v1.EndpointSlice{
+		AddressType: slim_discovery_v1.AddressTypeIPv4,
+		ObjectMeta: slim_metav1.ObjectMeta{
+			Name:      "svc2-slice",
+			Namespace: "ns2",
+			Labels: map[string]string{
+				slim_discovery_v1.LabelServiceName: "svc2",
+			},
+		},
+		Endpoints: []slim_discovery_v1.Endpoint{
+			{
+				Addresses: []string{"2.2.2.2"},
+			},
+		},
+		Ports: []slim_discovery_v1.EndpointPort{
+			{
+				Name:     func() *string { a := "port"; return &a }(),
+				Protocol: func() *slim_corev1.Protocol { a := slim_corev1.ProtocolTCP; return &a }(),
+				Port:     func() *int32 { a := int32(80); return &a }(),
+			},
+		},
+	})
+	cache.UpdateEndpoints(endpoints2, swg)
+
+	// Consume initial events (expecting 2 UpdateService events from UpdateEndpoints calls)
+	for i := 0; i < 2; i++ {
+		select {
+		case ev := <-cache.Events:
+			ev.SWG.Done()
+		case <-time.After(1 * time.Second):
+			t.Fatalf("timeout waiting for initial event %d", i)
+		}
+	}
+
+	// Replay events for ns1
+	replaySWG := lock.NewStoppableWaitGroup()
+	cache.ReplayEvents("ns1", replaySWG)
+
+	select {
+	case ev := <-cache.Events:
+		require.Equal(t, svcID1, ev.ID)
+		ev.SWG.Done()
+	case <-time.After(1 * time.Second):
+		t.Fatal("timeout waiting for replayed event")
+	}
+
+	select {
+	case <-cache.Events:
+		t.Fatal("unexpected event received")
+	default:
+	}
+}
+
 func TestGetUniqueServiceFrontends(t *testing.T) {
 	svcID1 := ServiceID{Name: "svc1", Namespace: "default"}
 	svcID2 := ServiceID{Name: "svc2", Namespace: "default"}
