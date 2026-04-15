@@ -144,7 +144,10 @@ func (is *identitySynchronizer) upsert(ctx context.Context, _ resource.Key, obj 
 	}
 
 	if !is.googleSyncer.ShouldSyncIdentity(identity) {
-		scopedLog.Debug("Not syncing identity")
+		scopedLog.Debug("Not syncing identity, deleting from etcd")
+		if err := is.store.DeleteKey(ctx, store.NewKVPair(identity.Name, "")); err != nil {
+			scopedLog.WithError(err).Warning("Unable to delete identity from etcd")
+		}
 		return nil
 	}
 	identity.SecurityLabels = is.googleSyncer.OverrideIdentityLabels(identity.DeepCopy().SecurityLabels)
@@ -269,7 +272,9 @@ func newEndpointSynchronizer(ctx context.Context, cinfo cmtypes.ClusterInfo, bac
 func (es *endpointSynchronizer) upsert(ctx context.Context, key resource.Key, obj runtime.Object) error {
 	endpoint := obj.(*types.CiliumEndpoint)
 	if !es.googleSyncer.ShouldSyncCEP(endpoint) {
-		log.WithField(logfields.Endpoint, key.String()).Debug("Not syncing endpoint")
+		log.WithField(logfields.Endpoint, key.String()).Debug("Not syncing endpoint, deleting from etcd")
+		es.deleteEndpoints(ctx, key, es.cache[key.String()])
+		delete(es.cache, key.String())
 		return nil
 	}
 	ips := make(ipmap)

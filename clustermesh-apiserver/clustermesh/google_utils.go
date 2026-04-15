@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"maps"
-	"regexp"
 	"strings"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -21,8 +20,6 @@ import (
 	"github.com/cilium/cilium/pkg/k8s/utils"
 	"github.com/cilium/cilium/pkg/labels"
 )
-
-var labelSelectorWithColon = regexp.MustCompile(`([^,]?)k8s:([a-zA-Z0-9./-]+)`)
 
 // googleSyncer holds google-specific sync logic and configuration.
 type googleSyncer struct {
